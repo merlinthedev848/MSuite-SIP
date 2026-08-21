@@ -81,7 +81,7 @@ public class MwiService : IDisposable
             {
                 break;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Wait before retrying on failure
                 await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);

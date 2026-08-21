@@ -1,5 +1,5 @@
 {
-  "Version": "1.2.0",
-  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.2.0-x64-faststart.msi",
-  "Notes": "Release 1.2.0: Updated Merlin SIP for .NET 10 with improved SIP registration resilience, call state recovery, two-way audio stability, diagnostics, professional UI text, refreshed ringtones, icon-based in-call controls, and blind plus assisted transfer support."
+  "Version": "1.2.1",
+  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.2.1-x64-faststart.msi",
+  "Notes": "Release 1.2.1: Fixed network diagnostics post-scan stability and UDP socket resource management, resolved background task lifecycle exceptions, improved audio device initialization, and streamlined Settings UI."
 }

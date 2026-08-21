@@ -86,9 +86,9 @@ public class CallQualityMonitor : IDisposable
             {
                 break;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                // Optionally log the exception
+                // Ignore monitor loop exceptions
             }
         }
     }

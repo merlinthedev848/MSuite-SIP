@@ -1,5 +1,6 @@
 namespace MerlinSip.Services;
 
+#pragma warning disable CS0649
 internal struct WaveHeader
 {
 	public nint Data;
@@ -18,3 +19,4 @@ internal struct WaveHeader
 
 	public nint Reserved;
 }
+#pragma warning restore CS0649

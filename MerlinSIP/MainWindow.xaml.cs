@@ -2455,7 +2455,13 @@ public partial class MainWindow : Window
         {
             Dispatcher.InvokeAsync(() =>
             {
-                UpdateNetworkDiagnosticsProgress(testName, status, details);
+                try
+                {
+                    UpdateNetworkDiagnosticsProgress(testName, status, details);
+                }
+                catch
+                {
+                }
             }, DispatcherPriority.Background);
         };
         engine.OnComplete += (_, score) =>
@@ -2480,6 +2486,13 @@ public partial class MainWindow : Window
         }
         finally
         {
+            try
+            {
+                engine.Dispose();
+            }
+            catch
+            {
+            }
             _activeNetworkDiagnostics = null;
             _networkDiagnosticsRunning = false;
             RunPbxDiagnosticsButton.Content = "Run test";
@@ -2655,13 +2668,6 @@ public partial class MainWindow : Window
         await _callHistoryStore.SaveAsync(_callHistory);
         ApplyGlobalSearchFilter();
         FooterStatusText.Text = "Call history cleared.";
-    }
-
-    private void DiagnosticsSummaryButton_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new DiagnosticsSummaryDialog();
-        dialog.Owner = this;
-        dialog.ShowDialog();
     }
 
     private async void CheckUpdatesButton_Click(object sender, RoutedEventArgs e)

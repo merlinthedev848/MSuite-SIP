@@ -15,7 +15,7 @@ using Microsoft.AspNetCore.Http.Connections.Client;
 
 namespace MerlinSip.Services;
 
-public class NetworkEngine
+public class NetworkEngine : IDisposable
 {
 	public delegate void LogHandler(string message, bool isError = false);
 
@@ -45,6 +45,8 @@ public class NetworkEngine
 	}
 
 	private CancellationTokenSource? _cts;
+	private readonly NetworkAddressChangedEventHandler? _networkAddressChangedHandler;
+	private bool _disposed;
 
 	private readonly string[] GoogleDnsServers = new string[2] { "8.8.8.8", "8.8.4.4" };
 
@@ -121,12 +123,39 @@ public class NetworkEngine
 	public NetworkEngine()
 	{
 		LoadSettingsFromRegistry();
-		NetworkChange.NetworkAddressChanged += (sender, args) =>
+		_networkAddressChangedHandler = (sender, args) =>
 		{
 			HasLocalConnectivityIssue = true;
 			LocalConnectivityIssueReason = "Network interface address changed (Failover)";
 			Log("Network address change detected. Triggering failover evaluation...");
 		};
+		NetworkChange.NetworkAddressChanged += _networkAddressChangedHandler;
+	}
+
+	public void Dispose()
+	{
+		if (_disposed) return;
+		_disposed = true;
+		if (_networkAddressChangedHandler != null)
+		{
+			try
+			{
+				NetworkChange.NetworkAddressChanged -= _networkAddressChangedHandler;
+			}
+			catch
+			{
+			}
+		}
+		try
+		{
+			_cts?.Cancel();
+			_cts?.Dispose();
+		}
+		catch
+		{
+		}
+		_cts = null;
+		Pcap.Stop();
 	}
 
 	private static Process[]? _cachedProcesses;
@@ -150,7 +179,7 @@ public class NetworkEngine
 	{
 		try
 		{
-			using (RegistryKey registryKey = Registry.CurrentUser.OpenSubKey("Software\\DMC\\WindowsSoftphone\\v1"))
+			using (RegistryKey? registryKey = Registry.CurrentUser.OpenSubKey("Software\\DMC\\WindowsSoftphone\\v1"))
 			{
 				if (registryKey != null)
 				{
@@ -176,7 +205,7 @@ public class NetworkEngine
 					}
 				}
 			}
-			using (RegistryKey registryKey2 = Registry.CurrentUser.OpenSubKey("Software\\DMC\\WindowsSoftphone\\v1\\Services"))
+			using (RegistryKey? registryKey2 = Registry.CurrentUser.OpenSubKey("Software\\DMC\\WindowsSoftphone\\v1\\Services"))
 			{
 				if (registryKey2 != null)
 				{
@@ -568,7 +597,7 @@ public class NetworkEngine
 	{
 		try
 		{
-			using RegistryKey registryKey = Registry.LocalMachine.OpenSubKey("SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}");
+			using RegistryKey? registryKey = Registry.LocalMachine.OpenSubKey("SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}");
 			if (registryKey != null)
 			{
 				string b = interfaceGuid.Trim(new char[2] { '{', '}' });
@@ -579,7 +608,7 @@ public class NetworkEngine
 					{
 						continue;
 					}
-					using RegistryKey registryKey2 = registryKey.OpenSubKey(text);
+					using RegistryKey? registryKey2 = registryKey.OpenSubKey(text);
 					if (registryKey2 == null || !(registryKey2.GetValue("NetCfgInstanceId") is string text2) || !string.Equals(text2.Trim(new char[2] { '{', '}' }), b, StringComparison.OrdinalIgnoreCase))
 					{
 						continue;
@@ -587,7 +616,7 @@ public class NetworkEngine
 					string[] array = new string[5] { "VlanID", "*VlanID", "VLAN_ID", "VlanId", "VLANID" };
 					foreach (string name in array)
 					{
-						object value = registryKey2.GetValue(name);
+						object? value = registryKey2.GetValue(name);
 						if (value != null)
 						{
 							string text3 = value.ToString()?.Trim() ?? "";
@@ -934,6 +963,16 @@ public class NetworkEngine
 			this.OnComplete?.Invoke(success: false, 0);
 			return false;
 		}
+		finally
+		{
+			try
+			{
+				Pcap.Stop();
+			}
+			catch
+			{
+			}
+		}
 	}
 
 	private async Task<bool> RunDnsTestsAsync(CancellationToken token)
@@ -1018,11 +1057,13 @@ public class NetworkEngine
 
 	private async Task<bool> QueryDnsServerAsync(string dnsServer, string hostname, CancellationToken token)
 	{
-		_ = 2;
 		try
 		{
 			Log($"Querying Google DNS server {dnsServer} for domain '{hostname}'...");
-			IPAddress address = IPAddress.Parse(dnsServer);
+			if (!IPAddress.TryParse(dnsServer, out IPAddress? address) || address == null)
+			{
+				return false;
+			}
 			using UdpClient client = new UdpClient(0);
 			client.Client.SendTimeout = 2000;
 			client.Client.ReceiveTimeout = 2000;
@@ -1046,19 +1087,27 @@ public class NetworkEngine
 			list.AddRange(new byte[2] { 0, 1 });
 			byte[] array2 = list.ToArray();
 			IPEndPoint endPoint = new IPEndPoint(address, 53);
-			Pcap.RecordPacket(array2, GetLocalIpAddress(), ((IPEndPoint)client.Client.LocalEndPoint).Port, dnsServer, 53, isUdp: true);
+			int localPort = ((IPEndPoint?)client.Client.LocalEndPoint)?.Port ?? 0;
+			Pcap.RecordPacket(array2, GetLocalIpAddress(), localPort, dnsServer, 53, isUdp: true);
 			await client.SendAsync(array2, array2.Length, endPoint);
-			Task<UdpReceiveResult> receiveTask = client.ReceiveAsync(token).AsTask();
-			Task task = Task.Delay(2000, token);
-			if (await Task.WhenAny(receiveTask, task) == receiveTask)
+
+			using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+			cts.CancelAfter(2000);
+			try
 			{
-				UdpReceiveResult udpReceiveResult = await receiveTask;
-				Pcap.RecordPacket(udpReceiveResult.Buffer, dnsServer, 53, GetLocalIpAddress(), ((IPEndPoint)client.Client.LocalEndPoint).Port, isUdp: true);
+				UdpReceiveResult udpReceiveResult = await client.ReceiveAsync(cts.Token);
+				Pcap.RecordPacket(udpReceiveResult.Buffer, dnsServer, 53, GetLocalIpAddress(), localPort, isUdp: true);
 				if (udpReceiveResult.Buffer.Length > 12 && udpReceiveResult.Buffer[0] == txId[0] && udpReceiveResult.Buffer[1] == txId[1])
 				{
 					Log("Google DNS " + dnsServer + " responded successfully to domain check.");
 					return true;
 				}
+			}
+			catch (OperationCanceledException)
+			{
+			}
+			catch (SocketException)
+			{
 			}
 			Log("Google DNS " + dnsServer + " did not return a valid response.", isError: true);
 			return false;
@@ -1213,7 +1262,6 @@ public class NetworkEngine
 
 	private async Task<(bool success, DateTime? time)> TestNtpAsync(string host, CancellationToken token)
 	{
-		_ = 3;
 		try
 		{
 			byte[] ntpData = new byte[48];
@@ -1228,14 +1276,15 @@ public class NetworkEngine
 			client.Client.SendTimeout = 2000;
 			client.Client.ReceiveTimeout = 2000;
 			string localIp = GetLocalIpAddress();
-			int localPort = ((IPEndPoint)client.Client.LocalEndPoint).Port;
+			int localPort = ((IPEndPoint?)client.Client.LocalEndPoint)?.Port ?? 0;
 			Pcap.RecordPacket(ntpData, localIp, localPort, endPoint.Address.ToString(), 123, isUdp: true);
 			await client.SendAsync(ntpData, ntpData.Length, endPoint);
-			Task<UdpReceiveResult> receiveTask = client.ReceiveAsync(token).AsTask();
-			Task task = Task.Delay(2000, token);
-			if (await Task.WhenAny(receiveTask, task) == receiveTask)
+
+			using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+			cts.CancelAfter(2000);
+			try
 			{
-				UdpReceiveResult udpReceiveResult = await receiveTask;
+				UdpReceiveResult udpReceiveResult = await client.ReceiveAsync(cts.Token);
 				Pcap.RecordPacket(udpReceiveResult.Buffer, endPoint.Address.ToString(), 123, localIp, localPort, isUdp: true);
 				if (udpReceiveResult.Buffer.Length >= 48 && (udpReceiveResult.Buffer[0] & 7) == 4)
 				{
@@ -1245,6 +1294,12 @@ public class NetworkEngine
 					DateTime value = new DateTime(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds((long)num3);
 					return (success: true, time: value);
 				}
+			}
+			catch (OperationCanceledException)
+			{
+			}
+			catch (SocketException)
+			{
 			}
 			return (success: false, time: null);
 		}
@@ -1488,7 +1543,7 @@ public class NetworkEngine
 			UpdateProgress("NAT Port Translation (Random Port)", "Passed", $"Pass - Port preserved ({mappedPort})");
 			return true;
 		}
-		UdpClient udpClient = null;
+		UdpClient? udpClient = null;
 		try
 		{
 			udpClient = new UdpClient(localPort);
@@ -1500,7 +1555,7 @@ public class NetworkEngine
 			try
 			{
 				udpClient = new UdpClient(0);
-				localPort = ((IPEndPoint)udpClient.Client.LocalEndPoint).Port;
+				localPort = ((IPEndPoint?)udpClient.Client.LocalEndPoint)?.Port ?? localPort;
 				Log($"Bound successfully to local UDP port {localPort}.");
 			}
 			catch (Exception ex2)
@@ -1583,7 +1638,7 @@ public class NetworkEngine
 				using UdpClient udpClient = new UdpClient(0);
 				udpClient.Client.SendTimeout = 3000;
 				udpClient.Client.ReceiveTimeout = 3000;
-				int localPort = ((IPEndPoint)udpClient.Client.LocalEndPoint).Port;
+				int localPort = ((IPEndPoint?)udpClient.Client.LocalEndPoint)?.Port ?? 0;
 				string value = "z9hG4bK" + Guid.NewGuid().ToString("N").Substring(0, 10);
 				string value2 = Guid.NewGuid().ToString("N").Substring(0, 10);
 				string value3 = Guid.NewGuid().ToString("N").Substring(0, 16) + "@chriskendall.media";
@@ -1594,11 +1649,12 @@ public class NetworkEngine
 				Pcap.RecordPacket(bytes, actualLocalIp, localPort, endpoint.Address.ToString(), endpoint.Port, isUdp: true);
 				Log("Sending OPTIONS payload with dummy Via IP " + fakeLocalIp + "...");
 				await udpClient.SendAsync(bytes, bytes.Length, endpoint);
-				Task<UdpReceiveResult> receiveTask = udpClient.ReceiveAsync(token).AsTask();
-				Task task = Task.Delay(3000, token);
-				if (await Task.WhenAny(receiveTask, task) == receiveTask)
+
+				using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+				cts.CancelAfter(3000);
+				try
 				{
-					UdpReceiveResult udpReceiveResult = await receiveTask;
+					UdpReceiveResult udpReceiveResult = await udpClient.ReceiveAsync(cts.Token);
 					responseReceived = true;
 					Pcap.RecordPacket(udpReceiveResult.Buffer, endpoint.Address.ToString(), endpoint.Port, actualLocalIp, localPort, isUdp: true);
 					string text = Encoding.UTF8.GetString(udpReceiveResult.Buffer);
@@ -1626,9 +1682,13 @@ public class NetworkEngine
 						break;
 					}
 				}
-				else
+				catch (OperationCanceledException)
 				{
 					Log("Request to " + server + " timed out.");
+				}
+				catch (SocketException)
+				{
+					Log("Request to " + server + " encountered socket error.");
 				}
 			}
 			catch (Exception ex)
@@ -1661,7 +1721,7 @@ public class NetworkEngine
 		int packetDelayMs = 20;
 		int packetsReceived = 0;
 		List<double> rtts = new List<double>();
-		UdpClient client = null;
+		UdpClient? client = null;
 		try
 		{
 			client = new UdpClient(0)
@@ -1680,7 +1740,7 @@ public class NetworkEngine
 			}
 			IPEndPoint endpoint = new IPEndPoint(array[0], targetPort);
 			string localIp = GetLocalIpAddress();
-			int localPort = ((IPEndPoint)client.Client.LocalEndPoint).Port;
+			int localPort = ((IPEndPoint?)client.Client.LocalEndPoint)?.Port ?? 0;
 			for (int i = 0; i < numPackets; i++)
 			{
 				if (token.IsCancellationRequested)
@@ -1710,7 +1770,7 @@ public class NetworkEngine
 				{
 					using CancellationTokenSource perPacketCts = CancellationTokenSource.CreateLinkedTokenSource(token);
 					perPacketCts.CancelAfter(500);
-					UdpReceiveResult udpReceiveResult = await client.ReceiveAsync(perPacketCts.Token).AsTask();
+					UdpReceiveResult udpReceiveResult = await client.ReceiveAsync(perPacketCts.Token);
 					watch.Stop();
 					Pcap.RecordPacket(udpReceiveResult.Buffer, endpoint.Address.ToString(), endpoint.Port, localIp, localPort, isUdp: true);
 					if ((!(payloadType == "SIP")) ? ValidateStunResponse(udpReceiveResult.Buffer, transactionId) : Encoding.UTF8.GetString(udpReceiveResult.Buffer).Contains(callId, StringComparison.OrdinalIgnoreCase))
@@ -1838,7 +1898,7 @@ public class NetworkEngine
 
 	private async Task<(bool success, string? publicIp, int mappedPort)> QueryStunServerAsync(string server, int port, CancellationToken token, int queryPort = 0)
 	{
-		UdpClient client = null;
+		UdpClient? client = null;
 		try
 		{
 			client = new UdpClient(queryPort)
@@ -1859,14 +1919,15 @@ public class NetworkEngine
 			new Random().NextBytes(transactionId);
 			byte[] array2 = BuildStunRequest(transactionId, changeIp: false, changePort: false);
 			string localIp = GetLocalIpAddress();
-			int localPort = ((IPEndPoint)client.Client.LocalEndPoint).Port;
+			int localPort = ((IPEndPoint?)client.Client.LocalEndPoint)?.Port ?? 0;
 			Pcap.RecordPacket(array2, localIp, localPort, endPoint.Address.ToString(), port, isUdp: true);
 			await client.SendAsync(array2, array2.Length, endPoint);
-			Task<UdpReceiveResult> receiveTask = client.ReceiveAsync(token).AsTask();
-			Task task = Task.Delay(1500, token);
-			if (await Task.WhenAny(receiveTask, task) == receiveTask)
+
+			using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+			cts.CancelAfter(1500);
+			try
 			{
-				UdpReceiveResult udpReceiveResult = await receiveTask;
+				UdpReceiveResult udpReceiveResult = await client.ReceiveAsync(cts.Token);
 				Pcap.RecordPacket(udpReceiveResult.Buffer, endPoint.Address.ToString(), port, localIp, localPort, isUdp: true);
 				if (ValidateStunResponse(udpReceiveResult.Buffer, transactionId))
 				{
@@ -1876,6 +1937,12 @@ public class NetworkEngine
 						return (success: true, publicIp: iPAddress.ToString(), mappedPort: item);
 					}
 				}
+			}
+			catch (OperationCanceledException)
+			{
+			}
+			catch (SocketException)
+			{
 			}
 			return (success: false, publicIp: null, mappedPort: 0);
 		}
@@ -1958,22 +2025,22 @@ public class NetworkEngine
 		{
 			Log("[" + hubName + "] Attempting connection without credentials...");
 		}
-		HubConnection connection = null;
+		HubConnection? connection = null;
 		(bool ok, string msg) result;
 		try
 		{
-			_ = 2;
 			try
 			{
 				connection = new HubConnectionBuilder().WithUrl(text, delegate(HttpConnectionOptions options)
 				{
 					options.Transports = HttpTransportType.WebSockets;
 				}).WithAutomaticReconnect().Build();
-				Task connectTask = connection.StartAsync(token);
-				Task task = Task.Delay(5000, token);
-				if (await Task.WhenAny(connectTask, task) == connectTask)
+
+				using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+				connectCts.CancelAfter(5000);
+				try
 				{
-					await connectTask;
+					await connection.StartAsync(connectCts.Token);
 					if (connection.State == HubConnectionState.Connected)
 					{
 						Log("[" + hubName + "] Handshake succeeded. Verifying connection stability...");
@@ -2012,7 +2079,7 @@ public class NetworkEngine
 						result = (ok: false, msg: $"Handshake completed but state is {connection.State}");
 					}
 				}
-				else
+				catch (OperationCanceledException)
 				{
 					result = (ok: false, msg: "Connection timed out after 5 seconds");
 				}
@@ -2036,7 +2103,7 @@ public class NetworkEngine
 			{
 				try
 				{
-					await connection.StopAsync(token);
+					await connection.StopAsync(CancellationToken.None);
 				}
 				catch
 				{
@@ -2113,7 +2180,7 @@ public class NetworkEngine
 	{
 		int num = (response[2] << 8) | response[3];
 		int i = 20;
-		IPAddress item = null;
+		IPAddress? item = null;
 		int item2 = 0;
 		int num3;
 		int num5;

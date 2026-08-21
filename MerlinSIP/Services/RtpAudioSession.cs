@@ -157,7 +157,7 @@ public sealed class RtpAudioSession : IDisposable
 		_outputGain = Math.Clamp(outputGain, 0.25, 2.0);
 		_waveInCallback = WaveInCallback;
 		_rtpClient = new UdpClient(new IPEndPoint(IPAddress.Any, 0));
-		LocalPort = ((IPEndPoint)_rtpClient.Client.LocalEndPoint).Port;
+		LocalPort = ((IPEndPoint?)_rtpClient.Client.LocalEndPoint)?.Port ?? 0;
 	}
 
 	public int PrepareSecondarySocket()
@@ -165,7 +165,7 @@ public sealed class RtpAudioSession : IDisposable
 		if (_secondaryRtpClient == null)
 		{
 			_secondaryRtpClient = new UdpClient(new IPEndPoint(IPAddress.Any, 0));
-			SecondaryLocalPort = ((IPEndPoint)_secondaryRtpClient.Client.LocalEndPoint).Port;
+			SecondaryLocalPort = ((IPEndPoint?)_secondaryRtpClient.Client.LocalEndPoint)?.Port ?? 0;
 		}
 		return SecondaryLocalPort;
 	}
@@ -202,7 +202,7 @@ public sealed class RtpAudioSession : IDisposable
 		PrepareDevices();
 		_running = true;
 		_receiveCancellation = new CancellationTokenSource();
-		Task.Run(() => ReceiveLoopAsync(_rtpClient, _call1RxQueue, _receiveCancellation.Token, isSecondary: false));
+		_ = Task.Run(() => ReceiveLoopAsync(_rtpClient, _call1RxQueue, _receiveCancellation.Token, isSecondary: false));
 		StartAudioPump();
 		if (transmitMicrophone && _waveIn != IntPtr.Zero)
 		{
@@ -219,7 +219,10 @@ public sealed class RtpAudioSession : IDisposable
 		_secondaryPayloadType = payloadType;
 		_secondaryRunning = true;
 		_secondaryReceiveCancellation = new CancellationTokenSource();
-		Task.Run(() => ReceiveLoopAsync(_secondaryRtpClient, _call2RxQueue, _secondaryReceiveCancellation.Token, isSecondary: true));
+		if (_secondaryRtpClient != null)
+		{
+			_ = Task.Run(() => ReceiveLoopAsync(_secondaryRtpClient, _call2RxQueue, _secondaryReceiveCancellation.Token, isSecondary: true));
+		}
 		DebugLog.Write($"RTP secondary start remote={_secondaryRemoteEndPoint} port={SecondaryLocalPort}");
 	}
 
@@ -371,11 +374,11 @@ public sealed class RtpAudioSession : IDisposable
 			{
 				DebugLog.Write("Error finalizing call recording: " + ex.Message);
 			}
-			string currentRecordingPath = CurrentRecordingPath;
+			string? currentRecordingPath = CurrentRecordingPath;
 			_recordingWriter = null;
 			_recordingStream = null;
 			IsRecording = false;
-			DebugLog.Write("Call recording stopped: " + currentRecordingPath);
+			DebugLog.Write("Call recording stopped: " + (currentRecordingPath ?? "none"));
 			return currentRecordingPath;
 		}
 	}
@@ -913,7 +916,7 @@ public sealed class RtpAudioSession : IDisposable
 
 	private static async Task<IPAddress> ResolveRemoteAddressAsync(string remoteAddress)
 	{
-		if (IPAddress.TryParse(remoteAddress, out IPAddress address))
+		if (IPAddress.TryParse(remoteAddress, out IPAddress? address) && address != null)
 		{
 			return address;
 		}

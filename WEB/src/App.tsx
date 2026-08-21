@@ -740,7 +740,7 @@ export default function App() {
               <span>{activeCall.state === 'hold' ? 'Resume' : 'Hold'}</span>
             </button>
 
-            <button className="call-action-btn" onClick={() => alert('Transfering call... (Not supported in standalone mode)')}>
+            <button className="call-action-btn" onClick={() => alert('Transferring call... (Not supported in standalone mode)')}>
               <div className="action-icon-circle">
                 <PhoneCall size={18} />
               </div>
@@ -821,16 +821,6 @@ export default function App() {
               {settingsTab === 'account' && (
                 <div>
                   <div className="form-group">
-                    <label className="form-label">PBX Server</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      disabled={!allowCustomSip} 
-                      value={sipServer} 
-                      onChange={e => setSipServer(e.target.value)} 
-                    />
-                  </div>
-                  <div className="form-group">
                     <label className="form-label">Extension / User</label>
                     <input type="text" className="form-input" value={extension} onChange={e => setExtension(e.target.value)} />
                   </div>
@@ -895,7 +885,7 @@ export default function App() {
                     <p className="item-subtitle" style={{ lineHeight: 1.5 }}>CK Media Services softphone for managed SIP, presence, contacts, and reception workflows.</p>
                     <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '6px 10px', fontSize: 13, marginTop: 10 }}>
                       <span style={{ color: 'var(--muted-color)' }}>Version</span>
-                      <span>1.1.36</span>
+                      <span>1.2.1</span>
                       <span style={{ color: 'var(--muted-color)' }}>Product</span>
                       <span>merlin-sip</span>
                       <span style={{ color: 'var(--muted-color)' }}>Licensed to</span>

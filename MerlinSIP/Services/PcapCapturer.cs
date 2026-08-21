@@ -177,10 +177,10 @@ public class PcapCapturer
 			}
 			try
 			{
-				IPAddress address;
-				IPAddress obj = (IPAddress.TryParse(srcIp, out address) ? address : IPAddress.Loopback);
-				IPAddress address2;
-				IPAddress iPAddress = (IPAddress.TryParse(destIp, out address2) ? address2 : IPAddress.Loopback);
+				IPAddress? address;
+				IPAddress obj = (IPAddress.TryParse(srcIp, out address) && address != null ? address : IPAddress.Loopback);
+				IPAddress? address2;
+				IPAddress iPAddress = (IPAddress.TryParse(destIp, out address2) && address2 != null ? address2 : IPAddress.Loopback);
 				byte[] array = new byte[14]
 				{
 					0, 17, 34, 51, 68, 85, 102, 119, 136, 153,
