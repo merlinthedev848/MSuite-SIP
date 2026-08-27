@@ -1,0 +1,11 @@
+{
+    "sipServer": "",
+    "sipDomain": "",
+    "extension": "",
+    "authUsername": "",
+    "displayName": "Merlin SIP Web",
+    "dnd": false,
+    "declineAction": "busy",
+    "ringtone": "classic",
+    "autoRegister": true
+}
