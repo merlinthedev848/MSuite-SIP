@@ -52,8 +52,8 @@ public sealed class CallManager : IDisposable
                 break;
             case CallWaitingAction.Reject:
             case CallWaitingAction.SendToVoicemail:
-                // The SIP provider must perform these actions. Do not mutate ActiveCalls
-                // because no signalling operation has succeeded here.
+                // No local state mutation: the SIP provider must perform signalling
+                // before the call can be removed or marked handled.
                 break;
         }
     }
@@ -74,7 +74,7 @@ public sealed class CallManager : IDisposable
                 var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
                 if (!holdResult.Signalled)
                 {
-                    throw new InvalidOperationException($"Failed to put call {currentCall.CallId} on hold: {holdResult.Message}");
+                    throw new InvalidOperationException($"Failed to put call {currentCall.CallId} on hold.");
                 }
 
                 currentCall.IsOnHold = true;
@@ -86,7 +86,7 @@ public sealed class CallManager : IDisposable
                 var answerResult = await _sipProvider.AnswerCallAsync(incoming, cancellationToken);
                 if (!answerResult.Signalled)
                 {
-                    throw new InvalidOperationException($"Failed to answer incoming call {incoming.CallId}: {answerResult.Message}");
+                    throw new InvalidOperationException($"Failed to answer incoming call {incoming.CallId}.");
                 }
 
                 RemoveDuplicateCall(incoming.CallId);
@@ -101,8 +101,7 @@ public sealed class CallManager : IDisposable
             catch
             {
                 // If answering failed after we successfully held the original call,
-                // make a best-effort attempt to restore it. Never claim local state is
-                // active when the provider rejected the recovery operation.
+                // make a best-effort attempt to restore it.
                 if (currentCallWasHeld && currentCall is not null)
                 {
                     try
@@ -151,7 +150,7 @@ public sealed class CallManager : IDisposable
                 var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
                 if (!holdResult.Signalled)
                 {
-                    throw new InvalidOperationException($"Failed to put call {currentCall.CallId} on hold: {holdResult.Message}");
+                    throw new InvalidOperationException($"Failed to put call {currentCall.CallId} on hold.");
                 }
 
                 currentCall.IsOnHold = true;
@@ -160,8 +159,6 @@ public sealed class CallManager : IDisposable
             var resumeResult = await _sipProvider.ResumeSpecificCallAsync(callId, cancellationToken);
             if (!resumeResult.Signalled)
             {
-                // The current call was already successfully held. Try to restore it so
-                // the local model does not silently lose the previously active call.
                 if (currentCall is not null)
                 {
                     try
@@ -178,7 +175,7 @@ public sealed class CallManager : IDisposable
                     }
                 }
 
-                throw new InvalidOperationException($"Failed to resume call {callId}: {resumeResult.Message}");
+                throw new InvalidOperationException($"Failed to resume call {callId}.");
             }
 
             targetCall.IsOnHold = false;
