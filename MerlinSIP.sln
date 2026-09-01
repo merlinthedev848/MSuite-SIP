@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MerlinSIP", "MerlinSIP\MerlinSIP.csproj", "{2E4B47A2-78A4-4B7F-9F63-062668750764}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MerlinSIP.Tests", "MerlinSIP.Tests\MerlinSIP.Tests.csproj", "{8A7B1C63-6C5E-4E17-9B8F-5A7A8D7B6E11}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,5 +16,9 @@ Global
 		{2E4B47A2-78A4-4B7F-9F63-062668750764}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2E4B47A2-78A4-4B7F-9F63-062668750764}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2E4B47A2-78A4-4B7F-9F63-062668750764}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8A7B1C63-6C5E-4E17-9B8F-5A7A8D7B6E11}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8A7B1C63-6C5E-4E17-9B8F-5A7A8D7B6E11}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8A7B1C63-6C5E-4E17-9B8F-5A7A8D7B6E11}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8A7B1C63-6C5E-4E17-9B8F-5A7A8D7B6E11}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
