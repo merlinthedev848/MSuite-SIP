@@ -10,38 +10,26 @@ using MerlinSip.Models;
 /// </summary>
 public interface ICallQualityDataSource
 {
-    /// <summary>
-    /// Gets the current packet loss percentage (0.0 - 100.0).
-    /// </summary>
     double GetPacketLossPercentage();
-
-    /// <summary>
-    /// Gets the current estimated jitter in milliseconds.
-    /// </summary>
     double GetJitterMs();
-
-    /// <summary>
-    /// Gets the current estimated round-trip latency in milliseconds.
-    /// </summary>
     double GetLatencyMs();
-
-    /// <summary>
-    /// Gets a value indicating whether a call is currently active.
-    /// </summary>
     bool IsCallActive { get; }
 }
 
 /// <summary>
-/// Monitors live call quality metrics (MOS, R-factor) based on RTP statistics.
+/// Monitors live call quality metrics based on RTP statistics.
+/// The MOS value is an application estimate, not a standards-certified measurement.
 /// </summary>
-public class CallQualityMonitor : IDisposable
+public sealed class CallQualityMonitor : IDisposable
 {
+    private static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(2);
     private readonly ICallQualityDataSource _dataSource;
+    private readonly object _sync = new();
     private CancellationTokenSource? _monitorCancellation;
+    private CancellationTokenSource? _linkedCancellation;
+    private Task? _monitorTask;
+    private bool _disposed;
 
-    /// <summary>
-    /// Event fired when the call quality metrics change.
-    /// </summary>
     public event EventHandler<CallQualityMetrics>? CallQualityChanged;
 
     public CallQualityMonitor(ICallQualityDataSource dataSource)
@@ -49,92 +37,129 @@ public class CallQualityMonitor : IDisposable
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
     }
 
-    /// <summary>
-    /// Starts monitoring call quality every 2 seconds.
-    /// </summary>
     public void Start(CancellationToken cancellationToken = default)
     {
-        _monitorCancellation?.Cancel();
-        _monitorCancellation = new CancellationTokenSource();
-        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _monitorCancellation.Token);
+        lock (_sync)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
 
-        _ = Task.Run(() => MonitorLoopAsync(linkedCts.Token), linkedCts.Token);
+            StopLocked();
+
+            _monitorCancellation = new CancellationTokenSource();
+            _linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                _monitorCancellation.Token);
+
+            _monitorTask = MonitorLoopAsync(_linkedCancellation.Token);
+        }
     }
 
-    /// <summary>
-    /// Stops monitoring.
-    /// </summary>
     public void Stop()
     {
+        lock (_sync)
+        {
+            StopLocked();
+        }
+    }
+
+    private void StopLocked()
+    {
         _monitorCancellation?.Cancel();
+        _monitorCancellation?.Dispose();
+        _monitorCancellation = null;
+
+        _linkedCancellation?.Cancel();
+        _linkedCancellation?.Dispose();
+        _linkedCancellation = null;
+        _monitorTask = null;
     }
 
     private async Task MonitorLoopAsync(CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        try
         {
-            try
+            while (!cancellationToken.IsCancellationRequested)
             {
                 if (_dataSource.IsCallActive)
                 {
-                    var metrics = CalculateCurrentMetrics();
-                    CallQualityChanged?.Invoke(this, metrics);
+                    try
+                    {
+                        var metrics = CalculateCurrentMetrics();
+                        CallQualityChanged?.Invoke(this, metrics);
+                    }
+                    catch (Exception error)
+                    {
+                        DebugLog.Write($"CALL QUALITY sample failed error={error.Message}");
+                    }
                 }
-                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+
+                await Task.Delay(SampleInterval, cancellationToken);
             }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-            catch (Exception)
-            {
-                // Ignore monitor loop exceptions
-            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Expected during Stop/Dispose.
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"CALL QUALITY monitor stopped unexpectedly error={error.Message}");
         }
     }
 
     private CallQualityMetrics CalculateCurrentMetrics()
     {
-        double packetLoss = _dataSource.GetPacketLossPercentage();
-        double jitterMs = _dataSource.GetJitterMs();
-        double latencyMs = _dataSource.GetLatencyMs();
+        var packetLoss = ClampFinite(_dataSource.GetPacketLossPercentage(), 0, 100);
+        var jitterMs = ClampFinite(_dataSource.GetJitterMs(), 0, 10_000);
+        var latencyMs = ClampFinite(_dataSource.GetLatencyMs(), 0, 60_000);
 
-        // R = 93.2 - (packet_loss * 2.5) - (jitter_ms * 0.1) - (latency_ms * 0.03)
-        double rFactor = 93.2 - (packetLoss * 2.5) - (jitterMs * 0.1) - (latencyMs * 0.03);
-        
-        // MOS = 1 + 0.035 * R + R * (R - 60) * (100 - R) * 7e-6
-        double mosScore = 1.0;
-        if (rFactor > 0)
-        {
-            mosScore = 1 + (0.035 * rFactor) + (rFactor * (rFactor - 60) * (100 - rFactor) * 0.000007);
-        }
-        
+        // This is intentionally a lightweight UI estimate. It should not be presented
+        // as an ITU-T-certified MOS calculation without the missing codec/network factors.
+        var rFactor = Math.Clamp(
+            93.2 - (packetLoss * 2.5) - (jitterMs * 0.1) - (latencyMs * 0.03),
+            0,
+            100);
+
+        var mosScore = 1 +
+                       (0.035 * rFactor) +
+                       (rFactor * (rFactor - 60) * (100 - rFactor) * 0.000007);
         mosScore = Math.Clamp(mosScore, 1.0, 5.0);
 
-        CallQualityLevel level;
-        if (mosScore > 4.0)
-            level = CallQualityLevel.Excellent;
-        else if (mosScore >= 3.5)
-            level = CallQualityLevel.Good;
-        else if (mosScore >= 3.0)
-            level = CallQualityLevel.Fair;
-        else
-            level = CallQualityLevel.Poor;
+        var level = mosScore switch
+        {
+            > 4.0 => CallQualityLevel.Excellent,
+            >= 3.5 => CallQualityLevel.Good,
+            >= 3.0 => CallQualityLevel.Fair,
+            _ => CallQualityLevel.Poor
+        };
 
         return new CallQualityMetrics
         {
             MosScore = Math.Round(mosScore, 2),
             Level = level,
-            Jitter = jitterMs,
-            PacketLoss = packetLoss,
-            Latency = latencyMs
+            Jitter = Math.Round(jitterMs, 2),
+            PacketLoss = Math.Round(packetLoss, 2),
+            Latency = Math.Round(latencyMs, 2)
         };
+    }
+
+    private static double ClampFinite(double value, double minimum, double maximum)
+    {
+        return double.IsFinite(value) ? Math.Clamp(value, minimum, maximum) : maximum;
     }
 
     public void Dispose()
     {
-        Stop();
-        _monitorCancellation?.Dispose();
+        lock (_sync)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            StopLocked();
+        }
+
         GC.SuppressFinalize(this);
     }
 }
