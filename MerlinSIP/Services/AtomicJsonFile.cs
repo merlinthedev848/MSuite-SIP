@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using System.Text.Json;
 
 namespace MerlinSip.Services;
@@ -10,13 +12,13 @@ internal static class AtomicJsonFile
 {
     public static async Task WriteAsync<T>(string path, T value, JsonSerializerOptions options, CancellationToken cancellationToken = default)
     {
-        var directory = System.IO.Path.GetDirectoryName(path)
+        var directory = Path.GetDirectoryName(path)
             ?? throw new InvalidOperationException("The target file must have a directory.");
 
         Directory.CreateDirectory(directory);
-        var temporaryPath = System.IO.Path.Combine(
+        var temporaryPath = Path.Combine(
             directory,
-            $".{System.IO.Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+            $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
 
         try
         {
