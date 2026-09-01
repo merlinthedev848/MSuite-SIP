@@ -16,6 +16,8 @@ public sealed class ContactStore
         WriteIndented = true
     };
 
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
+
     public async Task<IReadOnlyList<ContactEntry>> LoadAsync()
     {
         if (!File.Exists(_path))
@@ -37,20 +39,29 @@ public sealed class ContactStore
 
     public async Task SaveAsync(IEnumerable<ContactEntry> contacts)
     {
+        ArgumentNullException.ThrowIfNull(contacts);
+
+        await _saveLock.WaitAsync();
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            await using var stream = File.Create(_path);
-            await JsonSerializer.SerializeAsync(stream, contacts.OrderBy(contact => contact.Name).ToList(), JsonOptions);
+            var snapshot = contacts.OrderBy(contact => contact.Name, StringComparer.OrdinalIgnoreCase).ToList();
+            await AtomicJsonFile.WriteAsync(_path, snapshot, JsonOptions);
         }
         catch (Exception error)
         {
             DebugLog.Write($"CONTACTS save failed error={error.Message}");
         }
+        finally
+        {
+            _saveLock.Release();
+        }
     }
 
     public ContactEntry? FindByNumber(IEnumerable<ContactEntry> contacts, string number)
     {
+        ArgumentNullException.ThrowIfNull(contacts);
+        ArgumentNullException.ThrowIfNull(number);
+
         var normalized = Normalize(number);
         var variants = BuildVariants(normalized);
         return contacts.FirstOrDefault(contact => variants.Contains(Normalize(contact.Number)));

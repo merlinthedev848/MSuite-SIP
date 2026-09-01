@@ -15,25 +15,21 @@ public interface ICallManagerSipProvider
     Task<SipCallResult> SetHeldAsync(bool held, CancellationToken cancellationToken = default);
     Task<SipCallResult> AnswerCallAsync(PendingIncomingCall incoming, CancellationToken cancellationToken = default);
     Task<SipCallResult> ResumeSpecificCallAsync(string callId, CancellationToken cancellationToken = default);
-    // Note: SipRegistrationService's SetHeldAsync doesn't take a callId.
-    // If it only acts on the current active call, we might need a way to swap the active call.
 }
 
 /// <summary>
-/// Manages multiple calls, enabling features like Call Waiting and Hold-and-Answer.
+/// Serializes multi-call state transitions so hold/answer/resume operations cannot
+/// interleave and leave the UI model in a state that differs from the requested action.
+/// The SIP provider still owns the authoritative dialog state.
 /// </summary>
-public class CallManager
+public sealed class CallManager : IDisposable
 {
     private readonly ICallManagerSipProvider _sipProvider;
+    private readonly SemaphoreSlim _transitionLock = new(1, 1);
+    private bool _disposed;
 
-    /// <summary>
-    /// Gets the collection of active calls for UI binding.
-    /// </summary>
-    public ObservableCollection<CallState> ActiveCalls { get; } = new ObservableCollection<CallState>();
+    public ObservableCollection<CallState> ActiveCalls { get; } = [];
 
-    /// <summary>
-    /// Event fired when there is a new call waiting.
-    /// </summary>
     public event EventHandler<CallWaitingEventArgs>? CallWaiting;
 
     public CallManager(ICallManagerSipProvider sipProvider)
@@ -41,96 +37,175 @@ public class CallManager
         _sipProvider = sipProvider ?? throw new ArgumentNullException(nameof(sipProvider));
     }
 
-    /// <summary>
-    /// Handles an incoming call when another call is already active.
-    /// </summary>
-    public async Task HandleIncomingCallAsync(PendingIncomingCall incoming, string callerId)
+    public async Task HandleIncomingCallAsync(PendingIncomingCall incoming, string callerId, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(incoming);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var args = new CallWaitingEventArgs(callerId, incoming);
         CallWaiting?.Invoke(this, args);
 
         switch (args.SelectedAction)
         {
             case CallWaitingAction.HoldAndAnswer:
-                await HoldCurrentAndAnswerAsync(incoming);
+                await HoldCurrentAndAnswerAsync(incoming, cancellationToken);
                 break;
             case CallWaitingAction.Reject:
-                // Handle reject (e.g. via provider)
-                break;
             case CallWaitingAction.SendToVoicemail:
-                // Handle send to VM
+                // No local state mutation: the SIP provider must perform signalling
+                // before the call can be removed or marked handled.
                 break;
         }
     }
 
-    /// <summary>
-    /// Puts the current active call on hold and answers the pending incoming call.
-    /// </summary>
     public async Task HoldCurrentAndAnswerAsync(PendingIncomingCall incoming, CancellationToken cancellationToken = default)
     {
-        var currentCall = ActiveCalls.FirstOrDefault(c => !c.IsOnHold);
-        if (currentCall != null)
-        {
-            // Put current call on hold
-            var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
-            if (holdResult.Signalled)
-            {
-                currentCall.IsOnHold = true;
-            }
-            else
-            {
-                throw new InvalidOperationException("Failed to put the current call on hold.");
-            }
-        }
+        ArgumentNullException.ThrowIfNull(incoming);
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // Answer the incoming call
-        var answerResult = await _sipProvider.AnswerCallAsync(incoming, cancellationToken);
-        if (answerResult.Signalled)
+        await _transitionLock.WaitAsync(cancellationToken);
+        try
         {
-            ActiveCalls.Add(new CallState
+            var currentCall = ActiveCalls.FirstOrDefault(c => !c.IsOnHold);
+            var currentCallWasHeld = false;
+
+            if (currentCall is not null)
             {
-                CallId = incoming.CallId,
-                Target = incoming.RemoteTarget,
-                IsOnHold = false,
-                StartTime = DateTime.UtcNow
-            });
+                var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
+                if (!holdResult.Signalled)
+                {
+                    throw new InvalidOperationException($"Failed to put call {currentCall.CallId} on hold.");
+                }
+
+                currentCall.IsOnHold = true;
+                currentCallWasHeld = true;
+            }
+
+            try
+            {
+                var answerResult = await _sipProvider.AnswerCallAsync(incoming, cancellationToken);
+                if (!answerResult.Signalled)
+                {
+                    throw new InvalidOperationException($"Failed to answer incoming call {incoming.CallId}.");
+                }
+
+                RemoveDuplicateCall(incoming.CallId);
+                ActiveCalls.Add(new CallState
+                {
+                    CallId = incoming.CallId,
+                    Target = incoming.RemoteTarget,
+                    IsOnHold = false,
+                    StartTime = DateTime.UtcNow
+                });
+            }
+            catch
+            {
+                // If answering failed after we successfully held the original call,
+                // make a best-effort attempt to restore it.
+                if (currentCallWasHeld && currentCall is not null)
+                {
+                    try
+                    {
+                        var resumeResult = await _sipProvider.ResumeSpecificCallAsync(currentCall.CallId, cancellationToken);
+                        if (resumeResult.Signalled)
+                        {
+                            currentCall.IsOnHold = false;
+                        }
+                    }
+                    catch (Exception recoveryError)
+                    {
+                        DebugLog.Write($"CALL MANAGER recovery failed callId={currentCall.CallId} error={recoveryError.Message}");
+                    }
+                }
+
+                throw;
+            }
         }
-        else
+        finally
         {
-            throw new InvalidOperationException("Failed to answer the incoming call.");
+            _transitionLock.Release();
         }
     }
 
-    /// <summary>
-    /// Switches to a specific held call, putting the current call on hold if necessary.
-    /// </summary>
     public async Task SwitchToHeldCallAsync(string callId, CancellationToken cancellationToken = default)
     {
-        var targetCall = ActiveCalls.FirstOrDefault(c => c.CallId == callId);
-        if (targetCall == null || !targetCall.IsOnHold)
+        if (string.IsNullOrWhiteSpace(callId))
+        {
+            throw new ArgumentException("Call ID is required.", nameof(callId));
+        }
+
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await _transitionLock.WaitAsync(cancellationToken);
+        try
+        {
+            var targetCall = ActiveCalls.FirstOrDefault(c => c.CallId == callId);
+            if (targetCall is null || !targetCall.IsOnHold)
+            {
+                return;
+            }
+
+            var currentCall = ActiveCalls.FirstOrDefault(c => !c.IsOnHold && c.CallId != callId);
+            if (currentCall is not null)
+            {
+                var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
+                if (!holdResult.Signalled)
+                {
+                    throw new InvalidOperationException($"Failed to put call {currentCall.CallId} on hold.");
+                }
+
+                currentCall.IsOnHold = true;
+            }
+
+            var resumeResult = await _sipProvider.ResumeSpecificCallAsync(callId, cancellationToken);
+            if (!resumeResult.Signalled)
+            {
+                if (currentCall is not null)
+                {
+                    try
+                    {
+                        var recovery = await _sipProvider.ResumeSpecificCallAsync(currentCall.CallId, cancellationToken);
+                        if (recovery.Signalled)
+                        {
+                            currentCall.IsOnHold = false;
+                        }
+                    }
+                    catch (Exception recoveryError)
+                    {
+                        DebugLog.Write($"CALL MANAGER switch recovery failed callId={currentCall.CallId} error={recoveryError.Message}");
+                    }
+                }
+
+                throw new InvalidOperationException($"Failed to resume call {callId}.");
+            }
+
+            targetCall.IsOnHold = false;
+        }
+        finally
+        {
+            _transitionLock.Release();
+        }
+    }
+
+    private void RemoveDuplicateCall(string callId)
+    {
+        for (var index = ActiveCalls.Count - 1; index >= 0; index--)
+        {
+            if (string.Equals(ActiveCalls[index].CallId, callId, StringComparison.Ordinal))
+            {
+                ActiveCalls.RemoveAt(index);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
         {
             return;
         }
 
-        var currentCall = ActiveCalls.FirstOrDefault(c => !c.IsOnHold);
-        if (currentCall != null)
-        {
-            var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
-            if (holdResult.Signalled)
-            {
-                currentCall.IsOnHold = true;
-            }
-        }
-
-        // Resume the target call
-        var resumeResult = await _sipProvider.ResumeSpecificCallAsync(callId, cancellationToken);
-        if (resumeResult.Signalled)
-        {
-            targetCall.IsOnHold = false;
-        }
-        else
-        {
-            throw new InvalidOperationException("Failed to resume the target call.");
-        }
+        _disposed = true;
+        _transitionLock.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
