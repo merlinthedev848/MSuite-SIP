@@ -39,9 +39,7 @@ public sealed class CallHistoryStore
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            await using var stream = File.Create(_path);
-            await JsonSerializer.SerializeAsync(stream, calls.Take(500).ToList(), JsonOptions);
+            await AtomicFileStorage.SaveAtomicAsync(_path, calls.Take(500).ToList(), JsonOptions);
         }
         catch (Exception error)
         {

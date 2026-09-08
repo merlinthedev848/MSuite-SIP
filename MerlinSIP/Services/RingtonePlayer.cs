@@ -744,11 +744,31 @@ public sealed class RingtonePlayer : IDisposable
     {
         lock (_sync)
         {
-            while (_buffers.Count > 128)
+            if (_waveOut == IntPtr.Zero)
             {
-                var old = _buffers[0];
-                _buffers.RemoveAt(0);
-                old.Dispose();
+                foreach (var b in _buffers)
+                {
+                    b.Dispose();
+                }
+                _buffers.Clear();
+                return;
+            }
+
+            int index = 0;
+            while (index < _buffers.Count && _buffers.Count > 32)
+            {
+                var buffer = _buffers[index];
+                var header = Marshal.PtrToStructure<WaveHeader>(buffer.HeaderPointer);
+                if ((header.Flags & 1) != 0) // WHDR_DONE
+                {
+                    WinMm.waveOutUnprepareHeader(_waveOut, buffer.HeaderPointer, Marshal.SizeOf<WaveHeader>());
+                    buffer.Dispose();
+                    _buffers.RemoveAt(index);
+                }
+                else
+                {
+                    index++;
+                }
             }
         }
     }

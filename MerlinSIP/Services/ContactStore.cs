@@ -39,9 +39,7 @@ public sealed class ContactStore
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            await using var stream = File.Create(_path);
-            await JsonSerializer.SerializeAsync(stream, contacts.OrderBy(contact => contact.Name).ToList(), JsonOptions);
+            await AtomicFileStorage.SaveAtomicAsync(_path, contacts.OrderBy(contact => contact.Name).ToList(), JsonOptions);
         }
         catch (Exception error)
         {
@@ -52,8 +50,14 @@ public sealed class ContactStore
     public ContactEntry? FindByNumber(IEnumerable<ContactEntry> contacts, string number)
     {
         var normalized = Normalize(number);
+        if (string.IsNullOrEmpty(normalized)) return null;
+
         var variants = BuildVariants(normalized);
-        return contacts.FirstOrDefault(contact => variants.Contains(Normalize(contact.Number)));
+        return contacts.FirstOrDefault(contact =>
+        {
+            var contactNorm = Normalize(contact.Number);
+            return variants.Contains(contactNorm) || contactNorm.EndsWith(normalized, StringComparison.Ordinal) || normalized.EndsWith(contactNorm, StringComparison.Ordinal);
+        });
     }
 
     private static string Normalize(string value)
@@ -64,6 +68,9 @@ public sealed class ContactStore
     private static HashSet<string> BuildVariants(string normalized)
     {
         var variants = new HashSet<string> { normalized };
+        if (string.IsNullOrEmpty(normalized)) return variants;
+
+        // UK +44
         if (normalized.StartsWith("44", StringComparison.Ordinal) && normalized.Length > 2)
         {
             variants.Add("0" + normalized[2..]);
@@ -71,6 +78,16 @@ public sealed class ContactStore
         else if (normalized.StartsWith("0", StringComparison.Ordinal) && normalized.Length > 1)
         {
             variants.Add("44" + normalized[1..]);
+        }
+
+        // US/CA +1
+        if (normalized.StartsWith("1", StringComparison.Ordinal) && normalized.Length == 11)
+        {
+            variants.Add(normalized[1..]);
+        }
+        else if (normalized.Length == 10)
+        {
+            variants.Add("1" + normalized);
         }
 
         return variants;

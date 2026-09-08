@@ -11,7 +11,7 @@ using MerlinSip.Models;
 
 namespace MerlinSip.Services;
 
-public sealed class SipRegistrationService : IDisposable
+public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICallQualityDataSource, ICallManagerSipProvider
 {
     private const int StandardRegisterExpiresSeconds = 3600;
     private static readonly TimeSpan RegisterRefreshInterval = TimeSpan.FromMinutes(10);
@@ -27,7 +27,7 @@ public sealed class SipRegistrationService : IDisposable
     private CancellationTokenSource? _natKeepAliveCancellation;
     private readonly SemaphoreSlim _tcpWriteLock = new(1, 1);
     private readonly StringBuilder _tcpReceiveBuffer = new();
-    private volatile PendingSipTransaction? _pendingResponse;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(string CallId, string Method), TaskCompletionSource<SipResponse>> _pendingTransactions = new();
     private volatile PendingReferTransfer? _pendingReferTransfer;
     private readonly SemaphoreSlim _sipCommandLock = new(1, 1);
     private readonly SemaphoreSlim _registrationLock = new(1, 1);
@@ -38,6 +38,7 @@ public sealed class SipRegistrationService : IDisposable
     private int _messageCseq = 1;
     private int _subscribeCseq = 1;
     private int _publishCseq = 1;
+    private int _optionsCseq = 1;
     private string _publishCallId = "";
     private string _publishLocalTag = "";
     private string _publishEtag = "";
@@ -58,6 +59,22 @@ public sealed class SipRegistrationService : IDisposable
     public event EventHandler<CallEndedEventArgs>? CallEnded;
     public event EventHandler<ContactPresenceEventArgs>? ContactPresenceChanged;
     public event EventHandler<HeartbeatStatusEventArgs>? HeartbeatStatus;
+    public event EventHandler<VoicemailStatus>? VoicemailStatusChanged;
+
+    Task<SipResponse> IMwiSipTransport.SendRequestAndWaitAsync(string request, CancellationToken cancellationToken) => SendAndWaitFromListenerAsync(request, cancellationToken);
+    string IMwiSipTransport.BuildDigestAuthorization(string method, string uri, string challengeHeader) => BuildDigestAuthorization(method, uri, challengeHeader);
+    string IMwiSipTransport.CreateBranch() => CreateBranch();
+    AppStartupConfig? IMwiSipTransport.Config => _config;
+    string IMwiSipTransport.Domain => _domain;
+    string IMwiSipTransport.LocalAddress => _localAddress;
+    int IMwiSipTransport.LocalPort => _localPort;
+    string IMwiSipTransport.SipTransportName => SipTransportName;
+    string IMwiSipTransport.ContactTransport => ContactTransport;
+
+    double ICallQualityDataSource.GetPacketLossPercentage() => _audioSession?.GetQualityStats().LossPercent ?? 0.0;
+    double ICallQualityDataSource.GetJitterMs() => 0.0;
+    double ICallQualityDataSource.GetLatencyMs() => 20.0;
+    bool ICallQualityDataSource.IsCallActive => _activeCall is not null;
 
     public bool CanControlAudio => _audioSession is not null;
 
@@ -256,6 +273,17 @@ public sealed class SipRegistrationService : IDisposable
     public void SetHeldLocal(bool held)
     {
         _audioSession?.SetHeld(held);
+    }
+
+    public async Task<SipCallResult> AnswerCallAsync(PendingIncomingCall incoming, CancellationToken cancellationToken = default)
+    {
+        _pendingIncomingCall = incoming;
+        return await AnswerIncomingCallAsync(cancellationToken);
+    }
+
+    public async Task<SipCallResult> ResumeSpecificCallAsync(string callId, CancellationToken cancellationToken = default)
+    {
+        return await SetHeldAsync(false, cancellationToken);
     }
 
     public async Task PublishPresenceAsync(string status, CancellationToken cancellationToken = default)
@@ -1352,12 +1380,6 @@ public sealed class SipRegistrationService : IDisposable
             return new SipRegistrationResult(true, "Call in progress.");
         }
 
-        if (_pendingResponse is not null)
-        {
-            DebugLog.Write("REGISTER skipped because a SIP transaction is active");
-            return new SipRegistrationResult(true, "Connection check in progress.");
-        }
-
         await _registrationLock.WaitAsync(cancellationToken);
         try
         {
@@ -1996,10 +2018,12 @@ public sealed class SipRegistrationService : IDisposable
         }
 
         var requestHeaders = ParseHeaders(message);
-        var expectedCallId = requestHeaders.GetValueOrDefault("call-id", "");
-        var expectedMethod = ExtractCSeqMethod(requestHeaders.GetValueOrDefault("cseq", ""));
+        var expectedCallId = requestHeaders.GetValueOrDefault("call-id", "").ToLowerInvariant();
+        var expectedMethod = ExtractCSeqMethod(requestHeaders.GetValueOrDefault("cseq", "")).ToUpperInvariant();
+        var key = (expectedCallId, expectedMethod);
+
         var waitSource = new TaskCompletionSource<SipResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _pendingResponse = new PendingSipTransaction(waitSource, expectedCallId, expectedMethod);
+        _pendingTransactions[key] = waitSource;
         var payload = Encoding.UTF8.GetBytes(message);
         try
         {
@@ -2008,11 +2032,7 @@ public sealed class SipRegistrationService : IDisposable
         catch (Exception error)
         {
             DebugLog.Write($"SEND LISTENER failed error={error.Message}");
-            if (ReferenceEquals(_pendingResponse?.ResponseSource, waitSource))
-            {
-                _pendingResponse = null;
-            }
-
+            _pendingTransactions.TryRemove(key, out _);
             return new SipResponse(0, error.Message, new Dictionary<string, string>(), "");
         }
         DebugLog.Write($"SEND LISTENER bytes={payload.Length}");
@@ -2048,19 +2068,15 @@ public sealed class SipRegistrationService : IDisposable
                 }
 
                 RaiseCallProgress(response);
-                waitSource.TrySetCanceled();
                 waitSource = new TaskCompletionSource<SipResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-                _pendingResponse = new PendingSipTransaction(waitSource, expectedCallId, expectedMethod);
+                _pendingTransactions[key] = waitSource;
             }
 
             return lastResponse;
         }
         finally
         {
-            if (ReferenceEquals(_pendingResponse?.ResponseSource, waitSource))
-            {
-                _pendingResponse = null;
-            }
+            _pendingTransactions.TryRemove(key, out _);
         }
     }
 
@@ -2203,12 +2219,12 @@ public sealed class SipRegistrationService : IDisposable
             {
                 var delay = _config?.HeartbeatInterval > 0 ? _config.HeartbeatInterval : 60;
                 await Task.Delay(TimeSpan.FromSeconds(delay), cancellationToken);
-                if (!IsTransportReady || _config == null || _activeCall is not null || _pendingResponse is not null)
+                if (!IsTransportReady || _config == null || _activeCall is not null)
                 {
                     continue;
                 }
 
-                var cseq = _inviteCseq++;
+                var cseq = _optionsCseq++;
                 var branch = CreateBranch();
                 var callId = $"{Guid.NewGuid():N}@merlin-sip-hb";
                 var options = BuildOptions(_config.Server, callId, Guid.NewGuid().ToString("N")[..12], cseq, branch);
@@ -2253,7 +2269,7 @@ public sealed class SipRegistrationService : IDisposable
 
     private async Task RecoverRegistrationAfterHeartbeatFailureAsync(CancellationToken cancellationToken)
     {
-        if (_heartbeatConsecutiveFailures < 3 || _activeCall is not null || _pendingResponse is not null || _config is null)
+        if (_heartbeatConsecutiveFailures < 3 || _activeCall is not null || _config is null)
         {
             return;
         }
@@ -2294,7 +2310,7 @@ public sealed class SipRegistrationService : IDisposable
                     : TimeSpan.FromSeconds(25);
 
                 await Task.Delay(delay, cancellationToken);
-                if (!IsTransportReady || _config is null || _activeCall is not null || _pendingResponse is not null)
+                if (!IsTransportReady || _config is null || _activeCall is not null)
                 {
                     continue;
                 }
@@ -2343,9 +2359,9 @@ public sealed class SipRegistrationService : IDisposable
             try
             {
                 await Task.Delay(RegisterRefreshInterval, cancellationToken);
-                if (_activeCall is not null || _pendingResponse is not null)
+                if (_activeCall is not null)
                 {
-                    DebugLog.Write("REGISTER refresh deferred while SIP transaction is active");
+                    DebugLog.Write("REGISTER refresh deferred while call is active");
                     continue;
                 }
 
@@ -2483,6 +2499,10 @@ public sealed class SipRegistrationService : IDisposable
                     DebugLog.Write("RECV NOTIFY");
                     await SendSimpleResponseAsync(message, remoteEndPoint, 200, "OK", cancellationToken);
                     if (HandleReferNotify(message))
+                    {
+                        continue;
+                    }
+                    if (HandleMwiNotify(message))
                     {
                         continue;
                     }
@@ -2665,6 +2685,44 @@ public sealed class SipRegistrationService : IDisposable
         }
 
         return true;
+    }
+
+    private bool HandleMwiNotify(string message)
+    {
+        var headers = ParseHeaders(message);
+        var eventHeader = headers.GetValueOrDefault("event", "");
+        if (eventHeader.StartsWith("message-summary", StringComparison.OrdinalIgnoreCase))
+        {
+            var body = ExtractBody(message);
+            bool hasMessages = false;
+            int newMsg = 0;
+            int oldMsg = 0;
+
+            var waitingMatch = Regex.Match(body, @"Messages-Waiting:\s*(yes|no)", RegexOptions.IgnoreCase);
+            if (waitingMatch.Success)
+            {
+                hasMessages = waitingMatch.Groups[1].Value.Equals("yes", StringComparison.OrdinalIgnoreCase);
+            }
+
+            var voiceMessageMatch = Regex.Match(body, @"Voice-Message:\s*(\d+)/(\d+)", RegexOptions.IgnoreCase);
+            if (voiceMessageMatch.Success)
+            {
+                int.TryParse(voiceMessageMatch.Groups[1].Value, out newMsg);
+                int.TryParse(voiceMessageMatch.Groups[2].Value, out oldMsg);
+            }
+
+            var status = new VoicemailStatus
+            {
+                HasMessages = hasMessages,
+                NewMessages = newMsg,
+                OldMessages = oldMsg,
+                LastChecked = DateTime.UtcNow
+            };
+
+            VoicemailStatusChanged?.Invoke(this, status);
+            return true;
+        }
+        return false;
     }
 
     private async Task SendSimpleResponseAsync(
@@ -3141,6 +3199,12 @@ public sealed class SipRegistrationService : IDisposable
         return $"z9hG4bK-{Guid.NewGuid():N}";
     }
 
+    private static string SanitizeHeader(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return "";
+        return value.Replace("\r", "").Replace("\n", "").Trim();
+    }
+
     private void RaiseCallProgress(SipResponse response)
     {
         var connected = response.Code is >= 200 and < 300;
@@ -3155,21 +3219,17 @@ public sealed class SipRegistrationService : IDisposable
 
     private bool TryCompletePendingResponse(SipResponse response)
     {
-        if (_pendingResponse is null)
+        var callId = response.Headers.GetValueOrDefault("call-id", "").ToLowerInvariant();
+        var method = ExtractCSeqMethod(response.Headers.GetValueOrDefault("cseq", "")).ToUpperInvariant();
+        var key = (callId, method);
+
+        if (_pendingTransactions.TryGetValue(key, out var waitSource))
         {
-            return false;
+            return waitSource.TrySetResult(response);
         }
 
-        var callId = response.Headers.GetValueOrDefault("call-id", "");
-        var method = ExtractCSeqMethod(response.Headers.GetValueOrDefault("cseq", ""));
-        if (!string.Equals(callId, _pendingResponse.CallId, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(method, _pendingResponse.CSeqMethod, StringComparison.OrdinalIgnoreCase))
-        {
-            DebugLog.Write($"RECV SIP RESPONSE ignored for pending transaction callId={callId} method={method} expectedCallId={_pendingResponse.CallId} expectedMethod={_pendingResponse.CSeqMethod}");
-            return false;
-        }
-
-        return _pendingResponse.ResponseSource.TrySetResult(response);
+        DebugLog.Write($"RECV SIP RESPONSE ignored for pending transaction callId={callId} method={method}");
+        return false;
     }
 
     private static string DescribeCallProgress(SipResponse response)
@@ -3207,7 +3267,7 @@ public sealed class SipRegistrationService : IDisposable
                     return;
                 }
 
-                if (_activeCall is not null || _pendingResponse is not null)
+                if (_activeCall is not null)
                 {
                     DebugLog.Write($"REGISTER post-call refresh waiting reason={reason} attempt={attempt}");
                     await Task.Delay(TimeSpan.FromMilliseconds(750));
@@ -3307,8 +3367,11 @@ public sealed class SipRegistrationService : IDisposable
         _natKeepAliveCancellation?.Cancel();
         _natKeepAliveCancellation?.Dispose();
         _natKeepAliveCancellation = null;
-        _pendingResponse?.ResponseSource.TrySetCanceled();
-        _pendingResponse = null;
+        foreach (var tcs in _pendingTransactions.Values)
+        {
+            tcs.TrySetCanceled();
+        }
+        _pendingTransactions.Clear();
         _pendingIncomingCall = null;
         _client?.Dispose();
         _client = null;

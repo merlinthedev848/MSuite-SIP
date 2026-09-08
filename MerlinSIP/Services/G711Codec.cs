@@ -1,35 +1,92 @@
 namespace MerlinSip.Services;
 
-internal static class G711Codec
+/// <summary>
+/// High-performance ITU-T G.711 PCMU and PCMA codec implementation using precomputed lookup tables.
+/// </summary>
+public static class G711Codec
 {
     private const int Bias = 0x84;
     private const int Clip = 32635;
 
+    private static readonly short[] MuLawToLinearTable = new short[256];
+    private static readonly short[] ALawToLinearTable = new short[256];
+
+    static G711Codec()
+    {
+        for (int i = 0; i < 256; i++)
+        {
+            MuLawToLinearTable[i] = ComputeMuLawToLinear((byte)i);
+            ALawToLinearTable[i] = ComputeALawToLinear((byte)i);
+        }
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    public static short MuLawToLinear(byte value) => MuLawToLinearTable[value];
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    public static short ALawToLinear(byte value) => ALawToLinearTable[value];
+
     public static byte LinearToMuLaw(short sample)
     {
-        var sign = (sample >> 8) & 0x80;
-        if (sign != 0)
+        int s = sample;
+        var sign = (s < 0) ? 0x80 : 0x00;
+        if (s < 0)
         {
-            sample = (short)-sample;
+            s = -s;
         }
 
-        if (sample > Clip)
+        if (s > Clip)
         {
-            sample = Clip;
+            s = Clip;
         }
 
-        sample += Bias;
+        s += Bias;
         var exponent = 7;
-        for (var mask = 0x4000; (sample & mask) == 0 && exponent > 0; mask >>= 1)
+        for (var mask = 0x4000; (s & mask) == 0 && exponent > 0; mask >>= 1)
         {
             exponent--;
         }
 
-        var mantissa = (sample >> (exponent + 3)) & 0x0F;
+        var mantissa = (s >> (exponent + 3)) & 0x0F;
         return (byte)~(sign | (exponent << 4) | mantissa);
     }
 
-    public static short MuLawToLinear(byte value)
+    public static byte LinearToALaw(short sample)
+    {
+        int s = sample;
+        var sign = 0x00;
+        if (s < 0)
+        {
+            s = -s;
+            sign = 0x80;
+        }
+
+        if (s > Clip)
+        {
+            s = Clip;
+        }
+
+        int encoded;
+        if (s >= 256)
+        {
+            var exponent = 7;
+            for (var mask = 0x4000; (s & mask) == 0 && exponent > 0; mask >>= 1)
+            {
+                exponent--;
+            }
+
+            var mantissa = (s >> (exponent + 3)) & 0x0F;
+            encoded = sign | (exponent << 4) | mantissa;
+        }
+        else
+        {
+            encoded = sign | (s >> 4);
+        }
+
+        return (byte)(encoded ^ 0x55);
+    }
+
+    private static short ComputeMuLawToLinear(byte value)
     {
         value = (byte)~value;
         var sign = value & 0x80;
@@ -40,41 +97,7 @@ internal static class G711Codec
         return (short)(sign != 0 ? -sample : sample);
     }
 
-    public static byte LinearToALaw(short sample)
-    {
-        var sign = 0x00;
-        if (sample < 0)
-        {
-            sample = (short)-sample;
-            sign = 0x80;
-        }
-
-        if (sample > 32635)
-        {
-            sample = 32635;
-        }
-
-        int encoded;
-        if (sample >= 256)
-        {
-            var exponent = 7;
-            for (var mask = 0x4000; (sample & mask) == 0 && exponent > 0; mask >>= 1)
-            {
-                exponent--;
-            }
-
-            var mantissa = (sample >> (exponent + 3)) & 0x0F;
-            encoded = sign | (exponent << 4) | mantissa;
-        }
-        else
-        {
-            encoded = sign | (sample >> 4);
-        }
-
-        return (byte)(encoded ^ 0x55);
-    }
-
-    public static short ALawToLinear(byte value)
+    private static short ComputeALawToLinear(byte value)
     {
         value ^= 0x55;
         var sign = value & 0x80;

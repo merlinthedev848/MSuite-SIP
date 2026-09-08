@@ -5,8 +5,10 @@ namespace MerlinSip.Services;
 internal static partial class WinMm
 {
 	public delegate void WaveInProc(nint waveIn, uint message, nint instance, nint header, nint reserved);
+	public delegate void WaveOutProc(nint waveOut, uint message, nint instance, nint header, nint reserved);
 
 	public const uint WimData = 960u;
+	public const uint WomDone = 0x3BDu;
 
 	public const uint CallbackFunction = 196608u;
 
@@ -36,6 +38,9 @@ internal static partial class WinMm
 
 	[DllImport("winmm.dll")]
 	public static extern int waveOutOpen(out nint waveOut, int deviceId, ref WaveFormat format, nint callback, nint instance, uint flags);
+
+	[DllImport("winmm.dll")]
+	public static extern int waveOutOpen(out nint waveOut, int deviceId, ref WaveFormat format, WaveOutProc callback, nint instance, uint flags);
 
 	[DllImport("winmm.dll")]
 	public static extern int waveOutPrepareHeader(nint waveOut, nint header, int size);

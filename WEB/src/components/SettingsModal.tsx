@@ -1,0 +1,218 @@
+import React from 'react';
+import { X } from 'lucide-react';
+import type { AudioDevice, SipSettings } from '../types';
+
+interface SettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  settingsTab: 'general' | 'account' | 'audio' | 'diagnostics' | 'about';
+  setSettingsTab: (tab: 'general' | 'account' | 'audio' | 'diagnostics' | 'about') => void;
+  settings: SipSettings;
+  setSettings: React.Dispatch<React.SetStateAction<SipSettings>>;
+  audioInputs: AudioDevice[];
+  audioOutputs: AudioDevice[];
+  onStartDiagnostics: () => void;
+  onResetApp: () => void;
+}
+
+export const SettingsModal: React.FC<SettingsModalProps> = ({
+  isOpen,
+  onClose,
+  settingsTab,
+  setSettingsTab,
+  settings,
+  setSettings,
+  audioInputs,
+  audioOutputs,
+  onStartDiagnostics,
+  onResetApp
+}) => {
+  if (!isOpen) return null;
+
+  const handleSave = () => {
+    localStorage.setItem('merlin_sip_config', JSON.stringify(settings));
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <div className="modal-header">
+          <span className="modal-title">Settings</span>
+          <button className="modal-close-btn" onClick={onClose}>
+            <X size={16} />
+          </button>
+        </div>
+        
+        {/* Modal Navigation tabs */}
+        <div className="tab-control" style={{ padding: '0 20px', borderBottom: '1px solid var(--line-color)' }}>
+          {(['general', 'account', 'audio', 'diagnostics', 'about'] as const).map(tab => (
+            <button 
+              key={tab}
+              className={`tab-item ${settingsTab === tab ? 'active' : ''}`}
+              onClick={() => setSettingsTab(tab)}
+              style={{ textTransform: 'capitalize', padding: '10px 4px', fontSize: 13 }}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        <div className="modal-body">
+          {settingsTab === 'general' && (
+            <div>
+              <div className="form-group">
+                <label className="form-label">SIP Signaling Transport</label>
+                <select 
+                  className="form-input" 
+                  value={settings.sipTransport} 
+                  onChange={e => setSettings(s => ({ ...s, sipTransport: e.target.value }))}
+                >
+                  <option value="UDP">UDP</option>
+                  <option value="TCP">TCP</option>
+                  <option value="TLS">TLS</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Do Not Disturb (DND)</label>
+                <select 
+                  className="form-input" 
+                  value={settings.dndMode} 
+                  onChange={e => setSettings(s => ({ ...s, dndMode: e.target.value }))}
+                >
+                  <option value="Off">Off</option>
+                  <option value="On">On (Auto busy)</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Mobile Twin Number</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={settings.mobileNumber} 
+                  onChange={e => setSettings(s => ({ ...s, mobileNumber: e.target.value }))} 
+                />
+              </div>
+              <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <input 
+                  type="checkbox" 
+                  id="combineContacts" 
+                  checked={settings.combineContacts} 
+                  onChange={e => setSettings(s => ({ ...s, combineContacts: e.target.checked }))} 
+                />
+                <label htmlFor="combineContacts" className="form-label" style={{ margin: 0 }}>Combine Contacts in Search</label>
+              </div>
+            </div>
+          )}
+
+          {settingsTab === 'account' && (
+            <div>
+              <div className="form-group">
+                <label className="form-label">Extension / User</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={settings.extension} 
+                  onChange={e => setSettings(s => ({ ...s, extension: e.target.value }))} 
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Auth Username</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={settings.username} 
+                  onChange={e => setSettings(s => ({ ...s, username: e.target.value }))} 
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Password</label>
+                <input 
+                  type="password" 
+                  className="form-input" 
+                  value={settings.password || ''} 
+                  onChange={e => setSettings(s => ({ ...s, password: e.target.value }))} 
+                />
+              </div>
+            </div>
+          )}
+
+          {settingsTab === 'audio' && (
+            <div>
+              <div className="form-group">
+                <label className="form-label">Audio Input (Microphone)</label>
+                <select 
+                  className="form-input" 
+                  value={settings.audioInput} 
+                  onChange={e => setSettings(s => ({ ...s, audioInput: e.target.value }))}
+                >
+                  {audioInputs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Audio Output (Speaker)</label>
+                <select 
+                  className="form-input" 
+                  value={settings.audioOutput} 
+                  onChange={e => setSettings(s => ({ ...s, audioOutput: e.target.value }))}
+                >
+                  {audioOutputs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {settingsTab === 'diagnostics' && (
+            <div>
+              <div className="settings-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="settings-card-title">PBX Diagnostics</span>
+                  <button 
+                    className="btn btn-secondary" 
+                    onClick={onStartDiagnostics}
+                    style={{ padding: '6px 12px', fontSize: 12 }}
+                  >
+                    Diagnose
+                  </button>
+                </div>
+                <p className="item-subtitle">Checks registration latency, messaging capabilities, firewall compatibility, and codec path validation.</p>
+              </div>
+
+              <div className="settings-card">
+                <span className="settings-card-title">Support Actions</span>
+                <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                  <button className="btn btn-secondary" onClick={() => alert('Logs uploaded successfully.')} style={{ flex: 1, padding: '8px' }}>Send error log</button>
+                  <button className="btn btn-danger" onClick={onResetApp} style={{ flex: 1, padding: '8px' }}>Reset app</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {settingsTab === 'about' && (
+            <div>
+              <div className="settings-card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <span className="settings-card-title">About Merlin SIP</span>
+                <p className="item-subtitle" style={{ lineHeight: 1.5 }}>CK Media Services softphone for managed SIP, presence, contacts, and reception workflows.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '6px 10px', fontSize: 13, marginTop: 10 }}>
+                  <span style={{ color: 'var(--muted-color)' }}>Version</span>
+                  <span>1.2.1</span>
+                  <span style={{ color: 'var(--muted-color)' }}>Product</span>
+                  <span>merlin-sip</span>
+                  <span style={{ color: 'var(--muted-color)' }}>Licensed to</span>
+                  <span>CK Media Services</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave}>
+            Save Settings
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

@@ -63,19 +63,66 @@ public class CallManager
         }
     }
 
+    private readonly object _syncRoot = new();
+
+    /// <summary>
+    /// Removes a finished call from the active calls collection.
+    /// </summary>
+    public void RemoveCall(string callId)
+    {
+        lock (_syncRoot)
+        {
+            var call = ActiveCalls.FirstOrDefault(c => c.CallId == callId);
+            if (call != null)
+            {
+                ActiveCalls.Remove(call);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Clears all tracked calls upon SIP deregistration or total call termination.
+    /// </summary>
+    public void ClearCalls()
+    {
+        lock (_syncRoot)
+        {
+            ActiveCalls.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Gets the current active non-held call if any.
+    /// </summary>
+    public CallState? GetActiveCall()
+    {
+        lock (_syncRoot)
+        {
+            return ActiveCalls.FirstOrDefault(c => !c.IsOnHold);
+        }
+    }
+
     /// <summary>
     /// Puts the current active call on hold and answers the pending incoming call.
     /// </summary>
     public async Task HoldCurrentAndAnswerAsync(PendingIncomingCall incoming, CancellationToken cancellationToken = default)
     {
-        var currentCall = ActiveCalls.FirstOrDefault(c => !c.IsOnHold);
+        CallState? currentCall;
+        lock (_syncRoot)
+        {
+            currentCall = ActiveCalls.FirstOrDefault(c => !c.IsOnHold);
+        }
+
         if (currentCall != null)
         {
             // Put current call on hold
             var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
             if (holdResult.Signalled)
             {
-                currentCall.IsOnHold = true;
+                lock (_syncRoot)
+                {
+                    currentCall.IsOnHold = true;
+                }
             }
             else
             {
@@ -87,13 +134,16 @@ public class CallManager
         var answerResult = await _sipProvider.AnswerCallAsync(incoming, cancellationToken);
         if (answerResult.Signalled)
         {
-            ActiveCalls.Add(new CallState
+            lock (_syncRoot)
             {
-                CallId = incoming.CallId,
-                Target = incoming.RemoteTarget,
-                IsOnHold = false,
-                StartTime = DateTime.UtcNow
-            });
+                ActiveCalls.Add(new CallState
+                {
+                    CallId = incoming.CallId,
+                    Target = incoming.RemoteTarget,
+                    IsOnHold = false,
+                    StartTime = DateTime.UtcNow
+                });
+            }
         }
         else
         {
@@ -106,19 +156,28 @@ public class CallManager
     /// </summary>
     public async Task SwitchToHeldCallAsync(string callId, CancellationToken cancellationToken = default)
     {
-        var targetCall = ActiveCalls.FirstOrDefault(c => c.CallId == callId);
+        CallState? targetCall;
+        CallState? currentCall;
+        lock (_syncRoot)
+        {
+            targetCall = ActiveCalls.FirstOrDefault(c => c.CallId == callId);
+            currentCall = ActiveCalls.FirstOrDefault(c => !c.IsOnHold);
+        }
+
         if (targetCall == null || !targetCall.IsOnHold)
         {
             return;
         }
 
-        var currentCall = ActiveCalls.FirstOrDefault(c => !c.IsOnHold);
         if (currentCall != null)
         {
             var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
             if (holdResult.Signalled)
             {
-                currentCall.IsOnHold = true;
+                lock (_syncRoot)
+                {
+                    currentCall.IsOnHold = true;
+                }
             }
         }
 
@@ -126,7 +185,10 @@ public class CallManager
         var resumeResult = await _sipProvider.ResumeSpecificCallAsync(callId, cancellationToken);
         if (resumeResult.Signalled)
         {
-            targetCall.IsOnHold = false;
+            lock (_syncRoot)
+            {
+                targetCall.IsOnHold = false;
+            }
         }
         else
         {

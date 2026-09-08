@@ -31,10 +31,7 @@ public sealed class ProvisioningService
         "https://accounts.chriskendall.media/index.php/sip/provision"
     ];
 
-    private static readonly HttpClient HttpClient = new()
-    {
-        Timeout = TimeSpan.FromSeconds(20)
-    };
+    private static readonly HttpClient HttpClient = HttpClientHelper.SharedClient;
 
     public async Task<ProvisioningResult> ProvisionAsync(
         string code,

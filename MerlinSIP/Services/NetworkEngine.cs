@@ -179,7 +179,7 @@ public class NetworkEngine : IDisposable
 	{
 		try
 		{
-			using (RegistryKey? registryKey = Registry.CurrentUser.OpenSubKey("Software\\DMC\\WindowsSoftphone\\v1"))
+			using (RegistryKey? registryKey = Registry.CurrentUser.OpenSubKey("Software\\MerlinSIP\\v1") ?? Registry.CurrentUser.OpenSubKey("Software\\DMC\\WindowsSoftphone\\v1"))
 			{
 				if (registryKey != null)
 				{
@@ -205,7 +205,7 @@ public class NetworkEngine : IDisposable
 					}
 				}
 			}
-			using (RegistryKey? registryKey2 = Registry.CurrentUser.OpenSubKey("Software\\DMC\\WindowsSoftphone\\v1\\Services"))
+			using (RegistryKey? registryKey2 = Registry.CurrentUser.OpenSubKey("Software\\MerlinSIP\\v1\\Services") ?? Registry.CurrentUser.OpenSubKey("Software\\DMC\\WindowsSoftphone\\v1\\Services"))
 			{
 				if (registryKey2 != null)
 				{

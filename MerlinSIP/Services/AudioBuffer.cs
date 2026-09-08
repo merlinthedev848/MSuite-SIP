@@ -3,33 +3,53 @@ using System.Runtime.InteropServices;
 
 namespace MerlinSip.Services;
 
-internal sealed class AudioBuffer : IDisposable
+public sealed class AudioBuffer : IDisposable
 {
-	public nint DataPointer { get; }
+	private nint _dataPointer;
+	private nint _headerPointer;
+	private bool _disposed;
 
-	public nint HeaderPointer { get; }
+	public nint DataPointer => _dataPointer;
+
+	public nint HeaderPointer => _headerPointer;
 
 	public AudioBuffer(int bytes)
 	{
-		DataPointer = Marshal.AllocHGlobal(bytes);
+		_dataPointer = Marshal.AllocHGlobal(bytes);
 		WaveHeader structure = new WaveHeader
 		{
-			Data = DataPointer,
+			Data = _dataPointer,
 			BufferLength = bytes
 		};
-		HeaderPointer = Marshal.AllocHGlobal(Marshal.SizeOf<WaveHeader>());
-		Marshal.StructureToPtr(structure, HeaderPointer, fDeleteOld: false);
+		_headerPointer = Marshal.AllocHGlobal(Marshal.SizeOf<WaveHeader>());
+		Marshal.StructureToPtr(structure, _headerPointer, fDeleteOld: false);
+	}
+
+	~AudioBuffer()
+	{
+		Dispose(false);
 	}
 
 	public void Dispose()
 	{
-		if (HeaderPointer != IntPtr.Zero)
+		Dispose(true);
+		GC.SuppressFinalize(this);
+	}
+
+	private void Dispose(bool disposing)
+	{
+		if (_disposed) return;
+		_disposed = true;
+
+		if (_headerPointer != IntPtr.Zero)
 		{
-			Marshal.FreeHGlobal(HeaderPointer);
+			Marshal.FreeHGlobal(_headerPointer);
+			_headerPointer = IntPtr.Zero;
 		}
-		if (DataPointer != IntPtr.Zero)
+		if (_dataPointer != IntPtr.Zero)
 		{
-			Marshal.FreeHGlobal(DataPointer);
+			Marshal.FreeHGlobal(_dataPointer);
+			_dataPointer = IntPtr.Zero;
 		}
 	}
 }

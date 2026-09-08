@@ -9,24 +9,29 @@ public static class HttpClientHelper
 {
     private const string IsrgRootX1Thumbprint = "C1C85D8444819EC44E96E755D9C14FD4F2F4DF52";
 
-    public static HttpClient CreateClient()
+    private static readonly SocketsHttpHandler SharedHandler = new()
     {
-        var handler = new HttpClientHandler
+        PooledConnectionLifetime = TimeSpan.FromMinutes(15),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+        EnableMultipleHttp2Connections = true,
+        SslOptions = new SslClientAuthenticationOptions
         {
-            UseDefaultCredentials = true,
-            Proxy = HttpClient.DefaultProxy,
-            ServerCertificateCustomValidationCallback = ValidateServerCertificate
-        };
+            RemoteCertificateValidationCallback = ValidateServerCertificate
+        }
+    };
 
-        return new HttpClient(handler)
-        {
-            Timeout = TimeSpan.FromSeconds(15)
-        };
-    }
+    private static readonly HttpClient SharedClientInstance = new(SharedHandler, disposeHandler: false)
+    {
+        Timeout = TimeSpan.FromSeconds(15)
+    };
+
+    public static HttpClient SharedClient => SharedClientInstance;
+
+    public static HttpClient CreateClient() => SharedClientInstance;
 
     private static bool ValidateServerCertificate(
-        HttpRequestMessage request,
-        X509Certificate2? certificate,
+        object sender,
+        X509Certificate? certificate,
         X509Chain? chain,
         SslPolicyErrors sslPolicyErrors)
     {
@@ -38,11 +43,12 @@ public static class HttpClientHelper
         var config = AppCacheService.ActiveConfig;
         if (config?.IgnoreSslErrors == true)
         {
-            var host = request.RequestUri?.Host;
-            if (host is not null && (host.Equals("chriskendall.media", StringComparison.OrdinalIgnoreCase) || 
-                                     host.EndsWith(".chriskendall.media", StringComparison.OrdinalIgnoreCase)))
+            var request = sender as HttpRequestMessage;
+            var host = request?.RequestUri?.Host;
+            if (host is null || host.Equals("chriskendall.media", StringComparison.OrdinalIgnoreCase) || 
+                host.EndsWith(".chriskendall.media", StringComparison.OrdinalIgnoreCase))
             {
-                DebugLog.Write($"LICENSE/UPDATE SSL validation bypassed for {host} by configuration.");
+                DebugLog.Write($"LICENSE/UPDATE SSL validation bypassed for {host ?? "target"} by configuration.");
                 return true;
             }
         }

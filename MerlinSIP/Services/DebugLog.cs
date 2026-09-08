@@ -2,7 +2,7 @@ using System.IO;
 
 namespace MerlinSip.Services;
 
-internal static class DebugLog
+public static class DebugLog
 {
     private static readonly object Sync = new();
     public static readonly string Path = System.IO.Path.Combine(

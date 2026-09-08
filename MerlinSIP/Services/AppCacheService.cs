@@ -164,9 +164,7 @@ public sealed class AppCacheService
 
         try
         {
-            Directory.CreateDirectory(_root);
-            await using var stream = File.Create(SettingsPath);
-            await JsonSerializer.SerializeAsync(stream, settings, JsonOptions);
+            await AtomicFileStorage.SaveAtomicAsync(SettingsPath, settings, JsonOptions);
         }
         catch (Exception error)
         {

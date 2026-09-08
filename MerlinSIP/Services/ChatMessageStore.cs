@@ -63,9 +63,8 @@ public sealed class ChatMessageStore
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             var plainText = JsonSerializer.Serialize(messages.Take(1000).ToList(), JsonOptions);
-            await File.WriteAllTextAsync(_path, Protect(plainText));
+            await AtomicFileStorage.SaveAtomicTextAsync(_path, Protect(plainText));
         }
         catch (Exception error)
         {

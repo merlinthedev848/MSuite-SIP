@@ -59,7 +59,7 @@ public sealed class SingleInstanceService : IDisposable
 		{
 			try
 			{
-				await using NamedPipeServerStream pipe = new NamedPipeServerStream("CKMediaServices.MerlinSIP.Activate", PipeDirection.In, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous);
+				await using NamedPipeServerStream pipe = new NamedPipeServerStream("CKMediaServices.MerlinSIP.Activate", PipeDirection.In, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 				await pipe.WaitForConnectionAsync(cancellationToken);
 				using StreamReader reader = new StreamReader(pipe);
 				string? msg = await reader.ReadLineAsync(cancellationToken);

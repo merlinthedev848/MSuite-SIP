@@ -33,7 +33,7 @@ public sealed class RtpAudioSession : IDisposable
 
 	private readonly List<AudioBuffer> _inputBuffers = new List<AudioBuffer>();
 
-	private readonly List<AudioBuffer> _outputBuffers = new List<AudioBuffer>();
+	private SafeWaveOutPlayer? _safeWaveOut;
 
 	private readonly WinMm.WaveInProc _waveInCallback;
 
@@ -46,8 +46,6 @@ public sealed class RtpAudioSession : IDisposable
 	private readonly object _micSync = new object();
 
 	private nint _waveIn;
-
-	private nint _waveOut;
 
 	private IPEndPoint? _remoteEndPoint;
 
@@ -291,10 +289,8 @@ public sealed class RtpAudioSession : IDisposable
 			WinMm.waveInStop(_waveIn);
 			WinMm.waveInReset(_waveIn);
 		}
-		if (_waveOut != IntPtr.Zero)
-		{
-			WinMm.waveOutReset(_waveOut);
-		}
+		_safeWaveOut?.Dispose();
+		_safeWaveOut = null;
 		_remoteEndPoint = null;
 	}
 
@@ -447,17 +443,8 @@ public sealed class RtpAudioSession : IDisposable
 				WinMm.waveInClose(_waveIn);
 				_waveIn = IntPtr.Zero;
 			}
-			if (_waveOut != IntPtr.Zero)
-			{
-				foreach (AudioBuffer outputBuffer in _outputBuffers)
-				{
-					WinMm.waveOutUnprepareHeader(_waveOut, outputBuffer.HeaderPointer, Marshal.SizeOf<WaveHeader>());
-					outputBuffer.Dispose();
-				}
-				_outputBuffers.Clear();
-				WinMm.waveOutClose(_waveOut);
-				_waveOut = IntPtr.Zero;
-			}
+			_safeWaveOut?.Dispose();
+			_safeWaveOut = null;
 			_devicesPrepared = false;
 			_receiveCancellation?.Dispose();
 			_secondaryReceiveCancellation?.Dispose();
@@ -486,13 +473,8 @@ public sealed class RtpAudioSession : IDisposable
 
 	private void OpenWaveOut()
 	{
-		WaveFormat format = WaveFormat.Pcm16Mono8k();
 		int deviceId = ParseDeviceId(_outputDevice.Id);
-		int num = WinMm.waveOutOpen(out _waveOut, deviceId, ref format, IntPtr.Zero, IntPtr.Zero, 0u);
-		if (num != 0)
-		{
-			throw new InvalidOperationException($"Unable to open speaker device: {num}");
-		}
+		_safeWaveOut = new SafeWaveOutPlayer(deviceId);
 		DebugLog.Write($"RTP speaker opened device={_outputDevice.Name}");
 	}
 
@@ -939,33 +921,19 @@ public sealed class RtpAudioSession : IDisposable
 
 	private void PlayPcmBuffer(byte[] pcm, int length)
 	{
-		lock (_buffersSync)
+		if (_safeWaveOut == null)
 		{
-			if (_waveOut == IntPtr.Zero)
+			try
 			{
-				try
-				{
-					OpenWaveOut();
-				}
-				catch (Exception ex)
-				{
-					DebugLog.Write("RTP lazy OpenWaveOut failed: " + ex.Message);
-					return;
-				}
+				OpenWaveOut();
 			}
-			AudioBuffer audioBuffer = new AudioBuffer(length);
-			Marshal.Copy(pcm, 0, audioBuffer.DataPointer, length);
-			_outputBuffers.Add(audioBuffer);
-			WinMm.waveOutPrepareHeader(_waveOut, audioBuffer.HeaderPointer, Marshal.SizeOf<WaveHeader>());
-			WinMm.waveOutWrite(_waveOut, audioBuffer.HeaderPointer, Marshal.SizeOf<WaveHeader>());
-			if (_outputBuffers.Count > 120)
+			catch (Exception ex)
 			{
-				AudioBuffer audioBuffer2 = _outputBuffers[0];
-				_outputBuffers.RemoveAt(0);
-				WinMm.waveOutUnprepareHeader(_waveOut, audioBuffer2.HeaderPointer, Marshal.SizeOf<WaveHeader>());
-				audioBuffer2.Dispose();
+				DebugLog.Write("RTP lazy OpenWaveOut failed: " + ex.Message);
+				return;
 			}
 		}
+		_safeWaveOut?.TryPlayFrame(pcm.AsSpan(0, length));
 	}
 
 	private static int ParseDeviceId(string id)
