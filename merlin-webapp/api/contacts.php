@@ -82,9 +82,14 @@ foreach ($items as $item) {
         continue;
     }
 
-    $presence = in_array(($item['presence'] ?? ''), ['online', 'busy', 'offline', 'away', 'dnd', 'ringing'], true)
-        ? $item['presence']
-        : 'offline';
+    $rawPresence = $item['presence'] ?? '';
+    if ($rawPresence === 'available') {
+        $presence = 'online';
+    } elseif (in_array($rawPresence, ['online', 'busy', 'offline', 'away', 'dnd', 'ringing'], true)) {
+        $presence = $rawPresence;
+    } else {
+        $presence = 'offline';
+    }
 
     $contacts[] = [
         'id' => merlin_string($item, 'id', 80) ?: ('c-' . bin2hex(random_bytes(6))),

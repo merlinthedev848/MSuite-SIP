@@ -310,6 +310,9 @@ window.MerlinTones = (() => {
     stopRingback,
     startRingtone,
     stopRingtone,
-    playTestSound
+    startRinging: startRingtone,
+    stopRinging: stopRingtone,
+    playTestSound,
+    previewRingtone: playTestSound
   };
 })();

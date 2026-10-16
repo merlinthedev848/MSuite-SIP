@@ -921,6 +921,9 @@ public partial class MainWindow : Window
         QueuePickupCheckBox.IsChecked = _config.QueuePickupEnabled;
         CombineContactsCheckBox.IsChecked = _config.CombineContactsInSearch;
         SelectComboBoxItem(FailedCallTimeoutComboBox, $"{_config.FailedCallDisplaySeconds} seconds");
+        CallPickupPrefixTextBox.Text = string.IsNullOrWhiteSpace(_config.CallPickupPrefix) ? "*8" : _config.CallPickupPrefix;
+        QueueToggleCodeTextBox.Text = string.IsNullOrWhiteSpace(_config.QueueLoginLogoutCode) ? "*62" : _config.QueueLoginLogoutCode;
+        CallRecordingCodeTextBox.Text = string.IsNullOrWhiteSpace(_config.CallRecordingCode) ? "*1" : _config.CallRecordingCode;
     }
 
     private static void SelectComboBoxItem(System.Windows.Controls.ComboBox comboBox, string value)
@@ -2608,7 +2611,11 @@ public partial class MainWindow : Window
             ExternalNoAnswerAction = "Send busy",
             QueuePickupEnabled = QueuePickupCheckBox.IsChecked == true,
             CombineContactsInSearch = CombineContactsCheckBox.IsChecked == true,
-            FailedCallDisplaySeconds = ComboBoxSeconds(FailedCallTimeoutComboBox, 5)
+            FailedCallDisplaySeconds = ComboBoxSeconds(FailedCallTimeoutComboBox, 5),
+            CallPickupPrefix = string.IsNullOrWhiteSpace(CallPickupPrefixTextBox.Text) ? "*8" : CallPickupPrefixTextBox.Text.Trim(),
+            QueueLoginLogoutCode = string.IsNullOrWhiteSpace(QueueToggleCodeTextBox.Text) ? "*62" : QueueToggleCodeTextBox.Text.Trim(),
+            CallRecordingCode = string.IsNullOrWhiteSpace(CallRecordingCodeTextBox.Text) ? "*1" : CallRecordingCodeTextBox.Text.Trim(),
+            IgnoreSslErrors = IgnoreSslErrorsCheckBox.IsChecked == true
         };
 
         await _cacheService.SaveSettingsAsync(_config.WithFixedSipEndpoint());
@@ -2646,7 +2653,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        DestinationTextBox.Text = "*8";
+        var pickupCode = string.IsNullOrWhiteSpace(CallPickupPrefixTextBox.Text)
+            ? (string.IsNullOrWhiteSpace(_config.CallPickupPrefix) ? "*8" : _config.CallPickupPrefix)
+            : CallPickupPrefixTextBox.Text.Trim();
+        DestinationTextBox.Text = pickupCode;
         MainTabs.SelectedItem = PhoneTab;
         DialButton_Click(sender, e);
     }

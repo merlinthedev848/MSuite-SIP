@@ -31,6 +31,11 @@ export const DialPad: React.FC<DialPadProps> = ({
           className="destination-input" 
           value={destination}
           onChange={e => setDestination(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              onMakeCall();
+            }
+          }}
           placeholder="Enter extension or trunk number..."
         />
         {destination && (

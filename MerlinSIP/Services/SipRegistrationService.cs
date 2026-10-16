@@ -684,9 +684,52 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         }
     }
 
-    private static bool ValidateTlsCertificate(object? sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+    private bool ValidateTlsCertificate(object? sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
     {
+        if (_config?.IgnoreSslErrors == true)
+        {
+            return true;
+        }
+
         return sslPolicyErrors == SslPolicyErrors.None;
+    }
+
+    public async Task<SipCallResult> RejectIncomingCallAsync(PendingIncomingCall incoming, bool redirectToVoicemail = false, CancellationToken cancellationToken = default)
+    {
+        if (!IsTransportReady || _config is null)
+        {
+            return new SipCallResult(false, "Register the SIP account first.");
+        }
+
+        if (redirectToVoicemail && !string.IsNullOrWhiteSpace(_config.MobileNumber))
+        {
+            var targetUri = $"sip:{_config.MobileNumber}@{_domain}";
+            await SendSimpleResponseAsync(
+                incoming.Request,
+                incoming.RemoteEndPoint,
+                302,
+                "Moved Temporarily",
+                cancellationToken,
+                incoming.LocalTag,
+                $"Contact: <{targetUri}>");
+        }
+        else
+        {
+            await SendSimpleResponseAsync(
+                incoming.Request,
+                incoming.RemoteEndPoint,
+                486,
+                "Busy Here",
+                cancellationToken,
+                incoming.LocalTag);
+        }
+
+        if (_pendingIncomingCall?.CallId == incoming.CallId)
+        {
+            _pendingIncomingCall = null;
+        }
+
+        return new SipCallResult(true, redirectToVoicemail ? "Call sent to voicemail." : "Incoming call rejected.");
     }
 
     private async Task SubscribeToContactPresenceAsync(string extension, CancellationToken cancellationToken)

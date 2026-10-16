@@ -4,7 +4,7 @@
     "extension": "",
     "authUsername": "",
     "displayName": "Merlin SIP Web",
-    "dnd": false,
+    "dndMode": "off",
     "declineAction": "busy",
     "ringtone": "classic",
     "autoRegister": true

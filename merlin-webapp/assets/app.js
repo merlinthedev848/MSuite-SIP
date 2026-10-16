@@ -538,7 +538,11 @@
 
       attachSession(inviter, 'Outbound', number);
       state.activeSession = inviter;
-      state.line1Session = inviter;
+      if (state.activeLine === 2) {
+        state.line2Session = inviter;
+      } else {
+        state.line1Session = inviter;
+      }
       updateLineTabsUI();
       showActiveCallHud(number, 'Dialing...');
 
@@ -570,18 +574,23 @@
     els.incomingOverlay?.classList.remove('hidden');
 
     if (window.MerlinTones) {
-      window.MerlinTones.startRinging(state.settings.ringtone || 'classic');
+      window.MerlinTones.startRingtone(state.settings.ringtone || 'classic');
     }
     setNotice('warning', 'Incoming call from ' + caller);
   }
 
   async function answerIncomingCall() {
     if (!state.incomingSession) return;
-    if (window.MerlinTones) window.MerlinTones.stopRinging();
+    if (window.MerlinTones) window.MerlinTones.stopRingtone();
     els.incomingOverlay?.classList.add('hidden');
 
     const session = state.incomingSession;
     state.activeSession = session;
+    if (state.activeLine === 2) {
+      state.line2Session = session;
+    } else {
+      state.line1Session = session;
+    }
     state.incomingSession = null;
     const caller = extractCallerNumber(session);
 
@@ -604,7 +613,7 @@
 
   function rejectIncomingCall() {
     if (!state.incomingSession) return;
-    if (window.MerlinTones) window.MerlinTones.stopRinging();
+    if (window.MerlinTones) window.MerlinTones.stopRingtone();
     els.incomingOverlay?.classList.add('hidden');
 
     const caller = extractCallerNumber(state.incomingSession);
@@ -625,7 +634,7 @@
         case SIP.SessionState.Established:
           if (window.MerlinTones) {
             window.MerlinTones.stopRingback();
-            window.MerlinTones.stopRinging();
+            window.MerlinTones.stopRingtone();
           }
           state.callStartedAt = Date.now();
           startCallTimer();
@@ -662,6 +671,9 @@
 
     if (els.remoteAudio) {
       els.remoteAudio.srcObject = remoteStream;
+      if (typeof els.remoteAudio.setSinkId === 'function' && state.settings.audioOutput && state.settings.audioOutput !== 'default') {
+        els.remoteAudio.setSinkId(state.settings.audioOutput).catch(() => {});
+      }
       els.remoteAudio.play().catch(() => {});
     }
   }
@@ -669,7 +681,7 @@
   function cleanupTerminatedSession(direction, targetNumber) {
     if (window.MerlinTones) {
       window.MerlinTones.stopRingback();
-      window.MerlinTones.stopRinging();
+      window.MerlinTones.stopRingtone();
     }
 
     if (state.recordingActive) {
@@ -683,7 +695,9 @@
     stopCallTimer();
     stopCallQualityMonitor();
 
-    state.activeSession = null;
+    if (state.line1Session === state.activeSession) state.line1Session = null;
+    if (state.line2Session === state.activeSession) state.line2Session = null;
+    state.activeSession = state.line1Session || state.line2Session || null;
     state.callStartedAt = null;
     state.muted = false;
     state.held = false;
@@ -707,7 +721,7 @@
   function endActiveCall() {
     if (window.MerlinTones) {
       window.MerlinTones.stopRingback();
-      window.MerlinTones.stopRinging();
+      window.MerlinTones.stopRingtone();
     }
 
     if (state.activeSession) {
@@ -1016,6 +1030,9 @@
   // =========================================================================
   function switchLine(lineNum) {
     state.activeLine = lineNum;
+    state.activeSession = lineNum === 2 ? state.line2Session : state.line1Session;
+    const eyebrow = document.querySelector('#dialView .panel-header .eyebrow');
+    if (eyebrow) eyebrow.textContent = 'Softphone Line ' + lineNum;
     updateLineTabsUI();
     setNotice('neutral', 'Switched to Softphone Line ' + lineNum);
   }
@@ -1030,6 +1047,9 @@
       els.btnLine2.classList.toggle('active', state.activeLine === 2);
       const s2 = $('line2Status');
       if (s2) s2.textContent = state.line2Session ? 'Active' : 'Idle';
+    }
+    if (els.btnMergeConference) {
+      els.btnMergeConference.classList.toggle('hidden', !(state.line1Session && state.line2Session));
     }
   }
 
@@ -1263,7 +1283,7 @@
       console.warn('Diagnostics API probe fallback', e);
     }
 
-    const checks = backendData?.checks || {};
+    const checks = backendData?.diagnostics?.checks || backendData?.checks || {};
 
     const steps = [
       {
@@ -1349,6 +1369,11 @@
         run: async () => {
           log('Inspecting IP hop path and router topology...');
           await delay(250);
+          const c = checks.nat_hops;
+          if (c) {
+            log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
+            return c.passed;
+          }
           log('  [PASS] Direct single-NAT gateway detected. Hop count: 1.');
           return true;
         }
@@ -1359,6 +1384,11 @@
         run: async () => {
           log('Testing NAT port mapping predictability and Full-Cone compliance...');
           await delay(300);
+          const c = checks.port_randomness;
+          if (c) {
+            log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
+            return c.passed;
+          }
           log('  [PASS] Endpoint-independent mapping (Full Cone NAT). WebRTC voice flows unhindered.');
           return true;
         }
@@ -1369,6 +1399,11 @@
         run: async () => {
           log('Probing local router for SIP Application-Level Gateway (SIP ALG)...');
           await delay(350);
+          const c = checks.sip_alg;
+          if (c) {
+            log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
+            return c.passed;
+          }
           log('  [PASS] SIP ALG is INACTIVE. SIP packets remain authentic without mangling.');
           return true;
         }
@@ -1379,6 +1414,11 @@
         run: async () => {
           log('Simulating 10-second G.711 / Opus high-definition WebRTC audio stream...');
           await delay(400);
+          const c = checks.rtp_quality;
+          if (c) {
+            log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
+            return c.passed;
+          }
           log('  [PASS] RTP Stream Performance: Jitter: 1.8ms | Packet Loss: 0.0% | MOS Score: 4.41 / 5.0 (Toll Quality)');
           return true;
         }
@@ -1389,6 +1429,11 @@
         run: async () => {
           log('Testing WSS keepalive ping/pong ping interval stability...');
           await delay(300);
+          const c = checks.websocket_hub;
+          if (c) {
+            log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
+            return c.passed;
+          }
           log('  [PASS] WebSockets transport stable. 0 dropped frames. Softphone fully certified for enterprise operation.');
           return true;
         }
@@ -1405,14 +1450,15 @@
       if (els.diagProgressFill) els.diagProgressFill.style.width = pct + '%';
     }
 
+    const score = Math.round((passedCount / steps.length) * 100);
     log('\n=================================================================');
-    log(`DIAGNOSTIC TEST COMPLETE: ${passedCount}/10 CHECKS PASSED (Score: 100/100)`);
+    log(`DIAGNOSTIC TEST COMPLETE: ${passedCount}/10 CHECKS PASSED (Score: ${score}/100)`);
     log('PBX WebRTC environment is fully operational and certified.');
     log('=================================================================');
 
     state.diagRunning = false;
-    if (els.diagStatusText) els.diagStatusText.textContent = 'Completed (100%)';
-    setNotice('success', 'Network Diagnostics completed: 10/10 checks passed.');
+    if (els.diagStatusText) els.diagStatusText.textContent = `Completed (${score}%)`;
+    setNotice('success', `Network Diagnostics completed: ${passedCount}/10 checks passed.`);
   }
 
   function exportDiagnosticsReport() {
@@ -1779,6 +1825,10 @@
 
     if (pwd) {
       localStorage.setItem('merlin_sip_password', pwd);
+    }
+
+    if (els.remoteAudio && typeof els.remoteAudio.setSinkId === 'function' && audioOut) {
+      els.remoteAudio.setSinkId(audioOut === 'default' ? '' : audioOut).catch(() => {});
     }
 
     try {

@@ -16,6 +16,9 @@ public class CallManagerTests
         public bool AnswerCalled { get; private set; }
         public string LastResumedCallId { get; private set; } = "";
 
+        public bool RejectCalled { get; private set; }
+        public bool LastRedirectToVoicemail { get; private set; }
+
         public Task<SipCallResult> SetHeldAsync(bool held, CancellationToken cancellationToken = default)
         {
             LastHeldState = held;
@@ -32,6 +35,13 @@ public class CallManagerTests
         {
             LastResumedCallId = callId;
             return Task.FromResult(new SipCallResult(true, "Resumed"));
+        }
+
+        public Task<SipCallResult> RejectIncomingCallAsync(PendingIncomingCall incoming, bool redirectToVoicemail = false, CancellationToken cancellationToken = default)
+        {
+            RejectCalled = true;
+            LastRedirectToVoicemail = redirectToVoicemail;
+            return Task.FromResult(new SipCallResult(true, redirectToVoicemail ? "Voicemail" : "Rejected"));
         }
     }
 
@@ -96,5 +106,25 @@ public class CallManagerTests
         manager.ActiveCalls.Add(new CallState { CallId = "call-y", Target = "101", IsOnHold = false, StartTime = DateTime.UtcNow });
         manager.ClearCalls();
         Assert.Empty(manager.ActiveCalls);
+    }
+
+    [Fact]
+    public async Task HandleIncomingCallAsync_DispatchesRejectAndSendToVoicemail()
+    {
+        var provider = new FakeCallManagerSipProvider();
+        var manager = new CallManager(provider);
+        var incoming = new PendingIncomingCall("call-w", "INVITE...", new IPEndPoint(IPAddress.Loopback, 5060), "tagw", "remw", "102", 1);
+
+        manager.CallWaiting += (_, args) => args.SelectedAction = CallWaitingAction.Reject;
+        await manager.HandleIncomingCallAsync(incoming, "102");
+        Assert.True(provider.RejectCalled);
+        Assert.False(provider.LastRedirectToVoicemail);
+
+        var vmProvider = new FakeCallManagerSipProvider();
+        var vmManager = new CallManager(vmProvider);
+        vmManager.CallWaiting += (_, args) => args.SelectedAction = CallWaitingAction.SendToVoicemail;
+        await vmManager.HandleIncomingCallAsync(incoming, "102");
+        Assert.True(vmProvider.RejectCalled);
+        Assert.True(vmProvider.LastRedirectToVoicemail);
     }
 }

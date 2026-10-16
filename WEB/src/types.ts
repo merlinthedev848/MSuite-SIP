@@ -36,4 +36,6 @@ export interface SipSettings {
   sipAlgCompat: boolean;
   audioInput: string;
   audioOutput: string;
+  licenseStatus?: string;
+  allowCustomSip?: boolean;
 }

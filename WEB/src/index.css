@@ -9,6 +9,7 @@
   --panel-gradient: linear-gradient(135deg, #ffffff, #f9fafb);
   --primary-gradient: linear-gradient(to bottom, #fcd34d, #fbbf24);
   --danger-gradient: linear-gradient(to bottom, #ef4444, #dc2626);
+  --danger-color: #ef4444;
   --success-color: #10b981;
   --success-bg: #dff8ee;
   --success-text: #0f513f;

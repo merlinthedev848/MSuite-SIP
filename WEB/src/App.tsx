@@ -19,32 +19,56 @@ const INITIAL_CONTACTS: Contact[] = [
 
 export default function App() {
   // Navigation & Authentication
-  const [step, setStep] = useState<'credentials' | 'main'>('credentials');
+  const [step, setStep] = useState<'credentials' | 'main'>(() => {
+    try {
+      const cached = localStorage.getItem('merlin_sip_config');
+      return cached ? 'main' : 'credentials';
+    } catch {
+      return 'credentials';
+    }
+  });
   const [allowCustomSip] = useState(false);
   const [errorText, setErrorText] = useState('');
   const [authMode, setAuthMode] = useState<'provision' | 'manual'>('provision');
   const [provisionCode, setProvisionCode] = useState('');
 
   // Settings & Configuration
-  const [settings, setSettings] = useState<SipSettings>({
-    sipServer: 'pbx.chriskendall.media',
-    extension: '',
-    username: '',
-    password: '',
-    sipTransport: 'UDP',
-    dndMode: 'Off',
-    mobileNumber: '',
-    combineContacts: true,
-    sipAlgCompat: false,
-    audioInput: '',
-    audioOutput: ''
+  const [settings, setSettings] = useState<SipSettings>(() => {
+    const defaultSettings: SipSettings = {
+      sipServer: 'pbx.chriskendall.media',
+      extension: '',
+      username: '',
+      password: '',
+      sipTransport: 'UDP',
+      dndMode: 'Off',
+      mobileNumber: '',
+      combineContacts: true,
+      sipAlgCompat: false,
+      audioInput: '',
+      audioOutput: ''
+    };
+    try {
+      const cached = localStorage.getItem('merlin_sip_config');
+      if (cached) {
+        return { ...defaultSettings, ...JSON.parse(cached) };
+      }
+    } catch (e) {
+      console.error('Failed to parse cached config', e);
+    }
+    return defaultSettings;
   });
 
   const [audioInputs, setAudioInputs] = useState<AudioDevice[]>([]);
   const [audioOutputs, setAudioOutputs] = useState<AudioDevice[]>([]);
 
   // Main UI State
-  const [registered, setRegistered] = useState(false);
+  const [registered, setRegistered] = useState<boolean>(() => {
+    try {
+      return Boolean(localStorage.getItem('merlin_sip_config'));
+    } catch {
+      return false;
+    }
+  });
   const [registerStatusText] = useState('Registered and listening for calls.');
   const [destination, setDestination] = useState('');
   const [activeTab, setActiveTab] = useState<'phone' | 'history' | 'contacts'>('phone');
@@ -54,7 +78,15 @@ export default function App() {
 
   // Call & Data State
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
-  const [callHistory, setCallHistory] = useState<CallRecord[]>([]);
+  const [callHistory, setCallHistory] = useState<CallRecord[]>(() => {
+    try {
+      const cached = localStorage.getItem('merlin_sip_history');
+      if (cached) return JSON.parse(cached);
+    } catch (e) {
+      console.error('Failed to parse cached history', e);
+    }
+    return [];
+  });
   const [contacts] = useState<Contact[]>(INITIAL_CONTACTS);
 
   // Diagnostics State
@@ -69,33 +101,8 @@ export default function App() {
   const callTimerRef = useRef<any>(null);
   const diagCancelRef = useRef<boolean>(false);
 
-  // Load cached settings & history on startup
+  // Audio media device enumeration on startup
   useEffect(() => {
-    const cachedConfig = localStorage.getItem('merlin_sip_config');
-    const cachedHistory = localStorage.getItem('merlin_sip_history');
-    if (cachedConfig) {
-      try {
-        const config = JSON.parse(cachedConfig);
-        setSettings(prev => ({
-          ...prev,
-          ...config
-        }));
-        setRegistered(true);
-        setStep('main');
-        console.log('Session initialized.');
-      } catch (e) {
-        console.error('Failed to parse cached config', e);
-      }
-    }
-    if (cachedHistory) {
-      try {
-        setCallHistory(JSON.parse(cachedHistory));
-      } catch (e) {
-        console.error('Failed to parse cached history', e);
-      }
-    }
-
-    // Media device enumeration
     navigator.mediaDevices?.getUserMedia({ audio: true })
       .then(stream => {
         stream.getTracks().forEach(track => track.stop());
@@ -120,8 +127,9 @@ export default function App() {
   }, []);
 
   // Call duration timer
+  const isCallConnected = activeCall?.state === 'connected';
   useEffect(() => {
-    if (activeCall && activeCall.state === 'connected') {
+    if (isCallConnected) {
       callTimerRef.current = setInterval(() => {
         setActiveCall(prev => prev ? { ...prev, duration: prev.duration + 1 } : null);
       }, 1000);
@@ -131,7 +139,7 @@ export default function App() {
     return () => {
       if (callTimerRef.current) clearInterval(callTimerRef.current);
     };
-  }, [activeCall?.state]);
+  }, [isCallConnected]);
 
   const handleCredentialsSubmit = () => {
     setErrorText('');
@@ -464,7 +472,10 @@ export default function App() {
                 history={callHistory}
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
-                onSelectDestination={setDestination}
+                onSelectDestination={(dest) => {
+                  setDestination(dest);
+                  setActiveTab('phone');
+                }}
                 onClearHistory={handleClearHistory}
               />
             )}
@@ -475,7 +486,10 @@ export default function App() {
                 contacts={contacts}
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
-                onSelectDestination={setDestination}
+                onSelectDestination={(dest) => {
+                  setDestination(dest);
+                  setActiveTab('phone');
+                }}
               />
             )}
           </div>
@@ -500,6 +514,10 @@ export default function App() {
           onToggleMute={toggleMute}
           onToggleHold={toggleHold}
           onHangUp={handleHangUp}
+          onTransfer={(target) => {
+            alert(`Call transferred to ${target}`);
+            handleHangUp();
+          }}
         />
       )}
 
@@ -507,8 +525,8 @@ export default function App() {
       <SettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
-        settingsTab={settingsTab as any}
-        setSettingsTab={setSettingsTab as any}
+        settingsTab={settingsTab}
+        setSettingsTab={setSettingsTab}
         settings={settings}
         setSettings={setSettings}
         audioInputs={audioInputs}

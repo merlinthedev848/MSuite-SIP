@@ -49,5 +49,23 @@ if (!is_array($items)) {
     merlin_json_response(['ok' => false, 'error' => 'Recordings array required.'], 400);
 }
 
-merlin_write_json('recordings.json', $items);
-merlin_json_response(['ok' => true, 'recordings' => $items]);
+$sanitized = [];
+foreach ($items as $item) {
+    if (!is_array($item)) {
+        continue;
+    }
+    $sanitized[] = [
+        'id' => merlin_string($item, 'id', 80) ?: ('rec-' . bin2hex(random_bytes(6))),
+        'number' => preg_replace('/[^a-zA-Z0-9+*#@.:_-]/', '', merlin_string($item, 'number', 80)),
+        'name' => merlin_string($item, 'name', 120) ?: 'Unknown',
+        'direction' => in_array(($item['direction'] ?? ''), ['Inbound', 'Outbound'], true) ? $item['direction'] : 'Outbound',
+        'duration' => max(0, (int) ($item['duration'] ?? 0)),
+        'timestamp' => merlin_string($item, 'timestamp', 40) ?: gmdate(DATE_ATOM),
+        'format' => merlin_string($item, 'format', 20) ?: 'audio/webm',
+        'size' => max(0, (int) ($item['size'] ?? 0)),
+    ];
+}
+$trimmed = array_slice($sanitized, 0, 100);
+
+merlin_write_json('recordings.json', $trimmed);
+merlin_json_response(['ok' => true, 'recordings' => $trimmed]);

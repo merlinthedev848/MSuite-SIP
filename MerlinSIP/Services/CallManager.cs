@@ -15,8 +15,8 @@ public interface ICallManagerSipProvider
     Task<SipCallResult> SetHeldAsync(bool held, CancellationToken cancellationToken = default);
     Task<SipCallResult> AnswerCallAsync(PendingIncomingCall incoming, CancellationToken cancellationToken = default);
     Task<SipCallResult> ResumeSpecificCallAsync(string callId, CancellationToken cancellationToken = default);
-    // Note: SipRegistrationService's SetHeldAsync doesn't take a callId.
-    // If it only acts on the current active call, we might need a way to swap the active call.
+    Task<SipCallResult> RejectIncomingCallAsync(PendingIncomingCall incoming, bool redirectToVoicemail = false, CancellationToken cancellationToken = default) =>
+        Task.FromResult(new SipCallResult(true, redirectToVoicemail ? "Call sent to voicemail." : "Incoming call rejected."));
 }
 
 /// <summary>
@@ -55,10 +55,10 @@ public class CallManager
                 await HoldCurrentAndAnswerAsync(incoming);
                 break;
             case CallWaitingAction.Reject:
-                // Handle reject (e.g. via provider)
+                await _sipProvider.RejectIncomingCallAsync(incoming, redirectToVoicemail: false);
                 break;
             case CallWaitingAction.SendToVoicemail:
-                // Handle send to VM
+                await _sipProvider.RejectIncomingCallAsync(incoming, redirectToVoicemail: true);
                 break;
         }
     }

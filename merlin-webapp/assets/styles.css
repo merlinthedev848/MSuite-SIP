@@ -286,7 +286,8 @@ button:disabled {
 .presence-button.ringing .presence-dot { background: var(--warning); animation: pulse 1s infinite; }
 .presence-button.dnd .presence-dot { background: #b91c1c; }
 .presence-button.away .presence-dot { background: #eab308; }
-.presence-button.disconnected .presence-dot { background: #64748b; }
+.presence-button.disconnected .presence-dot,
+.presence-button.offline .presence-dot { background: #64748b; }
 
 @keyframes pulse {
   0% { transform: scale(1); opacity: 1; }
@@ -554,7 +555,7 @@ button:disabled {
 /* In-Call Controls */
 .in-call-controls {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   margin-top: 12px;
 }
@@ -683,6 +684,100 @@ button:disabled {
 .directory-row span,
 .contact-row span {
   font-size: 13px;
+  color: var(--muted);
+}
+
+.contact-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.contact-card:hover,
+.contact-card.active {
+  background: #f8fafc;
+}
+
+.contact-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  position: relative;
+}
+
+.contact-avatar.online::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--success);
+  border: 2px solid #ffffff;
+}
+
+.contact-avatar.busy::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 2px solid #ffffff;
+}
+
+.contact-avatar.away::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--warning);
+  border: 2px solid #ffffff;
+}
+
+.contact-avatar.offline::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #94a3b8;
+  border: 2px solid #ffffff;
+}
+
+.contact-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.contact-info strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.contact-info span {
+  font-size: 12px;
   color: var(--muted);
 }
 
@@ -875,7 +970,7 @@ button:disabled {
 
 .call-actions-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 12px;
   width: 100%;
   margin-bottom: 28px;
@@ -1261,7 +1356,7 @@ body.mini-widget-mode .directory-panel {
   text-align: center;
   color: var(--muted);
   font-size: 13px;
-  background: var(--bg-card);
+  background: #f8fafc;
   border: 1px dashed var(--line);
   border-radius: var(--radius-md);
   margin: 8px 0;

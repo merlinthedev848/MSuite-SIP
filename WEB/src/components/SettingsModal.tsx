@@ -5,8 +5,8 @@ import type { AudioDevice, SipSettings } from '../types';
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  settingsTab: 'general' | 'account' | 'audio' | 'diagnostics' | 'about';
-  setSettingsTab: (tab: 'general' | 'account' | 'audio' | 'diagnostics' | 'about') => void;
+  settingsTab: 'general' | 'account' | 'handling' | 'audio' | 'diagnostics' | 'about';
+  setSettingsTab: (tab: 'general' | 'account' | 'handling' | 'audio' | 'diagnostics' | 'about') => void;
   settings: SipSettings;
   setSettings: React.Dispatch<React.SetStateAction<SipSettings>>;
   audioInputs: AudioDevice[];
@@ -34,6 +34,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose();
   };
 
+  const handleExportErrorLog = () => {
+    const logData = [
+      `Merlin SIP Web Diagnostic Log`,
+      `Generated: ${new Date().toISOString()}`,
+      `User Agent: ${navigator.userAgent}`,
+      `SIP Server: ${settings.sipServer || 'pbx.chriskendall.media'}`,
+      `SIP Transport: ${settings.sipTransport}`,
+      `Extension: ${settings.extension || 'none'}`,
+      `SIP ALG Compatibility: ${settings.sipAlgCompat ? 'Enabled' : 'Disabled'}`,
+      `DND Mode: ${settings.dndMode}`,
+      `Audio Input: ${settings.audioInput || 'default'}`,
+      `Audio Output: ${settings.audioOutput || 'default'}`,
+      `License Status: ${settings.licenseStatus}`
+    ].join('\n');
+
+    const blob = new Blob([logData], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Merlin_SIP_Web_Log_${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="modal-overlay">
       <div className="modal-content">
@@ -46,7 +70,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         
         {/* Modal Navigation tabs */}
         <div className="tab-control" style={{ padding: '0 20px', borderBottom: '1px solid var(--line-color)' }}>
-          {(['general', 'account', 'audio', 'diagnostics', 'about'] as const).map(tab => (
+          {(['general', 'account', 'handling', 'audio', 'diagnostics', 'about'] as const).map(tab => (
             <button 
               key={tab}
               className={`tab-item ${settingsTab === tab ? 'active' : ''}`}
@@ -108,6 +132,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {settingsTab === 'account' && (
             <div>
               <div className="form-group">
+                <label className="form-label">SIP Server / PBX Host</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={settings.sipServer || 'pbx.chriskendall.media'} 
+                  disabled={!settings.allowCustomSip}
+                  onChange={e => setSettings(s => ({ ...s, sipServer: e.target.value }))} 
+                />
+              </div>
+              <div className="form-group">
                 <label className="form-label">Extension / User</label>
                 <input 
                   type="text" 
@@ -132,6 +166,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="form-input" 
                   value={settings.password || ''} 
                   onChange={e => setSettings(s => ({ ...s, password: e.target.value }))} 
+                />
+              </div>
+            </div>
+          )}
+
+          {settingsTab === 'handling' && (
+            <div>
+              <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <input 
+                  type="checkbox" 
+                  id="sipAlgCompat" 
+                  checked={settings.sipAlgCompat || false} 
+                  onChange={e => setSettings(s => ({ ...s, sipAlgCompat: e.target.checked }))} 
+                />
+                <label htmlFor="sipAlgCompat" className="form-label" style={{ margin: 0 }}>
+                  SIP ALG Compatibility Mode (15s NAT Keepalive)
+                </label>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Queue Pickup Prefix</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value="*8" 
+                  readOnly 
                 />
               </div>
             </div>
@@ -181,7 +240,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="settings-card">
                 <span className="settings-card-title">Support Actions</span>
                 <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                  <button className="btn btn-secondary" onClick={() => alert('Logs uploaded successfully.')} style={{ flex: 1, padding: '8px' }}>Send error log</button>
+                  <button className="btn btn-secondary" onClick={handleExportErrorLog} style={{ flex: 1, padding: '8px' }}>Send error log</button>
                   <button className="btn btn-danger" onClick={onResetApp} style={{ flex: 1, padding: '8px' }}>Reset app</button>
                 </div>
               </div>

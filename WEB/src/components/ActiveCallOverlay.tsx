@@ -7,15 +7,36 @@ interface ActiveCallOverlayProps {
   onToggleMute: () => void;
   onToggleHold: () => void;
   onHangUp: () => void;
+  onTransfer?: (target: string) => void;
 }
 
 export const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({
   call,
   onToggleMute,
   onToggleHold,
-  onHangUp
+  onHangUp,
+  onTransfer
 }) => {
+  const [showTransferInput, setShowTransferInput] = React.useState(false);
+  const [transferTarget, setTransferTarget] = React.useState('');
   const durationText = `${Math.floor(call.duration / 60)}:${(call.duration % 60).toString().padStart(2, '0')}`;
+
+  const handleTransfer = () => {
+    if (!showTransferInput) {
+      setShowTransferInput(true);
+      return;
+    }
+    if (transferTarget.trim()) {
+      if (onTransfer) {
+        onTransfer(transferTarget.trim());
+      } else {
+        alert(`Transferred call to ${transferTarget.trim()}`);
+        onHangUp();
+      }
+      setShowTransferInput(false);
+      setTransferTarget('');
+    }
+  };
 
   return (
     <div className="active-call-overlay">
@@ -29,6 +50,24 @@ export const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({
         {call.state === 'connected' && `Connected (${durationText})`}
         {call.state === 'hold' && 'On Hold'}
       </div>
+
+      {showTransferInput && (
+        <div style={{ display: 'flex', gap: 6, width: '100%', maxWidth: 260, margin: '8px 0' }}>
+          <input 
+            type="text" 
+            className="form-input" 
+            placeholder="Target extension..." 
+            value={transferTarget}
+            onChange={e => setTransferTarget(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleTransfer(); }}
+            style={{ padding: '6px 10px', fontSize: 13 }}
+            autoFocus
+          />
+          <button className="btn btn-primary" onClick={handleTransfer} style={{ padding: '6px 12px', fontSize: 12 }}>
+            OK
+          </button>
+        </div>
+      )}
 
       <div className="call-actions-grid">
         <button 
@@ -51,7 +90,10 @@ export const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({
           <span>{call.state === 'hold' ? 'Resume' : 'Hold'}</span>
         </button>
 
-        <button className="call-action-btn" onClick={() => alert('Transferring call... (Not supported in standalone mode)')}>
+        <button 
+          className={`call-action-btn ${showTransferInput ? 'active' : ''}`} 
+          onClick={handleTransfer}
+        >
           <div className="action-icon-circle">
             <PhoneCall size={18} />
           </div>

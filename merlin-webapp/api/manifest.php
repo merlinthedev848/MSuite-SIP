@@ -39,6 +39,7 @@ merlin_json_response([
         'history' => 'api/history.php',
         'provision' => 'api/provision.php',
         'license' => 'api/license.php',
+        'recordings' => 'api/recordings.php',
         'diagnostics' => 'api/diagnostics.php',
     ],
 ]);
