@@ -17,6 +17,8 @@ using DrawingIcon = System.Drawing.Icon;
 using DrawingSystemIcons = System.Drawing.SystemIcons;
 using WinForms = System.Windows.Forms;
 using WpfBrush = System.Windows.Media.Brush;
+using WpfBrushes = System.Windows.Media.Brushes;
+using WpfColor = System.Windows.Media.Color;
 using WpfButton = System.Windows.Controls.Button;
 using WpfListBox = System.Windows.Controls.ListBox;
 
@@ -73,6 +75,23 @@ public partial class MainWindow : Window
     private int _callFinishing;
     private string _lastDialedNumber = "";
     private NetworkEngine? _activeNetworkDiagnostics;
+
+    private sealed class LineAppearance
+    {
+        public int LineNumber { get; set; } = 1;
+        public string Status { get; set; } = "Idle";
+        public string RemoteNumber { get; set; } = "";
+        public string RemoteName { get; set; } = "";
+        public string Direction { get; set; } = "Outbound";
+        public DateTimeOffset? ConnectedAt { get; set; }
+        public bool IsHeld { get; set; }
+
+        public bool HasCall => Status != "Idle";
+    }
+
+    private readonly LineAppearance _line1 = new() { LineNumber = 1 };
+    private readonly LineAppearance _line2 = new() { LineNumber = 2 };
+    private int _selectedLine = 1;
     private readonly List<string> _networkDiagnosticsProgress = [];
     private string _selectedChatNumber = "";
     private string _activeRemoteNumber = "";
@@ -176,6 +195,7 @@ public partial class MainWindow : Window
         InitializeTrayIcon();
         UpdateInCallButtonIcons();
         UpdateCallControls();
+        UpdateLineAppearances();
     }
 
     private static TextBlock CreateInCallIcon(string glyph)
@@ -487,6 +507,7 @@ public partial class MainWindow : Window
         if (WindowState != WindowState.Minimized)
         {
             UpdateCallTimer();
+            UpdateLineAppearances();
         }
     }
 
@@ -773,7 +794,26 @@ public partial class MainWindow : Window
             _incomingRinging = true;
             _callInProgress = true;
             _callConnected = false;
+            if (alreadyOnCall)
+            {
+                _line2.Status = "Incoming";
+                _line2.RemoteNumber = e.CallerNumber;
+                _line2.RemoteName = callerName;
+                _line2.Direction = "Inbound";
+                _line2.ConnectedAt = null;
+                _line2.IsHeld = false;
+            }
+            else
+            {
+                _line1.Status = "Incoming";
+                _line1.RemoteNumber = e.CallerNumber;
+                _line1.RemoteName = callerName;
+                _line1.Direction = "Inbound";
+                _line1.ConnectedAt = null;
+                _line1.IsHeld = false;
+            }
             UpdateCallControls();
+            UpdateLineAppearances();
 
             if (alreadyOnCall && ShouldSendBusyWhenBusy(e.CallerNumber))
             {
@@ -819,8 +859,21 @@ public partial class MainWindow : Window
                 _incomingRinging = false;
                 _callInProgress = true;
                 _callConnected = true;
+                if (_selectedLine == 1)
+                {
+                    _line1.Status = "Connected";
+                    _line1.ConnectedAt = DateTimeOffset.Now;
+                    _line1.IsHeld = false;
+                }
+                else
+                {
+                    _line2.Status = "Connected";
+                    _line2.ConnectedAt = DateTimeOffset.Now;
+                    _line2.IsHeld = false;
+                }
                 StartCallTimer();
                 UpdateCallControls();
+                UpdateLineAppearances();
                 return;
             }
 
@@ -1585,6 +1638,7 @@ public partial class MainWindow : Window
         var destination = DestinationTextBox.Text.Trim();
         DestinationPreviewText.Text = string.IsNullOrWhiteSpace(destination) ? "Enter number" : destination;
         UpdateCallControls();
+        UpdateLineAppearances();
 
         var contact = _contactStore.FindByNumber(_contacts, destination);
         CallerLookupText.Text = contact is null
@@ -1881,6 +1935,23 @@ public partial class MainWindow : Window
         _activeRemoteNumber = destination;
         _callInProgress = true;
         _callConnected = false;
+        if (_selectedLine == 1)
+        {
+            _line1.Status = "Calling";
+            _line1.RemoteNumber = destination;
+            _line1.RemoteName = name;
+            _line1.Direction = "Outbound";
+            _line1.IsHeld = false;
+        }
+        else
+        {
+            _line2.Status = "Calling";
+            _line2.RemoteNumber = destination;
+            _line2.RemoteName = name;
+            _line2.Direction = "Outbound";
+            _line2.IsHeld = false;
+        }
+        UpdateLineAppearances();
         SetContactPresence(destination, "Ringing");
         _ = _sipRegistrationService.PublishPresenceAsync("Busy");
         SetPresenceDisplay("Busy");
@@ -3436,6 +3507,31 @@ del ""%~f0""
             _sipRegistrationService.SetMuted(false);
             _sipRegistrationService.SetHeldLocal(false);
             UpdateInCallButtonIcons();
+            if (_selectedLine == 1)
+            {
+                _line1.Status = "Idle";
+                _line1.RemoteNumber = "";
+                _line1.RemoteName = "";
+                _line1.ConnectedAt = null;
+                _line1.IsHeld = false;
+                if (_line2.HasCall)
+                {
+                    _selectedLine = 2;
+                }
+            }
+            else
+            {
+                _line2.Status = "Idle";
+                _line2.RemoteNumber = "";
+                _line2.RemoteName = "";
+                _line2.ConnectedAt = null;
+                _line2.IsHeld = false;
+                if (_line1.HasCall)
+                {
+                    _selectedLine = 1;
+                }
+            }
+            UpdateLineAppearances();
 
             StopCallTimer();
             ClearDialpadAfterCall();
@@ -3734,4 +3830,304 @@ del ""%~f0""
 
         CallQualityDetailsWindow.ShowCallQuality(this, liveEntry);
     }
+
+    private void UpdateLineAppearances()
+    {
+        // Highlight active line selection
+        if (_selectedLine == 1)
+        {
+            Line1Badge.Background = (WpfBrush)new BrushConverter().ConvertFromString("#0E987E")!;
+            Line1BadgeText.Foreground = WpfBrushes.White;
+            Line1Card.Background = (WpfBrush)new BrushConverter().ConvertFromString("#F0FDF4")!;
+
+            Line2Badge.Background = (WpfBrush)new BrushConverter().ConvertFromString("#EEF2F6")!;
+            Line2BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#475569")!;
+            Line2Card.Background = (WpfBrush)new BrushConverter().ConvertFromString("#F8FAFC")!;
+        }
+        else
+        {
+            Line2Badge.Background = (WpfBrush)new BrushConverter().ConvertFromString("#0E987E")!;
+            Line2BadgeText.Foreground = WpfBrushes.White;
+            Line2Card.Background = (WpfBrush)new BrushConverter().ConvertFromString("#F0FDF4")!;
+
+            Line1Badge.Background = (WpfBrush)new BrushConverter().ConvertFromString("#EEF2F6")!;
+            Line1BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#475569")!;
+            Line1Card.Background = (WpfBrush)new BrushConverter().ConvertFromString("#F8FAFC")!;
+        }
+
+        // --- LINE 1 ---
+        if (_line1.Status == "Connected")
+        {
+            Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString(_line1.IsHeld ? "#F59E0B" : "#10B981")!;
+            var elapsed = _line1.ConnectedAt.HasValue ? DateTimeOffset.Now - _line1.ConnectedAt.Value : TimeSpan.Zero;
+            var time = elapsed.TotalHours >= 1 ? elapsed.ToString(@"hh\:mm\:ss") : elapsed.ToString(@"mm\:ss");
+            Line1StatusText.Text = _line1.IsHeld ? "On Hold ⏸" : $"Connected ({time})";
+            Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString(_line1.IsHeld ? "#D97706" : "#059669")!;
+            Line1DetailText.Text = string.IsNullOrWhiteSpace(_line1.RemoteName) ? _line1.RemoteNumber : $"{_line1.RemoteName} ({_line1.RemoteNumber})";
+            Line1HoldResumeButton.Visibility = Visibility.Visible;
+            Line1HoldResumeButton.Content = _line1.IsHeld ? "▶ Resume" : "⏸ Hold";
+            Line1HangupButton.Visibility = Visibility.Visible;
+        }
+        else if (_line1.Status == "Calling")
+        {
+            Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#3B82F6")!;
+            Line1StatusText.Text = "Calling...";
+            Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#2563EB")!;
+            Line1DetailText.Text = string.IsNullOrWhiteSpace(_line1.RemoteName) ? _line1.RemoteNumber : $"{_line1.RemoteName} ({_line1.RemoteNumber})";
+            Line1HoldResumeButton.Visibility = Visibility.Collapsed;
+            Line1HangupButton.Visibility = Visibility.Visible;
+        }
+        else if (_line1.Status == "Incoming")
+        {
+            Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#EF4444")!;
+            Line1StatusText.Text = "Incoming Call 🔔";
+            Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#DC2626")!;
+            Line1DetailText.Text = string.IsNullOrWhiteSpace(_line1.RemoteName) ? _line1.RemoteNumber : $"{_line1.RemoteName} ({_line1.RemoteNumber})";
+            Line1HoldResumeButton.Visibility = Visibility.Collapsed;
+            Line1HangupButton.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
+            Line1StatusText.Text = "Idle";
+            Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#64748B")!;
+            Line1DetailText.Text = _selectedLine == 1 && !string.IsNullOrWhiteSpace(DestinationTextBox.Text)
+                ? $"Ready to dial: {DestinationTextBox.Text}"
+                : "Ready for call";
+            Line1HoldResumeButton.Visibility = Visibility.Collapsed;
+            Line1HangupButton.Visibility = Visibility.Collapsed;
+        }
+
+        // --- LINE 2 ---
+        if (_line2.Status == "Connected")
+        {
+            Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString(_line2.IsHeld ? "#F59E0B" : "#10B981")!;
+            var elapsed = _line2.ConnectedAt.HasValue ? DateTimeOffset.Now - _line2.ConnectedAt.Value : TimeSpan.Zero;
+            var time = elapsed.TotalHours >= 1 ? elapsed.ToString(@"hh\:mm\:ss") : elapsed.ToString(@"mm\:ss");
+            Line2StatusText.Text = _line2.IsHeld ? "On Hold ⏸" : $"Connected ({time})";
+            Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString(_line2.IsHeld ? "#D97706" : "#059669")!;
+            Line2DetailText.Text = string.IsNullOrWhiteSpace(_line2.RemoteName) ? _line2.RemoteNumber : $"{_line2.RemoteName} ({_line2.RemoteNumber})";
+            Line2AnswerButton.Visibility = Visibility.Collapsed;
+            Line2DeclineButton.Visibility = Visibility.Collapsed;
+            Line2HoldResumeButton.Visibility = Visibility.Visible;
+            Line2HoldResumeButton.Content = _line2.IsHeld ? "▶ Resume" : "⏸ Hold";
+            Line2HangupButton.Visibility = Visibility.Visible;
+        }
+        else if (_line2.Status == "Incoming")
+        {
+            Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#EF4444")!;
+            Line2StatusText.Text = "Incoming Call 🔔";
+            Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#DC2626")!;
+            Line2DetailText.Text = string.IsNullOrWhiteSpace(_line2.RemoteName) ? _line2.RemoteNumber : $"{_line2.RemoteName} ({_line2.RemoteNumber})";
+            Line2AnswerButton.Visibility = Visibility.Visible;
+            Line2DeclineButton.Visibility = Visibility.Visible;
+            Line2HoldResumeButton.Visibility = Visibility.Collapsed;
+            Line2HangupButton.Visibility = Visibility.Collapsed;
+        }
+        else if (_line2.Status == "Calling")
+        {
+            Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#3B82F6")!;
+            Line2StatusText.Text = "Calling...";
+            Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#2563EB")!;
+            Line2DetailText.Text = string.IsNullOrWhiteSpace(_line2.RemoteName) ? _line2.RemoteNumber : $"{_line2.RemoteName} ({_line2.RemoteNumber})";
+            Line2AnswerButton.Visibility = Visibility.Collapsed;
+            Line2DeclineButton.Visibility = Visibility.Collapsed;
+            Line2HoldResumeButton.Visibility = Visibility.Collapsed;
+            Line2HangupButton.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
+            Line2StatusText.Text = "Idle";
+            Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#64748B")!;
+            Line2DetailText.Text = _selectedLine == 2 && !string.IsNullOrWhiteSpace(DestinationTextBox.Text)
+                ? $"Ready to dial: {DestinationTextBox.Text}"
+                : "Ready for 2nd call / Incoming";
+            Line2AnswerButton.Visibility = Visibility.Collapsed;
+            Line2DeclineButton.Visibility = Visibility.Collapsed;
+            Line2HoldResumeButton.Visibility = Visibility.Collapsed;
+            Line2HangupButton.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private async void SelectLine(int line)
+    {
+        if (line == _selectedLine) return;
+        _selectedLine = line;
+
+        if (line == 2)
+        {
+            if (_line1.Status == "Connected" && !_line1.IsHeld)
+            {
+                await HoldLine(1);
+            }
+            if (_line2.Status == "Connected" && _line2.IsHeld)
+            {
+                await ResumeLine(2);
+            }
+
+            DestinationTextBox.Text = _line2.RemoteNumber;
+            if (string.IsNullOrWhiteSpace(_line2.RemoteNumber))
+            {
+                DestinationPreviewText.Text = "Enter a number";
+                CallerLookupText.Text = "Line 2 selected";
+            }
+            else
+            {
+                DestinationPreviewText.Text = _line2.RemoteNumber;
+                CallerLookupText.Text = _line2.RemoteName;
+            }
+        }
+        else
+        {
+            if (_line2.Status == "Connected" && !_line2.IsHeld)
+            {
+                await HoldLine(2);
+            }
+            if (_line1.Status == "Connected" && _line1.IsHeld)
+            {
+                await ResumeLine(1);
+            }
+
+            DestinationTextBox.Text = _line1.RemoteNumber;
+            if (string.IsNullOrWhiteSpace(_line1.RemoteNumber))
+            {
+                DestinationPreviewText.Text = "Enter a number";
+                CallerLookupText.Text = "Line 1 selected";
+            }
+            else
+            {
+                DestinationPreviewText.Text = _line1.RemoteNumber;
+                CallerLookupText.Text = _line1.RemoteName;
+            }
+        }
+
+        UpdateCallControls();
+        UpdateLineAppearances();
+    }
+
+    private async Task HoldLine(int line)
+    {
+        var targetLine = line == 1 ? _line1 : _line2;
+        if (!targetLine.HasCall || targetLine.IsHeld) return;
+
+        targetLine.IsHeld = true;
+        _held = true;
+        await _sipRegistrationService.SetHeldAsync(true);
+        UpdateInCallButtonIcons();
+        UpdateLineAppearances();
+        FooterStatusText.Text = $"Line {line} placed on hold.";
+    }
+
+    private async Task ResumeLine(int line)
+    {
+        var targetLine = line == 1 ? _line1 : _line2;
+        if (!targetLine.HasCall || !targetLine.IsHeld) return;
+
+        targetLine.IsHeld = false;
+        _held = false;
+        await _sipRegistrationService.SetHeldAsync(false);
+        UpdateInCallButtonIcons();
+        UpdateLineAppearances();
+        FooterStatusText.Text = $"Line {line} resumed.";
+    }
+
+    private void Line1Card_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        SelectLine(1);
+    }
+
+    private void Line2Card_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        SelectLine(2);
+    }
+
+    private async void Line1HoldResumeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_line1.IsHeld)
+        {
+            await ResumeLine(1);
+        }
+        else
+        {
+            await HoldLine(1);
+        }
+    }
+
+    private async void Line2HoldResumeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_line2.IsHeld)
+        {
+            await ResumeLine(2);
+        }
+        else
+        {
+            await HoldLine(2);
+        }
+    }
+
+    private void Line1HangupButton_Click(object sender, RoutedEventArgs e)
+    {
+        _line1.Status = "Idle";
+        _line1.RemoteNumber = "";
+        _line1.RemoteName = "";
+        _line1.ConnectedAt = null;
+        _line1.IsHeld = false;
+        HangupButton_Click(sender, e);
+        if (_line2.HasCall)
+        {
+            SelectLine(2);
+        }
+        else
+        {
+            _selectedLine = 1;
+        }
+        UpdateCallControls();
+        UpdateLineAppearances();
+    }
+
+    private void Line2HangupButton_Click(object sender, RoutedEventArgs e)
+    {
+        _line2.Status = "Idle";
+        _line2.RemoteNumber = "";
+        _line2.RemoteName = "";
+        _line2.ConnectedAt = null;
+        _line2.IsHeld = false;
+        HangupButton_Click(sender, e);
+        if (_line1.HasCall)
+        {
+            SelectLine(1);
+        }
+        else
+        {
+            _selectedLine = 1;
+        }
+        UpdateCallControls();
+        UpdateLineAppearances();
+    }
+
+    private async void Line2AnswerButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_line1.Status == "Connected" && !_line1.IsHeld)
+        {
+            await HoldLine(1);
+        }
+        _line2.Status = "Connected";
+        _line2.ConnectedAt = DateTimeOffset.Now;
+        _line2.IsHeld = false;
+        _selectedLine = 2;
+        AnswerIncomingCall();
+        UpdateLineAppearances();
+    }
+
+    private void Line2DeclineButton_Click(object sender, RoutedEventArgs e)
+    {
+        _line2.Status = "Idle";
+        _line2.RemoteNumber = "";
+        _line2.RemoteName = "";
+        _line2.ConnectedAt = null;
+        DeclineIncomingCall();
+        UpdateLineAppearances();
+    }
+
 }
