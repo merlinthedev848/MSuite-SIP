@@ -1799,7 +1799,7 @@ public partial class MainWindow : Window
         });
     }
 
-    private void PresenceMenuItem_Click(object sender, RoutedEventArgs e)
+    private async void PresenceMenuItem_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.MenuItem item)
         {
@@ -1813,16 +1813,29 @@ public partial class MainWindow : Window
         }
 
         _userSelectedPresence = status;
-        SetPresenceDisplay(status);
-        if (status.Equals("DND", StringComparison.OrdinalIgnoreCase) && !_dndEnabled)
+
+        if (status.Equals("DND", StringComparison.OrdinalIgnoreCase))
         {
-            DndButton_Click(sender, e);
+            if (!_dndEnabled)
+            {
+                await SetDndModeInternalAsync(true, "DND");
+            }
+            else
+            {
+                SetPresenceDisplay("DND");
+            }
+
+            FooterStatusText.Text = "Presence set to DND (Do Not Disturb).";
             return;
         }
 
-        if (!status.Equals("DND", StringComparison.OrdinalIgnoreCase) && _dndEnabled)
+        if (_dndEnabled)
         {
-            DndButton_Click(sender, e);
+            await SetDndModeInternalAsync(false, status);
+        }
+        else
+        {
+            SetPresenceDisplay(status);
         }
 
         FooterStatusText.Text = $"Presence set to {status}.";
@@ -2259,7 +2272,11 @@ public partial class MainWindow : Window
         }
         else if (string.Equals(PresenceText.Text, "DND", StringComparison.OrdinalIgnoreCase))
         {
-            SetPresenceDisplay("Available");
+            var restore = !string.IsNullOrWhiteSpace(_userSelectedPresence) && !string.Equals(_userSelectedPresence, "DND", StringComparison.OrdinalIgnoreCase)
+                ? _userSelectedPresence
+                : "Available";
+            _userSelectedPresence = restore;
+            SetPresenceDisplay(restore);
         }
     }
 
@@ -2321,43 +2338,46 @@ public partial class MainWindow : Window
 
     private async void DndButton_Click(object sender, RoutedEventArgs e)
     {
-        _dndEnabled = !_dndEnabled;
+        var targetDnd = !_dndEnabled;
+        var targetPresence = targetDnd
+            ? "DND"
+            : (!string.IsNullOrWhiteSpace(_userSelectedPresence) && !string.Equals(_userSelectedPresence, "DND", StringComparison.OrdinalIgnoreCase)
+                ? _userSelectedPresence
+                : "Available");
+
+        await SetDndModeInternalAsync(targetDnd, targetPresence);
+        FooterStatusText.Text = targetDnd ? "Do not disturb is on." : "Do not disturb is off.";
+    }
+
+    private async Task SetDndModeInternalAsync(bool enableDnd, string targetPresence)
+    {
+        _dndEnabled = enableDnd;
         _config = _config with { DndMode = _dndEnabled ? "Reject calls" : "Off" };
         SelectComboBoxItem(DndModeComboBox, _config.DndMode);
         await _cacheService.SaveSettingsAsync(_config.WithFixedSipEndpoint());
         _sipRegistrationService.SetRejectIncomingCalls(_dndEnabled);
+
         if (_dndEnabled)
         {
             _ringtonePlayer.Stop();
-        _secondaryRingtonePlayer.Stop();
-            var rejectedCurrentCall = false;
+            _secondaryRingtonePlayer.Stop();
             if (_sipRegistrationService.HasPendingIncomingCall)
             {
                 var result = await _sipRegistrationService.EndCallAsync();
                 HideIncomingCallSurfaces();
-        FlashWindow(false);
+                FlashWindow(false);
                 FooterStatusText.Text = result.Message;
-                rejectedCurrentCall = true;
                 _incomingRinging = false;
                 _callInProgress = false;
                 _callConnected = false;
                 UpdateCallControls();
             }
-
-            if (rejectedCurrentCall)
-            {
-                DndButton.Content = "DND on";
-                return;
-            }
         }
 
         DndButton.Content = _dndEnabled ? "DND on" : "DND";
-        SetPresenceDisplay(_dndEnabled ? "DND" : "Available");
+        _userSelectedPresence = targetPresence;
+        SetPresenceDisplay(targetPresence);
         UpdateCallControls();
-        if (!_dndEnabled || !_sipRegistrationService.HasPendingIncomingCall)
-        {
-            FooterStatusText.Text = _dndEnabled ? "Do not disturb is on." : "Do not disturb is off.";
-        }
 
         if (!_dndEnabled && !_registered && NetworkInterface.GetIsNetworkAvailable())
         {

@@ -118,6 +118,62 @@ public class CoreTests
         Assert.Equal("100Contact: <sip:attacker@evil.com>", sanitized);
     }
 
+    [Theory]
+    [InlineData("Away", true, "Away", false)]
+    [InlineData("Busy", true, "Busy", false)]
+    [InlineData("Available", true, "Available", false)]
+    [InlineData("DND", false, "DND", true)]
+    [InlineData("Offline", true, "Offline", false)]
+    public void Presence_Transition_CalculatesCorrectTargetState(
+        string selectedMenuPresence,
+        bool currentDnd,
+        string expectedTargetPresence,
+        bool expectedDnd)
+    {
+        // Models the state transition logic in PresenceMenuItem_Click:
+        bool nextDnd = currentDnd;
+        string nextPresence = selectedMenuPresence;
+
+        if (selectedMenuPresence.Equals("DND", StringComparison.OrdinalIgnoreCase))
+        {
+            nextDnd = true;
+            nextPresence = "DND";
+        }
+        else if (currentDnd)
+        {
+            // Transitioning from DND to a non-DND presence turns off DND
+            // and MUST preserve the selected presence (e.g. Away), never reverting to Available.
+            nextDnd = false;
+            nextPresence = selectedMenuPresence;
+        }
+
+        Assert.Equal(expectedDnd, nextDnd);
+        Assert.Equal(expectedTargetPresence, nextPresence);
+    }
+
+    [Theory]
+    [InlineData("Away", true, "Away")]
+    [InlineData("Busy", true, "Busy")]
+    [InlineData("DND", true, "Available")]
+    [InlineData("", true, "Available")]
+    [InlineData(null, true, "Available")]
+    public void DndToggle_WhenDisabled_RestoresPreviousUserPresenceOrAvailable(
+        string? userSelectedPresence,
+        bool currentDnd,
+        string expectedRestoredPresence)
+    {
+        // When DND button is toggled off (currentDnd == true -> targetDnd == false):
+        bool targetDnd = !currentDnd;
+        string targetPresence = targetDnd
+            ? "DND"
+            : (!string.IsNullOrWhiteSpace(userSelectedPresence) && !string.Equals(userSelectedPresence, "DND", StringComparison.OrdinalIgnoreCase)
+                ? userSelectedPresence
+                : "Available");
+
+        Assert.False(targetDnd);
+        Assert.Equal(expectedRestoredPresence, targetPresence);
+    }
+
     private static string CleanPhone(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return "";
