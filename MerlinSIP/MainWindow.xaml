@@ -243,6 +243,60 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="PresenceContextMenuStyle" TargetType="{x:Type ContextMenu}">
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,8" />
+            <Setter Property="MinWidth" Value="190" />
+            <Setter Property="HasDropShadow" Value="True" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ContextMenu}">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.12" Color="#0F172A" />
+                            </Border.Effect>
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PresenceMenuItemStyle" TargetType="{x:Type MenuItem}">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type MenuItem}">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="{TemplateBinding Margin}">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#F1F5F9" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Window.Resources>
 
     <Grid Background="{StaticResource AppBackdrop}">
@@ -281,7 +335,7 @@
                                TextAlignment="Center"
                                TextWrapping="Wrap" />
                     <TextBlock x:Name="AppVersionText"
-                               Text="v1.3.0"
+                               Text="v1.3.1"
                                Foreground="#64748B"
                                FontSize="10"
                                FontWeight="Medium"
@@ -346,22 +400,99 @@
                 <StackPanel Grid.Column="2" HorizontalAlignment="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="PresenceButton"
                             Style="{StaticResource SoftButton}"
-                            Width="104"
+                            MinWidth="108"
                             Height="40"
+                            Padding="12,0"
                             Margin="0"
                             VerticalAlignment="Center"
-                            Click="PresenceButton_Click">
+                            Click="PresenceButton_Click"
+                            ToolTip="Set your presence status">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Ellipse x:Name="PresenceDot" Width="8" Height="8" Fill="#16A34A" Stroke="#111317" StrokeThickness="1" Margin="0,0,7,0" />
-                            <TextBlock x:Name="PresenceText" Text="Available" />
+                            <TextBlock x:Name="PresenceText" Text="Available" Margin="0,0,6,0" />
+                            <TextBlock Text="&#xE70D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="9" Foreground="#64748B" VerticalAlignment="Center" />
                         </StackPanel>
                         <Button.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="Available" Click="PresenceMenuItem_Click" />
-                                <MenuItem Header="Busy" Click="PresenceMenuItem_Click" />
-                                <MenuItem Header="DND" Click="PresenceMenuItem_Click" />
-                                <MenuItem Header="Away" Click="PresenceMenuItem_Click" />
-                                <MenuItem Header="Offline" Click="PresenceMenuItem_Click" />
+                            <ContextMenu x:Name="PresenceContextMenu"
+                                         Style="{StaticResource PresenceContextMenuStyle}"
+                                         PlacementTarget="{Binding RelativeSource={RelativeSource AncestorType=Button}}"
+                                         Placement="Bottom"
+                                         VerticalOffset="4">
+                                <MenuItem Tag="Available" Click="PresenceMenuItem_Click" Style="{StaticResource PresenceMenuItemStyle}" ToolTip="Set status to Available">
+                                    <MenuItem.Header>
+                                        <Grid VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Width="22" Height="22" CornerRadius="5" Background="#10B981" Margin="0,0,12,0" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" FontWeight="Bold" Foreground="White"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <TextBlock Grid.Column="1" Text="Available" FontSize="13.5" FontWeight="SemiBold" Foreground="#1E293B" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </MenuItem.Header>
+                                </MenuItem>
+
+                                <MenuItem Tag="Busy" Click="PresenceMenuItem_Click" Style="{StaticResource PresenceMenuItemStyle}" ToolTip="Set status to Busy">
+                                    <MenuItem.Header>
+                                        <Grid VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Width="22" Height="22" CornerRadius="5" Background="#EF4444" Margin="0,0,12,0" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="Busy" FontSize="13.5" FontWeight="SemiBold" Foreground="#1E293B" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </MenuItem.Header>
+                                </MenuItem>
+
+                                <MenuItem Tag="DND" Click="PresenceMenuItem_Click" Style="{StaticResource PresenceMenuItemStyle}" ToolTip="Set status to Do Not Disturb">
+                                    <MenuItem.Header>
+                                        <Grid VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Width="22" Height="22" CornerRadius="5" Background="#EF4444" Margin="0,0,12,0" VerticalAlignment="Center">
+                                                <Rectangle Width="10" Height="2.5" Fill="White" RadiusX="1" RadiusY="1" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <TextBlock Grid.Column="1" Text="DND" FontSize="13.5" FontWeight="SemiBold" Foreground="#1E293B" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </MenuItem.Header>
+                                </MenuItem>
+
+                                <MenuItem Tag="Away" Click="PresenceMenuItem_Click" Style="{StaticResource PresenceMenuItemStyle}" ToolTip="Set status to Away">
+                                    <MenuItem.Header>
+                                        <Grid VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Width="22" Height="22" CornerRadius="5" Background="#F59E0B" Margin="0,0,12,0" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE823;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" Foreground="White"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <TextBlock Grid.Column="1" Text="Away" FontSize="13.5" FontWeight="SemiBold" Foreground="#1E293B" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </MenuItem.Header>
+                                </MenuItem>
+
+                                <MenuItem Tag="Offline" Click="PresenceMenuItem_Click" Style="{StaticResource PresenceMenuItemStyle}" ToolTip="Set status to Offline">
+                                    <MenuItem.Header>
+                                        <Grid VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Width="22" Height="22" CornerRadius="5" Background="#94A3B8" Margin="0,0,12,0" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" FontWeight="Bold" Foreground="White"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <TextBlock Grid.Column="1" Text="Offline" FontSize="13.5" FontWeight="SemiBold" Foreground="#1E293B" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </MenuItem.Header>
+                                </MenuItem>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>

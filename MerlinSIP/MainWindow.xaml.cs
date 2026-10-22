@@ -1634,7 +1634,12 @@ public partial class MainWindow : Window
 
     private void PresenceButton_Click(object sender, RoutedEventArgs e)
     {
-        PresenceButton.ContextMenu.IsOpen = true;
+        if (PresenceButton.ContextMenu != null)
+        {
+            PresenceButton.ContextMenu.PlacementTarget = PresenceButton;
+            PresenceButton.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            PresenceButton.ContextMenu.IsOpen = true;
+        }
     }
 
     private void UpdateMainPresenceDisplayOnly(string status)
@@ -1681,7 +1686,13 @@ public partial class MainWindow : Window
 
     private void PresenceMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not System.Windows.Controls.MenuItem item || item.Header is not string status)
+        if (sender is not System.Windows.Controls.MenuItem item)
+        {
+            return;
+        }
+
+        var status = (item.Tag as string) ?? (item.Header as string);
+        if (string.IsNullOrWhiteSpace(status))
         {
             return;
         }
