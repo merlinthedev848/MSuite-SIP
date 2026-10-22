@@ -54,6 +54,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     private static Task _disposingAudioTask = Task.CompletedTask;
     private IPEndPoint? _cachedServerEndPoint;
     private static IPEndPoint? _discoveredLanEndPoint;
+    private MwiService? _mwiService;
 
     public event EventHandler<IncomingCallEventArgs>? IncomingCall;
     public event EventHandler<IncomingMessageEventArgs>? IncomingMessage;
@@ -469,6 +470,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             StartRegistrationRefresh();
             StartNatKeepAlive();
             StartHeartbeat();
+            StartMwi();
         }
 
         return result;
@@ -2828,6 +2830,21 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         }
 
         return true;
+    }
+
+        private void StartMwi()
+    {
+        try
+        {
+            _mwiService?.Dispose();
+            _mwiService = new MwiService(this);
+            _mwiService.VoicemailCountChanged += (s, e) => VoicemailStatusChanged?.Invoke(this, e);
+            _ = _mwiService.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"StartMwi exception: {ex.Message}");
+        }
     }
 
     private bool HandleMwiNotify(string message)

@@ -106,7 +106,8 @@ public sealed class AppCacheService
             settings.HeartbeatInterval ?? 30,
             settings.LocalSipPort ?? 5060,
             settings.PreferredCodecs ?? "PCMU,PCMA",
-            settings.IgnoreSslErrors ?? false).WithFixedSipEndpoint();
+            settings.IgnoreSslErrors ?? false,
+            settings.SecondaryRingerOutput).WithFixedSipEndpoint();
     }
 
     public async Task SaveSettingsAsync(AppStartupConfig config)
@@ -162,7 +163,8 @@ public sealed class AppCacheService
             config.HeartbeatInterval,
             config.LocalSipPort,
             config.PreferredCodecs,
-            config.IgnoreSslErrors);
+            config.IgnoreSslErrors,
+            config.SecondaryRingerOutput);
 
         try
         {
@@ -306,5 +308,6 @@ public sealed class AppCacheService
         int? HeartbeatInterval = null,
         int? LocalSipPort = null,
         string? PreferredCodecs = null,
-        bool? IgnoreSslErrors = null);
+        bool? IgnoreSslErrors = null,
+        MediaDeviceInfo? SecondaryRingerOutput = null);
 }

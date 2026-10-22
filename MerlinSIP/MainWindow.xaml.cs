@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private readonly SipRegistrationService _sipRegistrationService = new();
     private readonly LicenseService _licenseService = new();
     private readonly RingtonePlayer _ringtonePlayer = new();
+    private readonly RingtonePlayer _secondaryRingtonePlayer = new();
     private readonly UpdateService _updateService = new();
     private readonly ProvisioningService _provisioningService = new();
     private readonly SipsorceryCompatibilityService _sipsorceryCompatibilityService = new();
@@ -96,6 +97,45 @@ public partial class MainWindow : Window
     private const string ResumeIcon = "\uE768";
     private const string ConferenceIcon = "\uE716";
     private const string TransferIcon = "\uE72A";
+    private const string RecordIcon = "\uE7C8";
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct FLASHWINFO
+    {
+        public uint cbSize;
+        public IntPtr hwnd;
+        public uint dwFlags;
+        public uint uCount;
+        public uint dwTimeout;
+    }
+
+    private const uint FLASHW_STOP = 0;
+    private const uint FLASHW_ALL = 3;
+    private const uint FLASHW_TIMERNOFG = 12;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool FlashWindowEx(ref FLASHWINFO pwfi);
+
+    private void FlashWindow(bool flash)
+    {
+        if (!_config.FlashCallState && flash) return;
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;
+
+            var fi = new FLASHWINFO
+            {
+                cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<FLASHWINFO>(),
+                hwnd = hwnd,
+                dwFlags = flash ? (FLASHW_ALL | FLASHW_TIMERNOFG) : FLASHW_STOP,
+                uCount = flash ? uint.MaxValue : 0,
+                dwTimeout = 0
+            };
+            FlashWindowEx(ref fi);
+        }
+        catch { }
+    }
 
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
     private static extern bool AddClipboardFormatListener(IntPtr hwnd);
@@ -123,6 +163,7 @@ public partial class MainWindow : Window
         _sipRegistrationService.CallProgress += SipRegistrationService_CallProgress;
         _sipRegistrationService.CallEnded += SipRegistrationService_CallEnded;
         _sipRegistrationService.ContactPresenceChanged += SipRegistrationService_ContactPresenceChanged;
+        _sipRegistrationService.VoicemailStatusChanged += SipRegistrationService_VoicemailStatusChanged;
         _sipRegistrationService.HeartbeatStatus += SipRegistrationService_HeartbeatStatus;
         _callTimer.Tick += CallTimer_Tick;
         _connectionWatchdog.Tick += ConnectionWatchdog_Tick;
@@ -131,6 +172,7 @@ public partial class MainWindow : Window
         Closing += MainWindow_Closing;
         Loaded += MainWindow_Loaded;
         Closed += MainWindow_Closed;
+        Activated += (s, e) => FlashWindow(false);
         InitializeTrayIcon();
         UpdateInCallButtonIcons();
         UpdateCallControls();
@@ -162,6 +204,7 @@ public partial class MainWindow : Window
         SetIconButton(MuteButton, _muted ? MutedMicIcon : MicIcon, _muted ? "Unmute" : "Mute");
         SetIconButton(HoldButton, _held ? ResumeIcon : HoldIcon, _held ? "Resume" : "Hold");
         SetIconButton(ConferenceButton, ConferenceIcon, "Conference");
+        SetIconButton(RecordButton, RecordIcon, _sipRegistrationService.IsRecording ? "Stop recording" : "Record Call");
         SetIconButton(
             TransferButton,
             TransferIcon,
@@ -189,6 +232,7 @@ public partial class MainWindow : Window
     private void MainWindow_Closed(object? sender, EventArgs e)
     {
         HideIncomingCallSurfaces();
+        FlashWindow(false);
         _earlyMediaRingbackCancellation?.Cancel();
         _earlyMediaRingbackCancellation?.Dispose();
         _earlyMediaRingbackCancellation = null;
@@ -197,6 +241,7 @@ public partial class MainWindow : Window
         _trayIcon?.Dispose();
         _trayIcon = null;
         _ringtonePlayer.Dispose();
+        _secondaryRingtonePlayer.Dispose();
         _sipRegistrationService.Dispose();
     }
 
@@ -494,7 +539,9 @@ public partial class MainWindow : Window
         if (_callConnected)
         {
             var quality = _sipRegistrationService.GetCallQualityStats();
-            CallQualityText.Text = $"HD • {quality.QualityText}";
+            CallQualityText.Text = _config.ShowCallStatistics
+                ? $"G.711 • {quality.QualityText} • {quality.LossPercent:F1}% loss"
+                : $"HD • {quality.QualityText}";
             CallQualityPill.Visibility = Visibility.Visible;
         }
         else
@@ -525,6 +572,7 @@ public partial class MainWindow : Window
 
         _localRingbackActive = false;
         _ringtonePlayer.Stop();
+        _secondaryRingtonePlayer.Stop();
         DebugLog.Write("LOCAL RINGBACK stop");
     }
 
@@ -727,7 +775,12 @@ public partial class MainWindow : Window
             if (!silentRinging)
             {
                 _ringtonePlayer.Start(_config.AudioOutput, _config.Ringtone, _config.HeadphoneVolume);
+                if (_config.SecondaryRingerOutput != null && !string.IsNullOrWhiteSpace(_config.SecondaryRingerOutput.Id) && _config.SecondaryRingerOutput.Id != _config.AudioOutput.Id)
+                {
+                    _secondaryRingtonePlayer.Start(_config.SecondaryRingerOutput, _config.Ringtone, _config.HeadphoneVolume);
+                }
             }
+            FlashWindow(true);
 
             if (useDesktopPopup)
             {
@@ -746,6 +799,7 @@ public partial class MainWindow : Window
             {
                 StopLocalRingback();
                 HideIncomingCallSurfaces();
+        FlashWindow(false);
                 SetContactPresence(_activeRemoteNumber, "Busy");
                 _ = _sipRegistrationService.PublishPresenceAsync("Busy");
                 NoticeText.Text = "Call connected.";
@@ -926,9 +980,10 @@ public partial class MainWindow : Window
         UsernameTextBox.Text = _config.Username;
         PasswordBox.Password = _config.Password;
         PasswordTextBox.Text = _config.Password;
-        var customEndpoint = _config.AllowsCustomSipEndpoint;
-        PrivatePbxSettingsPanel.Visibility = customEndpoint ? Visibility.Visible : Visibility.Collapsed;
-        PrivatePbxSettingsTextBox.Text = customEndpoint ? _config.Server : string.Empty;
+        PrivatePbxSettingsPanel.Visibility = Visibility.Visible;
+        PrivatePbxSettingsTextBox.IsEnabled = _config.AllowsCustomSipEndpoint;
+        PrivatePbxSettingsTextBox.Text = !string.IsNullOrWhiteSpace(_config.Server) ? _config.Server : AppStartupConfig.FixedSipServer;
+        PrivatePbxSettingsTextBox.ToolTip = _config.AllowsCustomSipEndpoint ? "SIP server / PBX host" : "Managed Cloud PBX (Standard license). Enter a PR license key to customize.";
         SipAlgCompatibilityCheckBox.IsChecked = _config.SipAlgCompatibilityMode;
         IgnoreSslErrorsCheckBox.IsChecked = _config.IgnoreSslErrors;
         SelectSipTransportMode(_config.SipSignallingTransport);
@@ -943,6 +998,9 @@ public partial class MainWindow : Window
     {
         MobileNumberTextBox.Text = _config.MobileNumber;
         SelectComboBoxItem(DndModeComboBox, _config.DndMode);
+        SingleClickBlindTransferCheckBox.IsChecked = _config.SingleClickBlindTransfer;
+        FlashCallStateCheckBox.IsChecked = _config.FlashCallState;
+        ShowCallStatisticsCheckBox.IsChecked = _config.ShowCallStatistics;
         SelectComboBoxItem(DeclineActionComboBox, _config.DeclineIncomingAction);
         SelectComboBoxItem(InternalBusyActionComboBox, _config.InternalBusyAction);
         SelectComboBoxItem(InternalNoAnswerTimeoutComboBox, $"{_config.InternalNoAnswerSeconds} seconds");
@@ -1063,7 +1121,9 @@ public partial class MainWindow : Window
         _incomingRinging = false;
         StopLocalRingback();
         _ringtonePlayer.Stop();
+        _secondaryRingtonePlayer.Stop();
         HideIncomingCallSurfaces();
+        FlashWindow(false);
         _sipRegistrationService.Dispose();
         SetConnectionState("Not connected", "#FFE2E2", "#9B1C1C");
         LicenseStatusText.Text = "Licence inactive";
@@ -1106,9 +1166,11 @@ public partial class MainWindow : Window
     {
         AudioInputComboBox.ItemsSource = new[] { _config.AudioInput };
         AudioOutputComboBox.ItemsSource = new[] { _config.AudioOutput };
+        SecondaryRingerComboBox.ItemsSource = _config.SecondaryRingerOutput != null ? new[] { _config.SecondaryRingerOutput } : new[] { _config.AudioOutput };
         RingtoneComboBox.ItemsSource = RingtonePlayer.Choices;
         AudioInputComboBox.SelectedIndex = 0;
         AudioOutputComboBox.SelectedIndex = 0;
+        SecondaryRingerComboBox.SelectedIndex = 0;
         SelectRingtone(_config.Ringtone);
         LoadVolumeSliders();
     }
@@ -1740,6 +1802,7 @@ public partial class MainWindow : Window
         var name = contact?.Name ?? destination;
         StopLocalRingback();
         _ringtonePlayer.Stop();
+        _secondaryRingtonePlayer.Stop();
         NoticeText.Text = $"Calling {name}.";
         _activeCallStartedAt = DateTimeOffset.Now;
         _activeCallDirection = "Outbound";
@@ -1807,7 +1870,9 @@ public partial class MainWindow : Window
         {
             StopLocalRingback();
             _ringtonePlayer.Stop();
+        _secondaryRingtonePlayer.Stop();
             HideIncomingCallSurfaces();
+        FlashWindow(false);
             MainTabs.SelectedItem = PhoneTab;
             WindowState = WindowState.Normal;
             Activate();
@@ -2055,6 +2120,62 @@ public partial class MainWindow : Window
         }
     }
 
+
+    private void VoicemailButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_licenseLocked || !_registered || _callInProgress || _incomingRinging)
+        {
+            return;
+        }
+
+        DestinationTextBox.Text = "*97";
+        DialButton_Click(sender, e);
+    }
+
+    private void RecordButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_licenseLocked || !_callConnected)
+        {
+            return;
+        }
+
+        var target = !string.IsNullOrWhiteSpace(_activeRemoteNumber) ? _activeRemoteNumber : "Call";
+        var (active, pathOrMsg) = _sipRegistrationService.ToggleCallRecording(target);
+        if (active)
+        {
+            RecordButton.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
+            SetIconButton(RecordButton, RecordIcon, "Stop recording");
+            FooterStatusText.Text = $"Recording call to {System.IO.Path.GetFileName(pathOrMsg)}";
+        }
+        else
+        {
+            RecordButton.ClearValue(WpfButton.ForegroundProperty);
+            SetIconButton(RecordButton, RecordIcon, "Record Call");
+            FooterStatusText.Text = pathOrMsg;
+        }
+    }
+
+    private void SipRegistrationService_VoicemailStatusChanged(object? sender, VoicemailStatus e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (e.HasMessages && e.NewMessages > 0)
+            {
+                VoicemailButtonText.Text = $"Voicemail ({e.NewMessages})";
+                VoicemailButton.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(254, 243, 199));
+                VoicemailButton.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(180, 83, 9));
+                VoicemailButton.ToolTip = $"{e.NewMessages} new voicemail message(s). Click to dial *97.";
+            }
+            else
+            {
+                VoicemailButtonText.Text = "Voicemail";
+                VoicemailButton.ClearValue(WpfButton.BackgroundProperty);
+                VoicemailButton.ClearValue(WpfButton.ForegroundProperty);
+                VoicemailButton.ToolTip = "Call Voicemail (*97)";
+            }
+        });
+    }
+
     private async void DndButton_Click(object sender, RoutedEventArgs e)
     {
         _dndEnabled = !_dndEnabled;
@@ -2065,11 +2186,13 @@ public partial class MainWindow : Window
         if (_dndEnabled)
         {
             _ringtonePlayer.Stop();
+        _secondaryRingtonePlayer.Stop();
             var rejectedCurrentCall = false;
             if (_sipRegistrationService.HasPendingIncomingCall)
             {
                 var result = await _sipRegistrationService.EndCallAsync();
                 HideIncomingCallSurfaces();
+        FlashWindow(false);
                 FooterStatusText.Text = result.Message;
                 rejectedCurrentCall = true;
                 _incomingRinging = false;
@@ -2266,13 +2389,8 @@ public partial class MainWindow : Window
     {
         var mediaConfig = BuildConfigFromSettings();
         var server = _config.AllowsCustomSipEndpoint
-            ? PrivatePbxSettingsTextBox.Text.Trim()
+            ? (!string.IsNullOrWhiteSpace(PrivatePbxSettingsTextBox.Text) ? PrivatePbxSettingsTextBox.Text.Trim() : AppStartupConfig.FixedSipServer)
             : AppStartupConfig.FixedSipServer;
-        if (_config.AllowsCustomSipEndpoint && string.IsNullOrWhiteSpace(server))
-        {
-            FooterStatusText.Text = "Enter the SIP server.";
-            return;
-        }
 
         _config = _config with
         {
@@ -2295,6 +2413,7 @@ public partial class MainWindow : Window
         if (_testTonePlaying)
         {
             _ringtonePlayer.Stop();
+        _secondaryRingtonePlayer.Stop();
             _testTonePlaying = false;
             TestToneButton.Content = "Preview Tone";
         }
@@ -2311,12 +2430,8 @@ public partial class MainWindow : Window
         var ringtone = RingtoneComboBox.SelectedItem as RingtoneChoice;
         return _config with
         {
-            Server = _config.AllowsCustomSipEndpoint
-                ? PrivatePbxSettingsTextBox.Text.Trim()
-                : AppStartupConfig.FixedSipServer,
-            Domain = _config.AllowsCustomSipEndpoint
-                ? PrivatePbxSettingsTextBox.Text.Trim()
-                : AppStartupConfig.FixedSipServer,
+            Server = _config.AllowsCustomSipEndpoint ? (!string.IsNullOrWhiteSpace(PrivatePbxSettingsTextBox.Text) ? PrivatePbxSettingsTextBox.Text.Trim() : AppStartupConfig.FixedSipServer) : AppStartupConfig.FixedSipServer,
+            Domain = _config.AllowsCustomSipEndpoint ? (!string.IsNullOrWhiteSpace(PrivatePbxSettingsTextBox.Text) ? PrivatePbxSettingsTextBox.Text.Trim() : AppStartupConfig.FixedSipServer) : AppStartupConfig.FixedSipServer,
             AudioInput = audioInput,
             AudioOutput = audioOutput,
             Ringtone = ringtone?.Id ?? _config.Ringtone,
@@ -2366,11 +2481,75 @@ public partial class MainWindow : Window
         }
     }
 
+
+    private bool _testSpeakerPlaying;
+    private bool _testSecondaryRingerPlaying;
+
+    private void TestSpeakerButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_testSpeakerPlaying)
+        {
+            _ringtonePlayer.Stop();
+            _testSpeakerPlaying = false;
+            TestSpeakerButton.Content = "Test";
+            return;
+        }
+
+        var output = AudioOutputComboBox.SelectedItem as MediaDeviceInfo ?? _config.AudioOutput;
+        _testSpeakerPlaying = true;
+        TestSpeakerButton.Content = "Stop";
+        _ringtonePlayer.Start(output, "skype-spark", HeadphoneVolumeSlider.Value / 100);
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(2500);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (_testSpeakerPlaying)
+                {
+                    _ringtonePlayer.Stop();
+                    _testSpeakerPlaying = false;
+                    TestSpeakerButton.Content = "Test";
+                }
+            });
+        });
+    }
+
+    private void TestSecondaryRingerButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_testSecondaryRingerPlaying)
+        {
+            _secondaryRingtonePlayer.Stop();
+            _testSecondaryRingerPlaying = false;
+            TestSecondaryRingerButton.Content = "Preview Ringer";
+            return;
+        }
+
+        var secondary = SecondaryRingerComboBox.SelectedItem as MediaDeviceInfo ?? _config.SecondaryRingerOutput ?? _config.AudioOutput;
+        var ringtone = RingtoneComboBox.SelectedItem as RingtoneChoice;
+        _testSecondaryRingerPlaying = true;
+        TestSecondaryRingerButton.Content = "Stop";
+        _secondaryRingtonePlayer.Start(secondary, ringtone?.Id ?? _config.Ringtone, HeadphoneVolumeSlider.Value / 100);
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(3500);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (_testSecondaryRingerPlaying)
+                {
+                    _secondaryRingtonePlayer.Stop();
+                    _testSecondaryRingerPlaying = false;
+                    TestSecondaryRingerButton.Content = "Preview Ringer";
+                }
+            });
+        });
+    }
+
     private void TestToneButton_Click(object sender, RoutedEventArgs e)
     {
         if (_testTonePlaying)
         {
             _ringtonePlayer.Stop();
+        _secondaryRingtonePlayer.Stop();
             _testTonePlaying = false;
             TestToneButton.Content = "Preview Tone";
             return;
@@ -2389,6 +2568,7 @@ public partial class MainWindow : Window
                 if (_testTonePlaying)
                 {
                     _ringtonePlayer.Stop();
+        _secondaryRingtonePlayer.Stop();
                     _testTonePlaying = false;
                     TestToneButton.Content = "Preview Tone";
                 }
@@ -2510,6 +2690,7 @@ public partial class MainWindow : Window
         if (_testTonePlaying)
         {
             _ringtonePlayer.Stop();
+        _secondaryRingtonePlayer.Stop();
             _testTonePlaying = false;
             TestToneButton.Content = "Preview Tone";
         }
@@ -2771,7 +2952,7 @@ public partial class MainWindow : Window
             var ringtone = RingtoneComboBox.SelectedItem as RingtoneChoice;
 
             var server = _config.AllowsCustomSipEndpoint
-                ? PrivatePbxSettingsTextBox.Text.Trim()
+                ? (!string.IsNullOrWhiteSpace(PrivatePbxSettingsTextBox.Text) ? PrivatePbxSettingsTextBox.Text.Trim() : AppStartupConfig.FixedSipServer)
                 : AppStartupConfig.FixedSipServer;
 
             _config = _config with
@@ -2822,6 +3003,7 @@ public partial class MainWindow : Window
             if (_testTonePlaying)
             {
                 _ringtonePlayer.Stop();
+        _secondaryRingtonePlayer.Stop();
                 _testTonePlaying = false;
                 TestToneButton.Content = "Preview Tone";
             }
@@ -3051,7 +3233,9 @@ del ""%~f0""
         HoldButton.IsEnabled = !_licenseLocked && _callConnected && _sipRegistrationService.CanControlAudio;
         ConferenceButton.IsEnabled = !_licenseLocked && _callConnected && _sipRegistrationService.CanControlAudio;
         TransferButton.IsEnabled = !_licenseLocked && _callConnected;
+        RecordButton.IsEnabled = !_licenseLocked && _callConnected;
         DndButton.IsEnabled = !_licenseLocked;
+        VoicemailButton.IsEnabled = !_licenseLocked && _registered && !_callInProgress && !_incomingRinging;
 
         var activeCall = _callInProgress || _incomingRinging || _callConnected;
 
@@ -3078,7 +3262,7 @@ del ""%~f0""
         if (activeCall)
         {
             InCallButtonsGrid.Visibility = Visibility.Visible;
-            DndButton.Visibility = Visibility.Collapsed;
+            DialerQuickActionsGrid.Visibility = Visibility.Collapsed;
 
             DestinationPreviewText.FontSize = 36;
             CallerLookupText.FontSize = 15;
@@ -3086,7 +3270,7 @@ del ""%~f0""
         else
         {
             InCallButtonsGrid.Visibility = Visibility.Collapsed;
-            DndButton.Visibility = Visibility.Collapsed;
+            DialerQuickActionsGrid.Visibility = Visibility.Visible;
 
             DestinationPreviewText.FontSize = 28;
             CallerLookupText.FontSize = 13;
@@ -3164,8 +3348,10 @@ del ""%~f0""
         try
         {
             HideIncomingCallSurfaces();
+        FlashWindow(false);
             StopLocalRingback();
             _ringtonePlayer.Stop();
+        _secondaryRingtonePlayer.Stop();
             
             _incomingRinging = false;
             _callInProgress = false;

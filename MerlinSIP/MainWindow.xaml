@@ -451,13 +451,22 @@
                                 </Grid>
 
                                 <Grid Grid.Row="4">
-                                     <UniformGrid x:Name="InCallButtonsGrid" Columns="4" Rows="1" Visibility="Collapsed" Margin="0,-2,0,0">
-                                         <Button x:Name="MuteButton" Content="&#xE720;" Style="{StaticResource IconSoftButton}" Click="MuteButton_Click" Margin="0,2,5,2" ToolTip="Mute" AutomationProperties.Name="Mute" />
-                                         <Button x:Name="HoldButton" Content="&#xE769;" Style="{StaticResource IconSoftButton}" Click="HoldButton_Click" Margin="5,2,5,2" ToolTip="Hold" AutomationProperties.Name="Hold" />
-                                         <Button x:Name="ConferenceButton" Content="&#xE716;" Style="{StaticResource IconSoftButton}" Click="ConferenceButton_Click" Margin="5,2,5,2" ToolTip="Conference" AutomationProperties.Name="Conference" />
-                                         <Button x:Name="TransferButton" Content="&#xE72A;" Style="{StaticResource IconSoftButton}" Click="TransferButton_Click" Margin="5,2,0,2" ToolTip="Transfer" AutomationProperties.Name="Transfer" />
+                                     <UniformGrid x:Name="InCallButtonsGrid" Columns="5" Rows="1" Visibility="Collapsed" Margin="0,-2,0,0">
+                                         <Button x:Name="MuteButton" Content="&#xE720;" Style="{StaticResource IconSoftButton}" Click="MuteButton_Click" Margin="0,2,3,2" ToolTip="Mute" AutomationProperties.Name="Mute" />
+                                         <Button x:Name="HoldButton" Content="&#xE769;" Style="{StaticResource IconSoftButton}" Click="HoldButton_Click" Margin="3,2,3,2" ToolTip="Hold" AutomationProperties.Name="Hold" />
+                                         <Button x:Name="RecordButton" Content="&#xE7C8;" Style="{StaticResource IconSoftButton}" Click="RecordButton_Click" Margin="3,2,3,2" ToolTip="Record Call" AutomationProperties.Name="Record Call" />
+                                         <Button x:Name="ConferenceButton" Content="&#xE716;" Style="{StaticResource IconSoftButton}" Click="ConferenceButton_Click" Margin="3,2,3,2" ToolTip="Conference" AutomationProperties.Name="Conference" />
+                                         <Button x:Name="TransferButton" Content="&#xE72A;" Style="{StaticResource IconSoftButton}" Click="TransferButton_Click" Margin="3,2,0,2" ToolTip="Transfer" AutomationProperties.Name="Transfer" />
                                      </UniformGrid>
-                                     <Button x:Name="DndButton" Content="DND" Style="{StaticResource SoftButton}" Width="120" HorizontalAlignment="Center" Click="DndButton_Click" Visibility="Collapsed" />
+                                     <UniformGrid x:Name="DialerQuickActionsGrid" Columns="2" Rows="1" Margin="0,-2,0,0">
+                                         <Button x:Name="VoicemailButton" Style="{StaticResource SoftButton}" Margin="0,2,4,2" Click="VoicemailButton_Click" ToolTip="Call Voicemail (*97)" AutomationProperties.Name="Voicemail">
+                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                 <TextBlock Text="&#xE715;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                 <TextBlock x:Name="VoicemailButtonText" Text="Voicemail" VerticalAlignment="Center" />
+                                             </StackPanel>
+                                         </Button>
+                                         <Button x:Name="DndButton" Content="DND" Style="{StaticResource SoftButton}" Margin="4,2,0,2" Click="DndButton_Click" ToolTip="Do Not Disturb" AutomationProperties.Name="DND" />
+                                     </UniformGrid>
                                   </Grid>
                             </Grid>
                         </Border>
@@ -1122,9 +1131,9 @@
                                             <StackPanel>
                                                 <TextBlock Text="Account credentials" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10" />
                                                 
-                                                <StackPanel x:Name="PrivatePbxSettingsPanel" Visibility="Collapsed">
-                                                    <TextBlock Text="SIP server / PBX host" />
-                                                    <TextBox x:Name="PrivatePbxSettingsTextBox" AutomationProperties.Name="Private PBX Server" />
+                                                <StackPanel x:Name="PrivatePbxSettingsPanel" Margin="0,0,0,10">
+                                                    <TextBlock Text="SIP server / PBX host" Foreground="#6B7280" FontSize="12" Margin="0,0,0,4" />
+                                                    <TextBox x:Name="PrivatePbxSettingsTextBox" AutomationProperties.Name="Private PBX Server" Height="36" />
                                                 </StackPanel>
 
                                                 <Grid>
@@ -1209,6 +1218,15 @@
                                                 </Grid>
                                             </StackPanel>
                                         </Border>
+
+                                        <Border Style="{StaticResource SettingsCard}">
+                                            <StackPanel>
+                                                <TextBlock Text="Call workflow &amp; alerts" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                                <CheckBox x:Name="SingleClickBlindTransferCheckBox" Content="Single-click blind transfer" Margin="0,0,0,6" Foreground="#111827" />
+                                                <CheckBox x:Name="FlashCallStateCheckBox" Content="Flash Windows taskbar on incoming call" Margin="0,0,0,6" Foreground="#111827" IsChecked="True" />
+                                                <CheckBox x:Name="ShowCallStatisticsCheckBox" Content="Show live call statistics (loss &amp; jitter)" Margin="0,0,0,2" Foreground="#111827" />
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </ScrollViewer>
                             </TabItem>
@@ -1230,9 +1248,23 @@
                                                         <ComboBox x:Name="AudioInputComboBox" AutomationProperties.Name="Audio Input Microphone" />
                                                     </StackPanel>
                                                     <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                                                        <TextBlock Text="Audio output (Earpiece/Speaker)" />
-                                                        <ComboBox x:Name="AudioOutputComboBox" AutomationProperties.Name="Audio Output Speaker" />
+                                                        <DockPanel Margin="0,0,0,0">
+                                                            <Button DockPanel.Dock="Right" x:Name="TestSpeakerButton" Content="Test" Style="{StaticResource SoftButton}" Height="22" Width="50" Margin="4,0,0,0" VerticalAlignment="Top" Click="TestSpeakerButton_Click" ToolTip="Play test sound through speaker" />
+                                                            <TextBlock Text="Audio output (Speaker)" VerticalAlignment="Center" />
+                                                        </DockPanel>
+                                                        <ComboBox x:Name="AudioOutputComboBox" AutomationProperties.Name="Audio Output Speaker" Margin="0,4,0,0" />
                                                     </StackPanel>
+                                                </Grid>
+                                                <Grid Margin="0,10,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                        <TextBlock Text="Secondary ringer (e.g. PC Speakers)" Foreground="#6B7280" FontSize="12" />
+                                                        <ComboBox x:Name="SecondaryRingerComboBox" AutomationProperties.Name="Secondary Ringer Speaker" Margin="0,4,0,0" />
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1" x:Name="TestSecondaryRingerButton" Content="Preview Ringer" Style="{StaticResource SoftButton}" Height="34" Width="110" VerticalAlignment="Bottom" Margin="6,0,0,0" Click="TestSecondaryRingerButton_Click" ToolTip="Preview Secondary Ringer output" />
                                                 </Grid>
                                             </StackPanel>
                                         </Border>
@@ -1270,6 +1302,14 @@
                                                     <TextBlock Text="Microphone gain" VerticalAlignment="Center" />
                                                     <Slider Grid.Column="1" x:Name="MicrophoneVolumeSlider" Minimum="25" Maximum="200" TickFrequency="5" Value="100" ValueChanged="VolumeSlider_ValueChanged" AutomationProperties.Name="Microphone Gain" />
                                                     <TextBlock Grid.Column="2" x:Name="MicrophoneVolumeText" Text="100%" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                </Grid>
+                                                <Grid Margin="0,10,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Mic test level" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" />
+                                                    <ProgressBar Grid.Column="1" x:Name="MicLevelProgressBar" Height="8" Minimum="0" Maximum="100" Value="0" Foreground="#10B981" Background="#E5E7EB" BorderThickness="0" />
                                                 </Grid>
                                             </StackPanel>
                                         </Border>

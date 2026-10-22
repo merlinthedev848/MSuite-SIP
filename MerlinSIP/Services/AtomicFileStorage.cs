@@ -76,7 +76,7 @@ public static class AtomicFileStorage
 
     private static async Task ReplaceFileWithRetryAsync(string sourceTemp, string destinationPath, CancellationToken ct)
     {
-        const int maxAttempts = 6;
+        const int maxAttempts = 10;
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try

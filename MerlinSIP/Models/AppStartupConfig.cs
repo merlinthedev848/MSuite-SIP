@@ -47,7 +47,8 @@ public sealed record AppStartupConfig(
     int HeartbeatInterval = 30,
     int LocalSipPort = 5060,
     string PreferredCodecs = "PCMU,PCMA",
-    bool IgnoreSslErrors = false)
+    bool IgnoreSslErrors = false,
+    MediaDeviceInfo? SecondaryRingerOutput = null)
 {
     public const string FixedSipServer = "pbx.chriskendall.media";
     public const int FixedSipPort = 5060;
