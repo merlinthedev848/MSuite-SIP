@@ -1,4 +1,4 @@
-# Merlin SIP Web (v1.2.2)
+# Merlin SIP Web (v1.2.9)
 
 **Merlin SIP Web** is an enterprise-grade, browser-based SIP softphone website and WebRTC client engineered specifically for **PHP Shared Hosting** environments (such as Enhance Control Panel, cPanel, DirectAdmin, Plesk, Apache, LiteSpeed, and Nginx) without requiring Node.js runtimes, Docker containers, or background daemons.
 

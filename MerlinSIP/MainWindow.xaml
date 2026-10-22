@@ -281,7 +281,7 @@
                                TextAlignment="Center"
                                TextWrapping="Wrap" />
                     <TextBlock x:Name="AppVersionText"
-                               Text="v1.2.5"
+                               Text="v1.2.9"
                                Foreground="#64748B"
                                FontSize="10"
                                FontWeight="Medium"
@@ -1433,7 +1433,7 @@
                                                         <RowDefinition Height="Auto" />
                                                     </Grid.RowDefinitions>
                                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Version" Foreground="#64748B" Margin="0,0,0,5" />
-                                                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AboutVersionText" Text="1.2.6" Foreground="#111827" Margin="0,0,0,5" />
+                                                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AboutVersionText" Text="1.2.9" Foreground="#111827" Margin="0,0,0,5" />
                                                     
                                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Product" Foreground="#64748B" Margin="0,0,0,5" />
                                                     <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ProductIdText" Text="merlin-sip" Foreground="#111827" Margin="0,0,0,5" />

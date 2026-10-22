@@ -45,7 +45,8 @@ export default function App() {
       combineContacts: true,
       sipAlgCompat: false,
       audioInput: '',
-      audioOutput: ''
+      audioOutput: '',
+      licenseStatus: 'Active (Commercial)'
     };
     try {
       const cached = localStorage.getItem('merlin_sip_config');
@@ -98,8 +99,27 @@ export default function App() {
   const [diagPass, setDiagPass] = useState(true);
 
   // Timers & Cancellation
-  const callTimerRef = useRef<any>(null);
+  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dialTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const diagCancelRef = useRef<boolean>(false);
+
+  const clearCallProgressionTimers = () => {
+    if (dialTimeoutRef.current) {
+      clearTimeout(dialTimeoutRef.current);
+      dialTimeoutRef.current = null;
+    }
+    if (ringTimeoutRef.current) {
+      clearTimeout(ringTimeoutRef.current);
+      ringTimeoutRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      clearCallProgressionTimers();
+    };
+  }, []);
 
   // Audio media device enumeration on startup
   useEffect(() => {
@@ -187,6 +207,7 @@ export default function App() {
   const handleMakeCall = () => {
     if (!destination.trim()) return;
 
+    clearCallProgressionTimers();
     setActiveCall({
       destination,
       state: 'dialing',
@@ -194,9 +215,9 @@ export default function App() {
       muted: false
     });
 
-    setTimeout(() => {
+    dialTimeoutRef.current = setTimeout(() => {
       setActiveCall(prev => prev ? { ...prev, state: 'ringing' } : null);
-      setTimeout(() => {
+      ringTimeoutRef.current = setTimeout(() => {
         setActiveCall(prev => prev ? { ...prev, state: 'connected' } : null);
       }, 1500);
     }, 1000);
@@ -204,6 +225,7 @@ export default function App() {
 
   const handleHangUp = () => {
     if (!activeCall) return;
+    clearCallProgressionTimers();
 
     const durationMinSec = `${Math.floor(activeCall.duration / 60)}:${(activeCall.duration % 60).toString().padStart(2, '0')}`;
     const newRecord: CallRecord = {
@@ -241,7 +263,9 @@ export default function App() {
 
   const handleResetApp = () => {
     if (window.confirm('Reset application and remove cache?')) {
-      localStorage.clear();
+      clearCallProgressionTimers();
+      localStorage.removeItem('merlin_sip_config');
+      localStorage.removeItem('merlin_sip_history');
       setStep('credentials');
       setRegistered(false);
       setShowSettings(false);
