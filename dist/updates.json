@@ -1,5 +1,5 @@
 {
-  "Version": "1.3.1",
-  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.1-x64-faststart.msi",
-  "Notes": "Release 1.3.1: Dual-line appearance (Line 1 & Line 2) above number input, live call statistics HUD & VoIP quality analysis, buyout PBX host licensing, studio-aligned ringtones, styled presence dropdown with status color indicators, and DND-to-Away presence transition fix."
+  "Version": "1.3.2",
+  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.2-x64-faststart.msi",
+  "Notes": "Release 1.3.2: Dual-line appearance (Line 1 & Line 2) above number input, live call statistics HUD & VoIP quality analysis, buyout PBX host licensing, studio-aligned ringtones, styled presence dropdown with status color indicators, DND-to-Away presence transition fix, and automated upgrade installer engine."
 }

@@ -488,7 +488,7 @@
             video: false
           }
         },
-        userAgentString: 'MerlinSIP-Web/1.3.1 (Enterprise WebRTC Softphone)'
+        userAgentString: 'MerlinSIP-Web/1.3.2 (Enterprise WebRTC Softphone)'
       });
 
       state.userAgent = userAgent;

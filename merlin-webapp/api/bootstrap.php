@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-const MERLIN_WEBAPP_VERSION = '1.3.1';
+const MERLIN_WEBAPP_VERSION = '1.3.2';
 const MERLIN_APP_NAME = 'Merlin SIP Web';
 
 // Whitelist of valid data files to prevent arbitrary file traversal/creation
