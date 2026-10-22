@@ -53,6 +53,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     private DateTimeOffset _lastHeartbeatSuccess = DateTimeOffset.MinValue;
     private static Task _disposingAudioTask = Task.CompletedTask;
     private IPEndPoint? _cachedServerEndPoint;
+    private static IPEndPoint? _discoveredLanEndPoint;
 
     public event EventHandler<IncomingCallEventArgs>? IncomingCall;
     public event EventHandler<IncomingMessageEventArgs>? IncomingMessage;
@@ -1486,7 +1487,11 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             return new SipRegistrationResult(false, "Network or configuration is unavailable.");
         }
 
-        if (IPAddress.TryParse(_config.Server, out var address))
+                if (_discoveredLanEndPoint is not null)
+        {
+            _cachedServerEndPoint = _discoveredLanEndPoint;
+        }
+        else if (IPAddress.TryParse(_config.Server, out var address))
         {
             _cachedServerEndPoint = new IPEndPoint(address, _config.Port);
         }
@@ -1517,8 +1522,9 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             {
                 DebugLog.Write($"SIP server {_config.Server} timed out at {_cachedServerEndPoint}. Probing for local LAN PBX / NAT Hairpin fallback...");
                 var lanPbx = await ProbeLocalLanPbxAsync(cancellationToken);
-                if (lanPbx is not null && !lanPbx.Equals(_cachedServerEndPoint))
+                if (lanPbx is not null)
                 {
+                    _discoveredLanEndPoint = lanPbx;
                     _cachedServerEndPoint = lanPbx;
                     DebugLog.Write($"Retrying REGISTER against local LAN PBX at {_cachedServerEndPoint}...");
                     firstResponse = _listenerStarted

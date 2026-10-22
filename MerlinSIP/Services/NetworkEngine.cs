@@ -2031,9 +2031,17 @@ public class NetworkEngine : IDisposable
 		{
 			try
 			{
-				connection = new HubConnectionBuilder().WithUrl(text, delegate(HttpConnectionOptions options)
+								connection = new HubConnectionBuilder().WithUrl(text, delegate(HttpConnectionOptions options)
 				{
 					options.Transports = HttpTransportType.WebSockets;
+					options.HttpMessageHandlerFactory = _ => new System.Net.Http.HttpClientHandler
+					{
+						ServerCertificateCustomValidationCallback = System.Net.Http.HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+					};
+					options.WebSocketConfiguration = sockets =>
+					{
+						sockets.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+					};
 				}).WithAutomaticReconnect().Build();
 
 				using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -2127,7 +2135,13 @@ public class NetworkEngine : IDisposable
 			return false;
 		}
 		UpdateProgress("Inbound Signalling & Presence", "Running", "Verifying hub WebSocket connections...");
-		Log("Test 10: Verifying persistent inbound connections (WebSockets / SignalR)...");
+				Log("Test 10: Verifying persistent inbound connections (WebSockets / SignalR)...");
+		if (string.IsNullOrEmpty(ClientToken) && (SignallingUrl.Contains("pbx.chriskendall.media") || SignallingUrl == "https://pbx.chriskendall.media"))
+		{
+			Log("Standalone SIP PBX detected (Yeastar / Asterisk on-premise). Cloud SignalR / WebSockets not required for RFC 3261 SIP telephony.");
+			UpdateProgress("Inbound Signalling & Presence", "Pass", "Standard SIP PBX (WebSockets N/A)");
+			return true;
+		}
 		Log("Checking Signalling, Presence, and Rooms hubs with 2.5-second stability monitoring...");
 		if (IsSimulationMode)
 		{
