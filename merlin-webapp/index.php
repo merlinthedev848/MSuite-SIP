@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-$version = '1.2.9';
+$version = '1.3.0';
 ?>
 <!doctype html>
 <html lang="en">

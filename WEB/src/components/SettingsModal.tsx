@@ -268,7 +268,7 @@ const SettingsModalDialog: React.FC<SettingsModalProps> = ({
                 <p className="item-subtitle" style={{ lineHeight: 1.5 }}>CK Media Services softphone for managed SIP, presence, contacts, and reception workflows.</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '6px 10px', fontSize: 13, marginTop: 10 }}>
                   <span style={{ color: 'var(--muted-color)' }}>Version</span>
-                  <span>1.2.9</span>
+                  <span>1.3.0</span>
                   <span style={{ color: 'var(--muted-color)' }}>Product</span>
                   <span>merlin-sip</span>
                   <span style={{ color: 'var(--muted-color)' }}>Licensed to</span>

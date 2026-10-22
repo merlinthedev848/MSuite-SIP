@@ -1,5 +1,5 @@
 {
-  "Version": "1.2.9",
-  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.2.9-x64-faststart.msi",
-  "Notes": "Release 1.2.9: Fix 603 Decline teardown hang and audio driver deadlock. Added instant Redial, color-coded call status badges, configurable call decline actions (603 Decline, 486 Busy, 480 Unavailable, Forward to Mobile), and real-time HD Voice call quality HUD."
+  "Version": "1.3.0",
+  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.0-x64-faststart.msi",
+  "Notes": "Release 1.3.0: Full-stack hardening, SIP & RTP thread-safety fixes, atomic JSON persistence, memory/handle leak elimination, UI re-entrancy guards, and dependency modernization."
 }
