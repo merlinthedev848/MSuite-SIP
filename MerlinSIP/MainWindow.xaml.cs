@@ -3833,26 +3833,26 @@ del ""%~f0""
 
     private void UpdateLineAppearances()
     {
-        // Highlight active line selection
+        // Highlight active line selection (Agilico Connect style numbers & soft active tint)
         if (_selectedLine == 1)
         {
-            Line1Badge.Background = (WpfBrush)new BrushConverter().ConvertFromString("#0E987E")!;
-            Line1BadgeText.Foreground = WpfBrushes.White;
+            Line1Badge.Background = WpfBrushes.Transparent;
+            Line1BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#0E987E")!;
             Line1Card.Background = (WpfBrush)new BrushConverter().ConvertFromString("#F0FDF4")!;
 
-            Line2Badge.Background = (WpfBrush)new BrushConverter().ConvertFromString("#EEF2F6")!;
-            Line2BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#475569")!;
-            Line2Card.Background = (WpfBrush)new BrushConverter().ConvertFromString("#F8FAFC")!;
+            Line2Badge.Background = WpfBrushes.Transparent;
+            Line2BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
+            Line2Card.Background = WpfBrushes.White;
         }
         else
         {
-            Line2Badge.Background = (WpfBrush)new BrushConverter().ConvertFromString("#0E987E")!;
-            Line2BadgeText.Foreground = WpfBrushes.White;
+            Line2Badge.Background = WpfBrushes.Transparent;
+            Line2BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#0E987E")!;
             Line2Card.Background = (WpfBrush)new BrushConverter().ConvertFromString("#F0FDF4")!;
 
-            Line1Badge.Background = (WpfBrush)new BrushConverter().ConvertFromString("#EEF2F6")!;
-            Line1BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#475569")!;
-            Line1Card.Background = (WpfBrush)new BrushConverter().ConvertFromString("#F8FAFC")!;
+            Line1Badge.Background = WpfBrushes.Transparent;
+            Line1BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
+            Line1Card.Background = WpfBrushes.White;
         }
 
         // --- LINE 1 ---

@@ -512,22 +512,27 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="0" Style="{StaticResource Surface}" Margin="0,0,20,0">
+                        <Border Grid.Column="0" Style="{StaticResource Surface}" Margin="0,0,20,0" Padding="18">
                             <Grid>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="250" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /> <!-- Row 0: Header "Calls" -->
+                                    <RowDefinition Height="Auto" /> <!-- Row 1: Dual Lines Box -->
+                                    <RowDefinition Height="Auto" /> <!-- Row 2: Live Call Telemetry HUD -->
+                                    <RowDefinition Height="Auto" /> <!-- Row 3: Dial Header -->
+                                    <RowDefinition Height="Auto" /> <!-- Row 4: DestinationTextBox & Clear -->
+                                    <RowDefinition Height="240" />  <!-- Row 5: Keypad -->
+                                    <RowDefinition Height="Auto" /> <!-- Row 6: Dial / Redial / Hangup -->
+                                    <RowDefinition Height="Auto" /> <!-- Row 7: InCall & Quick Actions -->
+                                    <RowDefinition Height="Auto" /> <!-- Row 8: DTMF Footer -->
                                 </Grid.RowDefinitions>
 
-                                <DockPanel Margin="0,0,0,16">
-                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                                <!-- ROW 0: Top Header: Calls + Audio/Timer/Quality -->
+                                <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                                         <Border x:Name="CallQualityPill"
                                                 Background="#EEF4FB"
                                                 CornerRadius="7"
-                                                Padding="8,5"
+                                                Padding="8,4"
                                                 Margin="0,0,6,0"
                                                 Visibility="Collapsed">
                                             <TextBlock x:Name="CallQualityText" Text="HD Voice" FontSize="11" FontWeight="SemiBold" Foreground="#2750A7" />
@@ -535,224 +540,254 @@
                                         <Border x:Name="CallTimerPill"
                                                 Background="#FFE2E2"
                                                 CornerRadius="7"
-                                                Padding="9,5">
-                                            <TextBlock x:Name="CallTimerText" Text="Inactive" FontWeight="SemiBold" Foreground="#9B1C1C" />
+                                                Padding="9,4"
+                                                Margin="0,0,8,0">
+                                            <TextBlock x:Name="CallTimerText" Text="Inactive" FontWeight="SemiBold" Foreground="#9B1C1C" FontSize="11" />
                                         </Border>
+                                        <TextBlock Text="&#xE7F6;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Foreground="#64748B" VerticalAlignment="Center" ToolTip="Audio Headset Ready" />
                                     </StackPanel>
-                                    <StackPanel>
-                                        <TextBlock Text="Dial" Foreground="#64748B" FontWeight="Medium" />
-                                        <TextBlock x:Name="DestinationPreviewText" Text="Enter a number" Foreground="#111827" FontSize="28" FontWeight="SemiBold" />
-                                        <TextBlock x:Name="CallerLookupText" Text="No contact selected" Foreground="#64748B" FontSize="13" FontWeight="Medium" Margin="0,0,0,4" />
+                                    <TextBlock Text="Calls" Foreground="#111827" FontSize="20" FontWeight="Bold" VerticalAlignment="Center" />
+                                </DockPanel>
 
-                                        <!-- DUAL-LINE CALL APPEARANCE (Line 1 & Line 2) -->
-                                        <Border x:Name="LinesContainer"
-                                                Background="#F8FAFC"
-                                                BorderBrush="#E2E8F0"
-                                                BorderThickness="1"
-                                                CornerRadius="10"
-                                                Margin="0,6,0,6"
-                                                SnapsToDevicePixels="True">
-                                            <Grid>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="1" />
-                                                    <RowDefinition Height="Auto" />
-                                                </Grid.RowDefinitions>
+                                <!-- ROW 1: DUAL-LINE CALLS CONTAINER (Agilico Style: Line 1 & Line 2) -->
+                                <Border x:Name="LinesContainer"
+                                        Grid.Row="1"
+                                        Background="#FFFFFF"
+                                        BorderBrush="#E2E8F0"
+                                        BorderThickness="1"
+                                        CornerRadius="10"
+                                        Margin="0,0,0,12"
+                                        SnapsToDevicePixels="True">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*" MinHeight="62" />
+                                            <RowDefinition Height="1" />
+                                            <RowDefinition Height="*" MinHeight="62" />
+                                        </Grid.RowDefinitions>
 
-                                                <!-- LINE 1 -->
-                                                <Border x:Name="Line1Card"
-                                                        Grid.Row="0"
-                                                        Background="#FFFFFF"
-                                                        CornerRadius="9,9,0,0"
-                                                        Padding="12,8"
-                                                        Cursor="Hand"
-                                                        BorderThickness="0"
-                                                        MouseDown="Line1Card_MouseDown"
-                                                        ToolTip="Click to select Line 1">
-                                                    <DockPanel LastChildFill="True">
-                                                        <Border DockPanel.Dock="Right"
-                                                                x:Name="Line1Badge"
-                                                                Background="#0E987E"
-                                                                CornerRadius="6"
-                                                                Padding="8,3"
-                                                                MinWidth="26"
-                                                                VerticalAlignment="Center">
-                                                            <TextBlock x:Name="Line1BadgeText" Text="1" FontWeight="Bold" FontSize="12" Foreground="White" HorizontalAlignment="Center" />
-                                                        </Border>
-                                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
-                                                            <Button x:Name="Line1HoldResumeButton"
-                                                                    Content="⏸ Hold"
-                                                                    FontSize="11"
-                                                                    FontWeight="SemiBold"
-                                                                    Padding="7,2"
-                                                                    Margin="0,0,4,0"
-                                                                    Visibility="Collapsed"
-                                                                    Style="{StaticResource SoftButton}"
-                                                                    Click="Line1HoldResumeButton_Click"
-                                                                    ToolTip="Hold or resume Line 1" />
-                                                            <Button x:Name="Line1HangupButton"
-                                                                    Content="✕"
-                                                                    Foreground="#EF4444"
-                                                                    FontSize="12"
-                                                                    FontWeight="Bold"
-                                                                    Padding="7,2"
-                                                                    Visibility="Collapsed"
-                                                                    Style="{StaticResource SoftButton}"
-                                                                    Click="Line1HangupButton_Click"
-                                                                    ToolTip="End Line 1 call" />
-                                                        </StackPanel>
-                                                        <StackPanel VerticalAlignment="Center">
-                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                                <Ellipse x:Name="Line1StatusDot" Width="8" Height="8" Fill="#10B981" Margin="0,0,7,0" VerticalAlignment="Center" />
-                                                                <TextBlock x:Name="Line1Title" Text="Line 1" FontWeight="Bold" FontSize="12.5" Foreground="#111827" Margin="0,0,6,0" />
-                                                                <TextBlock x:Name="Line1StatusText" Text="Idle" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
-                                                            </StackPanel>
-                                                            <TextBlock x:Name="Line1DetailText" Text="Ready for call" FontSize="11.5" Foreground="#64748B" TextTrimming="CharacterEllipsis" Margin="15,2,0,0" />
-                                                        </StackPanel>
-                                                    </DockPanel>
-                                                </Border>
-
-                                                <!-- Subtle Divider -->
-                                                <Rectangle Grid.Row="1" Fill="#E2E8F0" Height="1" />
-
-                                                <!-- LINE 2 -->
-                                                <Border x:Name="Line2Card"
-                                                        Grid.Row="2"
-                                                        Background="#F8FAFC"
-                                                        CornerRadius="0,0,9,9"
-                                                        Padding="12,8"
-                                                        Cursor="Hand"
-                                                        BorderThickness="0"
-                                                        MouseDown="Line2Card_MouseDown"
-                                                        ToolTip="Click to select Line 2 (Make new call or switch lines)">
-                                                    <DockPanel LastChildFill="True">
-                                                        <Border DockPanel.Dock="Right"
-                                                                x:Name="Line2Badge"
-                                                                Background="#EEF2F6"
-                                                                CornerRadius="6"
-                                                                Padding="8,3"
-                                                                MinWidth="26"
-                                                                VerticalAlignment="Center">
-                                                            <TextBlock x:Name="Line2BadgeText" Text="2" FontWeight="Bold" FontSize="12" Foreground="#475569" HorizontalAlignment="Center" />
-                                                        </Border>
-                                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
-                                                            <Button x:Name="Line2AnswerButton"
-                                                                    Content="Answer"
-                                                                    Background="#10B981"
-                                                                    Foreground="White"
-                                                                    FontWeight="SemiBold"
-                                                                    FontSize="11"
-                                                                    Padding="8,3"
-                                                                    Margin="0,0,4,0"
-                                                                    Visibility="Collapsed"
-                                                                    Click="Line2AnswerButton_Click"
-                                                                    ToolTip="Answer incoming call on Line 2" />
-                                                            <Button x:Name="Line2DeclineButton"
-                                                                    Content="Decline"
-                                                                    Background="#EF4444"
-                                                                    Foreground="White"
-                                                                    FontWeight="SemiBold"
-                                                                    FontSize="11"
-                                                                    Padding="8,3"
-                                                                    Margin="0,0,4,0"
-                                                                    Visibility="Collapsed"
-                                                                    Click="Line2DeclineButton_Click"
-                                                                    ToolTip="Decline incoming call on Line 2" />
-                                                            <Button x:Name="Line2HoldResumeButton"
-                                                                    Content="⏸ Hold"
-                                                                    FontSize="11"
-                                                                    FontWeight="SemiBold"
-                                                                    Padding="7,2"
-                                                                    Margin="0,0,4,0"
-                                                                    Visibility="Collapsed"
-                                                                    Style="{StaticResource SoftButton}"
-                                                                    Click="Line2HoldResumeButton_Click"
-                                                                    ToolTip="Hold or resume Line 2" />
-                                                            <Button x:Name="Line2HangupButton"
-                                                                    Content="✕"
-                                                                    Foreground="#EF4444"
-                                                                    FontSize="12"
-                                                                    FontWeight="Bold"
-                                                                    Padding="7,2"
-                                                                    Visibility="Collapsed"
-                                                                    Style="{StaticResource SoftButton}"
-                                                                    Click="Line2HangupButton_Click"
-                                                                    ToolTip="End Line 2 call" />
-                                                        </StackPanel>
-                                                        <StackPanel VerticalAlignment="Center">
-                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                                <Ellipse x:Name="Line2StatusDot" Width="8" Height="8" Fill="#94A3B8" Margin="0,0,7,0" VerticalAlignment="Center" />
-                                                                <TextBlock x:Name="Line2Title" Text="Line 2" FontWeight="Bold" FontSize="12.5" Foreground="#111827" Margin="0,0,6,0" />
-                                                                <TextBlock x:Name="Line2StatusText" Text="Idle" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
-                                                            </StackPanel>
-                                                            <TextBlock x:Name="Line2DetailText" Text="Ready for 2nd call / Incoming" FontSize="11.5" Foreground="#64748B" TextTrimming="CharacterEllipsis" Margin="15,2,0,0" />
-                                                        </StackPanel>
-                                                    </DockPanel>
-                                                </Border>
-                                            </Grid>
-                                        </Border>
-                                        <!-- Live In-Call Quality & Telemetry HUD -->
-                                        <Border x:Name="LiveCallStatisticsCard"
+                                        <!-- LINE 1 -->
+                                        <Border x:Name="Line1Card"
+                                                Grid.Row="0"
                                                 Background="#F0FDF4"
-                                                BorderBrush="#BBF7D0"
-                                                BorderThickness="1"
-                                                CornerRadius="10"
-                                                Padding="12,10"
-                                                Margin="0,8,0,4"
-                                                Visibility="Collapsed"
+                                                CornerRadius="9,9,0,0"
+                                                Padding="14,10"
                                                 Cursor="Hand"
-                                                MouseDown="LiveCallStatisticsCard_MouseDown"
-                                                ToolTip="Live VoIP RTP stream diagnostics. Click to open detailed Call Quality Analysis.">
-                                            <Grid>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                </Grid.RowDefinitions>
-                                                
-                                                <DockPanel Grid.Row="0">
-                                                    <Border DockPanel.Dock="Right" x:Name="LiveQualityBadge" Background="#DEF7EC" CornerRadius="6" Padding="8,3" VerticalAlignment="Center">
-                                                        <TextBlock x:Name="LiveQualityLevelText" Text="🟢 4.4 MOS • Excellent" Foreground="#03543F" FontWeight="Bold" FontSize="11.5" />
-                                                    </Border>
-                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <TextBlock Text="📡" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                                        <TextBlock Text="LIVE CALL TELEMETRY" FontSize="10" FontWeight="Bold" Foreground="#15803D" VerticalAlignment="Center" />
-                                                        <TextBlock x:Name="LiveCodecText" Text=" • PCMU 64k" FontSize="10" FontWeight="SemiBold" Foreground="#166534" VerticalAlignment="Center" />
-                                                    </StackPanel>
-                                                </DockPanel>
+                                                MouseDown="Line1Card_MouseDown"
+                                                ToolTip="Line 1 (Click to select)">
+                                            <DockPanel LastChildFill="True">
+                                                <!-- Line 1 Number Indicator on the right (like Agilico '1') -->
+                                                <Border DockPanel.Dock="Right" x:Name="Line1Badge" Background="Transparent" VerticalAlignment="Center" Margin="12,0,4,0">
+                                                    <TextBlock x:Name="Line1BadgeText"
+                                                               Text="1"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="18"
+                                                               Foreground="#0E987E"
+                                                               HorizontalAlignment="Center" />
+                                                </Border>
 
-                                                <UniformGrid Grid.Row="1" Columns="4" Margin="0,8,0,0">
-                                                    <StackPanel HorizontalAlignment="Center">
-                                                        <TextBlock Text="LOSS" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
-                                                        <TextBlock x:Name="LiveLossText" Text="0.0%" FontSize="13.5" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center" />
+                                                <!-- Line 1 Actions -->
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                                    <Button x:Name="Line1HoldResumeButton"
+                                                            Content="⏸ Hold"
+                                                            FontSize="11"
+                                                            FontWeight="SemiBold"
+                                                            Padding="7,3"
+                                                            Margin="0,0,4,0"
+                                                            Visibility="Collapsed"
+                                                            Style="{StaticResource SoftButton}"
+                                                            Click="Line1HoldResumeButton_Click"
+                                                            ToolTip="Hold or resume Line 1" />
+                                                    <Button x:Name="Line1HangupButton"
+                                                            Content="✕"
+                                                            Foreground="#EF4444"
+                                                            FontSize="12"
+                                                            FontWeight="Bold"
+                                                            Padding="7,3"
+                                                            Visibility="Collapsed"
+                                                            Style="{StaticResource SoftButton}"
+                                                            Click="Line1HangupButton_Click"
+                                                            ToolTip="End Line 1 call" />
+                                                </StackPanel>
+
+                                                <!-- Line 1 Status & Details -->
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Ellipse x:Name="Line1StatusDot" Width="8" Height="8" Fill="#10B981" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                                        <TextBlock x:Name="Line1Title" Text="Line 1" FontWeight="Bold" FontSize="13" Foreground="#111827" Margin="0,0,8,0" />
+                                                        <TextBlock x:Name="Line1StatusText" Text="Idle" FontSize="11.5" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
                                                     </StackPanel>
-                                                    <StackPanel HorizontalAlignment="Center">
-                                                        <TextBlock Text="JITTER" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
-                                                        <TextBlock x:Name="LiveJitterText" Text="1.8 ms" FontSize="13.5" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center" />
-                                                    </StackPanel>
-                                                    <StackPanel HorizontalAlignment="Center">
-                                                        <TextBlock Text="LATENCY" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
-                                                        <TextBlock x:Name="LiveLatencyText" Text="22 ms" FontSize="13.5" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center" />
-                                                    </StackPanel>
-                                                    <StackPanel HorizontalAlignment="Center">
-                                                        <TextBlock Text="SIGNAL" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
-                                                        <TextBlock x:Name="LiveSignalText" Text="5/5 Bars" FontSize="13.5" FontWeight="Bold" Foreground="#15803D" HorizontalAlignment="Center" />
-                                                    </StackPanel>
-                                                </UniformGrid>
-                                            </Grid>
+                                                    <TextBlock x:Name="Line1DetailText"
+                                                               Text="Ready for call"
+                                                               FontSize="12"
+                                                               Foreground="#64748B"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Margin="16,3,0,0" />
+                                                </StackPanel>
+                                            </DockPanel>
                                         </Border>
+
+                                        <!-- Divider Line -->
+                                        <Rectangle Grid.Row="1" Fill="#E2E8F0" Height="1" />
+
+                                        <!-- LINE 2 -->
+                                        <Border x:Name="Line2Card"
+                                                Grid.Row="2"
+                                                Background="#FFFFFF"
+                                                CornerRadius="0,0,9,9"
+                                                Padding="14,10"
+                                                Cursor="Hand"
+                                                MouseDown="Line2Card_MouseDown"
+                                                ToolTip="Line 2 (Click to select for second call or answering incoming)">
+                                            <DockPanel LastChildFill="True">
+                                                <!-- Line 2 Number Indicator on the right (like Agilico '2') -->
+                                                <Border DockPanel.Dock="Right" x:Name="Line2Badge" Background="Transparent" VerticalAlignment="Center" Margin="12,0,4,0">
+                                                    <TextBlock x:Name="Line2BadgeText"
+                                                               Text="2"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="18"
+                                                               Foreground="#94A3B8"
+                                                               HorizontalAlignment="Center" />
+                                                </Border>
+
+                                                <!-- Line 2 Actions (Answer/Decline or Hold/Hangup) -->
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                                    <Button x:Name="Line2AnswerButton"
+                                                            Content="Answer"
+                                                            Background="#10B981"
+                                                            Foreground="White"
+                                                            FontWeight="SemiBold"
+                                                            FontSize="11"
+                                                            Padding="8,3"
+                                                            Margin="0,0,4,0"
+                                                            Visibility="Collapsed"
+                                                            Click="Line2AnswerButton_Click"
+                                                            ToolTip="Answer incoming call on Line 2" />
+                                                    <Button x:Name="Line2DeclineButton"
+                                                            Content="Decline"
+                                                            Background="#EF4444"
+                                                            Foreground="White"
+                                                            FontWeight="SemiBold"
+                                                            FontSize="11"
+                                                            Padding="8,3"
+                                                            Margin="0,0,4,0"
+                                                            Visibility="Collapsed"
+                                                            Click="Line2DeclineButton_Click"
+                                                            ToolTip="Decline incoming call on Line 2" />
+                                                    <Button x:Name="Line2HoldResumeButton"
+                                                            Content="⏸ Hold"
+                                                            FontSize="11"
+                                                            FontWeight="SemiBold"
+                                                            Padding="7,3"
+                                                            Margin="0,0,4,0"
+                                                            Visibility="Collapsed"
+                                                            Style="{StaticResource SoftButton}"
+                                                            Click="Line2HoldResumeButton_Click"
+                                                            ToolTip="Hold or resume Line 2" />
+                                                    <Button x:Name="Line2HangupButton"
+                                                            Content="✕"
+                                                            Foreground="#EF4444"
+                                                            FontSize="12"
+                                                            FontWeight="Bold"
+                                                            Padding="7,3"
+                                                            Visibility="Collapsed"
+                                                            Style="{StaticResource SoftButton}"
+                                                            Click="Line2HangupButton_Click"
+                                                            ToolTip="End Line 2 call" />
+                                                </StackPanel>
+
+                                                <!-- Line 2 Status & Details -->
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Ellipse x:Name="Line2StatusDot" Width="8" Height="8" Fill="#94A3B8" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                                        <TextBlock x:Name="Line2Title" Text="Line 2" FontWeight="Bold" FontSize="13" Foreground="#111827" Margin="0,0,8,0" />
+                                                        <TextBlock x:Name="Line2StatusText" Text="Idle" FontSize="11.5" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                    <TextBlock x:Name="Line2DetailText"
+                                                               Text="Ready for 2nd call / Incoming"
+                                                               FontSize="12"
+                                                               Foreground="#64748B"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Margin="16,3,0,0" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ROW 2: Live In-Call Quality & Telemetry HUD -->
+                                <Border Grid.Row="2"
+                                        x:Name="LiveCallStatisticsCard"
+                                        Background="#F0FDF4"
+                                        BorderBrush="#BBF7D0"
+                                        BorderThickness="1"
+                                        CornerRadius="10"
+                                        Padding="12,10"
+                                        Margin="0,0,0,10"
+                                        Visibility="Collapsed"
+                                        Cursor="Hand"
+                                        MouseDown="LiveCallStatisticsCard_MouseDown"
+                                        ToolTip="Live VoIP RTP stream diagnostics. Click to open detailed Call Quality Analysis.">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <DockPanel Grid.Row="0">
+                                            <Border DockPanel.Dock="Right" x:Name="LiveQualityBadge" Background="#DEF7EC" CornerRadius="6" Padding="8,3" VerticalAlignment="Center">
+                                                <TextBlock x:Name="LiveQualityLevelText" Text="🟢 4.4 MOS • Excellent" Foreground="#03543F" FontWeight="Bold" FontSize="11.5" />
+                                            </Border>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="📡" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                <TextBlock Text="LIVE CALL TELEMETRY" FontSize="10" FontWeight="Bold" Foreground="#15803D" VerticalAlignment="Center" />
+                                                <TextBlock x:Name="LiveCodecText" Text=" • PCMU 64k" FontSize="10" FontWeight="SemiBold" Foreground="#166534" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </DockPanel>
+
+                                        <UniformGrid Grid.Row="1" Columns="4" Margin="0,8,0,0">
+                                            <StackPanel HorizontalAlignment="Center">
+                                                <TextBlock Text="LOSS" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
+                                                <TextBlock x:Name="LiveLossText" Text="0.0%" FontSize="13.5" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center" />
+                                            </StackPanel>
+                                            <StackPanel HorizontalAlignment="Center">
+                                                <TextBlock Text="JITTER" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
+                                                <TextBlock x:Name="LiveJitterText" Text="1.8 ms" FontSize="13.5" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center" />
+                                            </StackPanel>
+                                            <StackPanel HorizontalAlignment="Center">
+                                                <TextBlock Text="LATENCY" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
+                                                <TextBlock x:Name="LiveLatencyText" Text="22 ms" FontSize="13.5" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center" />
+                                            </StackPanel>
+                                            <StackPanel HorizontalAlignment="Center">
+                                                <TextBlock Text="SIGNAL" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
+                                                <TextBlock x:Name="LiveSignalText" Text="5/5 Bars" FontSize="13.5" FontWeight="Bold" Foreground="#15803D" HorizontalAlignment="Center" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ROW 3: Dial Header (Agilico style ::: Dial ^) -->
+                                <DockPanel Grid.Row="3" Margin="0,2,0,8">
+                                    <TextBlock DockPanel.Dock="Right" Text="&#xE70E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE75F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" Foreground="#111827" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Dial" FontSize="14" FontWeight="SemiBold" Foreground="#111827" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="DestinationPreviewText" Text="" Foreground="#64748B" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" Visibility="Collapsed" />
+                                        <TextBlock x:Name="CallerLookupText" Text="" Foreground="#64748B" FontSize="12" Margin="6,0,0,0" VerticalAlignment="Center" Visibility="Collapsed" />
                                     </StackPanel>
                                 </DockPanel>
 
-                                <Grid Grid.Row="1" Margin="0,0,0,16">
+                                <!-- ROW 4: DestinationTextBox and Clear -->
+                                <Grid Grid.Row="4" Margin="0,0,0,12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="94" />
+                                        <ColumnDefinition Width="80" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBox x:Name="DestinationTextBox" FontSize="18" Padding="14,12" BorderBrush="#D7E1EC" Background="#F9FBFE" TextChanged="DestinationTextBox_TextChanged" KeyDown="DestinationTextBox_KeyDown" Margin="0,0,10,0" />
+                                    <TextBox x:Name="DestinationTextBox" FontSize="16" Padding="12,10" BorderBrush="#D7E1EC" Background="#F9FBFE" TextChanged="DestinationTextBox_TextChanged" KeyDown="DestinationTextBox_KeyDown" Margin="0,0,8,0" />
                                     <Button Grid.Column="1" Content="Clear" Style="{StaticResource SoftButton}" Click="ClearDestinationButton_Click" />
                                 </Grid>
 
-                                <UniformGrid Grid.Row="2" Columns="3" Rows="4" Margin="0,0,0,18" VerticalAlignment="Top">
+                                <!-- ROW 5: Keypad -->
+                                <UniformGrid Grid.Row="5" Columns="3" Rows="4" Margin="0,0,0,14" VerticalAlignment="Top">
                                     <Button Content="1" Style="{StaticResource DialButton}" Click="DialpadButton_Click" />
                                     <Button Content="2" Style="{StaticResource DialButton}" Click="DialpadButton_Click" />
                                     <Button Content="3" Style="{StaticResource DialButton}" Click="DialpadButton_Click" />
@@ -767,7 +802,8 @@
                                     <Button Content="#" Style="{StaticResource DialButton}" Click="DialpadButton_Click" />
                                 </UniformGrid>
 
-                                <Grid Grid.Row="3" Margin="0,0,0,12">
+                                <!-- ROW 6: Dial / Redial / Hangup -->
+                                <Grid Grid.Row="6" Margin="0,0,0,10">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" x:Name="DialButtonColumn" />
                                         <ColumnDefinition Width="Auto" x:Name="RedialButtonColumn" />
@@ -778,7 +814,8 @@
                                     <Button Grid.Column="2" x:Name="HangupButton" Content="&#xE778;" Style="{StaticResource IconSoftButton}" Background="{StaticResource DangerBrush}" Foreground="White" Click="HangupButton_Click" Visibility="Collapsed" Margin="0" ToolTip="Hang up" AutomationProperties.Name="Hang up" />
                                 </Grid>
 
-                                <Grid Grid.Row="4">
+                                <!-- ROW 7: InCall Buttons & Quick Actions -->
+                                <Grid Grid.Row="7">
                                      <UniformGrid x:Name="InCallButtonsGrid" Columns="5" Rows="1" Visibility="Collapsed" Margin="0,-2,0,0">
                                          <Button x:Name="MuteButton" Content="&#xE720;" Style="{StaticResource IconSoftButton}" Click="MuteButton_Click" Margin="0,2,3,2" ToolTip="Mute" AutomationProperties.Name="Mute" />
                                          <Button x:Name="HoldButton" Content="&#xE769;" Style="{StaticResource IconSoftButton}" Click="HoldButton_Click" Margin="3,2,3,2" ToolTip="Hold" AutomationProperties.Name="Hold" />
@@ -795,7 +832,15 @@
                                          </Button>
                                          <Button x:Name="DndButton" Content="DND" Style="{StaticResource SoftButton}" Margin="4,2,0,2" Click="DndButton_Click" ToolTip="Do Not Disturb" AutomationProperties.Name="DND" />
                                      </UniformGrid>
-                                  </Grid>
+                                </Grid>
+
+                                <!-- ROW 8: Footnote -->
+                                <TextBlock Grid.Row="8"
+                                           Text="DTMF input is sent directly during live calls."
+                                           FontSize="11"
+                                           Foreground="#94A3B8"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,8,0,0" />
                             </Grid>
                         </Border>
 
