@@ -36,6 +36,7 @@ export interface SipSettings {
   sipAlgCompat: boolean;
   audioInput: string;
   audioOutput: string;
+  queuePickupPrefix?: string;
   licenseStatus?: string;
   allowCustomSip?: boolean;
 }

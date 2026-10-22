@@ -42,13 +42,21 @@ public partial class StartupWindow : Window
     {
         ErrorText.Text = string.Empty;
 
-        if (!_licenseAccepted)
+        try
         {
-            await AcceptLicenseStepAsync();
-            return;
-        }
+            if (!_licenseAccepted)
+            {
+                await AcceptLicenseStepAsync();
+                return;
+            }
 
-        await RunWithDisabledContinueAsync(AcceptCredentialsStep);
+            await RunWithDisabledContinueAsync(AcceptCredentialsStep);
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"STARTUP ContinueButton_Click failed: {ex}");
+            ErrorText.Text = $"Setup failed: {ex.Message}";
+        }
     }
 
     private async Task RunWithDisabledContinueAsync(Func<Task> action)

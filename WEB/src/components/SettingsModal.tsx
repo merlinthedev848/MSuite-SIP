@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import type { AudioDevice, SipSettings } from '../types';
 
@@ -15,8 +15,12 @@ interface SettingsModalProps {
   onResetApp: () => void;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({
-  isOpen,
+export const SettingsModal: React.FC<SettingsModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <SettingsModalDialog {...props} />;
+};
+
+const SettingsModalDialog: React.FC<SettingsModalProps> = ({
   onClose,
   settingsTab,
   setSettingsTab,
@@ -27,10 +31,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onStartDiagnostics,
   onResetApp
 }) => {
-  if (!isOpen) return null;
+  const [draft, setDraft] = useState<SipSettings>(settings);
 
   const handleSave = () => {
-    localStorage.setItem('merlin_sip_config', JSON.stringify(settings));
+    const normalized: SipSettings = {
+      ...draft,
+      sipServer: draft.sipServer.trim() || 'pbx.chriskendall.media',
+      extension: draft.extension.trim(),
+      username: draft.username.trim(),
+      mobileNumber: draft.mobileNumber.trim(),
+      queuePickupPrefix: (draft.queuePickupPrefix ?? '*8').trim() || '*8'
+    };
+    setSettings(normalized);
+    localStorage.setItem('merlin_sip_config', JSON.stringify(normalized));
     onClose();
   };
 
@@ -39,14 +52,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       `Merlin SIP Web Diagnostic Log`,
       `Generated: ${new Date().toISOString()}`,
       `User Agent: ${navigator.userAgent}`,
-      `SIP Server: ${settings.sipServer || 'pbx.chriskendall.media'}`,
-      `SIP Transport: ${settings.sipTransport}`,
-      `Extension: ${settings.extension || 'none'}`,
-      `SIP ALG Compatibility: ${settings.sipAlgCompat ? 'Enabled' : 'Disabled'}`,
-      `DND Mode: ${settings.dndMode}`,
-      `Audio Input: ${settings.audioInput || 'default'}`,
-      `Audio Output: ${settings.audioOutput || 'default'}`,
-      `License Status: ${settings.licenseStatus}`
+      `SIP Server: ${draft.sipServer || 'pbx.chriskendall.media'}`,
+      `SIP Transport: ${draft.sipTransport}`,
+      `Extension: ${draft.extension || 'none'}`,
+      `SIP ALG Compatibility: ${draft.sipAlgCompat ? 'Enabled' : 'Disabled'}`,
+      `DND Mode: ${draft.dndMode}`,
+      `Queue Pickup Prefix: ${draft.queuePickupPrefix || '*8'}`,
+      `Audio Input: ${draft.audioInput || 'default'}`,
+      `Audio Output: ${draft.audioOutput || 'default'}`,
+      `License Status: ${draft.licenseStatus || 'Active (Commercial)'}`
     ].join('\n');
 
     const blob = new Blob([logData], { type: 'text/plain;charset=utf-8' });
@@ -89,8 +103,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <label className="form-label">SIP Signaling Transport</label>
                 <select 
                   className="form-input" 
-                  value={settings.sipTransport} 
-                  onChange={e => setSettings(s => ({ ...s, sipTransport: e.target.value }))}
+                  value={draft.sipTransport} 
+                  onChange={e => setDraft(s => ({ ...s, sipTransport: e.target.value }))}
                 >
                   <option value="UDP">UDP</option>
                   <option value="TCP">TCP</option>
@@ -101,8 +115,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <label className="form-label">Do Not Disturb (DND)</label>
                 <select 
                   className="form-input" 
-                  value={settings.dndMode} 
-                  onChange={e => setSettings(s => ({ ...s, dndMode: e.target.value }))}
+                  value={draft.dndMode} 
+                  onChange={e => setDraft(s => ({ ...s, dndMode: e.target.value }))}
                 >
                   <option value="Off">Off</option>
                   <option value="On">On (Auto busy)</option>
@@ -113,16 +127,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <input 
                   type="text" 
                   className="form-input" 
-                  value={settings.mobileNumber} 
-                  onChange={e => setSettings(s => ({ ...s, mobileNumber: e.target.value }))} 
+                  value={draft.mobileNumber} 
+                  onChange={e => setDraft(s => ({ ...s, mobileNumber: e.target.value }))} 
                 />
               </div>
               <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <input 
                   type="checkbox" 
                   id="combineContacts" 
-                  checked={settings.combineContacts} 
-                  onChange={e => setSettings(s => ({ ...s, combineContacts: e.target.checked }))} 
+                  checked={draft.combineContacts} 
+                  onChange={e => setDraft(s => ({ ...s, combineContacts: e.target.checked }))} 
                 />
                 <label htmlFor="combineContacts" className="form-label" style={{ margin: 0 }}>Combine Contacts in Search</label>
               </div>
@@ -136,9 +150,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <input 
                   type="text" 
                   className="form-input" 
-                  value={settings.sipServer || 'pbx.chriskendall.media'} 
-                  disabled={!settings.allowCustomSip}
-                  onChange={e => setSettings(s => ({ ...s, sipServer: e.target.value }))} 
+                  value={draft.sipServer || 'pbx.chriskendall.media'} 
+                  disabled={!draft.allowCustomSip}
+                  onChange={e => setDraft(s => ({ ...s, sipServer: e.target.value }))} 
                 />
               </div>
               <div className="form-group">
@@ -146,8 +160,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <input 
                   type="text" 
                   className="form-input" 
-                  value={settings.extension} 
-                  onChange={e => setSettings(s => ({ ...s, extension: e.target.value }))} 
+                  value={draft.extension} 
+                  onChange={e => setDraft(s => ({ ...s, extension: e.target.value }))} 
                 />
               </div>
               <div className="form-group">
@@ -155,8 +169,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <input 
                   type="text" 
                   className="form-input" 
-                  value={settings.username} 
-                  onChange={e => setSettings(s => ({ ...s, username: e.target.value }))} 
+                  value={draft.username} 
+                  onChange={e => setDraft(s => ({ ...s, username: e.target.value }))} 
                 />
               </div>
               <div className="form-group">
@@ -164,8 +178,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <input 
                   type="password" 
                   className="form-input" 
-                  value={settings.password || ''} 
-                  onChange={e => setSettings(s => ({ ...s, password: e.target.value }))} 
+                  value={draft.password || ''} 
+                  onChange={e => setDraft(s => ({ ...s, password: e.target.value }))} 
                 />
               </div>
             </div>
@@ -177,8 +191,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <input 
                   type="checkbox" 
                   id="sipAlgCompat" 
-                  checked={settings.sipAlgCompat || false} 
-                  onChange={e => setSettings(s => ({ ...s, sipAlgCompat: e.target.checked }))} 
+                  checked={draft.sipAlgCompat || false} 
+                  onChange={e => setDraft(s => ({ ...s, sipAlgCompat: e.target.checked }))} 
                 />
                 <label htmlFor="sipAlgCompat" className="form-label" style={{ margin: 0 }}>
                   SIP ALG Compatibility Mode (15s NAT Keepalive)
@@ -189,8 +203,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <input 
                   type="text" 
                   className="form-input" 
-                  value="*8" 
-                  readOnly 
+                  value={draft.queuePickupPrefix ?? '*8'} 
+                  onChange={e => setDraft(s => ({ ...s, queuePickupPrefix: e.target.value }))}
                 />
               </div>
             </div>
@@ -202,8 +216,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <label className="form-label">Audio Input (Microphone)</label>
                 <select 
                   className="form-input" 
-                  value={settings.audioInput} 
-                  onChange={e => setSettings(s => ({ ...s, audioInput: e.target.value }))}
+                  value={draft.audioInput} 
+                  onChange={e => setDraft(s => ({ ...s, audioInput: e.target.value }))}
                 >
                   {audioInputs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
@@ -212,8 +226,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <label className="form-label">Audio Output (Speaker)</label>
                 <select 
                   className="form-input" 
-                  value={settings.audioOutput} 
-                  onChange={e => setSettings(s => ({ ...s, audioOutput: e.target.value }))}
+                  value={draft.audioOutput} 
+                  onChange={e => setDraft(s => ({ ...s, audioOutput: e.target.value }))}
                 >
                   {audioOutputs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>

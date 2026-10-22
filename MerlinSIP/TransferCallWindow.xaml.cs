@@ -42,7 +42,13 @@ public partial class TransferCallWindow : Window
     private void TransferButton_Click(object sender, RoutedEventArgs e)
     {
         _transferTarget = TransferTargetTextBox.Text.Trim();
-        DialogResult = !string.IsNullOrWhiteSpace(_transferTarget);
+        if (string.IsNullOrWhiteSpace(_transferTarget))
+        {
+            TransferTargetTextBox.Focus();
+            return;
+        }
+
+        DialogResult = true;
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
