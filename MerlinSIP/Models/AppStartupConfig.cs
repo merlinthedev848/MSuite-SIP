@@ -64,7 +64,9 @@ public sealed record AppStartupConfig(
         string.Equals(SipSignallingTransport, TransportTls, StringComparison.OrdinalIgnoreCase);
 
     public bool AllowsCustomSipEndpoint =>
-        LicenseKey.StartsWith("PR", StringComparison.OrdinalIgnoreCase);
+        LicenseKey.StartsWith("PR", StringComparison.OrdinalIgnoreCase) ||
+        LicenseKey.StartsWith("BUYOUT", StringComparison.OrdinalIgnoreCase) ||
+        LicenseStatus.Contains("Buyout", StringComparison.OrdinalIgnoreCase);
 
     public AppStartupConfig WithFixedSipEndpoint()
     {

@@ -1131,7 +1131,7 @@
                                             <StackPanel>
                                                 <TextBlock Text="Account credentials" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10" />
                                                 
-                                                <StackPanel x:Name="PrivatePbxSettingsPanel" Margin="0,0,0,10">
+                                                <StackPanel x:Name="PrivatePbxSettingsPanel" Visibility="Collapsed" Margin="0,0,0,10">
                                                     <TextBlock Text="SIP server / PBX host" Foreground="#6B7280" FontSize="12" Margin="0,0,0,4" />
                                                     <TextBox x:Name="PrivatePbxSettingsTextBox" AutomationProperties.Name="Private PBX Server" Height="36" />
                                                 </StackPanel>

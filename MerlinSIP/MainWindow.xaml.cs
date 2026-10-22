@@ -980,10 +980,10 @@ public partial class MainWindow : Window
         UsernameTextBox.Text = _config.Username;
         PasswordBox.Password = _config.Password;
         PasswordTextBox.Text = _config.Password;
-        PrivatePbxSettingsPanel.Visibility = Visibility.Visible;
-        PrivatePbxSettingsTextBox.IsEnabled = _config.AllowsCustomSipEndpoint;
-        PrivatePbxSettingsTextBox.Text = !string.IsNullOrWhiteSpace(_config.Server) ? _config.Server : AppStartupConfig.FixedSipServer;
-        PrivatePbxSettingsTextBox.ToolTip = _config.AllowsCustomSipEndpoint ? "SIP server / PBX host" : "Managed Cloud PBX (Standard license). Enter a PR license key to customize.";
+        var isBuyout = _config.AllowsCustomSipEndpoint;
+        PrivatePbxSettingsPanel.Visibility = isBuyout ? Visibility.Visible : Visibility.Collapsed;
+        PrivatePbxSettingsTextBox.IsEnabled = isBuyout;
+        PrivatePbxSettingsTextBox.Text = isBuyout && !string.IsNullOrWhiteSpace(_config.Server) ? _config.Server : string.Empty;
         SipAlgCompatibilityCheckBox.IsChecked = _config.SipAlgCompatibilityMode;
         IgnoreSslErrorsCheckBox.IsChecked = _config.IgnoreSslErrors;
         SelectSipTransportMode(_config.SipSignallingTransport);
