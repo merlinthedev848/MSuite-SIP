@@ -176,4 +176,33 @@ public class SettingsModalStructureAndPersistenceTests
         Assert.Equal(expectedTitle, title);
         Assert.Equal(expectedSubtitle, subtitle);
     }
+
+    [Fact]
+    public void Dialer_DoesNotContainRedialOrDndButtons()
+    {
+        var xamlPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "MerlinSIP", "MainWindow.xaml"));
+        var content = File.ReadAllText(xamlPath);
+
+        // Must NOT have DndButton or RedialButton in the dialer
+        Assert.DoesNotContain("x:Name=\"DndButton\"", content);
+        Assert.DoesNotContain("x:Name=\"RedialButton\"", content);
+
+        // DialButton and VoicemailButton must be present
+        Assert.Contains("x:Name=\"DialButton\"", content);
+        Assert.Contains("x:Name=\"VoicemailButton\"", content);
+    }
+
+    [Fact]
+    public void CallHistory_HasDoubleClickAndOneClickCallbackButtons()
+    {
+        var xamlPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "MerlinSIP", "MainWindow.xaml"));
+        var content = File.ReadAllText(xamlPath);
+
+        // Both history lists have double-click and callback buttons
+        Assert.Contains("x:Name=\"RecentCallsListView\"", content);
+        Assert.Contains("MouseDoubleClick=\"RecentCallsListView_MouseDoubleClick\"", content);
+        Assert.Contains("x:Name=\"CallHistoryListView\"", content);
+        Assert.Contains("MouseDoubleClick=\"CallHistoryListView_MouseDoubleClick\"", content);
+        Assert.Contains("Click=\"CallbackHistoryButton_Click\"", content);
+    }
 }

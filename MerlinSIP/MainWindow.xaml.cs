@@ -2442,7 +2442,7 @@ public partial class MainWindow : Window
     {
         _dndEnabled = string.Equals(_config.DndMode, "Reject calls", StringComparison.OrdinalIgnoreCase);
         _sipRegistrationService.SetRejectIncomingCalls(_dndEnabled);
-        DndButton.Content = _dndEnabled ? "DND on" : "DND";
+// DndButton removed from dialer
         if (_dndEnabled)
         {
             SetPresenceDisplay("DND");
@@ -2526,10 +2526,7 @@ public partial class MainWindow : Window
         FooterStatusText.Text = targetDnd ? "Do not disturb is on." : "Do not disturb is off.";
     }
 
-    private async void DndButton_Click(object sender, RoutedEventArgs e)
-    {
-        await ToggleDndAsync();
-    }
+
 
     private async Task SetDndModeInternalAsync(bool enableDnd, string targetPresence)
     {
@@ -2556,10 +2553,6 @@ public partial class MainWindow : Window
             }
         }
 
-        if (DndButton != null)
-        {
-            DndButton.Content = _dndEnabled ? "DND on" : "DND";
-        }
         UpdateDndUi();
         _userSelectedPresence = targetPresence;
         SetPresenceDisplay(targetPresence);
@@ -3625,19 +3618,14 @@ del ""%~f0""
         ConferenceButton.IsEnabled = !_licenseLocked && _callConnected && _sipRegistrationService.CanControlAudio;
         TransferButton.IsEnabled = !_licenseLocked && _callConnected;
         RecordButton.IsEnabled = !_licenseLocked && _callConnected;
-        DndButton.IsEnabled = !_licenseLocked;
+
         VoicemailButton.IsEnabled = !_licenseLocked && _registered && !_callInProgress && !_incomingRinging;
 
         var activeCall = _callInProgress || _incomingRinging || _callConnected;
 
         DialButton.Visibility = Visibility.Visible;
         DialButton.IsEnabled = !_licenseLocked && _registered;
-        RedialButton.Visibility = Visibility.Visible;
-        RedialButton.IsEnabled = !_licenseLocked && _registered && !string.IsNullOrWhiteSpace(_lastDialedNumber);
         HangupButton.Visibility = Visibility.Collapsed;
-        DialButtonColumn.Width = new GridLength(1, GridUnitType.Star);
-        RedialButtonColumn.Width = GridLength.Auto;
-        HangupButtonColumn.Width = new GridLength(0);
 
         // In-call options are all on the Line cards; dialer actions stay accessible at the bottom
         InCallButtonsGrid.Visibility = Visibility.Collapsed;
@@ -3703,18 +3691,7 @@ del ""%~f0""
         System.Windows.Application.Current.Shutdown();
     }
 
-    private void RedialButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (!string.IsNullOrWhiteSpace(_lastDialedNumber))
-        {
-            DestinationTextBox.Text = _lastDialedNumber;
-            _ = StartOutboundCallAsync(_lastDialedNumber);
-        }
-        else
-        {
-            FooterStatusText.Text = "No previous number to redial.";
-        }
-    }
+
 
     private async Task OnCallFinished(string resultState, string message)
     {

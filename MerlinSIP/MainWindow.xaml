@@ -1045,19 +1045,13 @@
                                     </Button>
                                 </UniformGrid>
 
-                                <!-- ROW 6: Dial / Redial -->
+                                <!-- ROW 6: Dial -->
                                 <Grid Grid.Row="6" Margin="0,0,0,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" x:Name="DialButtonColumn" />
-                                        <ColumnDefinition Width="Auto" x:Name="RedialButtonColumn" />
-                                        <ColumnDefinition Width="0" x:Name="HangupButtonColumn" />
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" x:Name="DialButton" Content="Dial" Style="{StaticResource SoftButton}" Height="40" Background="{StaticResource PrimaryBrush}" Foreground="White" Click="DialButton_Click" Margin="0" />
-                                    <Button Grid.Column="1" x:Name="RedialButton" Content="⟲ Redial" Style="{StaticResource SoftButton}" Height="40" Width="95" Margin="8,0,0,0" Click="RedialButton_Click" ToolTip="Redial last number" AutomationProperties.Name="Redial" />
-                                    <Button Grid.Column="2" x:Name="HangupButton" Visibility="Collapsed" Width="0" Height="0" />
+                                    <Button x:Name="DialButton" Content="Dial" Style="{StaticResource SoftButton}" Height="42" Background="{StaticResource PrimaryBrush}" Foreground="White" Click="DialButton_Click" Margin="0" HorizontalAlignment="Stretch" AutomationProperties.Name="Dial" />
+                                    <Button x:Name="HangupButton" Visibility="Collapsed" Width="0" Height="0" />
                                 </Grid>
 
-                                <!-- ROW 7: Quick Actions (Dialer stays accessible) -->
+                                <!-- ROW 7: Quick Actions (Voicemail) -->
                                 <Grid Grid.Row="7">
                                      <UniformGrid x:Name="InCallButtonsGrid" Visibility="Collapsed" Width="0" Height="0">
                                          <Button x:Name="MuteButton" Visibility="Collapsed" />
@@ -1066,15 +1060,14 @@
                                          <Button x:Name="ConferenceButton" Visibility="Collapsed" />
                                          <Button x:Name="TransferButton" Visibility="Collapsed" />
                                      </UniformGrid>
-                                     <UniformGrid x:Name="DialerQuickActionsGrid" Columns="2" Rows="1" Margin="0,-2,0,0">
-                                         <Button x:Name="VoicemailButton" Style="{StaticResource SoftButton}" Height="38" Margin="0,2,4,2" Click="VoicemailButton_Click" ToolTip="Call Voicemail (*2)" AutomationProperties.Name="Voicemail">
+                                     <Grid x:Name="DialerQuickActionsGrid" Margin="0,-2,0,0">
+                                         <Button x:Name="VoicemailButton" Style="{StaticResource SoftButton}" Height="38" Margin="0,2,0,2" HorizontalAlignment="Stretch" Click="VoicemailButton_Click" ToolTip="Call Voicemail (*2)" AutomationProperties.Name="Voicemail">
                                              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                  <TextBlock Text="&#xE715;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" VerticalAlignment="Center" Margin="0,0,6,0" />
                                                  <TextBlock x:Name="VoicemailButtonText" Text="Voicemail" VerticalAlignment="Center" />
                                              </StackPanel>
                                          </Button>
-                                         <Button x:Name="DndButton" Content="DND" Style="{StaticResource SoftButton}" Height="38" Margin="4,2,0,2" Click="DndButton_Click" ToolTip="Do Not Disturb" AutomationProperties.Name="DND" />
-                                     </UniformGrid>
+                                     </Grid>
                                 </Grid>
                             </Grid>
                         </Border>
@@ -1214,11 +1207,13 @@
                                                                 <Button.Template>
                                                                     <ControlTemplate TargetType="Button">
                                                                         <Border x:Name="CbBdr" Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" CornerRadius="13">
-                                                                            <TextBlock Text="&#xE717;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Foreground="#16A34A" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                            <TextBlock x:Name="CbIcon" Text="&#xE717;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Foreground="#16A34A" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                                         </Border>
                                                                         <ControlTemplate.Triggers>
                                                                             <Trigger Property="IsMouseOver" Value="True">
                                                                                 <Setter TargetName="CbBdr" Property="Background" Value="#16A34A" />
+                                                                                <Setter TargetName="CbBdr" Property="BorderBrush" Value="#16A34A" />
+                                                                                <Setter TargetName="CbIcon" Property="Foreground" Value="White" />
                                                                             </Trigger>
                                                                         </ControlTemplate.Triggers>
                                                                     </ControlTemplate>
@@ -1478,6 +1473,7 @@
                                                     <ColumnDefinition Width="90" />
                                                     <ColumnDefinition Width="110" />
                                                     <ColumnDefinition Width="80" />
+                                                    <ColumnDefinition Width="46" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="Name" FontWeight="SemiBold" Foreground="#78716C" Margin="12,8" />
                                                 <TextBlock Grid.Column="1" Text="Number" FontWeight="SemiBold" Foreground="#78716C" Margin="8" />
@@ -1486,6 +1482,7 @@
                                                 <TextBlock Grid.Column="4" Text="Status" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
                                                 <TextBlock Grid.Column="5" Text="Quality" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
                                                 <TextBlock Grid.Column="6" Text="Details" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
+                                                <TextBlock Grid.Column="7" Text="Call" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
                                             </Grid>
                                             <ScrollViewer Focusable="False">
                                                 <ItemsPresenter />
@@ -1504,6 +1501,7 @@
                                                 <ColumnDefinition Width="90" />
                                                 <ColumnDefinition Width="110" />
                                                 <ColumnDefinition Width="80" />
+                                                <ColumnDefinition Width="46" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0" Margin="12,10">
                                                 <TextBlock Text="{Binding Name}" Foreground="#111827" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -1519,6 +1517,31 @@
                                                 <TextBlock Text="{Binding QualitySummaryDisplay}" Foreground="{Binding QualityBadgeForeground}" FontWeight="SemiBold" FontSize="12" />
                                             </Border>
                                             <Button Grid.Column="6" Content="Inspect" Style="{StaticResource SoftButton}" Height="28" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center" Click="InspectCallQualityButton_Click" Tag="{Binding}" ToolTip="Inspect full VoIP RTP quality analysis" />
+                                            <!-- 1-Click Call Button -->
+                                            <Button Grid.Column="7"
+                                                    Tag="{Binding}"
+                                                    Click="CallbackHistoryButton_Click"
+                                                    Cursor="Hand"
+                                                    Width="28"
+                                                    Height="28"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip="Call this number">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="CbBdr" Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" CornerRadius="14">
+                                                            <TextBlock x:Name="CbIcon" Text="&#xE717;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" Foreground="#16A34A" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="CbBdr" Property="Background" Value="#16A34A" />
+                                                                <Setter TargetName="CbBdr" Property="BorderBrush" Value="#16A34A" />
+                                                                <Setter TargetName="CbIcon" Property="Foreground" Value="White" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
                                         </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
