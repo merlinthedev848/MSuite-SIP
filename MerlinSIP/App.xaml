@@ -88,6 +88,11 @@
             </Setter>
         </Style>
 
+        <Style x:Key="SoftButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Height" Value="42" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
         <Style x:Key="PanelStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource PanelGradientBrush}" />
             <Setter Property="BorderBrush" Value="#E6DFD3" />

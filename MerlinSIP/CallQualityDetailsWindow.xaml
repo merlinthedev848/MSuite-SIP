@@ -2,7 +2,6 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Call Quality Analysis"
-        Icon="Assets/CKMedia-Icon.ico"
         Width="520"
         SizeToContent="Height"
         WindowStyle="None"
@@ -34,7 +33,6 @@
                         Content="Close"
                         Width="82"
                         Height="34"
-                        Style="{StaticResource SoftButton}"
                         Click="CloseButton_Click" />
                 <StackPanel>
                     <TextBlock x:Name="TitleTextBlock"

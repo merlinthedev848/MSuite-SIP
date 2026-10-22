@@ -3394,39 +3394,26 @@ del ""%~f0""
 
         var activeCall = _callInProgress || _incomingRinging || _callConnected;
 
-        if (activeCall)
-        {
-            DialButton.Visibility = Visibility.Collapsed;
-            RedialButton.Visibility = Visibility.Collapsed;
-            HangupButton.Visibility = Visibility.Visible;
-            DialButtonColumn.Width = new GridLength(0);
-            RedialButtonColumn.Width = new GridLength(0);
-            HangupButtonColumn.Width = new GridLength(1, GridUnitType.Star);
-        }
-        else
-        {
-            DialButton.Visibility = Visibility.Visible;
-            RedialButton.Visibility = Visibility.Visible;
-            RedialButton.IsEnabled = !_licenseLocked && _registered && !string.IsNullOrWhiteSpace(_lastDialedNumber);
-            HangupButton.Visibility = Visibility.Collapsed;
-            DialButtonColumn.Width = new GridLength(1, GridUnitType.Star);
-            RedialButtonColumn.Width = GridLength.Auto;
-            HangupButtonColumn.Width = new GridLength(0);
-        }
+        DialButton.Visibility = Visibility.Visible;
+        DialButton.IsEnabled = !_licenseLocked && _registered;
+        RedialButton.Visibility = Visibility.Visible;
+        RedialButton.IsEnabled = !_licenseLocked && _registered && !string.IsNullOrWhiteSpace(_lastDialedNumber);
+        HangupButton.Visibility = Visibility.Collapsed;
+        DialButtonColumn.Width = new GridLength(1, GridUnitType.Star);
+        RedialButtonColumn.Width = GridLength.Auto;
+        HangupButtonColumn.Width = new GridLength(0);
+
+        // In-call options are all on the Line cards; dialer actions stay accessible at the bottom
+        InCallButtonsGrid.Visibility = Visibility.Collapsed;
+        DialerQuickActionsGrid.Visibility = Visibility.Visible;
 
         if (activeCall)
         {
-            InCallButtonsGrid.Visibility = Visibility.Visible;
-            DialerQuickActionsGrid.Visibility = Visibility.Collapsed;
-
             DestinationPreviewText.FontSize = 36;
             CallerLookupText.FontSize = 15;
         }
         else
         {
-            InCallButtonsGrid.Visibility = Visibility.Collapsed;
-            DialerQuickActionsGrid.Visibility = Visibility.Visible;
-
             DestinationPreviewText.FontSize = 28;
             CallerLookupText.FontSize = 13;
         }
@@ -3843,10 +3830,6 @@ del ""%~f0""
 
     private void UpdateLineAppearances()
     {
-        // Agilico style: idle lines show just the line number; status only appears while a line is in use
-        Line1InfoPanel.Visibility = _line1.HasCall ? Visibility.Visible : Visibility.Collapsed;
-        Line2InfoPanel.Visibility = _line2.HasCall ? Visibility.Visible : Visibility.Collapsed;
-
         // Highlight active line selection (Agilico Connect style numbers & soft active tint)
         if (_selectedLine == 1)
         {
@@ -3872,95 +3855,105 @@ del ""%~f0""
         // --- LINE 1 ---
         if (_line1.Status == "Connected")
         {
+            Line1Card.Padding = new Thickness(12, 6, 12, 6);
+            Line1InfoPanel.Visibility = Visibility.Visible;
+            Line1ActionRow.Visibility = Visibility.Visible;
             Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString(_line1.IsHeld ? "#F59E0B" : "#10B981")!;
             var elapsed = _line1.ConnectedAt.HasValue ? DateTimeOffset.Now - _line1.ConnectedAt.Value : TimeSpan.Zero;
             var time = elapsed.TotalHours >= 1 ? elapsed.ToString(@"hh\:mm\:ss") : elapsed.ToString(@"mm\:ss");
-            Line1StatusText.Text = _line1.IsHeld ? "On Hold ⏸" : $"Connected ({time})";
+            Line1StatusText.Text = _line1.IsHeld ? "On Hold" : $"Connected ({time})";
             Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString(_line1.IsHeld ? "#D97706" : "#059669")!;
             Line1DetailText.Text = string.IsNullOrWhiteSpace(_line1.RemoteName) ? _line1.RemoteNumber : $"{_line1.RemoteName} ({_line1.RemoteNumber})";
-            Line1HoldResumeButton.Visibility = Visibility.Visible;
             Line1HoldResumeButton.Content = _line1.IsHeld ? "▶ Resume" : "⏸ Hold";
-            Line1HangupButton.Visibility = Visibility.Visible;
+            Line1MuteButton.Content = _muted ? "🔇 Muted" : "🎙 Mute";
+            Line1MuteButton.Foreground = _muted ? (WpfBrush)new BrushConverter().ConvertFromString("#EF4444")! : (WpfBrush)new BrushConverter().ConvertFromString("#1E293B")!;
+            Line1RecordButton.Content = _sipRegistrationService.IsRecording ? "⏹ Stop" : "⏺ Rec";
+            Line1RecordButton.Foreground = _sipRegistrationService.IsRecording ? (WpfBrush)new BrushConverter().ConvertFromString("#EF4444")! : (WpfBrush)new BrushConverter().ConvertFromString("#1E293B")!;
         }
         else if (_line1.Status == "Calling")
         {
+            Line1Card.Padding = new Thickness(12, 6, 12, 6);
+            Line1InfoPanel.Visibility = Visibility.Visible;
+            Line1ActionRow.Visibility = Visibility.Visible;
             Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#3B82F6")!;
             Line1StatusText.Text = "Calling...";
             Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#2563EB")!;
             Line1DetailText.Text = string.IsNullOrWhiteSpace(_line1.RemoteName) ? _line1.RemoteNumber : $"{_line1.RemoteName} ({_line1.RemoteNumber})";
-            Line1HoldResumeButton.Visibility = Visibility.Collapsed;
-            Line1HangupButton.Visibility = Visibility.Visible;
+            Line1HoldResumeButton.Content = "⏸ Hold";
+            Line1MuteButton.Content = "🎙 Mute";
+            Line1RecordButton.Content = "⏺ Rec";
         }
         else if (_line1.Status == "Incoming")
         {
+            Line1Card.Padding = new Thickness(12, 6, 12, 6);
+            Line1InfoPanel.Visibility = Visibility.Visible;
+            Line1ActionRow.Visibility = Visibility.Visible;
             Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#EF4444")!;
-            Line1StatusText.Text = "Incoming Call 🔔";
+            Line1StatusText.Text = "Incoming Call";
             Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#DC2626")!;
             Line1DetailText.Text = string.IsNullOrWhiteSpace(_line1.RemoteName) ? _line1.RemoteNumber : $"{_line1.RemoteName} ({_line1.RemoteNumber})";
-            Line1HoldResumeButton.Visibility = Visibility.Collapsed;
-            Line1HangupButton.Visibility = Visibility.Visible;
         }
         else
         {
-            Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
-            Line1StatusText.Text = "Idle";
-            Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#64748B")!;
-            Line1DetailText.Text = _selectedLine == 1 && !string.IsNullOrWhiteSpace(DestinationTextBox.Text)
-                ? $"Ready to dial: {DestinationTextBox.Text}"
-                : "Ready for call";
-            Line1HoldResumeButton.Visibility = Visibility.Collapsed;
-            Line1HangupButton.Visibility = Visibility.Collapsed;
+            Line1Card.Padding = new Thickness(14, 0, 14, 0);
+            Line1InfoPanel.Visibility = Visibility.Collapsed;
+            Line1ActionRow.Visibility = Visibility.Collapsed;
+            Line1StatusText.Text = "";
+            Line1DetailText.Text = "";
         }
 
         // --- LINE 2 ---
         if (_line2.Status == "Connected")
         {
+            Line2Card.Padding = new Thickness(12, 6, 12, 6);
+            Line2InfoPanel.Visibility = Visibility.Visible;
+            Line2ActionRow.Visibility = Visibility.Visible;
+            Line2IncomingActionRow.Visibility = Visibility.Collapsed;
             Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString(_line2.IsHeld ? "#F59E0B" : "#10B981")!;
             var elapsed = _line2.ConnectedAt.HasValue ? DateTimeOffset.Now - _line2.ConnectedAt.Value : TimeSpan.Zero;
             var time = elapsed.TotalHours >= 1 ? elapsed.ToString(@"hh\:mm\:ss") : elapsed.ToString(@"mm\:ss");
-            Line2StatusText.Text = _line2.IsHeld ? "On Hold ⏸" : $"Connected ({time})";
+            Line2StatusText.Text = _line2.IsHeld ? "On Hold" : $"Connected ({time})";
             Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString(_line2.IsHeld ? "#D97706" : "#059669")!;
             Line2DetailText.Text = string.IsNullOrWhiteSpace(_line2.RemoteName) ? _line2.RemoteNumber : $"{_line2.RemoteName} ({_line2.RemoteNumber})";
-            Line2AnswerButton.Visibility = Visibility.Collapsed;
-            Line2DeclineButton.Visibility = Visibility.Collapsed;
-            Line2HoldResumeButton.Visibility = Visibility.Visible;
             Line2HoldResumeButton.Content = _line2.IsHeld ? "▶ Resume" : "⏸ Hold";
-            Line2HangupButton.Visibility = Visibility.Visible;
+            Line2MuteButton.Content = _muted ? "🔇 Muted" : "🎙 Mute";
+            Line2MuteButton.Foreground = _muted ? (WpfBrush)new BrushConverter().ConvertFromString("#EF4444")! : (WpfBrush)new BrushConverter().ConvertFromString("#1E293B")!;
+            Line2RecordButton.Content = _sipRegistrationService.IsRecording ? "⏹ Stop" : "⏺ Rec";
+            Line2RecordButton.Foreground = _sipRegistrationService.IsRecording ? (WpfBrush)new BrushConverter().ConvertFromString("#EF4444")! : (WpfBrush)new BrushConverter().ConvertFromString("#1E293B")!;
         }
         else if (_line2.Status == "Incoming")
         {
+            Line2Card.Padding = new Thickness(12, 6, 12, 6);
+            Line2InfoPanel.Visibility = Visibility.Visible;
+            Line2ActionRow.Visibility = Visibility.Collapsed;
+            Line2IncomingActionRow.Visibility = Visibility.Visible;
             Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#EF4444")!;
-            Line2StatusText.Text = "Incoming Call 🔔";
+            Line2StatusText.Text = "Incoming Call";
             Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#DC2626")!;
             Line2DetailText.Text = string.IsNullOrWhiteSpace(_line2.RemoteName) ? _line2.RemoteNumber : $"{_line2.RemoteName} ({_line2.RemoteNumber})";
-            Line2AnswerButton.Visibility = Visibility.Visible;
-            Line2DeclineButton.Visibility = Visibility.Visible;
-            Line2HoldResumeButton.Visibility = Visibility.Collapsed;
-            Line2HangupButton.Visibility = Visibility.Collapsed;
         }
         else if (_line2.Status == "Calling")
         {
+            Line2Card.Padding = new Thickness(12, 6, 12, 6);
+            Line2InfoPanel.Visibility = Visibility.Visible;
+            Line2ActionRow.Visibility = Visibility.Visible;
+            Line2IncomingActionRow.Visibility = Visibility.Collapsed;
             Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#3B82F6")!;
             Line2StatusText.Text = "Calling...";
             Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#2563EB")!;
             Line2DetailText.Text = string.IsNullOrWhiteSpace(_line2.RemoteName) ? _line2.RemoteNumber : $"{_line2.RemoteName} ({_line2.RemoteNumber})";
-            Line2AnswerButton.Visibility = Visibility.Collapsed;
-            Line2DeclineButton.Visibility = Visibility.Collapsed;
-            Line2HoldResumeButton.Visibility = Visibility.Collapsed;
-            Line2HangupButton.Visibility = Visibility.Visible;
+            Line2HoldResumeButton.Content = "⏸ Hold";
+            Line2MuteButton.Content = "🎙 Mute";
+            Line2RecordButton.Content = "⏺ Rec";
         }
         else
         {
-            Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
-            Line2StatusText.Text = "Idle";
-            Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#64748B")!;
-            Line2DetailText.Text = _selectedLine == 2 && !string.IsNullOrWhiteSpace(DestinationTextBox.Text)
-                ? $"Ready to dial: {DestinationTextBox.Text}"
-                : "Ready for 2nd call / Incoming";
-            Line2AnswerButton.Visibility = Visibility.Collapsed;
-            Line2DeclineButton.Visibility = Visibility.Collapsed;
-            Line2HoldResumeButton.Visibility = Visibility.Collapsed;
-            Line2HangupButton.Visibility = Visibility.Collapsed;
+            Line2Card.Padding = new Thickness(14, 0, 14, 0);
+            Line2InfoPanel.Visibility = Visibility.Collapsed;
+            Line2ActionRow.Visibility = Visibility.Collapsed;
+            Line2IncomingActionRow.Visibility = Visibility.Collapsed;
+            Line2StatusText.Text = "";
+            Line2DetailText.Text = "";
         }
     }
 
@@ -4141,6 +4134,58 @@ del ""%~f0""
         _line2.RemoteName = "";
         _line2.ConnectedAt = null;
         DeclineIncomingCall();
+        UpdateLineAppearances();
+    }
+
+    private void Line1MuteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedLine != 1) SelectLine(1);
+        MuteButton_Click(sender, e);
+        UpdateLineAppearances();
+    }
+
+    private void Line1TransferButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedLine != 1) SelectLine(1);
+        TransferButton_Click(sender, e);
+    }
+
+    private void Line1ConferenceButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedLine != 1) SelectLine(1);
+        ConferenceButton_Click(sender, e);
+    }
+
+    private void Line1RecordButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedLine != 1) SelectLine(1);
+        RecordButton_Click(sender, e);
+        UpdateLineAppearances();
+    }
+
+    private void Line2MuteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedLine != 2) SelectLine(2);
+        MuteButton_Click(sender, e);
+        UpdateLineAppearances();
+    }
+
+    private void Line2TransferButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedLine != 2) SelectLine(2);
+        TransferButton_Click(sender, e);
+    }
+
+    private void Line2ConferenceButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedLine != 2) SelectLine(2);
+        ConferenceButton_Click(sender, e);
+    }
+
+    private void Line2RecordButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedLine != 2) SelectLine(2);
+        RecordButton_Click(sender, e);
         UpdateLineAppearances();
     }
 

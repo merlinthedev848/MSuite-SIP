@@ -42,4 +42,29 @@ public class CallQualityAndRingtoneTests
         Assert.Contains(choices, c => c.Id == "skype-spark");
         Assert.DoesNotContain(choices, c => c.Id == "orbital-anthem");
     }
+
+    [Fact]
+    public void CallQualityDetailsWindow_InitializesWithoutResourceException()
+    {
+        var thread = new System.Threading.Thread(() =>
+        {
+            var entry = new CallHistoryEntry
+            {
+                Name = "Test Call",
+                Number = "500",
+                Duration = "01:00",
+                Result = "Connected",
+                MosScore = 4.4,
+                QualityLevel = "Excellent",
+                PacketLossPercent = 0.0,
+                JitterMs = 1.8,
+                LatencyMs = 22.0
+            };
+            var window = new MerlinSip.CallQualityDetailsWindow(entry);
+            Assert.NotNull(window);
+        });
+        thread.SetApartmentState(System.Threading.ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
 }

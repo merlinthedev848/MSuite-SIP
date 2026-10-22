@@ -119,6 +119,101 @@
             <Setter Property="VerticalAlignment" Value="Stretch" />
         </Style>
 
+                <Style x:Key="LineActionButton" TargetType="Button">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#1E293B" />
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="2,0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#F1F5F9" />
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#94A3B8" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#E2E8F0" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="LineDangerActionButton" TargetType="Button" BasedOn="{StaticResource LineActionButton}">
+            <Setter Property="Background" Value="#EF4444" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#DC2626" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#DC2626" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#B91C1C" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="LineSuccessActionButton" TargetType="Button" BasedOn="{StaticResource LineActionButton}">
+            <Setter Property="Background" Value="#10B981" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#059669" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#059669" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#047857" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="SoftButton" TargetType="Button" BasedOn="{StaticResource DialButton}">
             <Setter Property="Height" Value="42" />
             <Setter Property="FontSize" Value="13" />
@@ -600,9 +695,9 @@
                                         SnapsToDevicePixels="True">
                                     <Grid>
                                         <Grid.RowDefinitions>
-                                            <RowDefinition Height="42" />
+                                            <RowDefinition Height="Auto" MinHeight="42" />
                                             <RowDefinition Height="1" />
-                                            <RowDefinition Height="42" />
+                                            <RowDefinition Height="Auto" MinHeight="42" />
                                         </Grid.RowDefinitions>
 
                                         <!-- LINE 1 -->
@@ -614,49 +709,37 @@
                                                 Cursor="Hand"
                                                 MouseDown="Line1Card_MouseDown"
                                                 ToolTip="Line 1 (Click to select)">
-                                            <DockPanel LastChildFill="True">
-                                                <!-- Line 1 Number Indicator on the right (like Agilico '1') -->
-                                                <Border DockPanel.Dock="Right" x:Name="Line1Badge" Background="Transparent" VerticalAlignment="Center" Margin="12,0,4,0">
-                                                    <TextBlock x:Name="Line1BadgeText"
-                                                               Text="1"
-                                                               FontWeight="SemiBold"
-                                                               FontSize="18"
-                                                               Foreground="#0E987E"
-                                                               HorizontalAlignment="Center" />
-                                                </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <DockPanel LastChildFill="True">
+                                                    <!-- Line 1 Number Indicator on the right (Agilico '1') -->
+                                                    <Border DockPanel.Dock="Right" x:Name="Line1Badge" Background="Transparent" VerticalAlignment="Center" Margin="12,0,4,0">
+                                                        <TextBlock x:Name="Line1BadgeText"
+                                                                   Text="1"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="18"
+                                                                   Foreground="#0E987E"
+                                                                   HorizontalAlignment="Center" />
+                                                    </Border>
 
-                                                <!-- Line 1 Actions -->
-                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
-                                                    <Button x:Name="Line1HoldResumeButton"
-                                                            Content="⏸ Hold"
-                                                            FontSize="11"
-                                                            FontWeight="SemiBold"
-                                                            Padding="7,3"
-                                                            Margin="0,0,4,0"
-                                                            Visibility="Collapsed"
-                                                            Style="{StaticResource SoftButton}"
-                                                            Click="Line1HoldResumeButton_Click"
-                                                            ToolTip="Hold or resume Line 1" />
-                                                    <Button x:Name="Line1HangupButton"
-                                                            Content="✕"
-                                                            Foreground="#EF4444"
-                                                            FontSize="12"
-                                                            FontWeight="Bold"
-                                                            Padding="7,3"
-                                                            Visibility="Collapsed"
-                                                            Style="{StaticResource SoftButton}"
-                                                            Click="Line1HangupButton_Click"
-                                                            ToolTip="End Line 1 call" />
-                                                </StackPanel>
-
-                                                <!-- Line 1 Status (only shown when the line is in use) -->
-                                                <StackPanel x:Name="Line1InfoPanel" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                                                    <!-- Line 1 Status & Caller Info (only shown when line is in use) -->
+                                                    <StackPanel x:Name="Line1InfoPanel" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
                                                         <Ellipse x:Name="Line1StatusDot" Width="8" Height="8" Fill="#10B981" Margin="0,0,8,0" VerticalAlignment="Center" />
                                                         <TextBlock x:Name="Line1Title" Text="Line 1" FontWeight="Bold" FontSize="13" Foreground="#111827" Margin="0,0,8,0" Visibility="Collapsed" />
                                                         <TextBlock x:Name="Line1StatusText" Text="Idle" FontSize="11.5" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
                                                         <TextBlock x:Name="Line1DetailText" Text="" FontSize="12" Foreground="#64748B" TextTrimming="CharacterEllipsis" Margin="10,0,0,0" VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </DockPanel>
+                                                    </StackPanel>
+                                                </DockPanel>
+
+                                                <!-- Line 1 In-Call Controls Row -->
+                                                <UniformGrid x:Name="Line1ActionRow" Columns="6" Height="28" Margin="0,6,0,2" Visibility="Collapsed">
+                                                    <Button x:Name="Line1HoldResumeButton" Content="⏸ Hold" Style="{StaticResource LineActionButton}" Click="Line1HoldResumeButton_Click" ToolTip="Hold or Resume call" />
+                                                    <Button x:Name="Line1MuteButton" Content="🎙 Mute" Style="{StaticResource LineActionButton}" Click="Line1MuteButton_Click" ToolTip="Mute microphone" />
+                                                    <Button x:Name="Line1TransferButton" Content="↪ Transfer" Style="{StaticResource LineActionButton}" Click="Line1TransferButton_Click" ToolTip="Transfer call" />
+                                                    <Button x:Name="Line1ConferenceButton" Content="👥 Conf" Style="{StaticResource LineActionButton}" Click="Line1ConferenceButton_Click" ToolTip="Conference call" />
+                                                    <Button x:Name="Line1RecordButton" Content="⏺ Rec" Style="{StaticResource LineActionButton}" Click="Line1RecordButton_Click" ToolTip="Record call" />
+                                                    <Button x:Name="Line1HangupButton" Content="✕ End" Style="{StaticResource LineDangerActionButton}" Click="Line1HangupButton_Click" ToolTip="End call" />
+                                                </UniformGrid>
+                                            </StackPanel>
                                         </Border>
 
                                         <!-- Divider Line -->
@@ -671,71 +754,43 @@
                                                 Cursor="Hand"
                                                 MouseDown="Line2Card_MouseDown"
                                                 ToolTip="Line 2 (Click to select for second call or answering incoming)">
-                                            <DockPanel LastChildFill="True">
-                                                <!-- Line 2 Number Indicator on the right (like Agilico '2') -->
-                                                <Border DockPanel.Dock="Right" x:Name="Line2Badge" Background="Transparent" VerticalAlignment="Center" Margin="12,0,4,0">
-                                                    <TextBlock x:Name="Line2BadgeText"
-                                                               Text="2"
-                                                               FontWeight="SemiBold"
-                                                               FontSize="18"
-                                                               Foreground="#94A3B8"
-                                                               HorizontalAlignment="Center" />
-                                                </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <DockPanel LastChildFill="True">
+                                                    <!-- Line 2 Number Indicator on the right (Agilico '2') -->
+                                                    <Border DockPanel.Dock="Right" x:Name="Line2Badge" Background="Transparent" VerticalAlignment="Center" Margin="12,0,4,0">
+                                                        <TextBlock x:Name="Line2BadgeText"
+                                                                   Text="2"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="18"
+                                                                   Foreground="#94A3B8"
+                                                                   HorizontalAlignment="Center" />
+                                                    </Border>
 
-                                                <!-- Line 2 Actions (Answer/Decline or Hold/Hangup) -->
-                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
-                                                    <Button x:Name="Line2AnswerButton"
-                                                            Content="Answer"
-                                                            Background="#10B981"
-                                                            Foreground="White"
-                                                            FontWeight="SemiBold"
-                                                            FontSize="11"
-                                                            Padding="8,3"
-                                                            Margin="0,0,4,0"
-                                                            Visibility="Collapsed"
-                                                            Click="Line2AnswerButton_Click"
-                                                            ToolTip="Answer incoming call on Line 2" />
-                                                    <Button x:Name="Line2DeclineButton"
-                                                            Content="Decline"
-                                                            Background="#EF4444"
-                                                            Foreground="White"
-                                                            FontWeight="SemiBold"
-                                                            FontSize="11"
-                                                            Padding="8,3"
-                                                            Margin="0,0,4,0"
-                                                            Visibility="Collapsed"
-                                                            Click="Line2DeclineButton_Click"
-                                                            ToolTip="Decline incoming call on Line 2" />
-                                                    <Button x:Name="Line2HoldResumeButton"
-                                                            Content="⏸ Hold"
-                                                            FontSize="11"
-                                                            FontWeight="SemiBold"
-                                                            Padding="7,3"
-                                                            Margin="0,0,4,0"
-                                                            Visibility="Collapsed"
-                                                            Style="{StaticResource SoftButton}"
-                                                            Click="Line2HoldResumeButton_Click"
-                                                            ToolTip="Hold or resume Line 2" />
-                                                    <Button x:Name="Line2HangupButton"
-                                                            Content="✕"
-                                                            Foreground="#EF4444"
-                                                            FontSize="12"
-                                                            FontWeight="Bold"
-                                                            Padding="7,3"
-                                                            Visibility="Collapsed"
-                                                            Style="{StaticResource SoftButton}"
-                                                            Click="Line2HangupButton_Click"
-                                                            ToolTip="End Line 2 call" />
-                                                </StackPanel>
-
-                                                <!-- Line 2 Status (only shown when the line is in use) -->
-                                                <StackPanel x:Name="Line2InfoPanel" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                                                    <!-- Line 2 Status & Caller Info (only shown when line is in use) -->
+                                                    <StackPanel x:Name="Line2InfoPanel" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
                                                         <Ellipse x:Name="Line2StatusDot" Width="8" Height="8" Fill="#94A3B8" Margin="0,0,8,0" VerticalAlignment="Center" />
                                                         <TextBlock x:Name="Line2Title" Text="Line 2" FontWeight="Bold" FontSize="13" Foreground="#111827" Margin="0,0,8,0" Visibility="Collapsed" />
                                                         <TextBlock x:Name="Line2StatusText" Text="Idle" FontSize="11.5" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
                                                         <TextBlock x:Name="Line2DetailText" Text="" FontSize="12" Foreground="#64748B" TextTrimming="CharacterEllipsis" Margin="10,0,0,0" VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </DockPanel>
+                                                    </StackPanel>
+                                                </DockPanel>
+
+                                                <!-- Line 2 Connected In-Call Controls Row -->
+                                                <UniformGrid x:Name="Line2ActionRow" Columns="6" Height="28" Margin="0,6,0,2" Visibility="Collapsed">
+                                                    <Button x:Name="Line2HoldResumeButton" Content="⏸ Hold" Style="{StaticResource LineActionButton}" Click="Line2HoldResumeButton_Click" ToolTip="Hold or Resume Line 2 call" />
+                                                    <Button x:Name="Line2MuteButton" Content="🎙 Mute" Style="{StaticResource LineActionButton}" Click="Line2MuteButton_Click" ToolTip="Mute microphone" />
+                                                    <Button x:Name="Line2TransferButton" Content="↪ Transfer" Style="{StaticResource LineActionButton}" Click="Line2TransferButton_Click" ToolTip="Transfer call" />
+                                                    <Button x:Name="Line2ConferenceButton" Content="👥 Conf" Style="{StaticResource LineActionButton}" Click="Line2ConferenceButton_Click" ToolTip="Conference call" />
+                                                    <Button x:Name="Line2RecordButton" Content="⏺ Rec" Style="{StaticResource LineActionButton}" Click="Line2RecordButton_Click" ToolTip="Record call" />
+                                                    <Button x:Name="Line2HangupButton" Content="✕ End" Style="{StaticResource LineDangerActionButton}" Click="Line2HangupButton_Click" ToolTip="End Line 2 call" />
+                                                </UniformGrid>
+
+                                                <!-- Line 2 Incoming Call Actions (Answer / Decline) -->
+                                                <UniformGrid x:Name="Line2IncomingActionRow" Columns="2" Height="28" Margin="0,6,0,2" Visibility="Collapsed">
+                                                    <Button x:Name="Line2AnswerButton" Content="✔ Answer" Style="{StaticResource LineSuccessActionButton}" Click="Line2AnswerButton_Click" ToolTip="Answer incoming call on Line 2" />
+                                                    <Button x:Name="Line2DeclineButton" Content="✕ Decline" Style="{StaticResource LineDangerActionButton}" Click="Line2DeclineButton_Click" ToolTip="Decline incoming call on Line 2" />
+                                                </UniformGrid>
+                                            </StackPanel>
                                         </Border>
                                     </Grid>
                                 </Border>
@@ -775,7 +830,7 @@
                                     <Button Content="#" Style="{StaticResource KeypadButton}" Click="DialpadButton_Click" />
                                 </UniformGrid>
 
-                                <!-- ROW 6: Dial / Redial / Hangup -->
+                                <!-- ROW 6: Dial / Redial -->
                                 <Grid Grid.Row="6" Margin="0,0,0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" x:Name="DialButtonColumn" />
@@ -784,17 +839,17 @@
                                     </Grid.ColumnDefinitions>
                                     <Button Grid.Column="0" x:Name="DialButton" Content="Dial" Style="{StaticResource SoftButton}" Height="40" Background="{StaticResource PrimaryBrush}" Foreground="White" Click="DialButton_Click" Margin="0" />
                                     <Button Grid.Column="1" x:Name="RedialButton" Content="⟲ Redial" Style="{StaticResource SoftButton}" Height="40" Width="95" Margin="8,0,0,0" Click="RedialButton_Click" ToolTip="Redial last number" AutomationProperties.Name="Redial" />
-                                    <Button Grid.Column="2" x:Name="HangupButton" Content="&#xE778;" Style="{StaticResource IconSoftButton}" Height="40" Background="{StaticResource DangerBrush}" Foreground="White" Click="HangupButton_Click" Visibility="Collapsed" Margin="0" ToolTip="Hang up" AutomationProperties.Name="Hang up" />
+                                    <Button Grid.Column="2" x:Name="HangupButton" Visibility="Collapsed" Width="0" Height="0" />
                                 </Grid>
 
-                                <!-- ROW 7: InCall Buttons & Quick Actions -->
+                                <!-- ROW 7: Quick Actions (Dialer stays accessible) -->
                                 <Grid Grid.Row="7">
-                                     <UniformGrid x:Name="InCallButtonsGrid" Columns="5" Rows="1" Visibility="Collapsed" Margin="0,-2,0,0">
-                                         <Button x:Name="MuteButton" Content="&#xE720;" Style="{StaticResource IconSoftButton}" Height="38" Click="MuteButton_Click" Margin="0,2,3,2" ToolTip="Mute" AutomationProperties.Name="Mute" />
-                                         <Button x:Name="HoldButton" Content="&#xE769;" Style="{StaticResource IconSoftButton}" Height="38" Click="HoldButton_Click" Margin="3,2,3,2" ToolTip="Hold" AutomationProperties.Name="Hold" />
-                                         <Button x:Name="RecordButton" Content="&#xE7C8;" Style="{StaticResource IconSoftButton}" Height="38" Click="RecordButton_Click" Margin="3,2,3,2" ToolTip="Record Call" AutomationProperties.Name="Record Call" />
-                                         <Button x:Name="ConferenceButton" Content="&#xE716;" Style="{StaticResource IconSoftButton}" Height="38" Click="ConferenceButton_Click" Margin="3,2,3,2" ToolTip="Conference" AutomationProperties.Name="Conference" />
-                                         <Button x:Name="TransferButton" Content="&#xE72A;" Style="{StaticResource IconSoftButton}" Height="38" Click="TransferButton_Click" Margin="3,2,0,2" ToolTip="Transfer" AutomationProperties.Name="Transfer" />
+                                     <UniformGrid x:Name="InCallButtonsGrid" Visibility="Collapsed" Width="0" Height="0">
+                                         <Button x:Name="MuteButton" Visibility="Collapsed" />
+                                         <Button x:Name="HoldButton" Visibility="Collapsed" />
+                                         <Button x:Name="RecordButton" Visibility="Collapsed" />
+                                         <Button x:Name="ConferenceButton" Visibility="Collapsed" />
+                                         <Button x:Name="TransferButton" Visibility="Collapsed" />
                                      </UniformGrid>
                                      <UniformGrid x:Name="DialerQuickActionsGrid" Columns="2" Rows="1" Margin="0,-2,0,0">
                                          <Button x:Name="VoicemailButton" Style="{StaticResource SoftButton}" Height="38" Margin="0,2,4,2" Click="VoicemailButton_Click" ToolTip="Call Voicemail (*97)" AutomationProperties.Name="Voicemail">
