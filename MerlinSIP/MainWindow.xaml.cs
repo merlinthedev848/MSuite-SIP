@@ -1762,12 +1762,12 @@ public partial class MainWindow : Window
         PresenceText.Text = status;
         var colour = status.ToLowerInvariant() switch
         {
-            "available" => "#16A34A",
+            "available" => "#10B981",
             "busy" => "#EF4444",
             "dnd" => "#DC2626",
             "away" or "appear away" => "#F59E0B",
             "offline" or "appear offline" => "#94A3B8",
-            _ => "#16A34A"
+            _ => "#10B981"
         };
         PresenceDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString(colour)!;
     }
