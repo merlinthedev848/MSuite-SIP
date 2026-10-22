@@ -25,6 +25,8 @@ public interface ICallManagerSipProvider
 public class CallManager
 {
     private readonly ICallManagerSipProvider _sipProvider;
+    private readonly object _syncRoot = new();
+    private readonly SemaphoreSlim _asyncLock = new(1, 1);
 
     /// <summary>
     /// Gets the collection of active calls for UI binding.
@@ -62,8 +64,6 @@ public class CallManager
                 break;
         }
     }
-
-    private readonly object _syncRoot = new();
 
     /// <summary>
     /// Removes a finished call from the active calls collection.
@@ -103,96 +103,112 @@ public class CallManager
     }
 
     /// <summary>
-    /// Puts the current active call on hold and answers the pending incoming call.
+    /// Puts the current active call on hold and answers the pending incoming call in an atomic async transaction.
     /// </summary>
     public async Task HoldCurrentAndAnswerAsync(PendingIncomingCall incoming, CancellationToken cancellationToken = default)
     {
-        CallState? currentCall;
-        lock (_syncRoot)
+        await _asyncLock.WaitAsync(cancellationToken);
+        try
         {
-            currentCall = ActiveCalls.FirstOrDefault(c => !c.IsOnHold);
-        }
+            CallState? currentCall;
+            lock (_syncRoot)
+            {
+                currentCall = ActiveCalls.FirstOrDefault(c => !c.IsOnHold);
+            }
 
-        if (currentCall != null)
-        {
-            // Put current call on hold
-            var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
-            if (holdResult.Signalled)
+            if (currentCall != null)
+            {
+                // Put current call on hold
+                var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
+                if (holdResult.Signalled)
+                {
+                    lock (_syncRoot)
+                    {
+                        currentCall.IsOnHold = true;
+                    }
+                }
+                else
+                {
+                    throw new InvalidOperationException("Failed to put the current call on hold.");
+                }
+            }
+
+            // Answer the incoming call
+            var answerResult = await _sipProvider.AnswerCallAsync(incoming, cancellationToken);
+            if (answerResult.Signalled)
             {
                 lock (_syncRoot)
                 {
-                    currentCall.IsOnHold = true;
+                    ActiveCalls.Add(new CallState
+                    {
+                        CallId = incoming.CallId,
+                        Target = incoming.RemoteTarget,
+                        IsOnHold = false,
+                        StartTime = DateTime.UtcNow
+                    });
                 }
             }
             else
             {
-                throw new InvalidOperationException("Failed to put the current call on hold.");
+                throw new InvalidOperationException("Failed to answer the incoming call.");
             }
         }
-
-        // Answer the incoming call
-        var answerResult = await _sipProvider.AnswerCallAsync(incoming, cancellationToken);
-        if (answerResult.Signalled)
+        finally
         {
-            lock (_syncRoot)
-            {
-                ActiveCalls.Add(new CallState
-                {
-                    CallId = incoming.CallId,
-                    Target = incoming.RemoteTarget,
-                    IsOnHold = false,
-                    StartTime = DateTime.UtcNow
-                });
-            }
-        }
-        else
-        {
-            throw new InvalidOperationException("Failed to answer the incoming call.");
+            _asyncLock.Release();
         }
     }
 
     /// <summary>
-    /// Switches to a specific held call, putting the current call on hold if necessary.
+    /// Switches to a specific held call, putting the current call on hold if necessary in an atomic async transaction.
     /// </summary>
     public async Task SwitchToHeldCallAsync(string callId, CancellationToken cancellationToken = default)
     {
-        CallState? targetCall;
-        CallState? currentCall;
-        lock (_syncRoot)
+        await _asyncLock.WaitAsync(cancellationToken);
+        try
         {
-            targetCall = ActiveCalls.FirstOrDefault(c => c.CallId == callId);
-            currentCall = ActiveCalls.FirstOrDefault(c => !c.IsOnHold);
-        }
+            CallState? targetCall;
+            CallState? currentCall;
+            lock (_syncRoot)
+            {
+                targetCall = ActiveCalls.FirstOrDefault(c => c.CallId == callId);
+                currentCall = ActiveCalls.FirstOrDefault(c => !c.IsOnHold);
+            }
 
-        if (targetCall == null || !targetCall.IsOnHold)
-        {
-            return;
-        }
+            if (targetCall == null || !targetCall.IsOnHold)
+            {
+                return;
+            }
 
-        if (currentCall != null)
-        {
-            var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
-            if (holdResult.Signalled)
+            if (currentCall != null)
+            {
+                var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
+                if (holdResult.Signalled)
+                {
+                    lock (_syncRoot)
+                    {
+                        currentCall.IsOnHold = true;
+                    }
+                }
+            }
+
+            // Resume the target call
+            var resumeResult = await _sipProvider.ResumeSpecificCallAsync(callId, cancellationToken);
+            if (resumeResult.Signalled)
             {
                 lock (_syncRoot)
                 {
-                    currentCall.IsOnHold = true;
+                    targetCall.IsOnHold = false;
                 }
             }
-        }
-
-        // Resume the target call
-        var resumeResult = await _sipProvider.ResumeSpecificCallAsync(callId, cancellationToken);
-        if (resumeResult.Signalled)
-        {
-            lock (_syncRoot)
+            else
             {
-                targetCall.IsOnHold = false;
+                throw new InvalidOperationException("Failed to resume the target call.");
             }
         }
-        else
+        finally
         {
-            throw new InvalidOperationException("Failed to resume the target call.");
+            _asyncLock.Release();
         }
     }
 }

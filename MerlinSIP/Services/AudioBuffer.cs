@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace MerlinSip.Services;
 
@@ -7,7 +8,7 @@ public sealed class AudioBuffer : IDisposable
 {
 	private nint _dataPointer;
 	private nint _headerPointer;
-	private bool _disposed;
+	private int _disposedInt;
 
 	public nint DataPointer => _dataPointer;
 
@@ -38,18 +39,18 @@ public sealed class AudioBuffer : IDisposable
 
 	private void Dispose(bool disposing)
 	{
-		if (_disposed) return;
-		_disposed = true;
+		if (Interlocked.Exchange(ref _disposedInt, 1) != 0) return;
 
-		if (_headerPointer != IntPtr.Zero)
+		var header = Interlocked.Exchange(ref _headerPointer, IntPtr.Zero);
+		if (header != IntPtr.Zero)
 		{
-			Marshal.FreeHGlobal(_headerPointer);
-			_headerPointer = IntPtr.Zero;
+			Marshal.FreeHGlobal(header);
 		}
-		if (_dataPointer != IntPtr.Zero)
+
+		var data = Interlocked.Exchange(ref _dataPointer, IntPtr.Zero);
+		if (data != IntPtr.Zero)
 		{
-			Marshal.FreeHGlobal(_dataPointer);
-			_dataPointer = IntPtr.Zero;
+			Marshal.FreeHGlobal(data);
 		}
 	}
 }

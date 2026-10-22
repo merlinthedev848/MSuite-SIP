@@ -40,7 +40,7 @@ public sealed class AppCacheService
         SavedAppSettings? settings;
         try
         {
-            await using var stream = File.OpenRead(SettingsPath);
+            await using var stream = new FileStream(SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
             settings = await JsonSerializer.DeserializeAsync<SavedAppSettings>(stream);
         }
         catch (Exception error)

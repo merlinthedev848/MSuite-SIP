@@ -1,7 +1,11 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using MerlinSip.Models;
 
 namespace MerlinSip.Services;
@@ -47,7 +51,7 @@ public sealed class ChatMessageStore
 
         try
         {
-            await using var stream = File.OpenRead(_legacyPath);
+            await using var stream = new FileStream(_legacyPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
             var messages = await JsonSerializer.DeserializeAsync<List<ChatMessageEntry>>(stream) ?? [];
             await SaveAsync(messages);
             return messages;

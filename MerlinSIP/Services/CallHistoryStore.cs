@@ -1,5 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using MerlinSip.Models;
 
 namespace MerlinSip.Services;
@@ -25,7 +29,7 @@ public sealed class CallHistoryStore
 
         try
         {
-            await using var stream = File.OpenRead(_path);
+            await using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
             return await JsonSerializer.DeserializeAsync<List<CallHistoryEntry>>(stream) ?? [];
         }
         catch (Exception error)

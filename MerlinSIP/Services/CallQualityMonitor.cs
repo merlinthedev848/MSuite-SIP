@@ -37,7 +37,9 @@ public interface ICallQualityDataSource
 public class CallQualityMonitor : IDisposable
 {
     private readonly ICallQualityDataSource _dataSource;
+    private readonly object _syncRoot = new();
     private CancellationTokenSource? _monitorCancellation;
+    private bool _disposed;
 
     /// <summary>
     /// Event fired when the call quality metrics change.
@@ -54,11 +56,22 @@ public class CallQualityMonitor : IDisposable
     /// </summary>
     public void Start(CancellationToken cancellationToken = default)
     {
-        _monitorCancellation?.Cancel();
-        _monitorCancellation = new CancellationTokenSource();
-        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _monitorCancellation.Token);
+        lock (_syncRoot)
+        {
+            if (_disposed) return;
 
-        _ = Task.Run(() => MonitorLoopAsync(linkedCts.Token), linkedCts.Token);
+            try
+            {
+                _monitorCancellation?.Cancel();
+            }
+            catch (ObjectDisposedException) { }
+
+            _monitorCancellation?.Dispose();
+            _monitorCancellation = new CancellationTokenSource();
+            var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _monitorCancellation.Token);
+
+            _ = Task.Run(() => MonitorLoopAsync(linkedCts.Token), linkedCts.Token);
+        }
     }
 
     /// <summary>
@@ -66,7 +79,15 @@ public class CallQualityMonitor : IDisposable
     /// </summary>
     public void Stop()
     {
-        _monitorCancellation?.Cancel();
+        lock (_syncRoot)
+        {
+            if (_disposed) return;
+            try
+            {
+                _monitorCancellation?.Cancel();
+            }
+            catch (ObjectDisposedException) { }
+        }
     }
 
     private async Task MonitorLoopAsync(CancellationToken cancellationToken)
@@ -133,8 +154,20 @@ public class CallQualityMonitor : IDisposable
 
     public void Dispose()
     {
-        Stop();
-        _monitorCancellation?.Dispose();
+        lock (_syncRoot)
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            try
+            {
+                _monitorCancellation?.Cancel();
+            }
+            catch (ObjectDisposedException) { }
+
+            _monitorCancellation?.Dispose();
+            _monitorCancellation = null;
+        }
         GC.SuppressFinalize(this);
     }
 }

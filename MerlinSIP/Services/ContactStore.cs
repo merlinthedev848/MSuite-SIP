@@ -25,7 +25,7 @@ public sealed class ContactStore
 
         try
         {
-            await using var stream = File.OpenRead(_path);
+            await using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
             return await JsonSerializer.DeserializeAsync<List<ContactEntry>>(stream) ?? [];
         }
         catch (Exception error)

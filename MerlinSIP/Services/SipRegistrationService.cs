@@ -2954,7 +2954,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         return $"Digest {string.Join(", ", fields)}";
     }
 
-    private static SipResponse ParseResponse(string raw)
+    internal static SipResponse ParseResponse(string raw)
     {
         var lines = raw.Split(["\r\n", "\n"], StringSplitOptions.None);
         var match = Regex.Match(lines.FirstOrDefault() ?? "", @"^SIP/2.0\s+(\d{3})\s*(.*)$", RegexOptions.IgnoreCase);
@@ -3006,18 +3006,40 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         }
     }
 
-    private static Dictionary<string, string> ParseHeaders(string raw)
+        internal static Dictionary<string, string> ParseHeaders(string raw)
     {
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrEmpty(raw))
+        {
+            return headers;
+        }
+
         var headerSection = raw.Split(["\r\n\r\n", "\n\n"], 2, StringSplitOptions.None)[0];
+        string? lastKey = null;
 
         foreach (var line in headerSection.Split(["\r\n", "\n"], StringSplitOptions.None).Skip(1))
         {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            if ((line[0] == ' ' || line[0] == '\t') && lastKey != null)
+            {
+                if (headers.TryGetValue(lastKey, out var existing))
+                {
+                    headers[lastKey] = existing + " " + line.Trim();
+                }
+                continue;
+            }
+
             var index = line.IndexOf(':');
             if (index > 0)
             {
                 var key = line[..index].Trim().ToLowerInvariant();
                 var value = line[(index + 1)..].Trim();
+                lastKey = key;
+
                 if (headers.TryGetValue(key, out var existing))
                 {
                     headers[key] = existing + "\r\n" + line[..index] + ": " + value;
