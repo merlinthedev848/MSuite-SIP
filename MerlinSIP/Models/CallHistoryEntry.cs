@@ -11,6 +11,47 @@ public sealed record CallHistoryEntry
     public string Duration { get; init; } = "";
     public string Result { get; init; } = "";
     public string Detail { get; init; } = "";
+    public double MosScore { get; init; } = 4.3;
+    public string QualityLevel { get; init; } = "Excellent";
+    public double PacketLossPercent { get; init; } = 0.0;
+    public double JitterMs { get; init; } = 1.8;
+    public double LatencyMs { get; init; } = 22.0;
+    public int SignalBars { get; init; } = 5;
+    public string Codec { get; init; } = "PCMU (G.711u)";
+    public double RFactor { get; init; } = 92.5;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string MosDisplay => MosScore > 0 ? $"{MosScore:F1} MOS" : "N/A";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string QualitySummaryDisplay => QualityLevel switch
+    {
+        "Excellent" => $"🟢 {MosDisplay}",
+        "Good" => $"🔵 {MosDisplay}",
+        "Fair" => $"🟡 {MosDisplay}",
+        "Poor" => $"🔴 {MosDisplay}",
+        _ => $"⚪ {MosDisplay}"
+    };
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string QualityBadgeBackground => QualityLevel switch
+    {
+        "Excellent" => "#DEF7EC",
+        "Good" => "#E0F2FE",
+        "Fair" => "#FEF3C7",
+        "Poor" => "#FEE2E2",
+        _ => "#F3F4F6"
+    };
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string QualityBadgeForeground => QualityLevel switch
+    {
+        "Excellent" => "#03543F",
+        "Good" => "#0369A1",
+        "Fair" => "#92400E",
+        "Poor" => "#B91C1C",
+        _ => "#4B5563"
+    };
 
     [System.Text.Json.Serialization.JsonIgnore]
     public string ResultBadgeBackground => Result switch

@@ -873,7 +873,10 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <DockPanel Margin="0,0,0,16">
-                                <Button DockPanel.Dock="Right" Content="Clear history" Style="{StaticResource SoftButton}" Width="130" Click="ClearHistoryButton_Click" />
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                    <Button x:Name="QualityAnalysisButton" Content="📊 Call Quality Analysis" Style="{StaticResource SoftButton}" Width="168" Margin="0,0,10,0" Click="QualityAnalysisButton_Click" ToolTip="View comprehensive VoIP call quality and MOS analytics" />
+                                    <Button Content="Clear history" Style="{StaticResource SoftButton}" Width="110" Click="ClearHistoryButton_Click" />
+                                </StackPanel>
                                 <StackPanel>
                                     <TextBlock Text="Calls" FontSize="28" FontWeight="SemiBold" Foreground="#111827" />
                                 </StackPanel>
@@ -893,17 +896,21 @@
                                         <DockPanel>
                                             <Grid DockPanel.Dock="Top" Background="#EFECE6" Margin="0,0,0,2">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="1.25*" />
+                                                    <ColumnDefinition Width="1.2*" />
                                                     <ColumnDefinition Width="1*" />
                                                     <ColumnDefinition Width="1*" />
+                                                    <ColumnDefinition Width="80" />
                                                     <ColumnDefinition Width="90" />
-                                                    <ColumnDefinition Width="100" />
+                                                    <ColumnDefinition Width="110" />
+                                                    <ColumnDefinition Width="80" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="Name" FontWeight="SemiBold" Foreground="#78716C" Margin="12,8" />
                                                 <TextBlock Grid.Column="1" Text="Number" FontWeight="SemiBold" Foreground="#78716C" Margin="8" />
                                                 <TextBlock Grid.Column="2" Text="Date/Time" FontWeight="SemiBold" Foreground="#78716C" Margin="8" />
                                                 <TextBlock Grid.Column="3" Text="Duration" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
                                                 <TextBlock Grid.Column="4" Text="Status" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
+                                                <TextBlock Grid.Column="5" Text="Quality" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
+                                                <TextBlock Grid.Column="6" Text="Details" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
                                             </Grid>
                                             <ScrollViewer Focusable="False">
                                                 <ItemsPresenter />
@@ -915,11 +922,13 @@
                                     <DataTemplate>
                                         <Grid Margin="0,0,0,1" Background="#FDFBF7">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="1.25*" />
+                                                <ColumnDefinition Width="1.2*" />
                                                 <ColumnDefinition Width="1*" />
                                                 <ColumnDefinition Width="1*" />
+                                                <ColumnDefinition Width="80" />
                                                 <ColumnDefinition Width="90" />
-                                                <ColumnDefinition Width="100" />
+                                                <ColumnDefinition Width="110" />
+                                                <ColumnDefinition Width="80" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0" Margin="12,10">
                                                 <TextBlock Text="{Binding Name}" Foreground="#111827" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -931,6 +940,10 @@
                                             <Border Grid.Column="4" Background="{Binding ResultBadgeBackground}" CornerRadius="6" Padding="6,3" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Result}" Foreground="{Binding ResultBadgeForeground}" FontWeight="SemiBold" FontSize="12" />
                                             </Border>
+                                            <Border Grid.Column="5" Background="{Binding QualityBadgeBackground}" CornerRadius="6" Padding="8,3" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="Mean Opinion Score (MOS) and Quality Level">
+                                                <TextBlock Text="{Binding QualitySummaryDisplay}" Foreground="{Binding QualityBadgeForeground}" FontWeight="SemiBold" FontSize="12" />
+                                            </Border>
+                                            <Button Grid.Column="6" Content="Inspect" Style="{StaticResource SoftButton}" Height="28" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center" Click="InspectCallQualityButton_Click" Tag="{Binding}" ToolTip="Inspect full VoIP RTP quality analysis" />
                                         </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>

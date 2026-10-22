@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.InteropServices;
 using MerlinSip.Models;
 
@@ -10,8 +11,9 @@ public sealed class RingtonePlayer : IDisposable
     public static readonly IReadOnlyList<RingtoneChoice> Choices =
     [
         new("orbital-anthem", "🚀 Orbital Dance (Trance Peak)"),
-        new("teams-anthem", "✨ Teams Modern Remix (Upbeat Earworm)"),
-        new("skype-spark", "🌟 Skype Spark Dynamic (Melodic Chime)"),
+        new("teams-anthem", "✨ Teams Modern Remix (Studio Audio)"),
+        new("skype-spark", "🌟 Skype Spark Dynamic (Studio Audio)"),
+        new("ring-classic", "🔔 Classic Deskphone (Studio Audio)"),
         new("merlin-anthem", "🔥 Merlin Signature Anthem (Banging Hook)"),
         new("cyberpunk", "⚡ Cyberpunk Overdrive (Drop)"),
         new("miami-midnight", "🌴 Miami Midnight 1984 (Synthwave)"),
@@ -133,8 +135,22 @@ public sealed class RingtonePlayer : IDisposable
 
     private int PlayPattern()
     {
+        if (TryPlayWavFile(_ringtone, out var wavDurationMs))
+        {
+            return Math.Max(2000, wavDurationMs + 800);
+        }
+
         switch (_ringtone)
         {
+            case "ring-classic":
+                Repeat(4, () =>
+                {
+                    QueueToneStep(0.40, [400.00, 450.00], null, Percussion.None, 0.10);
+                    QueuePause(0.20);
+                    QueueToneStep(0.40, [400.00, 450.00], null, Percussion.None, 0.10);
+                    QueuePause(2.00);
+                });
+                return 12000;
             case "uk-ringback":
                 Repeat(4, () =>
                 {
@@ -249,86 +265,12 @@ public sealed class RingtonePlayer : IDisposable
 
     private static Percussion GetPercussion(GrooveFeel feel, int bar, int step)
     {
-        return feel switch
+        // Standard, perfectly synchronized 4-on-the-floor locked timing modeled on TranceAnthem
+        return step switch
         {
-            GrooveFeel.TranceAnthem => step switch
-            {
-                0 or 4 => Percussion.Kick | Percussion.Hat,
-                2 or 6 => Percussion.Kick | Percussion.Snare | Percussion.Clap | Percussion.Hat,
-                _ => Percussion.Hat | Percussion.GhostHat
-            },
-            GrooveFeel.TeamsRemix => step switch
-            {
-                0 => Percussion.Kick | Percussion.Hat,
-                1 => Percussion.Hat | Percussion.GhostHat,
-                2 => Percussion.Clap | Percussion.Snare | Percussion.Hat,
-                3 => Percussion.Kick | Percussion.GhostHat,
-                4 => Percussion.Kick | Percussion.Hat,
-                5 => Percussion.Hat | Percussion.GhostHat,
-                6 => Percussion.Clap | Percussion.Snare | Percussion.Hat,
-                _ => Percussion.Kick | Percussion.GhostHat
-            },
-            GrooveFeel.SkypeSpark => step switch
-            {
-                0 => Percussion.Kick | Percussion.Hat,
-                1 => Percussion.Hat | Percussion.GhostHat,
-                2 => Percussion.Snare | Percussion.Clap | Percussion.Hat,
-                3 => Percussion.GhostHat,
-                4 => Percussion.Kick | Percussion.Hat,
-                5 => Percussion.Hat | Percussion.GhostHat,
-                6 => Percussion.Snare | Percussion.Clap | Percussion.Hat,
-                _ => Percussion.GhostHat
-            },
-            GrooveFeel.MerlinAnthem => step switch
-            {
-                0 or 4 => Percussion.Kick | Percussion.Hat,
-                1 or 5 => Percussion.Hat | Percussion.GhostHat,
-                2 or 6 => Percussion.Kick | Percussion.Snare | Percussion.Clap | Percussion.Hat,
-                3 => Percussion.Kick | Percussion.GhostHat,
-                _ => Percussion.Hat | Percussion.GhostHat
-            },
-            GrooveFeel.Cyberpunk => step switch
-            {
-                0 or 4 => Percussion.Kick | Percussion.Hat,
-                2 or 6 => Percussion.Kick | Percussion.Snare | Percussion.Clap | Percussion.Hat,
-                _ => Percussion.GhostHat | Percussion.Hat
-            },
-            GrooveFeel.Synthwave => step switch
-            {
-                0 or 4 => Percussion.Kick | Percussion.Hat,
-                2 or 6 => Percussion.Snare | Percussion.Clap | Percussion.Hat,
-                _ => Percussion.Hat | Percussion.GhostHat
-            },
-            GrooveFeel.ElectroBass => step switch
-            {
-                0 or 4 => Percussion.Kick | Percussion.Hat,
-                2 or 6 => Percussion.Kick | Percussion.Snare | Percussion.Clap,
-                3 => Percussion.Kick | Percussion.GhostHat,
-                _ => Percussion.GhostHat | Percussion.Hat
-            },
-            GrooveFeel.FunkFusion => step switch
-            {
-                0 => Percussion.Kick | Percussion.Hat,
-                1 => Percussion.Hat | Percussion.GhostHat,
-                2 => Percussion.Snare | Percussion.Clap | Percussion.Hat,
-                3 => Percussion.Kick | Percussion.GhostHat,
-                4 => Percussion.Kick | Percussion.Hat,
-                5 => Percussion.Kick | Percussion.GhostHat,
-                6 => Percussion.Snare | Percussion.Clap | Percussion.Hat,
-                _ => Percussion.Hat | Percussion.GhostHat
-            },
-            GrooveFeel.MatrixTech => step switch
-            {
-                0 or 4 => Percussion.Kick | Percussion.Hat,
-                2 or 6 => Percussion.Kick | Percussion.Clap | Percussion.Snare | Percussion.Hat,
-                _ => Percussion.Hat | Percussion.GhostHat
-            },
-            _ => step switch
-            {
-                0 or 4 => Percussion.Kick | Percussion.Hat,
-                2 or 6 => Percussion.Snare | Percussion.Clap,
-                _ => Percussion.Hat | Percussion.GhostHat
-            }
+            0 or 4 => Percussion.Kick | Percussion.Hat,
+            2 or 6 => Percussion.Kick | Percussion.Snare | Percussion.Clap | Percussion.Hat,
+            _ => Percussion.Hat | Percussion.GhostHat
         };
     }
 
@@ -339,135 +281,20 @@ public sealed class RingtonePlayer : IDisposable
 
     private static double[]? GetHookNotes(GrooveFeel feel, GrooveChord chord, int bar, int step)
     {
-        return feel switch
+        // Standard, melodic, in-tune scale intervals with rests on 1 and 5
+        return step switch
         {
-            GrooveFeel.TranceAnthem => step switch
-            {
-                0 or 4 => chord.Hook,
-                2 or 6 => ShiftOctave(chord.Hook, 1.5),
-                3 or 7 => ShiftOctave(chord.Hook, 0.75),
-                _ => null
-            },
-            GrooveFeel.TeamsRemix => step switch
-            {
-                0 => chord.Hook,
-                1 => ShiftOctave(chord.Hook, 1.25),
-                2 => ShiftOctave(chord.Hook, 1.5),
-                3 => ShiftOctave(chord.Hook, 0.75),
-                4 => ShiftOctave(chord.Hook, 1.33),
-                5 => chord.Hook,
-                6 => ShiftOctave(chord.Hook, 1.5),
-                7 => ShiftOctave(chord.Hook, 1.2),
-                _ => null
-            },
-            GrooveFeel.SkypeSpark => step switch
-            {
-                0 => ShiftOctave(chord.Hook, 0.75),
-                1 => chord.Hook,
-                2 => ShiftOctave(chord.Hook, 1.25),
-                3 => ShiftOctave(chord.Hook, 1.5),
-                4 => ShiftOctave(chord.Hook, 2.0),
-                5 => ShiftOctave(chord.Hook, 1.25),
-                6 => ShiftOctave(chord.Hook, 1.5),
-                7 => chord.Hook,
-                _ => null
-            },
-            GrooveFeel.MerlinAnthem => step switch
-            {
-                0 => chord.Hook,
-                1 => ShiftOctave(chord.Hook, 1.5),
-                2 => ShiftOctave(chord.Hook, 1.25),
-                3 => ShiftOctave(chord.Hook, 0.75),
-                4 => ShiftOctave(chord.Hook, 1.25),
-                5 => ShiftOctave(chord.Hook, 1.75),
-                6 => ShiftOctave(chord.Hook, 1.5),
-                7 => chord.Hook,
-                _ => null
-            },
-            GrooveFeel.Cyberpunk => step switch
-            {
-                0 => chord.Hook,
-                1 => ShiftOctave(chord.Hook, 1.25),
-                2 => ShiftOctave(chord.Hook, 1.5),
-                3 => ShiftOctave(chord.Hook, 1.25),
-                4 => ShiftOctave(chord.Hook, 0.75),
-                5 => chord.Hook,
-                6 => ShiftOctave(chord.Hook, 1.5),
-                7 => chord.Hook,
-                _ => null
-            },
-            GrooveFeel.Synthwave => step switch
-            {
-                0 => chord.Hook,
-                1 => ShiftOctave(chord.Hook, 1.25),
-                2 => ShiftOctave(chord.Hook, 1.5),
-                3 => ShiftOctave(chord.Hook, 1.5),
-                4 => chord.Hook,
-                5 => ShiftOctave(chord.Hook, 0.75),
-                6 => ShiftOctave(chord.Hook, 1.25),
-                7 => ShiftOctave(chord.Hook, 1.5),
-                _ => null
-            },
-            GrooveFeel.ElectroBass => step switch
-            {
-                0 => chord.Hook,
-                1 => ShiftOctave(chord.Hook, 1.25),
-                2 => ShiftOctave(chord.Hook, 1.5),
-                3 => ShiftOctave(chord.Hook, 0.75),
-                4 => chord.Hook,
-                5 => ShiftOctave(chord.Hook, 0.75),
-                6 => ShiftOctave(chord.Hook, 1.25),
-                7 => ShiftOctave(chord.Hook, 1.5),
-                _ => null
-            },
-            GrooveFeel.FunkFusion => step switch
-            {
-                0 => chord.Hook,
-                1 => ShiftOctave(chord.Hook, 1.25),
-                2 => ShiftOctave(chord.Hook, 1.5),
-                3 => chord.Hook,
-                4 => ShiftOctave(chord.Hook, 0.75),
-                5 => ShiftOctave(chord.Hook, 1.5),
-                6 => ShiftOctave(chord.Hook, 1.25),
-                7 => chord.Hook,
-                _ => null
-            },
-            GrooveFeel.MatrixTech => step switch
-            {
-                0 => chord.Hook,
-                1 => ShiftOctave(chord.Hook, 1.25),
-                2 => ShiftOctave(chord.Hook, 1.5),
-                3 => ShiftOctave(chord.Hook, 1.5),
-                4 => chord.Hook,
-                5 => ShiftOctave(chord.Hook, 0.75),
-                6 => ShiftOctave(chord.Hook, 1.25),
-                7 => ShiftOctave(chord.Hook, 1.5),
-                _ => null
-            },
-            _ => step switch
-            {
-                0 or 4 => chord.Hook,
-                2 or 6 => ShiftOctave(chord.Hook, 1.5),
-                _ => ShiftOctave(chord.Hook, 0.75)
-            }
+            0 or 4 => chord.Hook,
+            2 or 6 => ShiftOctave(chord.Hook, 1.5),
+            3 or 7 => ShiftOctave(chord.Hook, 0.75),
+            _ => null
         };
     }
 
     private static double? GetBassNote(GrooveFeel feel, GrooveChord chord, int step)
     {
-        return feel switch
-        {
-            GrooveFeel.TranceAnthem => chord.Pad[0] * (step % 2 == 1 ? 2.0 : 1.0),
-            GrooveFeel.TeamsRemix => chord.Pad[0] * (step switch { 1 or 5 => 1.25, 2 or 6 => 1.5, 7 => 2.0, _ => 1.0 }),
-            GrooveFeel.SkypeSpark => chord.Pad[0] * (step switch { 2 or 6 => 1.5, 3 or 7 => 2.0, _ => 1.0 }),
-            GrooveFeel.MerlinAnthem => chord.Pad[0] * (step switch { 1 or 5 => 1.5, 3 or 7 => 2.0, _ => 1.0 }),
-            GrooveFeel.Cyberpunk => chord.Pad[0] * (step % 2 == 1 ? 0.5 : 1.0),
-            GrooveFeel.Synthwave => chord.Pad[0] * (step % 2 == 1 ? 2.0 : 1.0),
-            GrooveFeel.ElectroBass => chord.Pad[0] * (step switch { 2 or 6 => 1.5, 3 or 7 => 0.75, _ => 1.0 }),
-            GrooveFeel.FunkFusion => chord.Pad[0] * (step switch { 1 => 1.5, 3 => 2.0, 5 => 1.25, 7 => 1.5, _ => 1.0 }),
-            GrooveFeel.MatrixTech => chord.Pad[0] * (step switch { 1 or 3 or 5 or 7 => 2.0, _ => 1.0 }),
-            _ => chord.Pad[0]
-        };
+        // Bassline strictly locked to root note with driving octave syncopation
+        return chord.Pad[0] * (step % 2 == 1 ? 2.0 : 1.0);
     }
 
     private static double[] TrimChord(double[] notes, int count)
@@ -690,6 +517,109 @@ public sealed class RingtonePlayer : IDisposable
     private void QueuePause(double seconds)
     {
         QueueWave(seconds, 0, _ => 0);
+    }
+
+    private bool TryPlayWavFile(string toneId, out int durationMs)
+    {
+        durationMs = 0;
+        var fileName = toneId switch
+        {
+            "teams-anthem" => "teams_anthem.wav",
+            "skype-spark" => "skype_spark.wav",
+            "ring-classic" => "ring_classic.wav",
+            _ => $"{toneId}.wav"
+        };
+
+        var candidatePaths = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "Assets", "Ringtones", fileName),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Ringtones", fileName),
+            Path.Combine(AppContext.BaseDirectory, fileName)
+        };
+
+        var wavPath = candidatePaths.FirstOrDefault(File.Exists);
+        if (wavPath == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(wavPath);
+            using var br = new BinaryReader(stream);
+
+            if (new string(br.ReadChars(4)) != "RIFF") return false;
+            br.ReadInt32(); // total size
+            if (new string(br.ReadChars(4)) != "WAVE") return false;
+
+            while (stream.Position < stream.Length)
+            {
+                var chunkId = new string(br.ReadChars(4));
+                var chunkSize = br.ReadInt32();
+                if (chunkId == "data")
+                {
+                    var pcmBytes = br.ReadBytes(chunkSize);
+                    durationMs = (int)((double)pcmBytes.Length / (SampleRate * 2) * 1000.0);
+
+                    var chunkSize500ms = SampleRate * 2 / 2;
+                    for (int offset = 0; offset < pcmBytes.Length; offset += chunkSize500ms)
+                    {
+                        lock (_sync)
+                        {
+                            if (_waveOut == IntPtr.Zero || (_cancellation?.IsCancellationRequested ?? true))
+                            {
+                                break;
+                            }
+                        }
+
+                        var length = Math.Min(chunkSize500ms, pcmBytes.Length - offset);
+                        var chunk = new byte[length];
+                        Array.Copy(pcmBytes, offset, chunk, 0, length);
+                        QueuePcmChunk(chunk, 1.0);
+                    }
+                    return true;
+                }
+                else
+                {
+                    stream.Seek(chunkSize, SeekOrigin.Current);
+                }
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"Failed to play WAV ringtone {wavPath}: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void QueuePcmChunk(byte[] pcmData, double gain)
+    {
+        var sampleCount = pcmData.Length / 2;
+        var pcm = new byte[pcmData.Length];
+        for (var i = 0; i < sampleCount; i++)
+        {
+            short sample = (short)(pcmData[i * 2] | (pcmData[i * 2 + 1] << 8));
+            var scaled = (short)Math.Clamp(sample * gain * _volume, short.MinValue, short.MaxValue);
+            pcm[i * 2] = (byte)(scaled & 0xFF);
+            pcm[i * 2 + 1] = (byte)(scaled >> 8);
+        }
+
+        var buffer = new AudioBuffer(pcm.Length);
+        Marshal.Copy(pcm, 0, buffer.DataPointer, pcm.Length);
+        lock (_sync)
+        {
+            if (_waveOut == IntPtr.Zero)
+            {
+                buffer.Dispose();
+                return;
+            }
+
+            _buffers.Add(buffer);
+            WinMm.waveOutPrepareHeader(_waveOut, buffer.HeaderPointer, Marshal.SizeOf<WaveHeader>());
+            WinMm.waveOutWrite(_waveOut, buffer.HeaderPointer, Marshal.SizeOf<WaveHeader>());
+        }
     }
 
     private void QueueWave(double seconds, double gain, Func<int, double> sampleFactory)
