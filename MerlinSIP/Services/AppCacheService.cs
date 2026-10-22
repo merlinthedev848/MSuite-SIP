@@ -108,7 +108,8 @@ public sealed class AppCacheService
             settings.LocalSipPort ?? 5060,
             settings.PreferredCodecs ?? "PCMU,PCMA",
             settings.IgnoreSslErrors ?? false,
-            settings.SecondaryRingerOutput).WithFixedSipEndpoint();
+            settings.SecondaryRingerOutput,
+            settings.AutoAnswerEnabled ?? false).WithFixedSipEndpoint();
     }
 
     public async Task SaveSettingsAsync(AppStartupConfig config)
@@ -166,7 +167,8 @@ public sealed class AppCacheService
             config.PreferredCodecs,
             config.IgnoreSslErrors,
             config.SecondaryRingerOutput,
-            config.VoicemailNumber);
+            config.VoicemailNumber,
+            config.AutoAnswerEnabled);
 
         try
         {
@@ -310,5 +312,6 @@ public sealed class AppCacheService
         string? PreferredCodecs = null,
         bool? IgnoreSslErrors = null,
         MediaDeviceInfo? SecondaryRingerOutput = null,
-        string? VoicemailNumber = null);
+        string? VoicemailNumber = null,
+        bool? AutoAnswerEnabled = null);
 }

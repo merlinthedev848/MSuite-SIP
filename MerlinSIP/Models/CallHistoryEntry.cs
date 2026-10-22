@@ -23,6 +23,20 @@ public sealed record CallHistoryEntry
     public double RFactor { get; init; } = 92.5;
 
     [System.Text.Json.Serialization.JsonIgnore]
+    public string Initials
+    {
+        get
+        {
+            var text = string.IsNullOrWhiteSpace(Name) ? Number : Name;
+            if (string.IsNullOrWhiteSpace(text)) return "??";
+            var parts = text.Split([' ', '.', '-'], StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2 && parts[0].Length > 0 && parts[1].Length > 0)
+                return $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[1][0])}";
+            return text.Length >= 2 ? text[..2].ToUpperInvariant() : text.ToUpperInvariant();
+        }
+    }
+
+    [System.Text.Json.Serialization.JsonIgnore]
     public string MosDisplay => MosScore > 0 ? $"{MosScore:F1} MOS" : "N/A";
 
     [System.Text.Json.Serialization.JsonIgnore]
@@ -84,7 +98,16 @@ public sealed record CallHistoryEntry
     {
         "Inbound" => "↙ Inbound",
         "Outbound" => "↗ Outbound",
-        "Missed" => "↙ Missed",
+        "Missed" => "✕ Missed",
         _ => Direction
+    };
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string DirectionColor => Direction switch
+    {
+        "Inbound" => "#2563EB",
+        "Outbound" => "#10B981",
+        "Missed" => "#EF4444",
+        _ => "#64748B"
     };
 }

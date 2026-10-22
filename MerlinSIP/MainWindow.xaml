@@ -225,6 +225,35 @@
             <Setter Property="FontWeight" Value="Bold" />
         </Style>
 
+                <Style x:Key="MerlinBetaNavButton" TargetType="Button">
+            <Setter Property="Width" Value="66" />
+            <Setter Property="Height" Value="52" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="NavChrome"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="NavChrome" Property="Background" Value="#1E293B" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="NavChrome" Property="Background" Value="#334155" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="SettingsTabButton" TargetType="Button">
             <Setter Property="Height" Value="42" />
             <Setter Property="FontSize" Value="13" />
@@ -404,46 +433,71 @@
 
     <Grid Background="{StaticResource AppBackdrop}">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="112" />
+            <ColumnDefinition Width="80" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0" Background="{StaticResource SideRailBrush}" Padding="16,22" BorderThickness="0,0,1,0" BorderBrush="#1F2937">
+        <Border Grid.Column="0" Background="{StaticResource SideRailBrush}" Padding="6,16" BorderThickness="0,0,1,0" BorderBrush="#1F2937">
             <DockPanel LastChildFill="True">
-                <StackPanel DockPanel.Dock="Top" HorizontalAlignment="Center">
-                    <Border Width="58" Height="58" CornerRadius="8" Background="Transparent" BorderThickness="0">
+                <StackPanel DockPanel.Dock="Top" HorizontalAlignment="Center" Margin="0,0,0,20">
+                    <Border Width="46" Height="46" CornerRadius="10" Background="Transparent" BorderThickness="0" HorizontalAlignment="Center">
                         <Border.Effect>
-                            <DropShadowEffect BlurRadius="6" ShadowDepth="1.5" Opacity="0.15" Color="#000000" />
+                            <DropShadowEffect BlurRadius="8" ShadowDepth="2" Opacity="0.25" Color="#000000" />
                         </Border.Effect>
                         <Image Source="Assets/CKMedia-Icon.png" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
                     </Border>
-                    <TextBlock Text="Merlin" Foreground="#FFFFFF" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,0" TextAlignment="Center" />
-                    <TextBlock Text="SIP" Foreground="#8FA0B7" FontSize="10" TextAlignment="Center" />
+                    <TextBlock Text="Merlin" Foreground="#FFFFFF" FontSize="11" FontWeight="Bold" Margin="0,6,0,0" TextAlignment="Center" />
+                    <TextBlock Text="Beta" Foreground="#F59E0B" FontSize="9" FontWeight="SemiBold" TextAlignment="Center" />
                 </StackPanel>
 
-                <StackPanel DockPanel.Dock="Top" Margin="0,54,0,0">
-                    <Button Content="Dial" Style="{StaticResource SoftButton}" Margin="0,0,0,12" Click="ShowDialButton_Click" />
-                    <Button Content="Contacts" Style="{StaticResource SoftButton}" Margin="0,0,0,12" Click="ShowContactsButton_Click" />
-                    <Button Content="Calls" Style="{StaticResource SoftButton}" Margin="0,0,0,12" Click="ShowCallsButton_Click" />
-                    <Button Content="Messages" Style="{StaticResource SoftButton}" Margin="0,0,0,12" Click="ShowMessagesButton_Click" Visibility="Collapsed" />
-                    <Button Content="Settings" Style="{StaticResource SoftButton}" Click="OpenSettingsButton_Click" />
+                <StackPanel DockPanel.Dock="Top" HorizontalAlignment="Center">
+                    <Button Style="{StaticResource MerlinBetaNavButton}" Click="ShowDialButton_Click" ToolTip="Keypad &amp; Active Calls" AutomationProperties.Name="Keypad">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="&#xE75F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="19" Foreground="#FCD34D" HorizontalAlignment="Center" />
+                            <TextBlock Text="Keypad" FontSize="10" FontWeight="SemiBold" Foreground="#E2E8F0" HorizontalAlignment="Center" Margin="0,3,0,0" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource MerlinBetaNavButton}" Click="ShowCallsButton_Click" ToolTip="Recent Call History" AutomationProperties.Name="Recents">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="&#xE777;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="#94A3B8" HorizontalAlignment="Center" />
+                            <TextBlock Text="Recents" FontSize="10" FontWeight="SemiBold" Foreground="#94A3B8" HorizontalAlignment="Center" Margin="0,3,0,0" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource MerlinBetaNavButton}" Click="ShowContactsButton_Click" ToolTip="Contacts Directory" AutomationProperties.Name="Contacts">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="&#xE716;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="#94A3B8" HorizontalAlignment="Center" />
+                            <TextBlock Text="Contacts" FontSize="10" FontWeight="SemiBold" Foreground="#94A3B8" HorizontalAlignment="Center" Margin="0,3,0,0" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource MerlinBetaNavButton}" Click="ShowMessagesButton_Click" ToolTip="Instant Messaging &amp; SMS" AutomationProperties.Name="Messages">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="&#xE8BD;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="#94A3B8" HorizontalAlignment="Center" />
+                            <TextBlock Text="Messages" FontSize="10" FontWeight="SemiBold" Foreground="#94A3B8" HorizontalAlignment="Center" Margin="0,3,0,0" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource MerlinBetaNavButton}" Click="OpenSettingsButton_Click" ToolTip="Settings &amp; Audio Preferences" AutomationProperties.Name="Settings">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="&#xE713;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="#94A3B8" HorizontalAlignment="Center" />
+                            <TextBlock Text="Settings" FontSize="10" FontWeight="SemiBold" Foreground="#94A3B8" HorizontalAlignment="Center" Margin="0,3,0,0" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Bottom" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,10">
                     <TextBlock x:Name="LicenseStatusText"
                                Text="Licensed"
                                Foreground="#8FA0B7"
-                               FontSize="10"
+                               FontSize="9"
                                FontWeight="Medium"
                                TextAlignment="Center"
                                TextWrapping="Wrap" />
                     <TextBlock x:Name="AppVersionText"
                                Text="v1.3.3"
                                Foreground="#64748B"
-                               FontSize="10"
+                               FontSize="9"
                                FontWeight="Medium"
                                TextAlignment="Center"
-                               Margin="0,4,0,0" />
+                               Margin="0,3,0,0" />
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -455,95 +509,122 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Margin="0,0,0,20">
+            <Grid Grid.Row="0" Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="560" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0">
-                    <TextBlock x:Name="NoticeText" Text="" Visibility="Collapsed" />
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <TextBlock x:Name="NoticeText" Text="" Foreground="#059669" FontSize="12" FontWeight="SemiBold" Visibility="Collapsed" />
                 </StackPanel>
 
+                <!-- Unified Search / Dial Bar -->
                 <Border Grid.Column="1"
-                        Width="430"
-                        HorizontalAlignment="Center"
+                        MaxWidth="460"
+                        HorizontalAlignment="Left"
                         Background="#FFFFFF"
-                        BorderBrush="#D4C9B3"
+                        BorderBrush="#CBD5E1"
                         BorderThickness="1"
-                        CornerRadius="8"
-                        Padding="12,8"
+                        CornerRadius="20"
+                        Padding="14,6"
                         VerticalAlignment="Center">
                     <Border.Effect>
-                        <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.06" Color="#4A3B22" />
+                        <DropShadowEffect BlurRadius="8" ShadowDepth="1.5" Opacity="0.05" Color="#0F172A" />
                     </Border.Effect>
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="96" />
+                            <ColumnDefinition Width="24" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Search or dial"
-                                   Foreground="#64748B"
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="0" Text="&#xE721;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Foreground="#94A3B8" VerticalAlignment="Center" />
                         <TextBox Grid.Column="1"
                                  x:Name="GlobalSearchTextBox"
-                                 Height="34"
-                                 Padding="10,6"
-                                 VerticalAlignment="Center"
-                                 BorderBrush="#E2E8F0"
-                                 Background="#F8FBFE"
-                                 ToolTip="Type a number or contact name, then press Enter"
+                                 Height="28"
+                                 Padding="6,0"
+                                 VerticalContentAlignment="Center"
+                                 BorderThickness="0"
+                                 Background="Transparent"
+                                 FontSize="13"
+                                 ToolTip="Search contacts or dial number, then press Enter"
                                  TextChanged="GlobalSearchTextBox_TextChanged"
                                  KeyDown="GlobalSearchTextBox_KeyDown" />
                     </Grid>
                 </Border>
 
+                <!-- Top Right Header: Auto Answer + DND + User Badge / Presence -->
                 <StackPanel Grid.Column="2" HorizontalAlignment="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="PresenceButton"
-                            Style="{StaticResource SoftButton}"
-                            Width="148"
-                            Height="38"
-                            Padding="0"
-                            Margin="0"
+                    <!-- Auto Answer Quick Toggle -->
+                    <Border x:Name="AutoAnswerPill"
+                            Background="#F1F5F9"
+                            CornerRadius="14"
+                            Padding="8,5"
+                            Margin="0,0,8,0"
                             VerticalAlignment="Center"
-                            HorizontalContentAlignment="Stretch"
-                            Click="PresenceButton_Click"
-                            ToolTip="Set your presence status">
-                        <Grid Width="124" VerticalAlignment="Center">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="22" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="14" />
-                            </Grid.ColumnDefinitions>
-                            <!-- Column 0: Fixed position color dot (always at X=0) -->
-                            <Ellipse Grid.Column="0"
-                                     x:Name="PresenceDot"
-                                     Width="9"
-                                     Height="9"
-                                     Fill="#10B981"
-                                     HorizontalAlignment="Center"
-                                     VerticalAlignment="Center" />
-                            <!-- Column 1: Fixed position text (always at X=18, left-aligned) -->
-                            <TextBlock Grid.Column="1"
-                                       x:Name="PresenceText"
-                                       Text="Available"
-                                       FontWeight="SemiBold"
-                                       FontSize="13"
-                                       Foreground="#111827"
-                                       HorizontalAlignment="Left"
-                                       VerticalAlignment="Center" />
-                            <!-- Column 2: Fixed position chevron (always at right) -->
-                            <TextBlock Grid.Column="2"
-                                       Text="&#xE70D;"
-                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                       FontSize="9"
-                                       Foreground="#64748B"
-                                       HorizontalAlignment="Right"
-                                       VerticalAlignment="Center" />
-                        </Grid>
-                        <Button.ContextMenu>
+                            Cursor="Hand"
+                            MouseDown="AutoAnswerPill_MouseDown"
+                            ToolTip="Click to toggle Auto-Answer for incoming calls">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="AutoAnswerDot" Width="7" Height="7" Fill="#94A3B8" Margin="0,0,5,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="AutoAnswerText" Text="Auto Answer: OFF" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- DND Quick Toggle -->
+                    <Border x:Name="DndPill"
+                            Background="#F1F5F9"
+                            CornerRadius="14"
+                            Padding="8,5"
+                            Margin="0,0,12,0"
+                            VerticalAlignment="Center"
+                            Cursor="Hand"
+                            MouseDown="DndPill_MouseDown"
+                            ToolTip="Click to toggle Do Not Disturb (DND)">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="DndDot" Width="7" Height="7" Fill="#94A3B8" Margin="0,0,5,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="DndText" Text="DND: OFF" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- User Profile & Presence Dropdown -->
+                    <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="18" Padding="4,3,8,3" VerticalAlignment="Center">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.05" Color="#0F172A" />
+                        </Border.Effect>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Width="28" Height="28" CornerRadius="14" Background="#2563EB" Margin="0,0,7,0">
+                                <TextBlock x:Name="UserAvatarText" Text="CK" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+
+                            <StackPanel VerticalAlignment="Center" Margin="0,0,8,0">
+                                <TextBlock x:Name="UserDisplayNameText" Text="Extension" FontWeight="SemiBold" FontSize="11" Foreground="#0F172A" />
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Ellipse x:Name="HeaderPresenceDot" Width="6" Height="6" Fill="#10B981" Margin="0,0,4,0" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="HeaderSipStatusText" Text="REGISTERED" FontSize="8.5" FontWeight="Bold" Foreground="#10B981" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <Button x:Name="PresenceButton"
+                                    Style="{StaticResource SoftButton}"
+                                    Width="94"
+                                    Height="28"
+                                    Padding="4,0"
+                                    Margin="0"
+                                    VerticalAlignment="Center"
+                                    Click="PresenceButton_Click"
+                                    ToolTip="Change presence status">
+                                <Grid VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="14" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="10" />
+                                    </Grid.ColumnDefinitions>
+                                    <Ellipse Grid.Column="0" x:Name="PresenceDot" Width="7" Height="7" Fill="#10B981" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" x:Name="PresenceText" Text="Available" FontWeight="SemiBold" FontSize="11" Foreground="#111827" HorizontalAlignment="Left" Margin="3,0,0,0" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="&#xE70D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="8" Foreground="#64748B" VerticalAlignment="Center" />
+                                </Grid>
+                                <Button.ContextMenu>
                             <ContextMenu x:Name="PresenceContextMenu"
                                          Style="{StaticResource PresenceContextMenuStyle}"
                                          PlacementTarget="{Binding RelativeSource={RelativeSource AncestorType=Button}}"
@@ -628,7 +709,9 @@
                                 </MenuItem>
                             </ContextMenu>
                         </Button.ContextMenu>
-                    </Button>
+                            </Button>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Grid>
 
@@ -804,6 +887,12 @@
                                     </StackPanel>
                                 </DockPanel>
 
+                                <!-- Caller ID Selector (MerlinBeta Style) -->
+                                <DockPanel Grid.Row="3" Margin="0,0,0,6">
+                                    <TextBlock Text="Caller ID:" Foreground="#64748B" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <ComboBox x:Name="CallerIdComboBox" Height="26" FontSize="11" VerticalContentAlignment="Center" Background="#F8FBFE" BorderBrush="#E2E8F0" SelectionChanged="CallerIdComboBox_SelectionChanged" />
+                                </DockPanel>
+
                                 <!-- ROW 4: DestinationTextBox and Clear -->
                                 <Grid Grid.Row="4" Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
@@ -814,7 +903,7 @@
                                     <Button Grid.Column="1" Content="Clear" Style="{StaticResource SoftButton}" Height="40" Margin="0" Click="ClearDestinationButton_Click" />
                                 </Grid>
 
-                                <!-- ROW 5: Keypad (Tragofone Style with digits and sub-letters) -->
+                                <!-- ROW 5: Keypad (MerlinBeta Style with digits and sub-letters) -->
                                 <UniformGrid Grid.Row="5" Columns="3" Rows="4" Margin="-3,0,-3,8" VerticalAlignment="Stretch">
                                     <Button Tag="1" Style="{StaticResource KeypadButton}" Click="DialpadButton_Click" AutomationProperties.Name="Digit 1">
                                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -963,17 +1052,21 @@
                                                     <DockPanel>
                                                         <Grid DockPanel.Dock="Top" Background="#EFECE6" Margin="0,0,0,2">
                                                             <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="1.1*" />
-                                                                <ColumnDefinition Width="0.9*" />
-                                                                <ColumnDefinition Width="70" />
-                                                                <ColumnDefinition Width="80" />
-                                                                <ColumnDefinition Width="95" />
+                                                                <ColumnDefinition Width="36" />
+                                                                <ColumnDefinition Width="1.2*" />
+                                                                <ColumnDefinition Width="0.8*" />
+                                                                <ColumnDefinition Width="65" />
+                                                                <ColumnDefinition Width="75" />
+                                                                <ColumnDefinition Width="85" />
+                                                                <ColumnDefinition Width="34" />
                                                             </Grid.ColumnDefinitions>
-                                                            <TextBlock Text="Name" FontWeight="SemiBold" Foreground="#78716C" Margin="12,8" />
-                                                            <TextBlock Grid.Column="1" Text="Number" FontWeight="SemiBold" Foreground="#78716C" Margin="8" />
-                                                            <TextBlock Grid.Column="2" Text="Duration" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
-                                                            <TextBlock Grid.Column="3" Text="Status" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
-                                                            <TextBlock Grid.Column="4" Text="Quality" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
+                                                            <TextBlock Grid.Column="0" Text="" />
+                                                            <TextBlock Grid.Column="1" Text="Name" FontWeight="SemiBold" Foreground="#78716C" Margin="6,8" />
+                                                            <TextBlock Grid.Column="2" Text="Number" FontWeight="SemiBold" Foreground="#78716C" Margin="6,8" />
+                                                            <TextBlock Grid.Column="3" Text="Duration" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="6,8" />
+                                                            <TextBlock Grid.Column="4" Text="Status" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="6,8" />
+                                                            <TextBlock Grid.Column="5" Text="Quality" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="6,8" />
+                                                            <TextBlock Grid.Column="6" Text="" />
                                                         </Grid>
                                                         <ScrollViewer Focusable="False">
                                                             <ItemsPresenter />
@@ -983,47 +1076,90 @@
                                             </ListBox.Template>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid Margin="0,0,0,1" Background="#FDFBF7">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="1.1*" />
-                                                            <ColumnDefinition Width="0.9*" />
-                                                            <ColumnDefinition Width="70" />
-                                                            <ColumnDefinition Width="80" />
-                                                            <ColumnDefinition Width="95" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel Grid.Column="0" Margin="12,10">
-                                                            <TextBlock Text="{Binding Name}" Foreground="#111827" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                            <TextBlock Text="{Binding DirectionIcon}" Foreground="#78716C" FontSize="12" />
-                                                        </StackPanel>
-                                                        <TextBlock Grid.Column="1" Text="{Binding Number}" Foreground="#78716C" VerticalAlignment="Center" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
-                                                        <TextBlock Grid.Column="2" Text="{Binding Duration}" Foreground="#78716C" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                                        <Border Grid.Column="3" Background="{Binding ResultBadgeBackground}" CornerRadius="6" Padding="6,3" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding Result}" Foreground="{Binding ResultBadgeForeground}" FontWeight="SemiBold" FontSize="12" />
-                                                        </Border>
-                                                        <Button Grid.Column="4"
-                                                                Tag="{Binding}"
-                                                                Click="InspectCallQualityButton_Click"
-                                                                Cursor="Hand"
-                                                                HorizontalAlignment="Center"
-                                                                VerticalAlignment="Center"
-                                                                ToolTip="View call quality: latency, jitter, bitrate (Tx/Rx) and packet loss">
-                                                            <Button.Template>
-                                                                <ControlTemplate TargetType="Button">
-                                                                    <Border x:Name="QBadge" Background="{Binding QualityBadgeBackground}" CornerRadius="6" Padding="8,3">
-                                                                        <StackPanel Orientation="Horizontal">
-                                                                            <TextBlock Text="{Binding QualitySummaryDisplay}" Foreground="{Binding QualityBadgeForeground}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
-                                                                            <TextBlock Text="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="8" Foreground="{Binding QualityBadgeForeground}" Margin="5,1,0,0" VerticalAlignment="Center" />
-                                                                        </StackPanel>
-                                                                    </Border>
-                                                                    <ControlTemplate.Triggers>
-                                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                                            <Setter TargetName="QBadge" Property="Opacity" Value="0.8" />
-                                                                        </Trigger>
-                                                                    </ControlTemplate.Triggers>
-                                                                </ControlTemplate>
-                                                            </Button.Template>
-                                                        </Button>
-                                                    </Grid>
+                                                    <Border Margin="0,0,0,2" Background="#FFFFFF" BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="6,7">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="36" />
+                                                                <ColumnDefinition Width="1.2*" />
+                                                                <ColumnDefinition Width="0.8*" />
+                                                                <ColumnDefinition Width="65" />
+                                                                <ColumnDefinition Width="75" />
+                                                                <ColumnDefinition Width="85" />
+                                                                <ColumnDefinition Width="34" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <!-- Avatar Initials -->
+                                                            <Border Grid.Column="0" Width="28" Height="28" CornerRadius="14" Background="#EEF2F6" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Initials}" FontSize="10.5" FontWeight="Bold" Foreground="#475569" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                            </Border>
+
+                                                            <!-- Name & Direction -->
+                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0">
+                                                                <TextBlock Text="{Binding Name}" Foreground="#0F172A" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Text="{Binding DirectionIcon}" Foreground="{Binding DirectionColor}" FontSize="10" FontWeight="Medium" />
+                                                            </StackPanel>
+
+                                                            <!-- Number -->
+                                                            <TextBlock Grid.Column="2" Text="{Binding Number}" Foreground="#64748B" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,0" />
+
+                                                            <!-- Duration -->
+                                                            <TextBlock Grid.Column="3" Text="{Binding Duration}" Foreground="#64748B" FontSize="11" VerticalAlignment="Center" HorizontalAlignment="Center" />
+
+                                                            <!-- Result Badge -->
+                                                            <Border Grid.Column="4" Background="{Binding ResultBadgeBackground}" CornerRadius="6" Padding="6,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Result}" Foreground="{Binding ResultBadgeForeground}" FontWeight="SemiBold" FontSize="10" />
+                                                            </Border>
+
+                                                            <!-- Quality MOS Button -->
+                                                            <Button Grid.Column="5"
+                                                                    Tag="{Binding}"
+                                                                    Click="InspectCallQualityButton_Click"
+                                                                    Cursor="Hand"
+                                                                    HorizontalAlignment="Center"
+                                                                    VerticalAlignment="Center"
+                                                                    ToolTip="View call quality: latency, jitter, bitrate (Tx/Rx) and packet loss">
+                                                                <Button.Template>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border x:Name="QBadge" Background="{Binding QualityBadgeBackground}" CornerRadius="6" Padding="6,2">
+                                                                            <StackPanel Orientation="Horizontal">
+                                                                                <TextBlock Text="{Binding QualitySummaryDisplay}" Foreground="{Binding QualityBadgeForeground}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center" />
+                                                                                <TextBlock Text="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="7" Foreground="{Binding QualityBadgeForeground}" Margin="4,1,0,0" VerticalAlignment="Center" />
+                                                                            </StackPanel>
+                                                                        </Border>
+                                                                        <ControlTemplate.Triggers>
+                                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                                <Setter TargetName="QBadge" Property="Opacity" Value="0.8" />
+                                                                            </Trigger>
+                                                                        </ControlTemplate.Triggers>
+                                                                    </ControlTemplate>
+                                                                </Button.Template>
+                                                            </Button>
+
+                                                            <!-- 1-Click Call-Back Button -->
+                                                            <Button Grid.Column="6"
+                                                                    Tag="{Binding}"
+                                                                    Click="CallbackHistoryButton_Click"
+                                                                    Cursor="Hand"
+                                                                    Width="26"
+                                                                    Height="26"
+                                                                    HorizontalAlignment="Right"
+                                                                    VerticalAlignment="Center"
+                                                                    ToolTip="Call back">
+                                                                <Button.Template>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border x:Name="CbBdr" Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" CornerRadius="13">
+                                                                            <TextBlock Text="&#xE717;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Foreground="#16A34A" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                        </Border>
+                                                                        <ControlTemplate.Triggers>
+                                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                                <Setter TargetName="CbBdr" Property="Background" Value="#16A34A" />
+                                                                            </Trigger>
+                                                                        </ControlTemplate.Triggers>
+                                                                    </ControlTemplate>
+                                                                </Button.Template>
+                                                            </Button>
+                                                        </Grid>
+                                                    </Border>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
@@ -1048,12 +1184,14 @@
                                                                 <ColumnDefinition Width="1.2*" />
                                                                 <ColumnDefinition Width="1*" />
                                                                 <ColumnDefinition Width="0.8*" />
-                                                                <ColumnDefinition Width="0.9*" />
+                                                                <ColumnDefinition Width="0.8*" />
+                                                                <ColumnDefinition Width="36" />
                                                             </Grid.ColumnDefinitions>
                                                             <TextBlock Text="Name" FontWeight="SemiBold" Foreground="#78716C" Margin="12,8" />
                                                             <TextBlock Grid.Column="1" Text="Company" FontWeight="SemiBold" Foreground="#78716C" Margin="8" />
                                                             <TextBlock Grid.Column="2" Text="Number" FontWeight="SemiBold" Foreground="#78716C" Margin="8" />
                                                             <TextBlock Grid.Column="3" Text="BLF" FontWeight="SemiBold" Foreground="#78716C" Margin="8" HorizontalAlignment="Center" />
+                                                            <TextBlock Grid.Column="4" Text="" />
                                                         </Grid>
                                                         <ScrollViewer Focusable="False">
                                                             <ItemsPresenter />
@@ -1068,7 +1206,8 @@
                                                             <ColumnDefinition Width="1.2*" />
                                                             <ColumnDefinition Width="1*" />
                                                             <ColumnDefinition Width="0.8*" />
-                                                            <ColumnDefinition Width="0.9*" />
+                                                            <ColumnDefinition Width="0.8*" />
+                                                            <ColumnDefinition Width="36" />
                                                         </Grid.ColumnDefinitions>
                                                         <TextBlock Text="{Binding Name}" Foreground="#111827" FontWeight="SemiBold" Margin="12,10" TextTrimming="CharacterEllipsis" />
                                                         <TextBlock Grid.Column="1" Text="{Binding Company}" Foreground="#78716C" Margin="8,10" TextTrimming="CharacterEllipsis" />
@@ -1079,6 +1218,28 @@
                                                                 <TextBlock Text="{Binding PresenceLabel}" Foreground="{Binding PresenceForeground}" FontWeight="Medium" FontSize="12" />
                                                             </StackPanel>
                                                         </Border>
+                                                        <Button Grid.Column="4"
+                                                                Tag="{Binding}"
+                                                                Click="CallbackContactButton_Click"
+                                                                Cursor="Hand"
+                                                                Width="26"
+                                                                Height="26"
+                                                                HorizontalAlignment="Right"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip="Call contact">
+                                                            <Button.Template>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border x:Name="CbContactBdr" Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" CornerRadius="13">
+                                                                        <TextBlock Text="&#xE717;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Foreground="#16A34A" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                    </Border>
+                                                                    <ControlTemplate.Triggers>
+                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                            <Setter TargetName="CbContactBdr" Property="Background" Value="#16A34A" />
+                                                                        </Trigger>
+                                                                    </ControlTemplate.Triggers>
+                                                                </ControlTemplate>
+                                                            </Button.Template>
+                                                        </Button>
                                                     </Grid>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
@@ -1300,7 +1461,7 @@
                     </Border>
                 </TabItem>
 
-                <TabItem x:Name="MessagesTab" Header="Messages" Visibility="Collapsed">
+                <TabItem x:Name="MessagesTab" Header="Messages">
                     <Grid Margin="0,18,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="1.15*" />
@@ -1553,7 +1714,8 @@
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
                                                 <TextBlock Text="Queue pickup" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                                <CheckBox x:Name="QueuePickupCheckBox" Content="Enable queue pickup shortcut" FontWeight="SemiBold" AutomationProperties.Name="Enable Queue Pickup" />
+                                                <CheckBox x:Name="AutoAnswerCheckBox" Content="Auto-answer incoming calls after 1 second" FontWeight="SemiBold" Margin="0,0,0,10" Click="AutoAnswerCheckBox_Click" />
+                                                <CheckBox x:Name="QueuePickupCheckBox"  Content="Enable queue pickup shortcut" FontWeight="SemiBold" AutomationProperties.Name="Enable Queue Pickup" />
                                                 <DockPanel Margin="0,8,0,0">
                                                     <Button DockPanel.Dock="Right" Content="Pick up queue call" Style="{StaticResource SoftButton}" Height="32" Width="150" Click="QueuePickupButton_Click" AutomationProperties.Name="Pick Up Queue Call" />
                                                     <TextBlock Text="Uses *4 from this handset when queue pickup is enabled." Foreground="#64748B" FontSize="12" VerticalAlignment="Center" Margin="0" />

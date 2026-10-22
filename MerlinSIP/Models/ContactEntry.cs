@@ -11,6 +11,20 @@ public sealed record ContactEntry
     public bool IsFavorite { get; init; } = false;
 
     [JsonIgnore]
+    public string Initials
+    {
+        get
+        {
+            var text = string.IsNullOrWhiteSpace(Name) ? Number : Name;
+            if (string.IsNullOrWhiteSpace(text)) return "??";
+            var parts = text.Split([' ', '.', '-'], StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2 && parts[0].Length > 0 && parts[1].Length > 0)
+                return $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[1][0])}";
+            return text.Length >= 2 ? text[..2].ToUpperInvariant() : text.ToUpperInvariant();
+        }
+    }
+
+    [JsonIgnore]
     public string Presence { get; init; } = "Offline";
 
     [JsonIgnore]

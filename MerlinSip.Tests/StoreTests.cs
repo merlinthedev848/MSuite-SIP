@@ -94,4 +94,72 @@ public class StoreTests
 
         Assert.Null(exception);
     }
+
+    [Fact]
+    public async Task ContactStore_CsvExportImport_RoundtripsSuccessfully()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"contacts_{Guid.NewGuid():N}.csv");
+        try
+        {
+            var original = new List<ContactEntry>
+            {
+                new ContactEntry { Name = "John Doe", Number = "1001", Company = "Acme, Inc.", Notes = "Important \"VIP\"", IsFavorite = true },
+                new ContactEntry { Name = "Jane Smith", Number = "1002", Company = "Merlin", Notes = "Normal user", IsFavorite = false }
+            };
+
+            await ContactStore.ExportCsvAsync(original, tempFile);
+            Assert.True(File.Exists(tempFile));
+
+            var imported = await ContactStore.ImportCsvAsync(tempFile);
+            Assert.Equal(2, imported.Count);
+            Assert.Equal("John Doe", imported[0].Name);
+            Assert.Equal("1001", imported[0].Number);
+            Assert.Equal("Acme, Inc.", imported[0].Company);
+            Assert.Equal("Important \"VIP\"", imported[0].Notes);
+            Assert.True(imported[0].IsFavorite);
+
+            Assert.Equal("Jane Smith", imported[1].Name);
+            Assert.Equal("1002", imported[1].Number);
+            Assert.Equal("Merlin", imported[1].Company);
+            Assert.False(imported[1].IsFavorite);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData("John Doe", "1001", "JD")]
+    [InlineData("Alice", "1002", "AL")]
+    [InlineData("Robert Downey Jr.", "1003", "RD")]
+    [InlineData("", "555", "55")]
+    public void ContactEntry_Initials_ComputesCorrectly(string name, string number, string expectedInitials)
+    {
+        var contact = new ContactEntry { Name = name, Number = number };
+        Assert.Equal(expectedInitials, contact.Initials);
+    }
+
+    [Theory]
+    [InlineData("Inbound", "#2563EB")]
+    [InlineData("Outbound", "#10B981")]
+    [InlineData("Missed", "#EF4444")]
+    [InlineData("Unknown", "#64748B")]
+    public void CallHistoryEntry_DirectionColor_MatchesExpected(string direction, string expectedHex)
+    {
+        var entry = new CallHistoryEntry { Direction = direction };
+        Assert.Equal(expectedHex, entry.DirectionColor);
+    }
+
+    [Fact]
+    public void AppStartupConfig_AutoAnswerEnabled_DefaultsToFalse()
+    {
+        var config = new AppStartupConfig(
+            "server", 5060, "server", "101", "user", "pass", "LIC", "Licensed",
+            new MediaDeviceInfo("in", "In"), new MediaDeviceInfo("out", "Out"));
+        Assert.False(config.AutoAnswerEnabled);
+    }
 }

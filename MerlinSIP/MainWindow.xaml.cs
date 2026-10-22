@@ -196,6 +196,11 @@ public partial class MainWindow : Window
         UpdateInCallButtonIcons();
         UpdateCallControls();
         UpdateLineAppearances();
+        UpdateAutoAnswerUi();
+        UpdateDndUi();
+        UpdateUserBadge();
+        InitializeCallerIdSelector();
+        AudioInputComboBox.SelectionChanged += (s, e) => { if (SettingsOverlay.Visibility == Visibility.Visible) StartMicVuMeter(); };
     }
 
     private static TextBlock CreateInCallIcon(string glyph)
@@ -260,6 +265,7 @@ public partial class MainWindow : Window
         _licenseWatchdog.Stop();
         _trayIcon?.Dispose();
         _trayIcon = null;
+        StopMicVuMeter();
         _ringtonePlayer.Dispose();
         _secondaryRingtonePlayer.Dispose();
         _sipRegistrationService.Dispose();
@@ -832,6 +838,21 @@ public partial class MainWindow : Window
             }
 
             StartIncomingNoAnswerTimeout(e.CallerNumber);
+
+            if (_config.AutoAnswerEnabled)
+            {
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(1200);
+                    await Dispatcher.InvokeAsync(async () =>
+                    {
+                        if (_callInProgress || _incomingCallWindow != null)
+                        {
+                            IncomingCallWindow_AnswerRequested(this, EventArgs.Empty);
+                        }
+                    });
+                });
+            }
         });
     }
 
@@ -1802,7 +1823,12 @@ public partial class MainWindow : Window
             "offline" or "appear offline" => "#94A3B8",
             _ => "#10B981"
         };
-        PresenceDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString(colour)!;
+        var brush = (WpfBrush)new BrushConverter().ConvertFromString(colour)!;
+        PresenceDot.Fill = brush;
+        if (HeaderPresenceDot != null)
+        {
+            HeaderPresenceDot.Fill = brush;
+        }
     }
 
     private void SetPresenceDisplay(string status)
@@ -2900,6 +2926,7 @@ public partial class MainWindow : Window
     {
         SettingsOverlay.Visibility = Visibility.Visible;
         SettingsTabs.SelectedItem = SettingsAccountTab;
+        StartMicVuMeter();
         UpdateActiveSettingsTab(TabBtnAccount);
         await RefreshConnectionDiagnosticsAsync();
         await EnsureConnectionReadyAsync();
@@ -2908,6 +2935,7 @@ public partial class MainWindow : Window
     private async void CloseSettingsButton_Click(object sender, RoutedEventArgs e)
     {
         e.Handled = true;
+        StopMicVuMeter();
         if (_testTonePlaying)
         {
             _ringtonePlayer.Stop();
@@ -3203,7 +3231,8 @@ public partial class MainWindow : Window
                 QueuePickupEnabled = QueuePickupCheckBox.IsChecked == true,
                 CombineContactsInSearch = CombineContactsCheckBox.IsChecked == true,
                 FailedCallDisplaySeconds = ComboBoxSeconds(FailedCallTimeoutComboBox, 5),
-                CallPickupPrefix = string.IsNullOrWhiteSpace(CallPickupPrefixTextBox.Text) ? "*8" : CallPickupPrefixTextBox.Text.Trim(),
+                CallPickupPrefix = string.IsNullOrWhiteSpace(CallPickupPrefixTextBox.Text) ? "*4" : CallPickupPrefixTextBox.Text.Trim(),
+                AutoAnswerEnabled = AutoAnswerCheckBox?.IsChecked == true,
                 QueueLoginLogoutCode = string.IsNullOrWhiteSpace(QueueToggleCodeTextBox.Text) ? "*62" : QueueToggleCodeTextBox.Text.Trim(),
                 CallRecordingCode = string.IsNullOrWhiteSpace(CallRecordingCodeTextBox.Text) ? "*1" : CallRecordingCodeTextBox.Text.Trim(),
                 IgnoreSslErrors = IgnoreSslErrorsCheckBox.IsChecked == true
@@ -4266,4 +4295,274 @@ del ""%~f0""
         UpdateLineAppearances();
     }
 
+
+    // ==========================================
+    // MERLINBETA SUITE: VU METER, AUTO-ANSWER, DND, CALLER ID, CSV IMPORT/EXPORT
+    // ==========================================
+    private NAudio.Wave.WaveIn? _micVuWaveIn;
+
+    private void StartMicVuMeter()
+    {
+        StopMicVuMeter();
+        try
+        {
+            if (NAudio.Wave.WaveIn.DeviceCount <= 0) return;
+            int deviceId = 0;
+            if (AudioInputComboBox.SelectedItem is MediaDeviceInfo dev && int.TryParse(dev.Id, out var parsed))
+            {
+                deviceId = Math.Clamp(parsed, 0, NAudio.Wave.WaveIn.DeviceCount - 1);
+            }
+            else if (AudioInputComboBox.SelectedIndex >= 0)
+            {
+                deviceId = Math.Clamp(AudioInputComboBox.SelectedIndex, 0, NAudio.Wave.WaveIn.DeviceCount - 1);
+            }
+
+            _micVuWaveIn = new NAudio.Wave.WaveIn
+            {
+                DeviceNumber = deviceId,
+                WaveFormat = new NAudio.Wave.WaveFormat(8000, 16, 1)
+            };
+            _micVuWaveIn.DataAvailable += (s, a) =>
+            {
+                float max = 0;
+                for (int i = 0; i < a.BytesRecorded; i += 2)
+                {
+                    short sample = (short)((a.Buffer[i + 1] << 8) | a.Buffer[i]);
+                    float sample32 = Math.Abs(sample / 32768f);
+                    if (sample32 > max) max = sample32;
+                }
+                int level = Math.Min(100, (int)(max * 150));
+                Dispatcher.InvokeAsync(() =>
+                {
+                    if (MicLevelProgressBar != null)
+                    {
+                        MicLevelProgressBar.Value = level;
+                    }
+                }, System.Windows.Threading.DispatcherPriority.Background);
+            };
+            _micVuWaveIn.StartRecording();
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"Mic VU meter start failed: {ex.Message}");
+        }
+    }
+
+    private void StopMicVuMeter()
+    {
+        try
+        {
+            if (_micVuWaveIn != null)
+            {
+                _micVuWaveIn.StopRecording();
+                _micVuWaveIn.Dispose();
+                _micVuWaveIn = null;
+            }
+        }
+        catch { }
+        if (MicLevelProgressBar != null)
+        {
+            MicLevelProgressBar.Value = 0;
+        }
+    }
+
+    private void AutoAnswerPill_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        _config = _config with { AutoAnswerEnabled = !_config.AutoAnswerEnabled };
+        _ = _cacheService.SaveSettingsAsync(_config);
+        UpdateAutoAnswerUi();
+    }
+
+    private void AutoAnswerCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        _config = _config with { AutoAnswerEnabled = AutoAnswerCheckBox.IsChecked == true };
+        _ = _cacheService.SaveSettingsAsync(_config);
+        UpdateAutoAnswerUi();
+    }
+
+    private void UpdateAutoAnswerUi()
+    {
+        if (AutoAnswerDot != null && AutoAnswerText != null && AutoAnswerPill != null)
+        {
+            if (_config.AutoAnswerEnabled)
+            {
+                AutoAnswerDot.Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 185, 129));
+                AutoAnswerText.Text = "Auto Answer: ON";
+                AutoAnswerText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(4, 120, 87));
+                AutoAnswerPill.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(209, 250, 229));
+            }
+            else
+            {
+                AutoAnswerDot.Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(148, 163, 184));
+                AutoAnswerText.Text = "Auto Answer: OFF";
+                AutoAnswerText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(100, 116, 139));
+                AutoAnswerPill.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(241, 245, 249));
+            }
+        }
+        if (AutoAnswerCheckBox != null)
+        {
+            AutoAnswerCheckBox.IsChecked = _config.AutoAnswerEnabled;
+        }
+    }
+
+    private async void DndPill_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        _dndEnabled = !_dndEnabled;
+        DndButton_Click(this, new RoutedEventArgs());
+        UpdateDndUi();
+    }
+
+    private void UpdateDndUi()
+    {
+        if (DndDot != null && DndText != null && DndPill != null)
+        {
+            if (_dndEnabled)
+            {
+                DndDot.Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
+                DndText.Text = "DND: ON";
+                DndText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(185, 28, 28));
+                DndPill.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(254, 226, 226));
+            }
+            else
+            {
+                DndDot.Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(148, 163, 184));
+                DndText.Text = "DND: OFF";
+                DndText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(100, 116, 139));
+                DndPill.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(241, 245, 249));
+            }
+        }
+    }
+
+    private void UpdateUserBadge()
+    {
+        if (UserDisplayNameText != null)
+        {
+            var ext = !string.IsNullOrWhiteSpace(_config.Extension) ? _config.Extension : "100";
+            UserDisplayNameText.Text = $"Ext {ext}";
+        }
+        if (UserAvatarText != null)
+        {
+            var name = !string.IsNullOrWhiteSpace(_config.Username) ? _config.Username : (!string.IsNullOrWhiteSpace(_config.Extension) ? _config.Extension : "CK");
+            UserAvatarText.Text = name.Length >= 2 ? name[..2].ToUpperInvariant() : name.ToUpperInvariant();
+        }
+        if (HeaderSipStatusText != null)
+        {
+            if (_registered)
+            {
+                HeaderSipStatusText.Text = "REGISTERED";
+                HeaderSipStatusText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 185, 129));
+            }
+            else
+            {
+                HeaderSipStatusText.Text = "OFFLINE";
+                HeaderSipStatusText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(148, 163, 184));
+            }
+        }
+    }
+
+    private void InitializeCallerIdSelector()
+    {
+        if (CallerIdComboBox == null) return;
+        CallerIdComboBox.Items.Clear();
+        var defaultExt = !string.IsNullOrWhiteSpace(_config.Extension) ? _config.Extension : "Default";
+        CallerIdComboBox.Items.Add($"Caller ID: {defaultExt} (Default)");
+        CallerIdComboBox.Items.Add("Caller ID: Anonymous / Private");
+        CallerIdComboBox.SelectedIndex = 0;
+    }
+
+    private void CallerIdComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // Outbound CLI identity selection
+    }
+
+    private void CallbackHistoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement { Tag: CallHistoryEntry entry })
+        {
+            RedialCall(entry);
+        }
+    }
+
+    private void CallbackContactButton_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement { Tag: ContactEntry entry })
+        {
+            CallContact(entry);
+        }
+    }
+
+    private async void ImportContactsButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
+                Title = "Import Contacts from CSV"
+            };
+            if (dialog.ShowDialog(this) == true)
+            {
+                var imported = await ContactStore.ImportCsvAsync(dialog.FileName);
+                if (imported.Count > 0)
+                {
+                    var existingNumbers = new HashSet<string>(_contacts.Select(c => c.Number));
+                    int added = 0;
+                    foreach (var c in imported)
+                    {
+                        if (!existingNumbers.Contains(c.Number))
+                        {
+                            _contacts.Add(c);
+                            existingNumbers.Add(c.Number);
+                            added++;
+                        }
+                    }
+                    await _contactStore.SaveAsync(_contacts);
+                    ApplyGlobalSearchFilter();
+                    _ = RefreshPresenceSubscriptionsAsync();
+                    NoticeText.Text = $"Imported {added} new contacts from CSV.";
+                    NoticeText.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    NoticeText.Text = "No valid contacts found in CSV.";
+                    NoticeText.Visibility = Visibility.Visible;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"Import CSV failed: {ex.Message}");
+            NoticeText.Text = $"Import failed: {ex.Message}";
+            NoticeText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async void ExportContactsButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "CSV Files (*.csv)|*.csv",
+                FileName = "contacts.csv",
+                Title = "Export Contacts to CSV"
+            };
+            if (dialog.ShowDialog(this) == true)
+            {
+                await ContactStore.ExportCsvAsync(_contacts, dialog.FileName);
+                NoticeText.Text = $"Exported {_contacts.Count} contacts to {System.IO.Path.GetFileName(dialog.FileName)}.";
+                NoticeText.Visibility = Visibility.Visible;
+            }
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"Export CSV failed: {ex.Message}");
+            NoticeText.Text = $"Export failed: {ex.Message}";
+            NoticeText.Visibility = Visibility.Visible;
+        }
+    }
 }
