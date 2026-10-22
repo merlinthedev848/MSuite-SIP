@@ -1,5 +1,5 @@
 {
   "Version": "1.3.1",
   "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.1-x64-faststart.msi",
-  "Notes": "Release 1.3.1: Secondary ringer support, speaker test preview, taskbar state flashing on incoming calls, live call statistics HUD, MWI voicemail integration, stereo call recording, and buyout PBX licensing."
+  "Notes": "Release 1.3.1: Dual-line appearance (Line 1 & Line 2) above number input, live call statistics HUD & VoIP quality analysis, buyout PBX host licensing, studio-aligned ringtones, styled presence dropdown with status color indicators, and DND-to-Away presence transition fix."
 }
