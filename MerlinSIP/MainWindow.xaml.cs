@@ -939,7 +939,7 @@ public partial class MainWindow : Window
                 {
                     try
                     {
-                        await OnCallFinished(state, e.Message);
+                        await OnCallFinished(state, e.Message ?? string.Empty);
                     }
                     catch (Exception ex)
                     {
@@ -1121,7 +1121,7 @@ public partial class MainWindow : Window
             {
                 state = _activeCallDirection == "Outbound" ? "No Answer" : "Missed";
             }
-            await OnCallFinished(state, e.Message);
+            await OnCallFinished(state, e.Message ?? string.Empty);
         });
     }
 
@@ -1178,9 +1178,10 @@ public partial class MainWindow : Window
         QueuePickupCheckBox.IsChecked = _config.QueuePickupEnabled;
         CombineContactsCheckBox.IsChecked = _config.CombineContactsInSearch;
         SelectComboBoxItem(FailedCallTimeoutComboBox, $"{_config.FailedCallDisplaySeconds} seconds");
-        CallPickupPrefixTextBox.Text = string.IsNullOrWhiteSpace(_config.CallPickupPrefix) ? "*8" : _config.CallPickupPrefix;
+        CallPickupPrefixTextBox.Text = string.IsNullOrWhiteSpace(_config.CallPickupPrefix) ? "*4" : _config.CallPickupPrefix;
         QueueToggleCodeTextBox.Text = string.IsNullOrWhiteSpace(_config.QueueLoginLogoutCode) ? "*62" : _config.QueueLoginLogoutCode;
         CallRecordingCodeTextBox.Text = string.IsNullOrWhiteSpace(_config.CallRecordingCode) ? "*1" : _config.CallRecordingCode;
+        VoicemailCodeTextBox.Text = string.IsNullOrWhiteSpace(_config.VoicemailNumber) ? "*2" : _config.VoicemailNumber;
     }
 
     private static void SelectComboBoxItem(System.Windows.Controls.ComboBox comboBox, string value)
@@ -3026,9 +3027,9 @@ public partial class MainWindow : Window
     private async void OpenSettingsButton_Click(object sender, RoutedEventArgs e)
     {
         SettingsOverlay.Visibility = Visibility.Visible;
-        SettingsTabs.SelectedItem = SettingsAccountTab;
+        SettingsTabs.SelectedItem = SettingsGeneralTab;
         StartMicVuMeter();
-        UpdateActiveSettingsTab(TabBtnAccount);
+        UpdateActiveSettingsTab(TabBtnGeneral);
         await RefreshConnectionDiagnosticsAsync();
         await EnsureConnectionReadyAsync();
     }
@@ -3054,7 +3055,7 @@ public partial class MainWindow : Window
     {
         var activeBg = (System.Windows.Media.Brush)this.FindResource("PrimaryBrush")!;
         var activeFg = System.Windows.Media.Brushes.White;
-        var inactiveBg = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#F1F5F9")!;
+        var inactiveBg = System.Windows.Media.Brushes.Transparent;
         var inactiveFg = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#475569")!;
 
         foreach (var btn in new[] { TabBtnGeneral, TabBtnAccount, TabBtnHandling, TabBtnAudio, TabBtnDiagnostics, TabBtnAbout })
@@ -3068,6 +3069,40 @@ public partial class MainWindow : Window
             {
                 btn.Background = inactiveBg;
                 btn.Foreground = inactiveFg;
+            }
+        }
+
+        if (SettingsTabTitleText != null && SettingsTabSubtitleText != null)
+        {
+            if (activeBtn == TabBtnGeneral)
+            {
+                SettingsTabTitleText.Text = "General Preferences";
+                SettingsTabSubtitleText.Text = "Application preferences and incoming call handling";
+            }
+            else if (activeBtn == TabBtnAccount)
+            {
+                SettingsTabTitleText.Text = "Account & SIP";
+                SettingsTabSubtitleText.Text = "PBX credentials, provisioning, and signalling protocols";
+            }
+            else if (activeBtn == TabBtnAudio)
+            {
+                SettingsTabTitleText.Text = "Audio & Tunes";
+                SettingsTabSubtitleText.Text = "Sound input/output devices, volume levels, and ringtone preview";
+            }
+            else if (activeBtn == TabBtnHandling)
+            {
+                SettingsTabTitleText.Text = "Call Routing";
+                SettingsTabSubtitleText.Text = "Call forwarding, feature shortcodes, and busy/no-answer timeouts";
+            }
+            else if (activeBtn == TabBtnDiagnostics)
+            {
+                SettingsTabTitleText.Text = "Diagnostics";
+                SettingsTabSubtitleText.Text = "Network connectivity tests, update checks, and support logs";
+            }
+            else if (activeBtn == TabBtnAbout)
+            {
+                SettingsTabTitleText.Text = "About Merlin SIP";
+                SettingsTabSubtitleText.Text = "Version information, licensing, and telemetry";
             }
         }
     }
@@ -3330,12 +3365,16 @@ public partial class MainWindow : Window
                 ExternalNoAnswerSeconds = ComboBoxSeconds(ExternalNoAnswerTimeoutComboBox, 90),
                 ExternalNoAnswerAction = "Send busy",
                 QueuePickupEnabled = QueuePickupCheckBox.IsChecked == true,
+                SingleClickBlindTransfer = SingleClickBlindTransferCheckBox.IsChecked == true,
+                FlashCallState = FlashCallStateCheckBox.IsChecked == true,
+                ShowCallStatistics = ShowCallStatisticsCheckBox.IsChecked == true,
                 CombineContactsInSearch = CombineContactsCheckBox.IsChecked == true,
                 FailedCallDisplaySeconds = ComboBoxSeconds(FailedCallTimeoutComboBox, 5),
                 CallPickupPrefix = string.IsNullOrWhiteSpace(CallPickupPrefixTextBox.Text) ? "*4" : CallPickupPrefixTextBox.Text.Trim(),
                 AutoAnswerEnabled = AutoAnswerCheckBox?.IsChecked == true,
                 QueueLoginLogoutCode = string.IsNullOrWhiteSpace(QueueToggleCodeTextBox.Text) ? "*62" : QueueToggleCodeTextBox.Text.Trim(),
                 CallRecordingCode = string.IsNullOrWhiteSpace(CallRecordingCodeTextBox.Text) ? "*1" : CallRecordingCodeTextBox.Text.Trim(),
+                VoicemailNumber = string.IsNullOrWhiteSpace(VoicemailCodeTextBox.Text) ? "*2" : VoicemailCodeTextBox.Text.Trim(),
                 IgnoreSslErrors = IgnoreSslErrorsCheckBox.IsChecked == true
             };
 

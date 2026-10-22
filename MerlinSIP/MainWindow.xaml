@@ -273,32 +273,30 @@
         </Style>
 
         <Style x:Key="SettingsTabButton" TargetType="Button">
-            <Setter Property="Height" Value="42" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Foreground" Value="#111317" />
-            <Setter Property="Background" Value="#FFFFFF" />
-            <Setter Property="BorderBrush" Value="#E2E8F0" />
-            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#475569" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Margin" Value="0,0,0,4" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Chrome"
                                 Background="{TemplateBinding Background}"
-                                BorderBrush="#E2E8F0"
+                                BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8"
+                                CornerRadius="6"
                                 Padding="{TemplateBinding Padding}">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="8" ShadowDepth="1.5" Opacity="0.06" Color="#1E293B" />
-                            </Border.Effect>
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" Margin="12,0" />
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#FCD34D" />
+                                <Setter TargetName="Chrome" Property="Background" Value="#E2E8F0" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -1658,47 +1656,103 @@
             <Border Style="{StaticResource Surface}" Width="980" Height="640" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="0">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="210" />
+                        <ColumnDefinition Width="200" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
                     <!-- Sidebar Panel -->
-                    <Border Grid.Column="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,1,0" CornerRadius="8,0,0,8" Padding="16,20">
+                    <Border Grid.Column="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,1,0" CornerRadius="8,0,0,8" Padding="14,18">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             
                             <!-- Title -->
-                            <StackPanel Grid.Row="0" Margin="0,0,0,20">
-                                <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold" Foreground="#0F172A" />
-                                <TextBlock Text="Preferences &amp; System" FontSize="11" Foreground="#64748B" Margin="0,2,0,0" />
+                            <StackPanel Grid.Row="0" Margin="4,0,0,18">
+                                <TextBlock Text="Settings" FontSize="20" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <TextBlock Text="Merlin SIP Preferences" FontSize="11" Foreground="#64748B" Margin="0,2,0,0" />
                             </StackPanel>
                             
                             <!-- Sidebar Tabs -->
                             <StackPanel Grid.Row="1">
-                                <Button x:Name="TabBtnGeneral" Content="⚙️  General" Style="{StaticResource SettingsTabButton}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="SettingsGeneralButton_Click" Margin="0,0,0,5" AutomationProperties.Name="General Settings" />
-                                <Button x:Name="TabBtnAccount" Content="👤  Account &amp; SIP" Style="{StaticResource SettingsTabButton}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="SettingsAccountButton_Click" Margin="0,0,0,5" AutomationProperties.Name="Account and SIP Settings" />
-                                <Button x:Name="TabBtnAudio" Content="🔊  Audio &amp; Tunes" Style="{StaticResource SettingsTabButton}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="SettingsAudioButton_Click" Margin="0,0,0,5" AutomationProperties.Name="Audio and Ringtones Settings" />
-                                <Button x:Name="TabBtnHandling" Content="🔀  Call Routing" Style="{StaticResource SettingsTabButton}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="SettingsHandlingButton_Click" Margin="0,0,0,5" AutomationProperties.Name="Call Routing Settings" />
-                                <Button x:Name="TabBtnDiagnostics" Content="🛠️  Diagnostics" Style="{StaticResource SettingsTabButton}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="SettingsDiagnosticsButton_Click" Margin="0,0,0,5" AutomationProperties.Name="Diagnostics and Updates" />
-                                <Button x:Name="TabBtnAbout" Content="ℹ️  About" Style="{StaticResource SettingsTabButton}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="SettingsAboutButton_Click" Margin="0,0,0,5" AutomationProperties.Name="About Merlin SIP" />
+                                <Button x:Name="TabBtnGeneral" Style="{StaticResource SettingsTabButton}" Click="SettingsGeneralButton_Click" AutomationProperties.Name="General Settings">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE713;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <TextBlock Text="General" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="TabBtnAccount" Style="{StaticResource SettingsTabButton}" Click="SettingsAccountButton_Click" AutomationProperties.Name="Account and SIP Settings">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE77B;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <TextBlock Text="Account &amp; SIP" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="TabBtnAudio" Style="{StaticResource SettingsTabButton}" Click="SettingsAudioButton_Click" AutomationProperties.Name="Audio and Ringtones Settings">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE767;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <TextBlock Text="Audio &amp; Tunes" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="TabBtnHandling" Style="{StaticResource SettingsTabButton}" Click="SettingsHandlingButton_Click" AutomationProperties.Name="Call Routing Settings">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE72A;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <TextBlock Text="Call Routing" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="TabBtnDiagnostics" Style="{StaticResource SettingsTabButton}" Click="SettingsDiagnosticsButton_Click" AutomationProperties.Name="Diagnostics and Updates">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE90F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <TextBlock Text="Diagnostics" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="TabBtnAbout" Style="{StaticResource SettingsTabButton}" Click="SettingsAboutButton_Click" AutomationProperties.Name="About Merlin SIP">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE946;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <TextBlock Text="About" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
-
-                            <!-- Close Button -->
-                            <Button Grid.Row="2" Content="Close" Style="{StaticResource SoftButton}" HorizontalAlignment="Stretch" Click="CloseSettingsButton_Click" AutomationProperties.Name="Close Settings" />
                         </Grid>
                     </Border>
 
                     <!-- Settings Content Panel -->
-                    <Grid Grid.Column="1" Margin="20,18,16,16">
+                    <Grid Grid.Column="1" Margin="22,16,18,16">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <TabControl Grid.Row="0" x:Name="SettingsTabs" Background="Transparent" BorderThickness="0">
+
+                        <!-- Header with dynamic title/subtitle and top close X button -->
+                        <DockPanel Grid.Row="0" Margin="0,0,0,12" LastChildFill="False">
+                            <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                <TextBlock x:Name="SettingsTabTitleText" Text="General Preferences" FontSize="16" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <TextBlock x:Name="SettingsTabSubtitleText" Text="Application preferences and incoming call handling" FontSize="11" Foreground="#64748B" Margin="0,2,0,0" />
+                            </StackPanel>
+                            <Button DockPanel.Dock="Right"
+                                    x:Name="CloseSettingsTopButton"
+                                    Content="&#xE711;"
+                                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                    FontSize="11"
+                                    Width="28" Height="28"
+                                    Background="#F1F5F9"
+                                    BorderThickness="0"
+                                    Foreground="#475569"
+                                    Cursor="Hand"
+                                    Click="CloseSettingsButton_Click"
+                                    ToolTip="Close Settings"
+                                    AutomationProperties.Name="Close Settings">
+                                <Button.Resources>
+                                    <Style TargetType="Border">
+                                        <Setter Property="CornerRadius" Value="14" />
+                                    </Style>
+                                </Button.Resources>
+                            </Button>
+                        </DockPanel>
+
+                        <!-- Tab Control -->
+                        <TabControl Grid.Row="1" x:Name="SettingsTabs" Background="Transparent" BorderThickness="0">
                             <TabControl.Resources>
                                 <Style TargetType="TabItem">
                                     <Setter Property="Visibility" Value="Collapsed" />
@@ -1758,19 +1812,25 @@
 
                             <!-- Tab 1: General Preferences -->
                             <TabItem x:Name="SettingsGeneralTab" Header="General">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="0,0,10,0">
-                                    <StackPanel MaxWidth="680" HorizontalAlignment="Left">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="0,0,12,0">
+                                    <StackPanel MaxWidth="720" HorizontalAlignment="Stretch">
+                                        <!-- Card 1: Incoming Call Handling -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="Call preferences" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12" />
-                                                <TextBlock Text="Do not disturb mode" />
+                                                <TextBlock Text="Incoming Call Handling" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                                
+                                                <CheckBox x:Name="AutoAnswerCheckBox" Content="Auto-answer incoming calls after 1 second" FontWeight="SemiBold" Margin="0,2,0,2" Click="AutoAnswerCheckBox_Click" AutomationProperties.Name="Auto-answer Incoming Calls" />
+                                                <TextBlock Text="Automatically accepts incoming calls on Line 1 after a 1-second delay." Foreground="#64748B" FontSize="11" Margin="20,0,0,10" />
+
+                                                <TextBlock Text="Do not disturb mode" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
                                                 <ComboBox x:Name="DndModeComboBox" Margin="0,0,0,10" AutomationProperties.Name="Do Not Disturb Mode">
                                                     <ComboBoxItem Content="Off" />
                                                     <ComboBoxItem Content="Reject calls" />
                                                     <ComboBoxItem Content="Silent ringing" />
                                                 </ComboBox>
-                                                <TextBlock Text="When I decline a call" Margin="0,4,0,4" />
-                                                <ComboBox x:Name="DeclineActionComboBox" Margin="0,0,0,4" AutomationProperties.Name="Decline Action">
+
+                                                <TextBlock Text="When I decline a call" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
+                                                <ComboBox x:Name="DeclineActionComboBox" Margin="0,0,0,2" AutomationProperties.Name="Decline Action">
                                                     <ComboBoxItem Content="Send 603 Decline" />
                                                     <ComboBoxItem Content="Send busy" />
                                                     <ComboBoxItem Content="Send 480 Unavailable" />
@@ -1779,24 +1839,32 @@
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- Card 2: Call Workflow & Alerts (Moved from Account!) -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="Queue pickup" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                                <CheckBox x:Name="AutoAnswerCheckBox" Content="Auto-answer incoming calls after 1 second" FontWeight="SemiBold" Margin="0,0,0,10" Click="AutoAnswerCheckBox_Click" />
-                                                <CheckBox x:Name="QueuePickupCheckBox"  Content="Enable queue pickup shortcut" FontWeight="SemiBold" AutomationProperties.Name="Enable Queue Pickup" />
-                                                <DockPanel Margin="0,8,0,0">
-                                                    <Button DockPanel.Dock="Right" Content="Pick up queue call" Style="{StaticResource SoftButton}" Height="32" Width="150" Click="QueuePickupButton_Click" AutomationProperties.Name="Pick Up Queue Call" />
-                                                    <TextBlock Text="Uses *4 from this handset when queue pickup is enabled." Foreground="#64748B" FontSize="12" VerticalAlignment="Center" Margin="0" />
-                                                </DockPanel>
+                                                <TextBlock Text="Call Workflow &amp; Alerts" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                                
+                                                <CheckBox x:Name="FlashCallStateCheckBox" Content="Flash Windows taskbar on incoming call" FontWeight="SemiBold" Margin="0,2,0,2" IsChecked="True" AutomationProperties.Name="Flash Taskbar on Incoming Call" />
+                                                <TextBlock Text="Flashes the application taskbar icon when an incoming call arrives in the background." Foreground="#64748B" FontSize="11" Margin="20,0,0,8" />
+
+                                                <CheckBox x:Name="SingleClickBlindTransferCheckBox" Content="Single-click blind transfer" FontWeight="SemiBold" Margin="0,2,0,2" AutomationProperties.Name="Single-click Blind Transfer" />
+                                                <TextBlock Text="Instantly transfers the active call to a selected contact without requiring confirmation." Foreground="#64748B" FontSize="11" Margin="20,0,0,8" />
+
+                                                <CheckBox x:Name="ShowCallStatisticsCheckBox" Content="Show live call statistics overlay" FontWeight="SemiBold" Margin="0,2,0,2" AutomationProperties.Name="Show Live Call Statistics" />
+                                                <TextBlock Text="Displays real-time packet loss, jitter, and latency telemetry during calls." Foreground="#64748B" FontSize="11" Margin="20,0,0,2" />
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- Card 3: Search & Display Preferences -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="Search &amp; Display preferences" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10" />
-                                                <CheckBox x:Name="CombineContactsCheckBox" Content="Combine local &amp; PBX contacts in search" FontWeight="SemiBold" Margin="0,0,0,10" AutomationProperties.Name="Combine Contacts in Search" />
-                                                <TextBlock Text="Failed call message display duration" />
-                                                <ComboBox x:Name="FailedCallTimeoutComboBox" Margin="0,0,0,4" AutomationProperties.Name="Failed Call Timeout">
+                                                <TextBlock Text="Search &amp; Display Preferences" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                                
+                                                <CheckBox x:Name="CombineContactsCheckBox" Content="Combine local &amp; PBX contacts in search" FontWeight="SemiBold" Margin="0,2,0,2" AutomationProperties.Name="Combine Contacts in Search" />
+                                                <TextBlock Text="Searches both local contacts and the remote Merlin PBX company directory simultaneously." Foreground="#64748B" FontSize="11" Margin="20,0,0,10" />
+
+                                                <TextBlock Text="Failed call banner duration" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
+                                                <ComboBox x:Name="FailedCallTimeoutComboBox" Margin="0,0,0,2" AutomationProperties.Name="Failed Call Timeout">
                                                     <ComboBoxItem Content="5 seconds" />
                                                     <ComboBoxItem Content="10 seconds" />
                                                     <ComboBoxItem Content="15 seconds" />
@@ -1809,12 +1877,13 @@
 
                             <!-- Tab 2: Account Connection -->
                             <TabItem x:Name="SettingsAccountTab" Header="Account">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="0,0,10,0">
-                                    <StackPanel MaxWidth="680" HorizontalAlignment="Left">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="0,0,12,0">
+                                    <StackPanel MaxWidth="720" HorizontalAlignment="Stretch">
+                                        <!-- Card 1: Cloud Quick Provision -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="Cloud quick provision" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6" />
-                                                <TextBlock Text="Enter 8-digit setup code from your Merlin PBX dashboard:" Foreground="#64748B" FontSize="12" Margin="0,0,0,8" />
+                                                <TextBlock Text="Cloud Quick Provision" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                                <TextBlock Text="Enter the 8-digit setup code from your Merlin PBX dashboard to auto-configure this device:" Foreground="#64748B" FontSize="11" Margin="0,0,0,8" />
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
@@ -1826,34 +1895,35 @@
                                                              Margin="0,0,8,0"
                                                              AutomationProperties.Name="Provisioning Setup Code" />
                                                     <Button Grid.Column="1"
-                                                             x:Name="ProvisionAndReconnectButton"
-                                                             Content="Apply code"
-                                                             Style="{StaticResource SoftButton}"
-                                                             Height="32"
-                                                             Background="{StaticResource PrimaryBrush}"
-                                                             Foreground="White"
-                                                             Click="ProvisionAndReconnectButton_Click"
-                                                             AutomationProperties.Name="Apply Setup Code" />
+                                                            x:Name="ProvisionAndReconnectButton"
+                                                            Content="Apply Code"
+                                                            Style="{StaticResource SoftButton}"
+                                                            Height="32"
+                                                            Background="{StaticResource PrimaryBrush}"
+                                                            Foreground="White"
+                                                            Click="ProvisionAndReconnectButton_Click"
+                                                            AutomationProperties.Name="Apply Setup Code" />
                                                 </Grid>
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- Card 2: Account Credentials -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="Account credentials" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12" />
+                                                <TextBlock Text="SIP Account Credentials" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,10" />
                                                 
                                                 <StackPanel x:Name="PrivatePbxSettingsPanel" Visibility="Collapsed" Margin="0,0,0,10">
-                                                    <TextBlock Text="SIP server / PBX host" />
+                                                    <TextBlock Text="SIP server / PBX host" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
                                                     <TextBox x:Name="PrivatePbxSettingsTextBox" AutomationProperties.Name="Private PBX Server" />
                                                 </StackPanel>
 
-                                                <TextBlock Text="Extension or user ID" />
+                                                <TextBlock Text="Extension or user ID" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
                                                 <TextBox x:Name="ExtensionTextBox" AutomationProperties.Name="SIP Extension" />
 
-                                                <TextBlock Text="Authentication username" />
+                                                <TextBlock Text="Authentication username" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
                                                 <TextBox x:Name="UsernameTextBox" AutomationProperties.Name="Authentication Username" />
 
-                                                <TextBlock Text="Password" />
+                                                <TextBlock Text="SIP password" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
@@ -1866,11 +1936,12 @@
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- Card 3: Connection & Signalling -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="Connection &amp; Signalling" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12" />
+                                                <TextBlock Text="Connection &amp; Signalling" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,10" />
                                                 
-                                                <TextBlock Text="Signalling mode" />
+                                                <TextBlock Text="Signalling transport mode" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
                                                 <ComboBox x:Name="SipTransportModeComboBox" Height="32" VerticalContentAlignment="Center" SelectionChanged="SipTransportModeComboBox_SelectionChanged" Margin="0,0,0,10" AutomationProperties.Name="SIP Signalling Mode">
                                                     <ComboBoxItem Content="Standard UDP" Tag="UDP" />
                                                     <ComboBoxItem Content="TCP signalling" Tag="TCP" />
@@ -1880,47 +1951,43 @@
                                                 <CheckBox x:Name="SipAlgCompatibilityCheckBox"
                                                           Content="Router keepalive assist (SIP ALG bypass)"
                                                           FontWeight="SemiBold"
-                                                          Margin="0,4,0,6"
+                                                          Margin="0,4,0,2"
                                                           Checked="SipAlgCompatibilityCheckBox_Changed"
                                                           Unchecked="SipAlgCompatibilityCheckBox_Changed"
                                                           AutomationProperties.Name="Router Keepalive Assist" />
+                                                <TextBlock Text="Maintains NAT mapping and periodically pings the PBX to prevent router firewalls dropping incoming calls." Foreground="#64748B" FontSize="11" Margin="20,0,0,8" />
 
                                                 <CheckBox x:Name="IgnoreSslErrorsCheckBox"
                                                           Content="Ignore licensing SSL/TLS certificate validation"
                                                           FontWeight="SemiBold"
-                                                          Margin="0,0,0,8"
+                                                          Margin="0,2,0,2"
                                                           Checked="IgnoreSslErrorsCheckBox_Changed"
                                                           Unchecked="IgnoreSslErrorsCheckBox_Changed"
                                                           AutomationProperties.Name="Ignore SSL Certificate Validation" />
+                                                <TextBlock Text="Use only in private lab environments or development setups with self-signed certificates." Foreground="#64748B" FontSize="11" Margin="20,0,0,10" />
 
-                                                <Grid Margin="0,8,0,0">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                                        <TextBlock Text="NAT Keepalive: " Foreground="#64748B" />
-                                                        <TextBlock x:Name="NatKeepaliveStatusText" Text="Off" Foreground="#106247" FontWeight="Bold" />
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                        <TextBlock Text="rport: " Foreground="#64748B" />
-                                                        <TextBlock x:Name="RportStatusText" Text="On" Foreground="#106247" FontWeight="Bold" />
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                                        <TextBlock Text="Recovery: " Foreground="#64748B" />
-                                                        <TextBlock x:Name="AutoRecoveryStatusText" Text="On" Foreground="#106247" FontWeight="Bold" />
-                                                    </StackPanel>
-                                                </Grid>
-                                            </StackPanel>
-                                        </Border>
-
-                                        <Border Style="{StaticResource SettingsCard}">
-                                            <StackPanel>
-                                                <TextBlock Text="Call workflow &amp; alerts" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10" />
-                                                <CheckBox x:Name="SingleClickBlindTransferCheckBox" Content="Single-click blind transfer" Margin="0,0,0,6" Foreground="#111827" />
-                                                <CheckBox x:Name="FlashCallStateCheckBox" Content="Flash Windows taskbar on incoming call" Margin="0,0,0,6" Foreground="#111827" IsChecked="True" />
-                                                <CheckBox x:Name="ShowCallStatisticsCheckBox" Content="Show live call statistics (loss &amp; jitter)" Margin="0,0,0,2" Foreground="#111827" />
+                                                <!-- Live Signalling Status Pills -->
+                                                <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12,8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock Text="NAT Keepalive: " Foreground="#64748B" FontSize="11.5" Margin="0" />
+                                                            <TextBlock x:Name="NatKeepaliveStatusText" Text="Off" Foreground="#0E987E" FontWeight="Bold" FontSize="11.5" Margin="0" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock Text="rport: " Foreground="#64748B" FontSize="11.5" Margin="0" />
+                                                            <TextBlock x:Name="RportStatusText" Text="On" Foreground="#0E987E" FontWeight="Bold" FontSize="11.5" Margin="0" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock Text="Auto Recovery: " Foreground="#64748B" FontSize="11.5" Margin="0" />
+                                                            <TextBlock x:Name="AutoRecoveryStatusText" Text="On" Foreground="#0E987E" FontWeight="Bold" FontSize="11.5" Margin="0" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
@@ -1929,71 +1996,87 @@
 
                             <!-- Tab 3: Audio & Media -->
                             <TabItem x:Name="SettingsAudioTab" Header="Audio">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="0,0,10,0">
-                                    <StackPanel MaxWidth="680" HorizontalAlignment="Left">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="0,0,12,0">
+                                    <StackPanel MaxWidth="720" HorizontalAlignment="Stretch">
+                                        <!-- Card 1: Audio Devices -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="Audio devices" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12" />
+                                                <TextBlock Text="Audio Devices" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,10" />
                                                 
-                                                <TextBlock Text="Audio input (Microphone)" />
-                                                <ComboBox x:Name="AudioInputComboBox" AutomationProperties.Name="Audio Input Microphone" Margin="0,0,0,12" />
+                                                <!-- Microphone -->
+                                                <TextBlock Text="Audio input (Microphone)" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
+                                                <ComboBox x:Name="AudioInputComboBox" AutomationProperties.Name="Audio Input Microphone" Margin="0,0,0,6" />
+                                                
+                                                <!-- Microphone live VU meter right underneath mic selection -->
+                                                <Grid Margin="0,0,0,12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="90" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Mic live level:" Foreground="#64748B" FontSize="11" VerticalAlignment="Center" Margin="0" />
+                                                    <ProgressBar Grid.Column="1" x:Name="MicLevelProgressBar" Height="6" Minimum="0" Maximum="100" Value="0" Foreground="#10B981" Background="#E2E8F0" BorderThickness="0" VerticalAlignment="Center">
+                                                        <ProgressBar.Resources>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="CornerRadius" Value="3" />
+                                                            </Style>
+                                                        </ProgressBar.Resources>
+                                                    </ProgressBar>
+                                                </Grid>
 
+                                                <!-- Speaker Output -->
                                                 <DockPanel Margin="0,0,0,4">
-                                                    <Button DockPanel.Dock="Right" x:Name="TestSpeakerButton" Content="Test" Style="{StaticResource SoftButton}" Height="26" Width="60" Margin="6,0,0,0" VerticalAlignment="Center" Click="TestSpeakerButton_Click" ToolTip="Play test sound through speaker" />
-                                                    <TextBlock Text="Audio output (Speaker)" VerticalAlignment="Center" />
+                                                    <Button DockPanel.Dock="Right" x:Name="TestSpeakerButton" Content="Test Speaker" Style="{StaticResource SoftButton}" Height="26" Width="95" Margin="8,0,0,0" VerticalAlignment="Center" Click="TestSpeakerButton_Click" ToolTip="Play test sound through speaker" />
+                                                    <TextBlock Text="Audio output (Speaker)" Foreground="#475569" FontSize="11.5" FontWeight="Medium" VerticalAlignment="Center" Margin="0" />
                                                 </DockPanel>
                                                 <ComboBox x:Name="AudioOutputComboBox" AutomationProperties.Name="Audio Output Speaker" Margin="0,0,0,12" />
 
+                                                <!-- Secondary Ringer -->
                                                 <DockPanel Margin="0,0,0,4">
-                                                    <Button DockPanel.Dock="Right" x:Name="TestSecondaryRingerButton" Content="Preview Ringer" Style="{StaticResource SoftButton}" Height="26" Width="110" VerticalAlignment="Center" Margin="6,0,0,0" Click="TestSecondaryRingerButton_Click" ToolTip="Preview Secondary Ringer output" />
-                                                    <TextBlock Text="Secondary ringer (e.g. PC Speakers)" Foreground="#6B7280" FontSize="12" VerticalAlignment="Center" />
+                                                    <Button DockPanel.Dock="Right" x:Name="TestSecondaryRingerButton" Content="Preview Ringer" Style="{StaticResource SoftButton}" Height="26" Width="105" Margin="8,0,0,0" VerticalAlignment="Center" Click="TestSecondaryRingerButton_Click" ToolTip="Preview Secondary Ringer output" />
+                                                    <TextBlock Text="Secondary ringer (e.g. PC Speakers)" Foreground="#475569" FontSize="11.5" FontWeight="Medium" VerticalAlignment="Center" Margin="0" />
                                                 </DockPanel>
-                                                <ComboBox x:Name="SecondaryRingerComboBox" AutomationProperties.Name="Secondary Ringer Speaker" Margin="0,0,0,4" />
+                                                <ComboBox x:Name="SecondaryRingerComboBox" AutomationProperties.Name="Secondary Ringer Speaker" Margin="0,0,0,2" />
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- Card 2: Audio Levels & Volume -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <DockPanel Margin="0,0,0,10">
-                                                    <Button DockPanel.Dock="Right" x:Name="TestToneButton" Content="Preview Tone" Style="{StaticResource SoftButton}" Height="30" Width="110" Click="TestToneButton_Click" AutomationProperties.Name="Preview Ringtone Tone" />
-                                                    <TextBlock Text="Ringtone &amp; Theme Tunes" Foreground="#111827" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                </DockPanel>
-                                                <TextBlock Text="Select theme tune for incoming calls:" Foreground="#64748B" FontSize="12" Margin="0,0,0,6" />
-                                                <ComboBox x:Name="RingtoneComboBox" DisplayMemberPath="Name" Margin="0,0,0,4" AutomationProperties.Name="Ringtone Choice" />
-                                            </StackPanel>
-                                        </Border>
-
-                                        <Border Style="{StaticResource SettingsCard}">
-                                            <StackPanel>
-                                                <TextBlock Text="Audio levels &amp; Volume" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12" />
+                                                <TextBlock Text="Volume Levels &amp; Gain" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                                
                                                 <Grid Margin="0,0,0,10">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="130" />
+                                                        <ColumnDefinition Width="135" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="50" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="Headphones" VerticalAlignment="Center" />
+                                                    <TextBlock Text="Headphones / Speaker" VerticalAlignment="Center" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0" />
                                                     <Slider Grid.Column="1" x:Name="HeadphoneVolumeSlider" Minimum="25" Maximum="200" TickFrequency="5" Value="100" ValueChanged="VolumeSlider_ValueChanged" AutomationProperties.Name="Headphone Volume" />
-                                                    <TextBlock Grid.Column="2" x:Name="HeadphoneVolumeText" Text="100%" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" x:Name="HeadphoneVolumeText" Text="100%" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0" />
                                                 </Grid>
-                                                <Grid Margin="0,0,0,8">
+                                                
+                                                <Grid Margin="0,0,0,2">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="130" />
+                                                        <ColumnDefinition Width="135" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="50" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="Microphone gain" VerticalAlignment="Center" />
+                                                    <TextBlock Text="Microphone gain" VerticalAlignment="Center" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0" />
                                                     <Slider Grid.Column="1" x:Name="MicrophoneVolumeSlider" Minimum="25" Maximum="200" TickFrequency="5" Value="100" ValueChanged="VolumeSlider_ValueChanged" AutomationProperties.Name="Microphone Gain" />
-                                                    <TextBlock Grid.Column="2" x:Name="MicrophoneVolumeText" Text="100%" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" x:Name="MicrophoneVolumeText" Text="100%" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0" />
                                                 </Grid>
-                                                <Grid Margin="0,10,0,0">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="130" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="Mic test level" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" />
-                                                    <ProgressBar Grid.Column="1" x:Name="MicLevelProgressBar" Height="8" Minimum="0" Maximum="100" Value="0" Foreground="#10B981" Background="#E5E7EB" BorderThickness="0" />
-                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Card 3: Ringtone & Incoming Call Tunes -->
+                                        <Border Style="{StaticResource SettingsCard}">
+                                            <StackPanel>
+                                                <DockPanel Margin="0,0,0,8">
+                                                    <Button DockPanel.Dock="Right" x:Name="TestToneButton" Content="Preview Tone" Style="{StaticResource SoftButton}" Height="28" Width="105" Click="TestToneButton_Click" AutomationProperties.Name="Preview Ringtone Tone" />
+                                                    <TextBlock Text="Ringtone &amp; Theme Tunes" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0" />
+                                                </DockPanel>
+                                                <TextBlock Text="Select theme tune for incoming calls:" Foreground="#64748B" FontSize="11" Margin="0,0,0,6" />
+                                                <ComboBox x:Name="RingtoneComboBox" DisplayMemberPath="Name" Margin="0,0,0,2" AutomationProperties.Name="Ringtone Choice" />
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
@@ -2002,57 +2085,109 @@
 
                             <!-- Tab 4: Call Routing -->
                             <TabItem x:Name="SettingsHandlingTab" Header="Routing">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="0,0,10,0">
-                                    <StackPanel MaxWidth="680" HorizontalAlignment="Left">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="0,0,12,0">
+                                    <StackPanel MaxWidth="720" HorizontalAlignment="Stretch">
+                                        <!-- Card 1: Call Forwarding -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="Call forwarding" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                                <TextBlock Text="Mobile number for diverted calls" />
-                                                <TextBox x:Name="MobileNumberTextBox" Margin="0,0,0,4" AutomationProperties.Name="Mobile Number for Diverts" />
+                                                <TextBlock Text="Call Forwarding &amp; Diverts" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                                <TextBlock Text="Forward incoming calls to an external telephone or mobile number when enabled:" Foreground="#64748B" FontSize="11" Margin="0,0,0,6" />
+                                                <TextBlock Text="Mobile number for diverted calls" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
+                                                <TextBox x:Name="MobileNumberTextBox" Margin="0,0,0,2" AutomationProperties.Name="Mobile Number for Diverts" />
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- Card 2: PBX Feature Codes & Shortcodes -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="Feature codes" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12" />
-                                                <TextBlock Text="Call pickup prefix (default: *4)" />
-                                                <TextBox x:Name="CallPickupPrefixTextBox" AutomationProperties.Name="Call Pickup Prefix" />
-                                                <TextBlock Text="Queue toggle code" />
-                                                <TextBox x:Name="QueueToggleCodeTextBox" AutomationProperties.Name="Queue Toggle Code" />
-                                                <TextBlock Text="Call recording shortcut code" />
-                                                <TextBox x:Name="CallRecordingCodeTextBox" AutomationProperties.Name="Call Recording Code" />
+                                                <TextBlock Text="PBX Feature Codes" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                                <TextBlock Text="Standard feature shortcodes configured on your Merlin PBX:" Foreground="#64748B" FontSize="11" Margin="0,0,0,10" />
+
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="16" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- Left Column: Queue Pickup & Recording -->
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Queue pickup prefix (default: *4)" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
+                                                        <TextBox x:Name="CallPickupPrefixTextBox" Margin="0,0,0,8" AutomationProperties.Name="Call Pickup Prefix" />
+
+                                                        <CheckBox x:Name="QueuePickupCheckBox" Content="Enable queue pickup shortcut" FontWeight="SemiBold" Margin="0,2,0,2" AutomationProperties.Name="Enable Queue Pickup" />
+                                                        <TextBlock Text="Uses *4 to pick up ringing queue calls directly." Foreground="#64748B" FontSize="11" Margin="20,0,0,8" />
+
+                                                        <Button Content="Pick up queue call (*4)" Style="{StaticResource SoftButton}" Height="28" Width="160" HorizontalAlignment="Left" Click="QueuePickupButton_Click" AutomationProperties.Name="Pick Up Queue Call" />
+                                                    </StackPanel>
+
+                                                    <!-- Right Column: Voicemail, Queue Login, Recording -->
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Voicemail service code (default: *2)" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
+                                                        <TextBox x:Name="VoicemailCodeTextBox" Margin="0,0,0,8" AutomationProperties.Name="Voicemail Service Code" />
+
+                                                        <TextBlock Text="Queue login / logout code (default: *62)" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
+                                                        <TextBox x:Name="QueueToggleCodeTextBox" Margin="0,0,0,8" AutomationProperties.Name="Queue Toggle Code" />
+
+                                                        <TextBlock Text="Call recording toggle code (default: *1)" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
+                                                        <TextBox x:Name="CallRecordingCodeTextBox" Margin="0,0,0,2" AutomationProperties.Name="Call Recording Code" />
+                                                    </StackPanel>
+                                                </Grid>
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- Card 3: Routing Rules & Timeouts -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="Routing &amp; timeouts" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,12" />
-                                                
-                                                <TextBlock Text="Internal calls" Foreground="#0E987E" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6" />
-                                                <TextBlock Text="Action when busy" />
-                                                <ComboBox x:Name="InternalBusyActionComboBox" AutomationProperties.Name="Internal Busy Action">
-                                                    <ComboBoxItem Content="Send busy" />
-                                                    <ComboBoxItem Content="Keep ringing" />
-                                                </ComboBox>
-                                                <TextBlock Text="No-answer timeout" />
-                                                <ComboBox x:Name="InternalNoAnswerTimeoutComboBox" AutomationProperties.Name="Internal No Answer Timeout">
-                                                    <ComboBoxItem Content="30 seconds" />
-                                                    <ComboBoxItem Content="60 seconds" />
-                                                    <ComboBoxItem Content="90 seconds" />
-                                                </ComboBox>
-                                                
-                                                <TextBlock Text="External calls" Foreground="#0E987E" FontWeight="SemiBold" FontSize="13" Margin="0,8,0,6" />
-                                                <TextBlock Text="Action when busy" />
-                                                <ComboBox x:Name="ExternalBusyActionComboBox" AutomationProperties.Name="External Busy Action">
-                                                    <ComboBoxItem Content="Send busy" />
-                                                    <ComboBoxItem Content="Keep ringing" />
-                                                </ComboBox>
-                                                <TextBlock Text="No-answer timeout" />
-                                                <ComboBox x:Name="ExternalNoAnswerTimeoutComboBox" AutomationProperties.Name="External No Answer Timeout">
-                                                    <ComboBoxItem Content="30 seconds" />
-                                                    <ComboBoxItem Content="60 seconds" />
-                                                    <ComboBoxItem Content="90 seconds" />
-                                                </ComboBox>
+                                                <TextBlock Text="Routing Rules &amp; Timeouts" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,10" />
+
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="16" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- Internal Calls -->
+                                                    <Border Grid.Column="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                                                        <StackPanel>
+                                                            <TextBlock Text="Internal Calls" Foreground="#0E987E" FontWeight="SemiBold" FontSize="12.5" Margin="0,0,0,8" />
+                                                            
+                                                            <TextBlock Text="Action when busy" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
+                                                            <ComboBox x:Name="InternalBusyActionComboBox" Margin="0,0,0,8" AutomationProperties.Name="Internal Busy Action">
+                                                                <ComboBoxItem Content="Send busy" />
+                                                                <ComboBoxItem Content="Keep ringing" />
+                                                            </ComboBox>
+
+                                                            <TextBlock Text="No-answer timeout" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
+                                                            <ComboBox x:Name="InternalNoAnswerTimeoutComboBox" Margin="0,0,0,2" AutomationProperties.Name="Internal No Answer Timeout">
+                                                                <ComboBoxItem Content="30 seconds" />
+                                                                <ComboBoxItem Content="60 seconds" />
+                                                                <ComboBoxItem Content="90 seconds" />
+                                                            </ComboBox>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <!-- External Calls -->
+                                                    <Border Grid.Column="2" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                                                        <StackPanel>
+                                                            <TextBlock Text="External Calls" Foreground="#0E987E" FontWeight="SemiBold" FontSize="12.5" Margin="0,0,0,8" />
+                                                            
+                                                            <TextBlock Text="Action when busy" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
+                                                            <ComboBox x:Name="ExternalBusyActionComboBox" Margin="0,0,0,8" AutomationProperties.Name="External Busy Action">
+                                                                <ComboBoxItem Content="Send busy" />
+                                                                <ComboBoxItem Content="Keep ringing" />
+                                                            </ComboBox>
+
+                                                            <TextBlock Text="No-answer timeout" Foreground="#475569" FontSize="11.5" FontWeight="Medium" Margin="0,0,0,4" />
+                                                            <ComboBox x:Name="ExternalNoAnswerTimeoutComboBox" Margin="0,0,0,2" AutomationProperties.Name="External No Answer Timeout">
+                                                                <ComboBoxItem Content="30 seconds" />
+                                                                <ComboBoxItem Content="60 seconds" />
+                                                                <ComboBoxItem Content="90 seconds" />
+                                                            </ComboBox>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Grid>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
@@ -2061,39 +2196,49 @@
 
                             <!-- Tab 5: Diagnostics & Updates -->
                             <TabItem x:Name="SettingsDiagnosticsTab" Header="Diagnostics">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="0,0,10,0">
-                                    <StackPanel MaxWidth="680" HorizontalAlignment="Left">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="0,0,12,0">
+                                    <StackPanel MaxWidth="720" HorizontalAlignment="Stretch">
+                                        <!-- Card 1: Network & PBX Diagnostics -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
                                                 <DockPanel Margin="0,0,0,10">
-                                                    <Button DockPanel.Dock="Right" x:Name="RunPbxDiagnosticsButton" Content="Run test" Style="{StaticResource SoftButton}" Height="30" Width="100" Click="RunPbxDiagnosticsButton_Click" AutomationProperties.Name="Run Network Diagnostics" />
-                                                    <TextBlock Text="Network &amp; PBX Diagnostics" Foreground="#111827" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                    <Button DockPanel.Dock="Right" x:Name="RunPbxDiagnosticsButton" Content="Run Test" Style="{StaticResource SoftButton}" Height="28" Width="95" Click="RunPbxDiagnosticsButton_Click" AutomationProperties.Name="Run Network Diagnostics" />
+                                                    <TextBlock Text="Network &amp; PBX Diagnostics" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0" />
                                                 </DockPanel>
-                                                <TextBlock x:Name="PbxDiagnosticsText" Text="No diagnostic test has been run yet." Foreground="#334155" FontWeight="SemiBold" FontSize="12" TextWrapping="Wrap" />
+                                                <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                                                    <TextBlock x:Name="PbxDiagnosticsText" Text="No diagnostic test has been run yet." Foreground="#334155" FontWeight="Medium" FontSize="12" TextWrapping="Wrap" Margin="0" />
+                                                </Border>
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- Card 2: Software Updates -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
                                                 <DockPanel Margin="0,0,0,10">
-                                                    <Button DockPanel.Dock="Right" x:Name="CheckUpdatesButton" Content="Check updates" Style="{StaticResource SoftButton}" Height="30" Width="120" Click="CheckUpdatesButton_Click" AutomationProperties.Name="Check Software Updates" />
-                                                    <TextBlock Text="Software updates" Foreground="#111827" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                    <Button DockPanel.Dock="Right" x:Name="CheckUpdatesButton" Content="Check Updates" Style="{StaticResource SoftButton}" Height="28" Width="110" Click="CheckUpdatesButton_Click" AutomationProperties.Name="Check Software Updates" />
+                                                    <TextBlock Text="Software Updates" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0" />
                                                 </DockPanel>
-                                                <TextBlock x:Name="UpdateStatusText" Text="Checking for updates" Foreground="#64748B" FontSize="12" TextWrapping="Wrap" />
-                                                <TextBlock x:Name="UpdateNotesText" Foreground="#64748B" FontSize="11.5" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                                <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12,10">
+                                                    <StackPanel>
+                                                        <TextBlock x:Name="UpdateStatusText" Text="Checking for updates" Foreground="#334155" FontWeight="Medium" FontSize="12" TextWrapping="Wrap" Margin="0" />
+                                                        <TextBlock x:Name="UpdateNotesText" Foreground="#64748B" FontSize="11.5" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </Border>
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- Card 3: Support & Maintenance -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="Support &amp; Maintenance" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10" />
+                                                <TextBlock Text="Support &amp; Maintenance" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,10" />
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="12" />
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
-                                                    <Button Grid.Column="0" Content="Send diagnostic log" Style="{StaticResource SoftButton}" Height="32" Margin="0,0,6,0" Click="SendErrorLogButton_Click" AutomationProperties.Name="Send Diagnostic Error Log" />
-                                                    <Button Grid.Column="1" Content="Reset application cache" Style="{StaticResource SoftButton}" Height="32" Background="{StaticResource DangerBrush}" Foreground="White" Margin="6,0,0,0" Click="ResetCacheButton_Click" AutomationProperties.Name="Reset Application Cache" />
+                                                    <Button Grid.Column="0" Content="Send Diagnostic Log" Style="{StaticResource SoftButton}" Height="32" Click="SendErrorLogButton_Click" AutomationProperties.Name="Send Diagnostic Error Log" />
+                                                    <Button Grid.Column="2" Content="Reset Application Cache" Style="{StaticResource SoftButton}" Height="32" Background="{StaticResource DangerBrush}" Foreground="White" Click="ResetCacheButton_Click" AutomationProperties.Name="Reset Application Cache" />
                                                 </Grid>
                                             </StackPanel>
                                         </Border>
@@ -2103,12 +2248,13 @@
 
                             <!-- Tab 6: About -->
                             <TabItem x:Name="SettingsAboutTab" Header="About">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="0,0,10,0">
-                                    <StackPanel MaxWidth="680" HorizontalAlignment="Left">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="0,0,12,0">
+                                    <StackPanel MaxWidth="720" HorizontalAlignment="Stretch">
+                                        <!-- Card 1: About Merlin SIP -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="About Merlin SIP" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6" />
-                                                <TextBlock Text="Enterprise business SIP client for managed calling, messaging, contacts, and reception workflows." Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,12" />
+                                                <TextBlock Text="About Merlin SIP" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                                <TextBlock Text="Enterprise business SIP client for managed calling, messaging, contacts, and reception workflows." Foreground="#64748B" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,12" />
                                                 
                                                 <Grid Margin="0,4,0,0">
                                                     <Grid.ColumnDefinitions>
@@ -2122,39 +2268,41 @@
                                                         <RowDefinition Height="Auto" />
                                                         <RowDefinition Height="Auto" />
                                                     </Grid.RowDefinitions>
-                                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Version" Foreground="#64748B" Margin="0,0,0,6" />
-                                                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AboutVersionText" Text="1.3.3" Foreground="#111827" FontWeight="SemiBold" Margin="0,0,0,6" />
                                                     
-                                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Product" Foreground="#64748B" Margin="0,0,0,6" />
-                                                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ProductIdText" Text="merlin-sip" Foreground="#111827" Margin="0,0,0,6" />
+                                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Version" Foreground="#64748B" FontSize="11.5" Margin="0,0,0,8" />
+                                                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AboutVersionText" Text="1.3.3" Foreground="#0F172A" FontWeight="SemiBold" FontSize="11.5" Margin="0,0,0,8" />
                                                     
-                                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Licensed to" Foreground="#64748B" Margin="0,0,0,6" />
-                                                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="LicensedToText" Text="Checking..." Foreground="#111827" Margin="0,0,0,6" />
+                                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Product" Foreground="#64748B" FontSize="11.5" Margin="0,0,0,8" />
+                                                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ProductIdText" Text="merlin-sip" Foreground="#0F172A" FontSize="11.5" Margin="0,0,0,8" />
                                                     
-                                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Support" Foreground="#64748B" Margin="0,0,0,6" />
-                                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="CK Media Services (ckmediaservices.co.uk)" Foreground="#111827" Margin="0,0,0,6" />
+                                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Licensed to" Foreground="#64748B" FontSize="11.5" Margin="0,0,0,8" />
+                                                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="LicensedToText" Text="Checking..." Foreground="#0F172A" FontSize="11.5" Margin="0,0,0,8" />
                                                     
-                                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Connection" Foreground="#64748B" />
-                                                    <DockPanel Grid.Row="4" Grid.Column="1">
+                                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Support" Foreground="#64748B" FontSize="11.5" Margin="0,0,0,8" />
+                                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="CK Media Services (ckmediaservices.co.uk)" Foreground="#0F172A" FontSize="11.5" Margin="0,0,0,8" />
+                                                    
+                                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Connection" Foreground="#64748B" FontSize="11.5" VerticalAlignment="Center" Margin="0" />
+                                                    <DockPanel Grid.Row="4" Grid.Column="1" VerticalAlignment="Center">
                                                         <Border x:Name="ConnectionPill" Background="#FFF1D6" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="0,0,8,0">
                                                             <TextBlock x:Name="ConnectionStatusText" Text="Connecting..." Foreground="#8A4F08" FontWeight="SemiBold" FontSize="10" Margin="0" />
                                                         </Border>
-                                                        <TextBlock x:Name="ServerStatusText" Text="Checking status" Foreground="#64748B" VerticalAlignment="Center" Margin="0" />
+                                                        <TextBlock x:Name="ServerStatusText" Text="Checking status" Foreground="#64748B" FontSize="11.5" VerticalAlignment="Center" Margin="0" />
                                                     </DockPanel>
                                                 </Grid>
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- Card 2: Network Telemetry -->
                                         <Border Style="{StaticResource SettingsCard}">
                                             <StackPanel>
-                                                <TextBlock Text="Real-time Network Metrics" Foreground="#111827" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                                <TextBlock Text="Real-time Network Metrics" Foreground="#0F172A" FontSize="13.5" FontWeight="SemiBold" Margin="0,0,0,8" />
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="140" />
+                                                        <ColumnDefinition Width="130" />
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" Text="Round-trip Latency" Foreground="#64748B" />
-                                                    <TextBlock Grid.Column="1" x:Name="PingStatusText" Text="Not checked yet" Foreground="#111827" FontWeight="SemiBold" />
+                                                    <TextBlock Grid.Column="0" Text="Round-trip latency" Foreground="#64748B" FontSize="11.5" Margin="0" />
+                                                    <TextBlock Grid.Column="1" x:Name="PingStatusText" Text="Not checked yet" Foreground="#0F172A" FontWeight="SemiBold" FontSize="11.5" Margin="0" />
                                                 </Grid>
                                             </StackPanel>
                                         </Border>
@@ -2163,8 +2311,8 @@
                             </TabItem>
                         </TabControl>
 
-                        <!-- Unified Action Buttons with Success Banner and Non-closing Save -->
-                        <Border Grid.Row="1" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Padding="0,12,0,0" Margin="0,10,0,0">
+                        <!-- Footer Action Bar -->
+                        <Border Grid.Row="2" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0" Padding="0,12,0,0" Margin="0,10,0,0">
                             <DockPanel LastChildFill="True">
                                 <Border x:Name="SettingsSavedBanner" DockPanel.Dock="Left" Background="#DCFCE7" BorderBrush="#86EFAC" BorderThickness="1" CornerRadius="6" Padding="12,5" Visibility="Collapsed" VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal">
