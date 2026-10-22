@@ -399,8 +399,36 @@ public sealed class RtpAudioSession : IDisposable
 		});
 	}
 
-	public async Task SendDtmfAsync(char digit, CancellationToken cancellationToken = default(CancellationToken))
+	public async Task SendDtmfAsync(char digit, CancellationToken cancellationToken = default(CancellationToken), bool isSecondary = false)
 	{
+		if (isSecondary)
+		{
+			if (!_secondaryRunning || _secondaryRemoteEndPoint == null || _secondaryRtpClient == null)
+			{
+				throw new InvalidOperationException("Secondary RTP is not active.");
+			}
+			byte secCode = GetDtmfEventCode(digit);
+			uint secTimestamp;
+			lock (_secondarySendSync)
+			{
+				secTimestamp = _secondaryTimestamp;
+			}
+			ushort secDuration = 0;
+			for (int packetIndex = 0; packetIndex < 5; packetIndex++)
+			{
+				secDuration += 400;
+				SendDtmfPacket(secCode, secDuration, secTimestamp, end: false, packetIndex == 0, isSecondary: true);
+				await Task.Delay(50, cancellationToken);
+			}
+			secDuration += 400;
+			for (int packetIndex = 0; packetIndex < 3; packetIndex++)
+			{
+				SendDtmfPacket(secCode, secDuration, secTimestamp, end: true, marker: false, isSecondary: true);
+				await Task.Delay(50, cancellationToken);
+			}
+			return;
+		}
+
 		if (!_running || _remoteEndPoint == null)
 		{
 			throw new InvalidOperationException("RTP is not active.");
@@ -415,13 +443,13 @@ public sealed class RtpAudioSession : IDisposable
 		for (int packetIndex = 0; packetIndex < 5; packetIndex++)
 		{
 			duration += 400;
-			SendDtmfPacket(eventCode, duration, eventTimestamp, end: false, packetIndex == 0);
+			SendDtmfPacket(eventCode, duration, eventTimestamp, end: false, packetIndex == 0, isSecondary: false);
 			await Task.Delay(50, cancellationToken);
 		}
 		duration += 400;
 		for (int packetIndex = 0; packetIndex < 3; packetIndex++)
 		{
-			SendDtmfPacket(eventCode, duration, eventTimestamp, end: true, marker: false);
+			SendDtmfPacket(eventCode, duration, eventTimestamp, end: true, marker: false, isSecondary: false);
 			await Task.Delay(50, cancellationToken);
 		}
 	}
@@ -782,8 +810,30 @@ public sealed class RtpAudioSession : IDisposable
 		}
 	}
 
-	private void SendDtmfPacket(byte eventCode, ushort duration, uint timestamp, bool end, bool marker)
+	private void SendDtmfPacket(byte eventCode, ushort duration, uint timestamp, bool end, bool marker, bool isSecondary = false)
 	{
+		if (isSecondary)
+		{
+			if (_secondaryRemoteEndPoint == null || _secondaryRtpClient == null)
+			{
+				return;
+			}
+			byte[] secPayload = new byte[4]
+			{
+				eventCode,
+				(byte)((end ? 128 : 0) | 0xA),
+				0,
+				0
+			};
+			WriteUInt16(secPayload, 2, duration);
+			lock (_secondarySendSync)
+			{
+				byte[] packet = BuildRtpPacket(secPayload, 101, timestamp, marker, _secondarySsrc, ref _secondarySequence);
+				_secondaryRtpClient.Send(packet, packet.Length, _secondaryRemoteEndPoint);
+			}
+			return;
+		}
+
 		if (_remoteEndPoint == null)
 		{
 			return;

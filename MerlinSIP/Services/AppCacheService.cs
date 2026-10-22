@@ -97,9 +97,10 @@ public sealed class AppCacheService
             settings.IncomingNotificationSeconds ?? 30,
             settings.FailedCallDisplaySeconds ?? 5,
             settings.ShowFavouriteExtensionsOnTransfer ?? true,
-            settings.CallPickupPrefix ?? "*8",
+            settings.CallPickupPrefix ?? "*4",
             settings.QueueLoginLogoutCode ?? "*62",
             settings.CallRecordingCode ?? "*1",
+            settings.VoicemailNumber ?? "*2",
             settings.EnableAdvancedDiagnostics ?? false,
             settings.StunServer ?? "stun.l.google.com:19302",
             settings.RegistrationExpiry ?? 3600,
@@ -164,7 +165,8 @@ public sealed class AppCacheService
             config.LocalSipPort,
             config.PreferredCodecs,
             config.IgnoreSslErrors,
-            config.SecondaryRingerOutput);
+            config.SecondaryRingerOutput,
+            config.VoicemailNumber);
 
         try
         {
@@ -208,7 +210,6 @@ public sealed class AppCacheService
         }
         else
         {
-            // Simple Base64 encode for non-Windows for now
             return Convert.ToBase64String(plainBytes);
         }
     }
@@ -232,7 +233,6 @@ public sealed class AppCacheService
             }
             else
             {
-                // Simple Base64 decode for non-Windows for now
                 return Encoding.UTF8.GetString(encryptedBytes);
             }
         }
@@ -309,5 +309,6 @@ public sealed class AppCacheService
         int? LocalSipPort = null,
         string? PreferredCodecs = null,
         bool? IgnoreSslErrors = null,
-        MediaDeviceInfo? SecondaryRingerOutput = null);
+        MediaDeviceInfo? SecondaryRingerOutput = null,
+        string? VoicemailNumber = null);
 }

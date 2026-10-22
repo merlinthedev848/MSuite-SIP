@@ -1003,6 +1003,47 @@ public partial class MainWindow : Window
         {
             NoticeText.Text = "Call ended.";
             FooterStatusText.Text = e.Message;
+
+            if (e.LineNumber == 2)
+            {
+                _line2.Status = "Idle";
+                _line2.RemoteNumber = "";
+                _line2.RemoteName = "";
+                _line2.ConnectedAt = null;
+                _line2.IsHeld = false;
+                if (_line1.HasCall) SelectLine(1);
+            }
+            else if (e.LineNumber == 1)
+            {
+                _line1.Status = "Idle";
+                _line1.RemoteNumber = "";
+                _line1.RemoteName = "";
+                _line1.ConnectedAt = null;
+                _line1.IsHeld = false;
+                if (_line2.HasCall) SelectLine(2);
+            }
+            else
+            {
+                if (_selectedLine == 2)
+                {
+                    _line2.Status = "Idle";
+                    _line2.RemoteNumber = "";
+                    _line2.RemoteName = "";
+                    _line2.ConnectedAt = null;
+                    _line2.IsHeld = false;
+                    if (_line1.HasCall) SelectLine(1);
+                }
+                else
+                {
+                    _line1.Status = "Idle";
+                    _line1.RemoteNumber = "";
+                    _line1.RemoteName = "";
+                    _line1.ConnectedAt = null;
+                    _line1.IsHeld = false;
+                    if (_line2.HasCall) SelectLine(2);
+                }
+            }
+            UpdateLineAppearances();
             
             string state = "Ended";
             if (!_callConnected)
@@ -1840,23 +1881,34 @@ public partial class MainWindow : Window
             return;
         }
 
-        var digitText = button.Content?.ToString();
-        if (string.IsNullOrWhiteSpace(digitText))
+        char digit = ' ';
+        if (button.Tag is string tagStr && tagStr.Length > 0)
+        {
+            digit = tagStr[0];
+        }
+        else if (button.Content is string contentStr && contentStr.Length > 0)
+        {
+            digit = contentStr[0];
+        }
+
+        if (digit == ' ')
         {
             return;
         }
 
-        var digit = digitText[0];
+        // Audibly play simulated DTMF tone through the selected audio output device
+        DtmfTonePlayer.Play(digit, _config.AudioOutput);
+
         if (_callConnected)
         {
-            var result = await _sipRegistrationService.SendDtmfAsync(digit);
+            var result = await _sipRegistrationService.SendDtmfAsync(digit, _selectedLine);
             FooterStatusText.Text = result.Signalled
                 ? $"Sent tone {digit}."
                 : result.Message;
             return;
         }
 
-        DestinationTextBox.Text += digitText;
+        DestinationTextBox.Text += digit;
         DestinationTextBox.CaretIndex = DestinationTextBox.Text.Length;
     }
 
@@ -1906,9 +1958,16 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_callInProgress || _incomingRinging)
+        var targetLine = _selectedLine == 1 ? _line1 : _line2;
+        if (targetLine.HasCall)
         {
-            NoticeText.Text = "A call is already active or in progress.";
+            NoticeText.Text = $"Line {_selectedLine} already has an active call.";
+            return;
+        }
+
+        if (_incomingRinging)
+        {
+            NoticeText.Text = "An incoming call is ringing.";
             return;
         }
 
@@ -1916,6 +1975,12 @@ public partial class MainWindow : Window
         {
             NoticeText.Text = "Please wait a moment before placing another call.";
             return;
+        }
+
+        var otherLine = _selectedLine == 1 ? _line2 : _line1;
+        if (otherLine.HasCall && !otherLine.IsHeld)
+        {
+            await HoldLine(otherLine.LineNumber);
         }
 
         var destination = NormalizeDialDestination(rawNumber);
@@ -1927,14 +1992,14 @@ public partial class MainWindow : Window
 
         DestinationTextBox.Text = destination;
         _lastDialedNumber = destination;
-        DebugLog.Write($"UI dial requested destination={destination}");
+        DebugLog.Write($"UI dial requested line={_selectedLine} destination={destination}");
 
         var contact = _contactStore.FindByNumber(_contacts, destination);
         var name = contact?.Name ?? destination;
         StopLocalRingback();
         _ringtonePlayer.Stop();
         _secondaryRingtonePlayer.Stop();
-        NoticeText.Text = $"Calling {name}.";
+        NoticeText.Text = $"Calling {name} on Line {_selectedLine}.";
         _activeCallStartedAt = DateTimeOffset.Now;
         _activeCallDirection = "Outbound";
         _activeRemoteNumber = destination;
@@ -1965,7 +2030,8 @@ public partial class MainWindow : Window
 
         try
         {
-            var result = await _sipRegistrationService.InviteAsync(destination);
+            _sipRegistrationService.SetSelectedLine(_selectedLine);
+            var result = await _sipRegistrationService.InviteLineAsync(_selectedLine, destination);
             FooterStatusText.Text = result.Message;
             if (!result.Signalled)
             {
@@ -2280,7 +2346,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        DestinationTextBox.Text = "*97";
+        DestinationTextBox.Text = string.IsNullOrWhiteSpace(_config.VoicemailNumber) ? "*2" : _config.VoicemailNumber;
         DialButton_Click(sender, e);
     }
 
@@ -3169,10 +3235,11 @@ public partial class MainWindow : Window
             DialFavoritesListView.SelectedItem = null;
             PhonebookContactsListView.SelectedItem = null;
 
-            SettingsOverlay.IsHitTestVisible = false;
-            await Task.Delay(200);
-            SettingsOverlay.Visibility = Visibility.Collapsed;
             SettingsOverlay.IsHitTestVisible = true;
+            if (SettingsSavedBanner != null)
+            {
+                SettingsSavedBanner.Visibility = Visibility.Visible;
+            }
             FooterStatusText.Text = "Settings saved successfully.";
 
             if (transportChanged || credentialsChanged)
@@ -3201,7 +3268,7 @@ public partial class MainWindow : Window
         }
 
         var pickupCode = string.IsNullOrWhiteSpace(CallPickupPrefixTextBox.Text)
-            ? (string.IsNullOrWhiteSpace(_config.CallPickupPrefix) ? "*8" : _config.CallPickupPrefix)
+            ? (string.IsNullOrWhiteSpace(_config.CallPickupPrefix) ? "*4" : _config.CallPickupPrefix)
             : CallPickupPrefixTextBox.Text.Trim();
         DestinationTextBox.Text = pickupCode;
         MainTabs.SelectedItem = PhoneTab;
@@ -4020,7 +4087,7 @@ del ""%~f0""
 
         targetLine.IsHeld = true;
         _held = true;
-        await _sipRegistrationService.SetHeldAsync(true);
+        await _sipRegistrationService.HoldLineAsync(line, true);
         UpdateInCallButtonIcons();
         UpdateLineAppearances();
         FooterStatusText.Text = $"Line {line} placed on hold.";
@@ -4033,7 +4100,7 @@ del ""%~f0""
 
         targetLine.IsHeld = false;
         _held = false;
-        await _sipRegistrationService.SetHeldAsync(false);
+        await _sipRegistrationService.HoldLineAsync(line, false);
         UpdateInCallButtonIcons();
         UpdateLineAppearances();
         FooterStatusText.Text = $"Line {line} resumed.";
@@ -4073,14 +4140,14 @@ del ""%~f0""
         }
     }
 
-    private void Line1HangupButton_Click(object sender, RoutedEventArgs e)
+    private async void Line1HangupButton_Click(object sender, RoutedEventArgs e)
     {
         _line1.Status = "Idle";
         _line1.RemoteNumber = "";
         _line1.RemoteName = "";
         _line1.ConnectedAt = null;
         _line1.IsHeld = false;
-        HangupButton_Click(sender, e);
+        await _sipRegistrationService.EndLineCallAsync(1);
         if (_line2.HasCall)
         {
             SelectLine(2);
@@ -4088,19 +4155,24 @@ del ""%~f0""
         else
         {
             _selectedLine = 1;
+            _callInProgress = false;
+            _callConnected = false;
+            StopCallTimer();
+            ClearDialpadAfterCall();
+            SetPresenceDisplay(_userSelectedPresence);
         }
         UpdateCallControls();
         UpdateLineAppearances();
     }
 
-    private void Line2HangupButton_Click(object sender, RoutedEventArgs e)
+    private async void Line2HangupButton_Click(object sender, RoutedEventArgs e)
     {
         _line2.Status = "Idle";
         _line2.RemoteNumber = "";
         _line2.RemoteName = "";
         _line2.ConnectedAt = null;
         _line2.IsHeld = false;
-        HangupButton_Click(sender, e);
+        await _sipRegistrationService.EndLineCallAsync(2);
         if (_line1.HasCall)
         {
             SelectLine(1);
@@ -4108,6 +4180,11 @@ del ""%~f0""
         else
         {
             _selectedLine = 1;
+            _callInProgress = false;
+            _callConnected = false;
+            StopCallTimer();
+            ClearDialpadAfterCall();
+            SetPresenceDisplay(_userSelectedPresence);
         }
         UpdateCallControls();
         UpdateLineAppearances();
