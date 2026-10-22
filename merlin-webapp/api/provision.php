@@ -44,45 +44,68 @@ $urlTemplates = [
 
 $provisioned = null;
 $lastError = 'The 8-digit provisioning code could not be verified by the PBX accounts server.';
+$payload = (string) json_encode(['code' => $cleanedCode]);
+$hasCurl = function_exists('curl_init');
 
 // Attempt live provisioning against PBX accounts server
 foreach ($urlTemplates as $template) {
     $url = str_replace('{code}', $cleanedCode, $template);
-    
-    $ch = curl_init($url);
-    if ($ch === false) {
-        continue;
+    $response = false;
+    $httpCode = 0;
+
+    if ($hasCurl) {
+        $ch = curl_init($url);
+        if ($ch === false) {
+            continue;
+        }
+
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'User-Agent: MerlinSIP-Web/' . MERLIN_WEBAPP_VERSION,
+            ],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 6,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+    } else {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => "Content-Type: application/json\r\nAccept: application/json\r\nUser-Agent: MerlinSIP-Web/" . MERLIN_WEBAPP_VERSION . "\r\n",
+                'content' => $payload,
+                'timeout' => 6,
+                'ignore_errors' => true,
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
+        $response = @file_get_contents($url, false, $context);
+        if (isset($http_response_header[0]) && preg_match('/HTTP\/\S+\s+(\d{3})/', $http_response_header[0], $m)) {
+            $httpCode = (int) $m[1];
+        }
     }
-    
-    $payload = json_encode(['code' => $cleanedCode]);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $payload,
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            'Accept: application/json',
-            'User-Agent: MerlinSIP-Web/' . MERLIN_WEBAPP_VERSION,
-        ],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 6,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_SSL_VERIFYPEER => true,
-    ]);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
+
     if ($response && ($httpCode === 200 || $httpCode === 201)) {
         $decoded = json_decode((string) $response, true);
         if (is_array($decoded) && (!empty($decoded['success']) || !empty($decoded['sip']) || !empty($decoded['extension']))) {
             $sip = $decoded['sip'] ?? $decoded;
-            $ext = (string)($sip['extension'] ?? $sip['ext'] ?? $sip['user'] ?? '');
-            $auth = (string)($sip['auth_name'] ?? $sip['username'] ?? $sip['authUsername'] ?? $ext);
-            $pwd = (string)($sip['sip_password'] ?? $sip['password'] ?? $sip['secret'] ?? '');
-            $server = (string)($sip['server_wss'] ?? $sip['websocket_url'] ?? $sip['sipServer'] ?? '');
-            $domain = (string)($sip['domain'] ?? $sip['sipDomain'] ?? '');
-            $display = (string)($sip['display_name'] ?? $sip['displayName'] ?? ('Ext ' . $ext));
+            $ext = (string) ($sip['extension'] ?? $sip['ext'] ?? $sip['user'] ?? '');
+            $auth = (string) ($sip['auth_name'] ?? $sip['username'] ?? $sip['authUsername'] ?? $ext);
+            $pwd = (string) ($sip['sip_password'] ?? $sip['password'] ?? $sip['secret'] ?? '');
+            $server = (string) ($sip['server_wss'] ?? $sip['websocket_url'] ?? $sip['sipServer'] ?? '');
+            $domain = (string) ($sip['domain'] ?? $sip['sipDomain'] ?? '');
+            $display = (string) ($sip['display_name'] ?? $sip['displayName'] ?? ('Ext ' . $ext));
 
             if ($ext !== '' && $pwd !== '') {
                 $provisioned = [
@@ -96,7 +119,7 @@ foreach ($urlTemplates as $template) {
                 break;
             }
         } elseif (is_array($decoded) && !empty($decoded['message'])) {
-            $lastError = (string)$decoded['message'];
+            $lastError = (string) $decoded['message'];
         }
     }
 }
@@ -130,4 +153,3 @@ merlin_json_response([
     'ok' => false,
     'error' => $lastError . ' Please verify your code or configure your SIP extension manually in Settings.',
 ], 404);
-
