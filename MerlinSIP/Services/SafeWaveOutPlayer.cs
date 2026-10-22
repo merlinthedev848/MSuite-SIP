@@ -77,8 +77,12 @@ public sealed class SafeWaveOutPlayer : IDisposable
         return writeResult == 0;
     }
 
+    private volatile bool _isClosing;
+
     private void WaveOutCallback(IntPtr hwo, uint uMsg, IntPtr dwInstance, IntPtr dwParam1, IntPtr dwParam2)
     {
+        if (_isClosing || _isDisposed || _hWaveOut == IntPtr.Zero) return;
+
         const uint WOM_DONE = 0x3BD;
         if (uMsg == WOM_DONE && dwParam1 != IntPtr.Zero)
         {
@@ -101,27 +105,64 @@ public sealed class SafeWaveOutPlayer : IDisposable
     {
         if (_isDisposed) return;
         _isDisposed = true;
+        _isClosing = true;
 
-        if (_hWaveOut != IntPtr.Zero)
+        var hWaveOut = _hWaveOut;
+        _hWaveOut = IntPtr.Zero;
+
+        if (hWaveOut != IntPtr.Zero)
         {
-            WinMm.waveOutReset(_hWaveOut);
+            try
+            {
+                WinMm.waveOutReset(hWaveOut);
+            }
+            catch
+            {
+            }
 
             for (int i = 0; i < BufferCount; i++)
             {
-                if (_headerPointers[i] != IntPtr.Zero)
+                var headerPtr = _headerPointers[i];
+                _headerPointers[i] = IntPtr.Zero;
+
+                if (headerPtr != IntPtr.Zero)
                 {
-                    WinMm.waveOutUnprepareHeader(_hWaveOut, _headerPointers[i], Marshal.SizeOf<WaveHeader>());
-                    Marshal.FreeHGlobal(_headerPointers[i]);
+                    try
+                    {
+                        WinMm.waveOutUnprepareHeader(hWaveOut, headerPtr, Marshal.SizeOf<WaveHeader>());
+                    }
+                    catch
+                    {
+                    }
+
+                    try
+                    {
+                        Marshal.FreeHGlobal(headerPtr);
+                    }
+                    catch
+                    {
+                    }
                 }
 
                 if (_pinnedData[i].IsAllocated)
                 {
-                    _pinnedData[i].Free();
+                    try
+                    {
+                        _pinnedData[i].Free();
+                    }
+                    catch
+                    {
+                    }
                 }
             }
 
-            WinMm.waveOutClose(_hWaveOut);
-            _hWaveOut = IntPtr.Zero;
+            try
+            {
+                WinMm.waveOutClose(hWaveOut);
+            }
+            catch
+            {
+            }
         }
     }
 }

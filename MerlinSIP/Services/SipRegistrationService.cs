@@ -51,6 +51,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     private CancellationTokenSource? _heartbeatCancellation;
     private int _heartbeatConsecutiveFailures;
     private DateTimeOffset _lastHeartbeatSuccess = DateTimeOffset.MinValue;
+    private static Task _disposingAudioTask = Task.CompletedTask;
     private IPEndPoint? _cachedServerEndPoint;
 
     public event EventHandler<IncomingCallEventArgs>? IncomingCall;
@@ -491,6 +492,12 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         var localTag = Guid.NewGuid().ToString("N")[..12];
         var cseq = _inviteCseq++;
         var inviteBranch = CreateBranch();
+        try
+        {
+            await _disposingAudioTask.WaitAsync(TimeSpan.FromMilliseconds(1000), cancellationToken);
+        }
+        catch { }
+
         _audioSession?.Dispose();
         _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume);
         try
@@ -566,24 +573,38 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
             if (_activeCall is not null && _activeCall.CallId == activeCall.CallId)
             {
-                _activeCall = _activeCall with { RemoteTag = ExtractTag(secondResponse.Headers.GetValueOrDefault("to", "")) };
-                await SendAckForFinalInviteResponseAsync(secondResponse, cancellationToken);
+                try
+                {
+                    _activeCall = _activeCall with { RemoteTag = ExtractTag(secondResponse.Headers.GetValueOrDefault("to", "")) };
+                    await SendAckForFinalInviteResponseAsync(secondResponse, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.Write($"ACK send failure: {ex.Message}");
+                }
                 _activeCall = null;
             }
             _lastCallFailureResponse = secondResponse;
-            _audioSession?.Dispose();
+            DisposeAudioSessionInBackground(_audioSession, "invite auth failure");
             _audioSession = null;
             return new SipCallResult(false, $"Call failed: {secondResponse.Code} {secondResponse.Reason}".Trim());
         }
 
         if (_activeCall is not null && _activeCall.CallId == activeCall.CallId)
         {
-            _activeCall = _activeCall with { RemoteTag = ExtractTag(firstResponse.Headers.GetValueOrDefault("to", "")) };
-            await SendAckForFinalInviteResponseAsync(firstResponse, cancellationToken);
+            try
+            {
+                _activeCall = _activeCall with { RemoteTag = ExtractTag(firstResponse.Headers.GetValueOrDefault("to", "")) };
+                await SendAckForFinalInviteResponseAsync(firstResponse, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"ACK send failure: {ex.Message}");
+            }
             _activeCall = null;
         }
         _lastCallFailureResponse = firstResponse;
-        _audioSession?.Dispose();
+        DisposeAudioSessionInBackground(_audioSession, "invite failure");
         _audioSession = null;
         return new SipCallResult(false, $"Call failed: {firstResponse.Code} {firstResponse.Reason}".Trim());
     }
@@ -844,35 +865,66 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
         if (_pendingIncomingCall is not null)
         {
+            var declineAction = _config?.DeclineIncomingAction ?? "Send busy";
             var mobileNumber = _config?.MobileNumber;
-            if (!string.IsNullOrWhiteSpace(mobileNumber))
+            try
             {
-                var targetUri = $"sip:{mobileNumber}@{_domain}";
-                await SendSimpleResponseAsync(
-                    _pendingIncomingCall.Request,
-                    _pendingIncomingCall.RemoteEndPoint,
-                    302,
-                    "Moved Temporarily",
-                    cancellationToken,
-                    _pendingIncomingCall.LocalTag,
-                    $"Contact: <{targetUri}>");
-                DebugLog.Write($"SEND INCOMING REDIRECT (busy/decline) callId={_pendingIncomingCall.CallId} target={targetUri}");
+                if (declineAction.Contains("603", StringComparison.OrdinalIgnoreCase))
+                {
+                    await SendSimpleResponseAsync(
+                        _pendingIncomingCall.Request,
+                        _pendingIncomingCall.RemoteEndPoint,
+                        603,
+                        "Decline",
+                        cancellationToken,
+                        _pendingIncomingCall.LocalTag);
+                    DebugLog.Write($"SEND INCOMING DECLINE (603) callId={_pendingIncomingCall.CallId}");
+                }
+                else if (declineAction.Contains("480", StringComparison.OrdinalIgnoreCase))
+                {
+                    await SendSimpleResponseAsync(
+                        _pendingIncomingCall.Request,
+                        _pendingIncomingCall.RemoteEndPoint,
+                        480,
+                        "Temporarily Unavailable",
+                        cancellationToken,
+                        _pendingIncomingCall.LocalTag);
+                    DebugLog.Write($"SEND INCOMING REJECT (480) callId={_pendingIncomingCall.CallId}");
+                }
+                else if (!string.IsNullOrWhiteSpace(mobileNumber) && (declineAction.Contains("Mobile", StringComparison.OrdinalIgnoreCase) || declineAction.Contains("302", StringComparison.OrdinalIgnoreCase) || declineAction.Equals("Send busy", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var targetUri = $"sip:{mobileNumber}@{_domain}";
+                    await SendSimpleResponseAsync(
+                        _pendingIncomingCall.Request,
+                        _pendingIncomingCall.RemoteEndPoint,
+                        302,
+                        "Moved Temporarily",
+                        cancellationToken,
+                        _pendingIncomingCall.LocalTag,
+                        $"Contact: <{targetUri}>");
+                    DebugLog.Write($"SEND INCOMING REDIRECT (busy/decline) callId={_pendingIncomingCall.CallId} target={targetUri}");
+                }
+                else
+                {
+                    await SendSimpleResponseAsync(
+                        _pendingIncomingCall.Request,
+                        _pendingIncomingCall.RemoteEndPoint,
+                        486,
+                        "Busy Here",
+                        cancellationToken,
+                        _pendingIncomingCall.LocalTag);
+                    DebugLog.Write($"SEND INCOMING REJECT (486) callId={_pendingIncomingCall.CallId}");
+                }
             }
-            else
+            catch (Exception ex)
             {
-                await SendSimpleResponseAsync(
-                    _pendingIncomingCall.Request,
-                    _pendingIncomingCall.RemoteEndPoint,
-                    486,
-                    "Busy Here",
-                    cancellationToken,
-                    _pendingIncomingCall.LocalTag);
-                DebugLog.Write($"SEND INCOMING REJECT callId={_pendingIncomingCall.CallId}");
+                DebugLog.Write($"EndCallAsync decline response error: {ex.Message}");
             }
+
             _pendingIncomingCall = null;
             if (_activeCall is null)
             {
-                _audioSession?.Dispose();
+                DisposeAudioSessionInBackground(_audioSession, "decline incoming");
                 _audioSession = null;
             }
             QueueRegistrationRefresh("incoming call rejected");
@@ -896,18 +948,43 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         var audioSession = _audioSession;
         _audioSession = null;
         var payload = Encoding.UTF8.GetBytes(message);
-        var method = _activeCall.Established ? "BYE" : "CANCEL";
-        DebugLog.Write($"SEND {method} callId={_activeCall.CallId} bytes={payload.Length}");
+        var method = _activeCall?.Established == true ? "BYE" : "CANCEL";
+        var callId = _activeCall?.CallId ?? "<unknown>";
+        DebugLog.Write($"SEND {method} callId={callId} bytes={payload.Length}");
         try
         {
             await SendToServerAsync(payload, cancellationToken);
+            // 3‑packet UDP burst with 20 ms spacing for immediate PBX termination.
+            // Await the burst to ensure audio resources stay alive until completion.
+            var burstTask = Task.Run(async () =>
+            {
+                try
+                {
+                    for (int i = 0; i < 2; i++)
+                    {
+                        await Task.Delay(20, CancellationToken.None);
+                        await SendToServerAsync(payload, CancellationToken.None);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.Write($"UDP burst error: {ex.Message}");
+                }
+            });
+            // Wait a short period but do not block indefinitely.
+            var burstCompleted = await Task.WhenAny(burstTask, Task.Delay(200));
+            // Proceed regardless; any errors are logged inside the burst.
         }
         catch (Exception error)
         {
-            DebugLog.Write($"SEND {method} failed callId={_activeCall.CallId} error={error.Message}");
+            DebugLog.Write($"SEND {method} failed callId={callId} error={error.Message}");
+            // Restore audio session if needed.
+            _audioSession = audioSession;
             return new SipCallResult(false, $"Unable to end call: {error.Message}");
         }
+        // Clear active call state after successful send.
         _activeCall = null;
+        // Dispose audio session after burst is (likely) sent.
         DisposeAudioSessionInBackground(audioSession, "local hangup");
         QueueRegistrationRefresh("local hangup");
         return new SipCallResult(true, "Call ended.");
@@ -1376,7 +1453,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             return;
         }
 
-        _ = Task.Run(() =>
+        _disposingAudioTask = Task.Run(() =>
         {
             try
             {

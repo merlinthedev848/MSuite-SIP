@@ -70,7 +70,7 @@ public sealed class AppCacheService
             settings.LicenseStatus ?? "Licensed",
             settings.AudioInput,
             settings.AudioOutput,
-            string.IsNullOrWhiteSpace(settings.Ringtone) ? AppStartupConfig.DefaultRingtone : settings.Ringtone,
+            string.IsNullOrWhiteSpace(settings.Ringtone) || !RingtonePlayer.Choices.Any(c => c.Id == settings.Ringtone) ? AppStartupConfig.DefaultRingtone : settings.Ringtone,
             ClampVolume(settings.MicrophoneVolume),
             ClampVolume(settings.HeadphoneVolume),
             settings.SipAlgCompatibilityMode ?? false,

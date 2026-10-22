@@ -37,6 +37,8 @@ public sealed class RtpAudioSession : IDisposable
 
 	private readonly WinMm.WaveInProc _waveInCallback;
 
+	private static readonly object _hardwareDeviceLock = new object();
+
 	private readonly object _sendSync = new object();
 
 	private readonly object _secondarySendSync = new object();
@@ -46,6 +48,7 @@ public sealed class RtpAudioSession : IDisposable
 	private readonly object _micSync = new object();
 
 	private nint _waveIn;
+	private volatile bool _isClosingWaveIn;
 
 	private IPEndPoint? _remoteEndPoint;
 
@@ -284,11 +287,7 @@ public sealed class RtpAudioSession : IDisposable
 		StopAudioPump();
 		_call1RxQueue.Clear();
 		DebugLog.Write("RTP stop");
-		if (_waveIn != IntPtr.Zero)
-		{
-			WinMm.waveInStop(_waveIn);
-			WinMm.waveInReset(_waveIn);
-		}
+		CloseWaveInDevices();
 		_safeWaveOut?.Dispose();
 		_safeWaveOut = null;
 		_remoteEndPoint = null;
@@ -427,62 +426,107 @@ public sealed class RtpAudioSession : IDisposable
 		}
 	}
 
+	private void CloseWaveInDevices()
+	{
+		_isClosingWaveIn = true;
+		var waveIn = _waveIn;
+		_waveIn = IntPtr.Zero;
+
+		if (waveIn != IntPtr.Zero)
+		{
+			try
+			{
+				WinMm.waveInStop(waveIn);
+				WinMm.waveInReset(waveIn);
+			}
+			catch (Exception ex)
+			{
+				DebugLog.Write($"waveInStop/Reset warning: {ex.Message}");
+			}
+
+			List<AudioBuffer> buffers;
+			lock (_buffersSync)
+			{
+				buffers = new List<AudioBuffer>(_inputBuffers);
+				_inputBuffers.Clear();
+			}
+
+			foreach (AudioBuffer inputBuffer in buffers)
+			{
+				try
+				{
+					WinMm.waveInUnprepareHeader(waveIn, inputBuffer.HeaderPointer, Marshal.SizeOf<WaveHeader>());
+				}
+				catch { }
+				inputBuffer.Dispose();
+			}
+
+			try
+			{
+				WinMm.waveInClose(waveIn);
+			}
+			catch (Exception ex)
+			{
+				DebugLog.Write($"waveInClose warning: {ex.Message}");
+			}
+		}
+	}
+
 	public void Dispose()
 	{
 		Stop();
-		lock (_buffersSync)
+		lock (_hardwareDeviceLock)
 		{
-			if (_waveIn != IntPtr.Zero)
+			lock (_buffersSync)
 			{
-				foreach (AudioBuffer inputBuffer in _inputBuffers)
-				{
-					WinMm.waveInUnprepareHeader(_waveIn, inputBuffer.HeaderPointer, Marshal.SizeOf<WaveHeader>());
-					inputBuffer.Dispose();
-				}
-				_inputBuffers.Clear();
-				WinMm.waveInClose(_waveIn);
-				_waveIn = IntPtr.Zero;
+				_safeWaveOut?.Dispose();
+				_safeWaveOut = null;
+				_devicesPrepared = false;
+				_receiveCancellation?.Dispose();
+				_secondaryReceiveCancellation?.Dispose();
+				_rtpClient.Dispose();
+				_secondaryRtpClient?.Dispose();
 			}
-			_safeWaveOut?.Dispose();
-			_safeWaveOut = null;
-			_devicesPrepared = false;
-			_receiveCancellation?.Dispose();
-			_secondaryReceiveCancellation?.Dispose();
-			_rtpClient.Dispose();
-			_secondaryRtpClient?.Dispose();
 		}
 	}
 
 	private void OpenWaveIn()
 	{
-		WaveFormat format = WaveFormat.Pcm16Mono8k();
-		int deviceId = ParseDeviceId(_inputDevice.Id);
-		int num = WinMm.waveInOpen(out _waveIn, deviceId, ref format, _waveInCallback, IntPtr.Zero, 196608u);
-		if (num != 0)
+		_isClosingWaveIn = false;
+		lock (_hardwareDeviceLock)
 		{
-			throw new InvalidOperationException($"Unable to open microphone device: {num}");
-		}
-		for (int i = 0; i < 6; i++)
-		{
-			AudioBuffer audioBuffer = new AudioBuffer(320);
-			_inputBuffers.Add(audioBuffer);
-			WinMm.waveInPrepareHeader(_waveIn, audioBuffer.HeaderPointer, Marshal.SizeOf<WaveHeader>());
-			WinMm.waveInAddBuffer(_waveIn, audioBuffer.HeaderPointer, Marshal.SizeOf<WaveHeader>());
+			WaveFormat format = WaveFormat.Pcm16Mono8k();
+			int deviceId = ParseDeviceId(_inputDevice.Id);
+			int num = WinMm.waveInOpen(out _waveIn, deviceId, ref format, _waveInCallback, IntPtr.Zero, 196608u);
+			if (num != 0)
+			{
+				throw new InvalidOperationException($"Unable to open microphone device: {num}");
+			}
+			for (int i = 0; i < 6; i++)
+			{
+				AudioBuffer audioBuffer = new AudioBuffer(320);
+				_inputBuffers.Add(audioBuffer);
+				WinMm.waveInPrepareHeader(_waveIn, audioBuffer.HeaderPointer, Marshal.SizeOf<WaveHeader>());
+				WinMm.waveInAddBuffer(_waveIn, audioBuffer.HeaderPointer, Marshal.SizeOf<WaveHeader>());
+			}
 		}
 	}
 
 	private void OpenWaveOut()
 	{
-		int deviceId = ParseDeviceId(_outputDevice.Id);
-		_safeWaveOut = new SafeWaveOutPlayer(deviceId);
-		DebugLog.Write($"RTP speaker opened device={_outputDevice.Name}");
+		lock (_hardwareDeviceLock)
+		{
+			int deviceId = ParseDeviceId(_outputDevice.Id);
+			_safeWaveOut = new SafeWaveOutPlayer(deviceId);
+			DebugLog.Write($"RTP speaker opened device={_outputDevice.Name}");
+		}
 	}
 
 	private void WaveInCallback(nint waveIn, uint message, nint instance, nint headerPointer, nint reserved)
 	{
 		try
 		{
-			if (message != 960 || _waveIn == IntPtr.Zero)
+			if (_isClosingWaveIn || message != 960 || _waveIn == IntPtr.Zero)
 			{
 				return;
 			}
@@ -516,7 +560,7 @@ public sealed class RtpAudioSession : IDisposable
 			}
 			lock (_buffersSync)
 			{
-				if (_waveIn != IntPtr.Zero)
+				if (!_isClosingWaveIn && _waveIn != IntPtr.Zero)
 				{
 					WinMm.waveInAddBuffer(_waveIn, headerPointer, Marshal.SizeOf<WaveHeader>());
 				}

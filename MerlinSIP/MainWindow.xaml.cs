@@ -68,11 +68,16 @@ public partial class MainWindow : Window
     private bool _localRingbackActive;
     private bool _allowExit;
     private bool _networkDiagnosticsRunning;
+    private int _callFinishing;
+    private string _lastDialedNumber = "";
     private NetworkEngine? _activeNetworkDiagnostics;
     private readonly List<string> _networkDiagnosticsProgress = [];
     private string _selectedChatNumber = "";
     private string _activeRemoteNumber = "";
     private string _userSelectedPresence = "Available";
+    private bool _passwordRevealed;
+    private bool _testTonePlaying;
+    private DateTimeOffset _lastSettingsSavedAt = DateTimeOffset.MinValue;
     private ContactEntry? _editingContact;
     private IncomingCallWindow? _incomingCallWindow;
     private System.Windows.Interop.HwndSource? _hwndSource;
@@ -467,6 +472,7 @@ public partial class MainWindow : Window
         CallTimerPill.Visibility = Visibility.Visible;
         CallTimerPill.Background = (WpfBrush)new BrushConverter().ConvertFromString("#FFE2E2")!;
         CallTimerText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#9B1C1C")!;
+        CallQualityPill.Visibility = Visibility.Collapsed;
     }
 
     private void UpdateCallTimer()
@@ -474,6 +480,7 @@ public partial class MainWindow : Window
         if (_activeCallConnectedAt is null)
         {
             CallTimerText.Text = "Inactive";
+            CallQualityPill.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -482,6 +489,17 @@ public partial class MainWindow : Window
             ? elapsed.ToString(@"hh\:mm\:ss")
             : elapsed.ToString(@"mm\:ss");
         CallTimerText.Text = $"Active {time}";
+
+        if (_callConnected)
+        {
+            var quality = _sipRegistrationService.GetCallQualityStats();
+            CallQualityText.Text = $"HD • {quality.QualityText}";
+            CallQualityPill.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            CallQualityPill.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void StartLocalRingback()
@@ -781,7 +799,17 @@ public partial class MainWindow : Window
                 else if (e.Code == 487) state = "Cancelled";
                 else if (e.Code == 603) state = "Declined";
                 
-                _ = OnCallFinished(state, e.Message);
+                _ = Dispatcher.InvokeAsync(async () =>
+                {
+                    try
+                    {
+                        await OnCallFinished(state, e.Message);
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugLog.Write($"CallProgress OnCallFinished error: {ex.Message}");
+                    }
+                });
             }
         });
     }
@@ -896,6 +924,7 @@ public partial class MainWindow : Window
         ExtensionTextBox.Text = _config.Extension;
         UsernameTextBox.Text = _config.Username;
         PasswordBox.Password = _config.Password;
+        PasswordTextBox.Text = _config.Password;
         var customEndpoint = _config.AllowsCustomSipEndpoint;
         PrivatePbxSettingsPanel.Visibility = customEndpoint ? Visibility.Visible : Visibility.Collapsed;
         PrivatePbxSettingsTextBox.Text = customEndpoint ? _config.Server : string.Empty;
@@ -1100,7 +1129,8 @@ public partial class MainWindow : Window
     private void SelectRingtone(string ringtone)
     {
         RingtoneComboBox.SelectedItem = RingtonePlayer.Choices.FirstOrDefault(choice => choice.Id == ringtone)
-            ?? RingtonePlayer.Choices.First(choice => choice.Id == AppStartupConfig.DefaultRingtone);
+            ?? RingtonePlayer.Choices.FirstOrDefault(choice => choice.Id == AppStartupConfig.DefaultRingtone)
+            ?? RingtonePlayer.Choices[0];
     }
 
     private void LoadVolumeSliders()
@@ -1356,7 +1386,14 @@ public partial class MainWindow : Window
             _callHistory.Add(call);
         }
 
+        var lastOutbound = _callHistory.FirstOrDefault(c => string.Equals(c.Direction, "Outbound", StringComparison.OrdinalIgnoreCase));
+        if (lastOutbound is not null && !string.IsNullOrWhiteSpace(lastOutbound.Number))
+        {
+            _lastDialedNumber = lastOutbound.Number;
+        }
+
         ApplyGlobalSearchFilter();
+        UpdateCallControls();
     }
 
     private void ApplyGlobalSearchFilter()
@@ -1659,9 +1696,34 @@ public partial class MainWindow : Window
         return builder.Length > 0 ? builder.ToString() : trimmed;
     }
 
+    private DateTimeOffset _lastCallFinishedAt = DateTimeOffset.MinValue;
+
     private async void DialButton_Click(object sender, RoutedEventArgs e)
     {
-        var destination = NormalizeDialDestination(DestinationTextBox.Text);
+        await StartOutboundCallAsync(DestinationTextBox.Text);
+    }
+
+    private async Task StartOutboundCallAsync(string rawNumber)
+    {
+        if (DateTimeOffset.Now - _lastSettingsSavedAt < TimeSpan.FromSeconds(2) || SettingsOverlay.Visibility == Visibility.Visible)
+        {
+            DebugLog.Write("StartOutboundCallAsync rejected: settings were saved recently or settings dialog is open.");
+            return;
+        }
+
+        if (_callInProgress || _incomingRinging)
+        {
+            NoticeText.Text = "A call is already active or in progress.";
+            return;
+        }
+
+        if (DateTimeOffset.Now - _lastCallFinishedAt < TimeSpan.FromMilliseconds(250))
+        {
+            NoticeText.Text = "Please wait a moment before placing another call.";
+            return;
+        }
+
+        var destination = NormalizeDialDestination(rawNumber);
         if (string.IsNullOrWhiteSpace(destination))
         {
             NoticeText.Text = "Enter a number first.";
@@ -1669,6 +1731,7 @@ public partial class MainWindow : Window
         }
 
         DestinationTextBox.Text = destination;
+        _lastDialedNumber = destination;
         DebugLog.Write($"UI dial requested destination={destination}");
 
         var contact = _contactStore.FindByNumber(_contacts, destination);
@@ -1679,20 +1742,36 @@ public partial class MainWindow : Window
         _activeCallStartedAt = DateTimeOffset.Now;
         _activeCallDirection = "Outbound";
         _activeRemoteNumber = destination;
+        _callInProgress = true;
+        _callConnected = false;
         SetContactPresence(destination, "Ringing");
         _ = _sipRegistrationService.PublishPresenceAsync("Busy");
         SetPresenceDisplay("Busy");
         ShowDialingCallTimer();
-        _callInProgress = true;
-        _callConnected = false;
         UpdateCallControls();
-        var result = await _sipRegistrationService.InviteAsync(destination);
-        FooterStatusText.Text = result.Message;
-        if (!result.Signalled)
+
+        try
         {
-            NoticeText.Text = result.Message;
-            _ = ResetFailedCallDisplayAsync(result.Message);
-            await OnCallFinished("Failed", result.Message);
+            var result = await _sipRegistrationService.InviteAsync(destination);
+            FooterStatusText.Text = result.Message;
+            if (!result.Signalled)
+            {
+                NoticeText.Text = result.Message;
+                _ = ResetFailedCallDisplayAsync(result.Message);
+
+                string state = "Failed";
+                if (result.Message.Contains("603")) state = "Declined";
+                else if (result.Message.Contains("486")) state = "Busy";
+                else if (result.Message.Contains("487")) state = "Cancelled";
+
+                await OnCallFinished(state, result.Message);
+            }
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"StartOutboundCallAsync error={error}");
+            NoticeText.Text = "Call failed to connect.";
+            await OnCallFinished("Failed", error.Message);
         }
     }
 
@@ -1793,9 +1872,14 @@ public partial class MainWindow : Window
 
     private void ContactsListView_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (sender is WpfListBox listBox && listBox.SelectedItem is ContactEntry contact)
+        e.Handled = true;
+        if (sender is WpfListBox listBox)
         {
-            CallContact(contact);
+            var item = GetClickedListBoxItem(listBox, e);
+            if (item?.DataContext is ContactEntry contact)
+            {
+                CallContact(contact);
+            }
         }
     }
 
@@ -2033,10 +2117,10 @@ public partial class MainWindow : Window
         NoticeText.Text = $"Ready to call {contact.Name}.";
     }
 
-    private void CallContact(ContactEntry contact)
+    private async void CallContact(ContactEntry contact)
     {
         UseSelectedContact(contact);
-        DialButton_Click(this, new RoutedEventArgs());
+        await StartOutboundCallAsync(contact.Number);
     }
 
     private void PhonebookContactsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -2055,9 +2139,25 @@ public partial class MainWindow : Window
         FooterStatusText.Text = $"Editing {contact.Name}.";
     }
 
+    private static ListBoxItem? GetClickedListBoxItem(WpfListBox listBox, MouseButtonEventArgs e)
+    {
+        var dep = e.OriginalSource as DependencyObject;
+        while (dep != null && dep != listBox)
+        {
+            if (dep is ListBoxItem item)
+            {
+                return item;
+            }
+            dep = VisualTreeHelper.GetParent(dep);
+        }
+        return null;
+    }
+
     private void RecentCallsListView_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (RecentCallsListView.SelectedItem is CallHistoryEntry call)
+        e.Handled = true;
+        var item = GetClickedListBoxItem(RecentCallsListView, e);
+        if (item?.DataContext is CallHistoryEntry call)
         {
             RedialCall(call);
         }
@@ -2065,18 +2165,25 @@ public partial class MainWindow : Window
 
     private void CallHistoryListView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (CallHistoryListView.SelectedItem is CallHistoryEntry call)
+        e.Handled = true;
+        var item = GetClickedListBoxItem(CallHistoryListView, e);
+        if (item?.DataContext is CallHistoryEntry call)
         {
             RedialCall(call);
         }
     }
 
-    private void RedialCall(CallHistoryEntry call)
+    private async void RedialCall(CallHistoryEntry call)
     {
+        if (DateTimeOffset.Now - _lastSettingsSavedAt < TimeSpan.FromSeconds(2) || SettingsOverlay.Visibility == Visibility.Visible)
+        {
+            return;
+        }
+
         DestinationTextBox.Text = call.Number;
         MainTabs.SelectedItem = PhoneTab;
         NoticeText.Text = $"Calling {call.Name}.";
-        DialButton_Click(this, new RoutedEventArgs());
+        await StartOutboundCallAsync(call.Number);
     }
 
     private async void SaveContactButton_Click(object sender, RoutedEventArgs e)
@@ -2172,7 +2279,7 @@ public partial class MainWindow : Window
             Domain = server,
             Extension = ExtensionTextBox.Text.Trim(),
             Username = UsernameTextBox.Text.Trim(),
-            Password = PasswordBox.Password,
+            Password = _passwordRevealed ? PasswordTextBox.Text : PasswordBox.Password,
             AudioInput = mediaConfig.AudioInput,
             AudioOutput = mediaConfig.AudioOutput,
             Ringtone = mediaConfig.Ringtone,
@@ -2183,6 +2290,12 @@ public partial class MainWindow : Window
         _config = _config.WithFixedSipEndpoint();
 
         await _cacheService.SaveSettingsAsync(_config);
+        if (_testTonePlaying)
+        {
+            _ringtonePlayer.Stop();
+            _testTonePlaying = false;
+            TestToneButton.Content = "Preview Tone";
+        }
         SettingsOverlay.Visibility = Visibility.Collapsed;
         _registered = false;
         UpdateCallControls();
@@ -2213,15 +2326,71 @@ public partial class MainWindow : Window
         };
     }
 
+    private void TogglePasswordVisibility_Click(object sender, RoutedEventArgs e)
+    {
+        _passwordRevealed = !_passwordRevealed;
+        if (_passwordRevealed)
+        {
+            PasswordTextBox.Text = PasswordBox.Password;
+            PasswordBox.Visibility = Visibility.Collapsed;
+            PasswordTextBox.Visibility = Visibility.Visible;
+            TogglePasswordButton.Content = "🔒";
+            PasswordTextBox.Focus();
+            PasswordTextBox.CaretIndex = PasswordTextBox.Text.Length;
+        }
+        else
+        {
+            PasswordBox.Password = PasswordTextBox.Text;
+            PasswordTextBox.Visibility = Visibility.Collapsed;
+            PasswordBox.Visibility = Visibility.Visible;
+            TogglePasswordButton.Content = "👁";
+            PasswordBox.Focus();
+        }
+    }
+
+    private void PasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (!_passwordRevealed && PasswordTextBox.Text != PasswordBox.Password)
+        {
+            PasswordTextBox.Text = PasswordBox.Password;
+        }
+    }
+
+    private void PasswordTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_passwordRevealed && PasswordBox.Password != PasswordTextBox.Text)
+        {
+            PasswordBox.Password = PasswordTextBox.Text;
+        }
+    }
+
     private void TestToneButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_testTonePlaying)
+        {
+            _ringtonePlayer.Stop();
+            _testTonePlaying = false;
+            TestToneButton.Content = "Preview Tone";
+            return;
+        }
+
         var output = AudioOutputComboBox.SelectedItem as MediaDeviceInfo ?? _config.AudioOutput;
         var ringtone = RingtoneComboBox.SelectedItem as RingtoneChoice;
+        _testTonePlaying = true;
+        TestToneButton.Content = "Stop Tone";
         _ringtonePlayer.Start(output, ringtone?.Id ?? _config.Ringtone, HeadphoneVolumeSlider.Value / 100);
         _ = Task.Run(async () =>
         {
-            await Task.Delay(2200);
-            await Dispatcher.InvokeAsync(() => _ringtonePlayer.Stop());
+            await Task.Delay(5500);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (_testTonePlaying)
+                {
+                    _ringtonePlayer.Stop();
+                    _testTonePlaying = false;
+                    TestToneButton.Content = "Preview Tone";
+                }
+            });
         });
     }
 
@@ -2302,7 +2471,9 @@ public partial class MainWindow : Window
 
     private void FavoritesListView_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (DialFavoritesListView.SelectedItem is ContactEntry contact)
+        e.Handled = true;
+        var item = GetClickedListBoxItem(DialFavoritesListView, e);
+        if (item?.DataContext is ContactEntry contact)
         {
             UseSelectedContact(contact);
         }
@@ -2331,9 +2502,19 @@ public partial class MainWindow : Window
         await EnsureConnectionReadyAsync();
     }
 
-    private void CloseSettingsButton_Click(object sender, RoutedEventArgs e)
+    private async void CloseSettingsButton_Click(object sender, RoutedEventArgs e)
     {
+        e.Handled = true;
+        if (_testTonePlaying)
+        {
+            _ringtonePlayer.Stop();
+            _testTonePlaying = false;
+            TestToneButton.Content = "Preview Tone";
+        }
+        SettingsOverlay.IsHitTestVisible = false;
+        await Task.Delay(150);
         SettingsOverlay.Visibility = Visibility.Collapsed;
+        SettingsOverlay.IsHitTestVisible = true;
     }
 
     private void UpdateActiveSettingsTab(System.Windows.Controls.Button activeBtn)
@@ -2569,79 +2750,106 @@ public partial class MainWindow : Window
 
     private async void SaveAllSettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        var previousInput = _config.AudioInput;
-        var previousOutput = _config.AudioOutput;
-        var previousTransport = _config.SipSignallingTransport;
-        var previousExtension = _config.Extension;
-        var previousUsername = _config.Username;
-        var previousPassword = _config.Password;
-        var previousServer = _config.Server;
+        e.Handled = true;
+        _lastSettingsSavedAt = DateTimeOffset.Now;
+        SaveAllSettingsButton.IsEnabled = false;
 
-        var audioInput = AudioInputComboBox.SelectedItem as MediaDeviceInfo ?? _config.AudioInput;
-        var audioOutput = AudioOutputComboBox.SelectedItem as MediaDeviceInfo ?? _config.AudioOutput;
-        var ringtone = RingtoneComboBox.SelectedItem as RingtoneChoice;
-
-        var server = _config.AllowsCustomSipEndpoint
-            ? PrivatePbxSettingsTextBox.Text.Trim()
-            : AppStartupConfig.FixedSipServer;
-
-        _config = _config with
+        try
         {
-            Server = server,
-            Port = AppStartupConfig.FixedSipPort,
-            Domain = server,
-            Extension = ExtensionTextBox.Text.Trim(),
-            Username = UsernameTextBox.Text.Trim(),
-            Password = PasswordBox.Password,
-            AudioInput = audioInput,
-            AudioOutput = audioOutput,
-            Ringtone = ringtone?.Id ?? _config.Ringtone,
-            MicrophoneVolume = Math.Clamp(MicrophoneVolumeSlider.Value / 100, 0.25, 2.0),
-            HeadphoneVolume = Math.Clamp(HeadphoneVolumeSlider.Value / 100, 0.25, 2.0),
-            SipAlgCompatibilityMode = SipAlgCompatibilityCheckBox.IsChecked == true,
-            SipSignallingTransport = ComboBoxTag(SipTransportModeComboBox, AppStartupConfig.TransportUdp),
-            MobileNumber = MobileNumberTextBox.Text.Trim(),
-            DndMode = ComboBoxText(DndModeComboBox, "Off"),
-            DeclineIncomingAction = ComboBoxText(DeclineActionComboBox, "Send busy"),
-            InternalBusyAction = ComboBoxText(InternalBusyActionComboBox, "Send busy"),
-            InternalNoAnswerSeconds = ComboBoxSeconds(InternalNoAnswerTimeoutComboBox, 90),
-            InternalNoAnswerAction = "Send busy",
-            ExternalBusyAction = ComboBoxText(ExternalBusyActionComboBox, "Send busy"),
-            ExternalNoAnswerSeconds = ComboBoxSeconds(ExternalNoAnswerTimeoutComboBox, 90),
-            ExternalNoAnswerAction = "Send busy",
-            QueuePickupEnabled = QueuePickupCheckBox.IsChecked == true,
-            CombineContactsInSearch = CombineContactsCheckBox.IsChecked == true,
-            FailedCallDisplaySeconds = ComboBoxSeconds(FailedCallTimeoutComboBox, 5),
-            CallPickupPrefix = string.IsNullOrWhiteSpace(CallPickupPrefixTextBox.Text) ? "*8" : CallPickupPrefixTextBox.Text.Trim(),
-            QueueLoginLogoutCode = string.IsNullOrWhiteSpace(QueueToggleCodeTextBox.Text) ? "*62" : QueueToggleCodeTextBox.Text.Trim(),
-            CallRecordingCode = string.IsNullOrWhiteSpace(CallRecordingCodeTextBox.Text) ? "*1" : CallRecordingCodeTextBox.Text.Trim(),
-            IgnoreSslErrors = IgnoreSslErrorsCheckBox.IsChecked == true
-        };
+            var previousInput = _config.AudioInput;
+            var previousOutput = _config.AudioOutput;
+            var previousTransport = _config.SipSignallingTransport;
+            var previousExtension = _config.Extension;
+            var previousUsername = _config.Username;
+            var previousPassword = _config.Password;
+            var previousServer = _config.Server;
 
-        await _cacheService.SaveSettingsAsync(_config.WithFixedSipEndpoint());
-        ApplyDndMode();
-        _sipRegistrationService.UpdateNetworkAssistance(_config.SipAlgCompatibilityMode);
-        UpdateNetworkAssistanceText();
+            var audioInput = AudioInputComboBox.SelectedItem as MediaDeviceInfo ?? _config.AudioInput;
+            var audioOutput = AudioOutputComboBox.SelectedItem as MediaDeviceInfo ?? _config.AudioOutput;
+            var ringtone = RingtoneComboBox.SelectedItem as RingtoneChoice;
 
-        var mediaDeviceChanged = previousInput.Id != _config.AudioInput.Id || previousOutput.Id != _config.AudioOutput.Id;
-        var transportChanged = !string.Equals(previousTransport, _config.SipSignallingTransport, StringComparison.OrdinalIgnoreCase);
-        var credentialsChanged = !string.Equals(previousExtension, _config.Extension) ||
-                                 !string.Equals(previousUsername, _config.Username) ||
-                                 !string.Equals(previousPassword, _config.Password) ||
-                                 !string.Equals(previousServer, _config.Server);
+            var server = _config.AllowsCustomSipEndpoint
+                ? PrivatePbxSettingsTextBox.Text.Trim()
+                : AppStartupConfig.FixedSipServer;
 
-        SettingsOverlay.Visibility = Visibility.Collapsed;
-        FooterStatusText.Text = "Settings saved successfully.";
+            _config = _config with
+            {
+                Server = server,
+                Port = AppStartupConfig.FixedSipPort,
+                Domain = server,
+                Extension = ExtensionTextBox.Text.Trim(),
+                Username = UsernameTextBox.Text.Trim(),
+                Password = _passwordRevealed ? PasswordTextBox.Text : PasswordBox.Password,
+                AudioInput = audioInput,
+                AudioOutput = audioOutput,
+                Ringtone = ringtone?.Id ?? _config.Ringtone,
+                MicrophoneVolume = Math.Clamp(MicrophoneVolumeSlider.Value / 100, 0.25, 2.0),
+                HeadphoneVolume = Math.Clamp(HeadphoneVolumeSlider.Value / 100, 0.25, 2.0),
+                SipAlgCompatibilityMode = SipAlgCompatibilityCheckBox.IsChecked == true,
+                SipSignallingTransport = ComboBoxTag(SipTransportModeComboBox, AppStartupConfig.TransportUdp),
+                MobileNumber = MobileNumberTextBox.Text.Trim(),
+                DndMode = ComboBoxText(DndModeComboBox, "Off"),
+                DeclineIncomingAction = ComboBoxText(DeclineActionComboBox, "Send busy"),
+                InternalBusyAction = ComboBoxText(InternalBusyActionComboBox, "Send busy"),
+                InternalNoAnswerSeconds = ComboBoxSeconds(InternalNoAnswerTimeoutComboBox, 90),
+                InternalNoAnswerAction = "Send busy",
+                ExternalBusyAction = ComboBoxText(ExternalBusyActionComboBox, "Send busy"),
+                ExternalNoAnswerSeconds = ComboBoxSeconds(ExternalNoAnswerTimeoutComboBox, 90),
+                ExternalNoAnswerAction = "Send busy",
+                QueuePickupEnabled = QueuePickupCheckBox.IsChecked == true,
+                CombineContactsInSearch = CombineContactsCheckBox.IsChecked == true,
+                FailedCallDisplaySeconds = ComboBoxSeconds(FailedCallTimeoutComboBox, 5),
+                CallPickupPrefix = string.IsNullOrWhiteSpace(CallPickupPrefixTextBox.Text) ? "*8" : CallPickupPrefixTextBox.Text.Trim(),
+                QueueLoginLogoutCode = string.IsNullOrWhiteSpace(QueueToggleCodeTextBox.Text) ? "*62" : QueueToggleCodeTextBox.Text.Trim(),
+                CallRecordingCode = string.IsNullOrWhiteSpace(CallRecordingCodeTextBox.Text) ? "*1" : CallRecordingCodeTextBox.Text.Trim(),
+                IgnoreSslErrors = IgnoreSslErrorsCheckBox.IsChecked == true
+            };
 
-        if (transportChanged || credentialsChanged)
-        {
-            _registered = false;
-            UpdateCallControls();
-            await RegisterSipAsync();
+            await _cacheService.SaveSettingsAsync(_config.WithFixedSipEndpoint());
+            ApplyDndMode();
+            _sipRegistrationService.UpdateNetworkAssistance(_config.SipAlgCompatibilityMode);
+            UpdateNetworkAssistanceText();
+
+            var mediaDeviceChanged = previousInput.Id != _config.AudioInput.Id || previousOutput.Id != _config.AudioOutput.Id;
+            var transportChanged = !string.Equals(previousTransport, _config.SipSignallingTransport, StringComparison.OrdinalIgnoreCase);
+            var credentialsChanged = !string.Equals(previousExtension, _config.Extension) ||
+                                     !string.Equals(previousUsername, _config.Username) ||
+                                     !string.Equals(previousPassword, _config.Password) ||
+                                     !string.Equals(previousServer, _config.Server);
+
+            if (_testTonePlaying)
+            {
+                _ringtonePlayer.Stop();
+                _testTonePlaying = false;
+                TestToneButton.Content = "Preview Tone";
+            }
+
+            // Deselect list items to prevent any accidental key or mouse activation
+            CallHistoryListView.SelectedItem = null;
+            RecentCallsListView.SelectedItem = null;
+            DialFavoritesListView.SelectedItem = null;
+            PhonebookContactsListView.SelectedItem = null;
+
+            SettingsOverlay.IsHitTestVisible = false;
+            await Task.Delay(200);
+            SettingsOverlay.Visibility = Visibility.Collapsed;
+            SettingsOverlay.IsHitTestVisible = true;
+            FooterStatusText.Text = "Settings saved successfully.";
+
+            if (transportChanged || credentialsChanged)
+            {
+                _registered = false;
+                UpdateCallControls();
+                await RegisterSipAsync();
+            }
+            else if (mediaDeviceChanged)
+            {
+                UpdateCallControls();
+            }
         }
-        else if (mediaDeviceChanged)
+        finally
         {
-            UpdateCallControls();
+            SaveAllSettingsButton.IsEnabled = true;
         }
     }
 
@@ -2782,25 +2990,54 @@ public partial class MainWindow : Window
         }
     }
 
-    private static void StartInstallerAndRestart(string installerPath)
+    private void StartInstallerAndRestart(string installerPath)
     {
+        _allowExit = true;
         WindowsStartupService.QueueLaunchAfterUpdate();
-        var executablePath = WindowsStartupService.GetExecutablePath();
-        if (string.IsNullOrWhiteSpace(executablePath))
-        {
-            Process.Start(new ProcessStartInfo("msiexec.exe", $"/i \"{installerPath}\"")
-            {
-                UseShellExecute = true
-            });
-            return;
-        }
 
-        var command = $"/c start /wait \"\" msiexec.exe /i \"{installerPath}\" && start \"\" \"{executablePath}\"";
-        Process.Start(new ProcessStartInfo("cmd.exe", command)
+        var programFilesDir = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var canonicalExe = Path.Combine(programFilesDir, "CK Media Services", "Merlin SIP", "MerlinSIP.exe");
+        var fallbackExe = Path.Combine(programFilesDir, "Merlin SIP", "MerlinSIP.exe");
+        var currentExe = Environment.ProcessPath ?? "";
+        var targetExe = File.Exists(canonicalExe) ? canonicalExe : (File.Exists(fallbackExe) ? fallbackExe : (File.Exists(currentExe) ? currentExe : canonicalExe));
+
+        var currentPid = Environment.ProcessId;
+        var updateDir = Path.Combine(Path.GetTempPath(), "MerlinSIP");
+        Directory.CreateDirectory(updateDir);
+        var tempScript = Path.Combine(updateDir, "apply-update.cmd");
+
+        var scriptContent = $@"@echo off
+timeout /t 1 /nobreak >nul
+taskkill /pid {currentPid} /f >nul 2>&1
+taskkill /f /im MerlinSIP.exe >nul 2>&1
+timeout /t 1 /nobreak >nul
+start /wait """" msiexec.exe /i ""{installerPath}"" /passive /norestart
+timeout /t 1 /nobreak >nul
+if exist ""{canonicalExe}"" (
+    start """" ""{canonicalExe}""
+) else if exist ""{fallbackExe}"" (
+    start """" ""{fallbackExe}""
+) else if exist ""{targetExe}"" (
+    start """" ""{targetExe}""
+)
+del ""%~f0""
+";
+
+        File.WriteAllText(tempScript, scriptContent, System.Text.Encoding.ASCII);
+
+        Process.Start(new ProcessStartInfo("cmd.exe", $"/c \"\"{tempScript}\"\"")
         {
             CreateNoWindow = true,
-            UseShellExecute = false
+            UseShellExecute = true
         });
+
+        try
+        {
+            System.Windows.Application.Current?.Shutdown();
+        }
+        catch { }
+
+        Environment.Exit(0);
     }
 
     private void UpdateCallControls()
@@ -2819,15 +3056,20 @@ public partial class MainWindow : Window
         if (activeCall)
         {
             DialButton.Visibility = Visibility.Collapsed;
+            RedialButton.Visibility = Visibility.Collapsed;
             HangupButton.Visibility = Visibility.Visible;
             DialButtonColumn.Width = new GridLength(0);
+            RedialButtonColumn.Width = new GridLength(0);
             HangupButtonColumn.Width = new GridLength(1, GridUnitType.Star);
         }
         else
         {
             DialButton.Visibility = Visibility.Visible;
+            RedialButton.Visibility = Visibility.Visible;
+            RedialButton.IsEnabled = !_licenseLocked && _registered && !string.IsNullOrWhiteSpace(_lastDialedNumber);
             HangupButton.Visibility = Visibility.Collapsed;
             DialButtonColumn.Width = new GridLength(1, GridUnitType.Star);
+            RedialButtonColumn.Width = GridLength.Auto;
             HangupButtonColumn.Width = new GridLength(0);
         }
 
@@ -2897,42 +3139,68 @@ public partial class MainWindow : Window
         System.Windows.Application.Current.Shutdown();
     }
 
+    private void RedialButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(_lastDialedNumber))
+        {
+            DestinationTextBox.Text = _lastDialedNumber;
+            _ = StartOutboundCallAsync(_lastDialedNumber);
+        }
+        else
+        {
+            FooterStatusText.Text = "No previous number to redial.";
+        }
+    }
+
     private async Task OnCallFinished(string resultState, string message)
     {
-        HideIncomingCallSurfaces();
-        StopLocalRingback();
-        _ringtonePlayer.Stop();
-        
-        _incomingRinging = false;
-        _callInProgress = false;
-        _callConnected = false;
-        _muted = false;
-        _held = false;
-        _sipRegistrationService.SetMuted(false);
-        _sipRegistrationService.SetHeldLocal(false);
-        UpdateInCallButtonIcons();
-
-        StopCallTimer();
-        ClearDialpadAfterCall();
-
-        var number = _activeRemoteNumber;
-        var direction = _activeCallDirection;
-        var startAt = _activeCallStartedAt;
-
-        _activeCallStartedAt = null;
-        _activeRemoteNumber = "";
-        
-        if (!string.IsNullOrWhiteSpace(number))
+        if (Interlocked.Exchange(ref _callFinishing, 1) == 1)
         {
-            // Let BLF system handle contact presence updates naturally
-            var contact = _contactStore.FindByNumber(_contacts, number);
-            var name = contact?.Name ?? number;
-            await AddCallHistory(direction, name, number, resultState, message, startAt);
+            return;
         }
 
-        // Restore user's selected presence after call ends
-        SetPresenceDisplay(_userSelectedPresence);
-        UpdateCallControls();
+        try
+        {
+            HideIncomingCallSurfaces();
+            StopLocalRingback();
+            _ringtonePlayer.Stop();
+            
+            _incomingRinging = false;
+            _callInProgress = false;
+            _callConnected = false;
+            _lastCallFinishedAt = DateTimeOffset.Now;
+            _muted = false;
+            _held = false;
+            _sipRegistrationService.SetMuted(false);
+            _sipRegistrationService.SetHeldLocal(false);
+            UpdateInCallButtonIcons();
+
+            StopCallTimer();
+            ClearDialpadAfterCall();
+
+            var number = _activeRemoteNumber;
+            var direction = _activeCallDirection;
+            var startAt = _activeCallStartedAt;
+
+            _activeCallStartedAt = null;
+            _activeRemoteNumber = "";
+            
+            if (!string.IsNullOrWhiteSpace(number))
+            {
+                // Let BLF system handle contact presence updates naturally
+                var contact = _contactStore.FindByNumber(_contacts, number);
+                var name = contact?.Name ?? number;
+                await AddCallHistory(direction, name, number, resultState, message, startAt);
+            }
+
+            // Restore user's selected presence after call ends
+            SetPresenceDisplay(_userSelectedPresence);
+            UpdateCallControls();
+        }
+        finally
+        {
+            _callFinishing = 0;
+        }
     }
 
     private async Task AddCallHistory(string direction, string name, string number, string result, string detail, DateTimeOffset? startedAt = null)
@@ -3024,12 +3292,12 @@ public partial class MainWindow : Window
 
     private void ChatContactsListView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (ChatContactsListView.SelectedItem is not ContactEntry contact)
+        e.Handled = true;
+        var item = GetClickedListBoxItem(ChatContactsListView, e);
+        if (item?.DataContext is ContactEntry contact)
         {
-            return;
+            SelectChatContact(contact);
         }
-
-        SelectChatContact(contact);
     }
 
     private void ChatContactsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)

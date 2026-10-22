@@ -358,7 +358,11 @@
 
   async function fetchJson(url, options = {}) {
     try {
-      const res = await fetch(url, { cache: 'no-store', ...options });
+      const headers = {
+        'X-Requested-With': 'merlin-webapp',
+        ...(options.headers || {})
+      };
+      const res = await fetch(url, { cache: 'no-store', ...options, headers });
       return res.ok ? await res.json() : {};
     } catch (e) {
       return {};
@@ -368,7 +372,10 @@
   async function postJson(url, data) {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'merlin-webapp'
+      },
       body: JSON.stringify(data)
     });
     const body = await res.json().catch(() => ({}));
@@ -1132,7 +1139,10 @@
     state.recordings = [];
     renderRecordings();
     try {
-      await fetch(api.recordings, { method: 'DELETE' });
+      await fetch(api.recordings, {
+        method: 'DELETE',
+        headers: { 'X-Requested-With': 'merlin-webapp' }
+      });
       setNotice('success', 'Recordings cleared.');
     } catch (e) {}
   }
@@ -1764,7 +1774,10 @@
     state.history = [];
     renderHistory();
     try {
-      await fetch(api.history, { method: 'DELETE' });
+      await fetch(api.history, {
+        method: 'DELETE',
+        headers: { 'X-Requested-With': 'merlin-webapp' }
+      });
       setNotice('success', 'Call history cleared.');
     } catch (e) {}
   }

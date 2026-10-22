@@ -9,17 +9,15 @@ public sealed class RingtonePlayer : IDisposable
 
     public static readonly IReadOnlyList<RingtoneChoice> Choices =
     [
-        new("mobile", "Soft Mobile"),
-        new("meridian", "Meridian Groove"),
-        new("horizon", "Horizon Beat"),
-        new("nexus", "Nexus Pulse"),
-        new("summit", "Summit Rhythm"),
-        new("atlas", "Atlas Loop"),
-        new("keystone", "Keystone Sync"),
-        new("tempo", "Tempo Suite"),
-        new("boardroom", "Boardroom Beat"),
-        new("azure", "Azure Motion"),
-        new("signature", "Signature Rhythm")
+        new("orbital-anthem", "🚀 Orbital Dance (Trance Peak)"),
+        new("teams-anthem", "✨ Teams Modern Remix (Upbeat Earworm)"),
+        new("skype-spark", "🌟 Skype Spark Dynamic (Melodic Chime)"),
+        new("merlin-anthem", "🔥 Merlin Signature Anthem (Banging Hook)"),
+        new("cyberpunk", "⚡ Cyberpunk Overdrive (Drop)"),
+        new("miami-midnight", "🌴 Miami Midnight 1984 (Synthwave)"),
+        new("tokyo-drift", "🏎️ Tokyo Drift (Electro Bass)"),
+        new("neon-funk", "🎷 Neon Funk Fusion (Slap Bass)"),
+        new("matrix-tech", "🕶️ Matrix Tech (Club Drop)")
     ];
 
     private readonly List<AudioBuffer> _buffers = [];
@@ -42,7 +40,7 @@ public sealed class RingtonePlayer : IDisposable
     private void Start(MediaDeviceInfo outputDevice, string? ringtone, double volume, bool allowHiddenTone)
     {
         Stop();
-        _ringtone = Choices.Any(choice => choice.Id == ringtone) || allowHiddenTone && ringtone == "uk-ringback"
+        _ringtone = Choices.Any(choice => choice.Id == ringtone) || (allowHiddenTone && ringtone == "uk-ringback")
             ? ringtone!
             : Choices[0].Id;
         _volume = Math.Clamp(volume, 0.25, 2.0);
@@ -146,95 +144,88 @@ public sealed class RingtonePlayer : IDisposable
                     QueuePause(2.00);
                 });
                 return 12000;
-            case "mobile":
-                PlayGroove(112, GrooveFeel.Mobile, [
-                    Chord([174.61, 261.63, 329.63, 440.00], [659.25, 783.99, 1046.50]),
-                    Chord([196.00, 293.66, 369.99, 493.88], [739.99, 880.00, 1174.66]),
-                    Chord([220.00, 329.63, 415.30, 554.37], [830.61, 987.77, 1318.51]),
-                    Chord([196.00, 293.66, 392.00, 523.25], [783.99, 987.77, 1174.66])
+
+            case "teams-anthem":
+                PlayGroove(126, GrooveFeel.TeamsRemix, [
+                    Chord([130.81, 196.00, 261.63, 329.63, 392.00, 493.88], [783.99, 1046.50, 1318.51]),
+                    Chord([110.00, 164.81, 220.00, 261.63, 329.63, 392.00], [880.00, 1046.50, 1318.51]),
+                    Chord([87.31, 130.81, 174.61, 220.00, 261.63, 329.63], [698.46, 880.00, 1046.50]),
+                    Chord([98.00, 146.83, 196.00, 246.94, 293.66, 349.23], [783.99, 987.77, 1174.66])
                 ]);
-                return 8600;
-            case "horizon":
-                PlayGroove(118, GrooveFeel.Smooth, [
-                    Chord([196.00, 293.66, 369.99, 493.88], [739.99, 987.77]),
-                    Chord([220.00, 329.63, 440.00, 554.37], [830.61, 1108.73]),
-                    Chord([246.94, 369.99, 493.88, 659.25], [987.77, 1318.51]),
-                    Chord([220.00, 329.63, 440.00, 587.33], [880.00, 1174.66])
-                ]);
-                return 8200;
-            case "nexus":
-                PlayGroove(124, GrooveFeel.Digital, [
-                    Chord([174.61, 261.63, 349.23, 523.25], [698.46, 1046.50]),
-                    Chord([196.00, 293.66, 392.00, 587.33], [783.99, 1174.66]),
-                    Chord([220.00, 329.63, 440.00, 659.25], [880.00, 1318.51]),
-                    Chord([196.00, 293.66, 369.99, 587.33], [739.99, 1174.66])
-                ]);
-                return 7800;
-            case "summit":
-                PlayGroove(112, GrooveFeel.Wide, [
-                    Chord([130.81, 261.63, 329.63, 392.00, 523.25], [659.25, 1046.50]),
-                    Chord([146.83, 293.66, 369.99, 440.00, 587.33], [739.99, 1174.66]),
-                    Chord([164.81, 329.63, 415.30, 493.88, 659.25], [830.61, 1318.51]),
-                    Chord([196.00, 293.66, 392.00, 493.88, 587.33], [783.99, 1174.66])
-                ]);
-                return 8600;
-            case "atlas":
-                PlayGroove(126, GrooveFeel.Crisp, [
-                    Chord([164.81, 246.94, 329.63, 493.88], [659.25, 987.77]),
-                    Chord([185.00, 277.18, 369.99, 554.37], [739.99, 1108.73]),
-                    Chord([207.65, 311.13, 415.30, 622.25], [830.61, 1244.51]),
-                    Chord([185.00, 277.18, 369.99, 587.33], [739.99, 1174.66])
+                return 7600;
+
+            case "skype-spark":
+                PlayGroove(125, GrooveFeel.SkypeSpark, [
+                    Chord([146.83, 220.00, 293.66, 369.99, 440.00, 554.37], [739.99, 1108.73, 1479.98]),
+                    Chord([123.47, 185.00, 246.94, 293.66, 369.99, 440.00], [587.33, 739.99, 1174.66]),
+                    Chord([98.00, 146.83, 196.00, 246.94, 293.66, 369.99], [783.99, 987.77, 1174.66]),
+                    Chord([110.00, 164.81, 220.00, 277.18, 329.63, 440.00], [880.00, 1108.73, 1318.51])
                 ]);
                 return 7700;
-            case "keystone":
-                PlayGroove(116, GrooveFeel.SoftHouse, [
-                    Chord([220.00, 329.63, 415.30, 554.37], [830.61, 1108.73]),
-                    Chord([196.00, 293.66, 392.00, 493.88], [739.99, 987.77]),
-                    Chord([246.94, 369.99, 493.88, 659.25], [987.77, 1318.51]),
-                    Chord([220.00, 329.63, 440.00, 587.33], [880.00, 1174.66])
+
+            case "merlin-anthem":
+                PlayGroove(128, GrooveFeel.MerlinAnthem, [
+                    Chord([130.81, 196.00, 261.63, 329.63, 392.00, 523.25], [659.25, 1046.50, 1318.51]),
+                    Chord([146.83, 220.00, 293.66, 369.99, 440.00, 587.33], [739.99, 1174.66, 1479.98]),
+                    Chord([164.81, 246.94, 329.63, 392.00, 493.88, 659.25], [783.99, 1318.51, 1567.98]),
+                    Chord([146.83, 220.00, 293.66, 392.00, 493.88, 587.33], [783.99, 1174.66, 1479.98])
                 ]);
-                return 8300;
-            case "tempo":
-                PlayGroove(132, GrooveFeel.Upbeat, [
-                    Chord([261.63, 329.63, 392.00, 523.25], [659.25, 1046.50]),
-                    Chord([293.66, 369.99, 440.00, 587.33], [739.99, 1174.66]),
-                    Chord([329.63, 415.30, 493.88, 659.25], [830.61, 1318.51]),
-                    Chord([293.66, 392.00, 493.88, 587.33], [783.99, 1174.66])
+                return 7500;
+
+            case "cyberpunk":
+                PlayGroove(130, GrooveFeel.Cyberpunk, [
+                    Chord([146.83, 220.00, 261.63, 293.66, 349.23, 440.00], [587.33, 880.00, 1174.66]),
+                    Chord([174.61, 261.63, 329.63, 349.23, 440.00, 523.25], [698.46, 1046.50, 1396.91]),
+                    Chord([130.81, 196.00, 261.63, 329.63, 392.00, 493.88], [587.33, 987.77, 1174.66]),
+                    Chord([116.54, 174.61, 233.08, 293.66, 349.23, 440.00], [698.46, 880.00, 1396.91])
+                ]);
+                return 7400;
+
+            case "miami-midnight":
+                PlayGroove(122, GrooveFeel.Synthwave, [
+                    Chord([110.00, 220.00, 261.63, 329.63, 440.00], [659.25, 880.00, 1318.51]),
+                    Chord([87.31, 174.61, 261.63, 329.63, 349.23], [698.46, 1046.50, 1396.91]),
+                    Chord([130.81, 196.00, 261.63, 329.63, 392.00], [659.25, 987.77, 1318.51]),
+                    Chord([98.00, 196.00, 246.94, 293.66, 392.00], [587.33, 783.99, 1174.66])
+                ]);
+                return 7800;
+
+            case "tokyo-drift":
+                PlayGroove(132, GrooveFeel.ElectroBass, [
+                    Chord([164.81, 246.94, 329.63, 392.00, 493.88], [659.25, 987.77, 1318.51]),
+                    Chord([130.81, 261.63, 329.63, 392.00, 523.25], [659.25, 1046.50, 1318.51]),
+                    Chord([146.83, 293.66, 369.99, 440.00, 587.33], [739.99, 1174.66, 1479.98]),
+                    Chord([123.47, 246.94, 293.66, 369.99, 493.88], [587.33, 987.77, 1174.66])
                 ]);
                 return 7300;
-            case "boardroom":
-                PlayGroove(108, GrooveFeel.Lounge, [
-                    Chord([146.83, 220.00, 293.66, 369.99, 440.00], [587.33, 880.00]),
-                    Chord([164.81, 246.94, 329.63, 415.30, 493.88], [659.25, 987.77]),
-                    Chord([196.00, 293.66, 369.99, 493.88, 587.33], [739.99, 1174.66]),
-                    Chord([174.61, 261.63, 349.23, 440.00, 523.25], [698.46, 1046.50])
+
+            case "neon-funk":
+                PlayGroove(122, GrooveFeel.FunkFusion, [
+                    Chord([155.56, 233.08, 277.18, 311.13, 369.99, 466.16], [622.25, 932.33, 1244.51]),
+                    Chord([103.83, 207.65, 261.63, 311.13, 369.99, 415.30], [523.25, 830.61, 1046.50]),
+                    Chord([138.59, 207.65, 277.18, 329.63, 415.30, 523.25], [659.25, 830.61, 1046.50]),
+                    Chord([116.54, 233.08, 293.66, 349.23, 466.16, 587.33], [587.33, 932.33, 1174.66])
                 ]);
-                return 8900;
-            case "azure":
-                PlayGroove(120, GrooveFeel.Airy, [
-                    Chord([174.61, 261.63, 329.63, 440.00, 523.25], [698.46, 1046.50]),
-                    Chord([196.00, 293.66, 369.99, 493.88, 587.33], [783.99, 1174.66]),
-                    Chord([220.00, 329.63, 440.00, 554.37, 659.25], [880.00, 1318.51]),
-                    Chord([196.00, 293.66, 392.00, 493.88, 587.33], [783.99, 1174.66])
+                return 7800;
+
+            case "matrix-tech":
+                PlayGroove(128, GrooveFeel.MatrixTech, [
+                    Chord([196.00, 293.66, 349.23, 392.00, 466.16], [783.99, 1174.66, 1567.98]),
+                    Chord([233.08, 293.66, 349.23, 466.16, 587.33], [698.46, 1174.66, 1396.91]),
+                    Chord([174.61, 261.63, 349.23, 440.00, 523.25], [698.46, 1046.50, 1396.91]),
+                    Chord([155.56, 233.08, 311.13, 392.00, 466.16], [622.25, 932.33, 1244.51])
                 ]);
-                return 8000;
-            case "signature":
-                PlayGroove(122, GrooveFeel.Brand, [
-                    Chord([130.81, 196.00, 261.63, 329.63, 392.00], [523.25, 783.99]),
-                    Chord([146.83, 220.00, 293.66, 369.99, 440.00], [587.33, 880.00]),
-                    Chord([164.81, 246.94, 329.63, 415.30, 493.88], [659.25, 987.77]),
-                    Chord([196.00, 293.66, 392.00, 493.88, 587.33], [783.99, 1174.66])
-                ]);
-                return 7900;
-            case "meridian":
+                return 7500;
+
+            case "orbital-anthem":
             default:
-                PlayGroove(120, GrooveFeel.Corporate, [
-                    Chord([196.00, 261.63, 329.63, 392.00, 523.25], [659.25, 1046.50]),
-                    Chord([220.00, 293.66, 369.99, 440.00, 587.33], [739.99, 1174.66]),
-                    Chord([246.94, 329.63, 415.30, 493.88, 659.25], [830.61, 1318.51]),
-                    Chord([220.00, 293.66, 392.00, 493.88, 587.33], [783.99, 1174.66])
+                PlayGroove(128, GrooveFeel.TranceAnthem, [
+                    Chord([185.00, 277.18, 369.99, 440.00, 554.37], [739.99, 1108.73, 1479.98]),
+                    Chord([146.83, 293.66, 369.99, 440.00, 587.33], [739.99, 1174.66, 1479.98]),
+                    Chord([110.00, 220.00, 277.18, 329.63, 440.00], [659.25, 880.00, 1318.51]),
+                    Chord([164.81, 246.94, 329.63, 415.30, 493.88], [659.25, 830.61, 1318.51])
                 ]);
-                return 8000;
+                return 7500;
         }
     }
 
@@ -260,208 +251,204 @@ public sealed class RingtonePlayer : IDisposable
     {
         return feel switch
         {
-            GrooveFeel.Smooth => step switch
-            {
-                0 => Percussion.Kick | Percussion.Hat,
-                2 => Percussion.Snare,
-                4 => Percussion.Kick | Percussion.Hat,
-                6 => Percussion.Snare | Percussion.Hat,
-                _ => step % 2 == 1 ? Percussion.GhostHat : Percussion.None
-            },
-            GrooveFeel.Digital => step switch
-            {
-                0 => Percussion.Kick | Percussion.Hat,
-                1 => Percussion.GhostHat,
-                2 => Percussion.Snare | Percussion.Hat,
-                3 => Percussion.GhostHat,
-                4 => Percussion.Kick,
-                5 => Percussion.Hat,
-                6 => Percussion.Snare | Percussion.GhostHat,
-                _ => Percussion.Hat
-            },
-            GrooveFeel.Wide => step switch
-            {
-                0 => Percussion.Kick,
-                3 => Percussion.Hat,
-                4 => Percussion.Kick | Percussion.Hat,
-                6 => Percussion.Snare | Percussion.Clap,
-                _ => Percussion.None
-            },
-            GrooveFeel.Crisp => step switch
-            {
-                0 => Percussion.Kick | Percussion.Hat,
-                1 => Percussion.GhostHat,
-                2 => Percussion.Snare | Percussion.Hat,
-                3 => Percussion.GhostHat,
-                4 => Percussion.Kick | Percussion.Hat,
-                5 => Percussion.GhostHat,
-                6 => Percussion.Snare | Percussion.Hat,
-                _ => Percussion.GhostHat
-            },
-            GrooveFeel.SoftHouse => step switch
+            GrooveFeel.TranceAnthem => step switch
             {
                 0 or 4 => Percussion.Kick | Percussion.Hat,
-                2 => Percussion.Clap,
-                3 or 7 => Percussion.GhostHat,
-                6 => Percussion.Snare | Percussion.Clap,
-                _ => Percussion.Hat
+                2 or 6 => Percussion.Kick | Percussion.Snare | Percussion.Clap | Percussion.Hat,
+                _ => Percussion.Hat | Percussion.GhostHat
             },
-            GrooveFeel.Upbeat => step switch
+            GrooveFeel.TeamsRemix => step switch
             {
                 0 => Percussion.Kick | Percussion.Hat,
-                1 => Percussion.Hat,
-                2 => Percussion.Snare | Percussion.GhostHat,
+                1 => Percussion.Hat | Percussion.GhostHat,
+                2 => Percussion.Clap | Percussion.Snare | Percussion.Hat,
                 3 => Percussion.Kick | Percussion.GhostHat,
                 4 => Percussion.Kick | Percussion.Hat,
-                5 => Percussion.Hat,
-                6 => Percussion.Snare | Percussion.Hat,
-                _ => Percussion.Clap | Percussion.GhostHat
+                5 => Percussion.Hat | Percussion.GhostHat,
+                6 => Percussion.Clap | Percussion.Snare | Percussion.Hat,
+                _ => Percussion.Kick | Percussion.GhostHat
             },
-            GrooveFeel.Lounge => step switch
-            {
-                0 => Percussion.Kick,
-                2 => Percussion.Hat,
-                3 => Percussion.Snare,
-                5 => Percussion.Kick | Percussion.GhostHat,
-                6 => Percussion.Clap,
-                _ => Percussion.None
-            },
-            GrooveFeel.Airy => step switch
-            {
-                0 => Percussion.Kick,
-                2 => Percussion.Hat,
-                4 => Percussion.Kick | Percussion.GhostHat,
-                6 => Percussion.Snare,
-                _ => bar % 2 == 0 && step == 7 ? Percussion.GhostHat : Percussion.None
-            },
-            GrooveFeel.Brand => step switch
+            GrooveFeel.SkypeSpark => step switch
             {
                 0 => Percussion.Kick | Percussion.Hat,
-                2 => Percussion.Snare | Percussion.Clap,
+                1 => Percussion.Hat | Percussion.GhostHat,
+                2 => Percussion.Snare | Percussion.Clap | Percussion.Hat,
                 3 => Percussion.GhostHat,
                 4 => Percussion.Kick | Percussion.Hat,
-                5 => Percussion.GhostHat,
-                6 => Percussion.Snare | Percussion.Hat,
-                7 => Percussion.Clap | Percussion.GhostHat,
-                _ => Percussion.Hat
+                5 => Percussion.Hat | Percussion.GhostHat,
+                6 => Percussion.Snare | Percussion.Clap | Percussion.Hat,
+                _ => Percussion.GhostHat
             },
-            GrooveFeel.Mobile => step switch
+            GrooveFeel.MerlinAnthem => step switch
             {
-                0 => Percussion.Kick,
-                1 => Percussion.Hat,
-                3 => Percussion.GhostHat,
+                0 or 4 => Percussion.Kick | Percussion.Hat,
+                1 or 5 => Percussion.Hat | Percussion.GhostHat,
+                2 or 6 => Percussion.Kick | Percussion.Snare | Percussion.Clap | Percussion.Hat,
+                3 => Percussion.Kick | Percussion.GhostHat,
+                _ => Percussion.Hat | Percussion.GhostHat
+            },
+            GrooveFeel.Cyberpunk => step switch
+            {
+                0 or 4 => Percussion.Kick | Percussion.Hat,
+                2 or 6 => Percussion.Kick | Percussion.Snare | Percussion.Clap | Percussion.Hat,
+                _ => Percussion.GhostHat | Percussion.Hat
+            },
+            GrooveFeel.Synthwave => step switch
+            {
+                0 or 4 => Percussion.Kick | Percussion.Hat,
+                2 or 6 => Percussion.Snare | Percussion.Clap | Percussion.Hat,
+                _ => Percussion.Hat | Percussion.GhostHat
+            },
+            GrooveFeel.ElectroBass => step switch
+            {
+                0 or 4 => Percussion.Kick | Percussion.Hat,
+                2 or 6 => Percussion.Kick | Percussion.Snare | Percussion.Clap,
+                3 => Percussion.Kick | Percussion.GhostHat,
+                _ => Percussion.GhostHat | Percussion.Hat
+            },
+            GrooveFeel.FunkFusion => step switch
+            {
+                0 => Percussion.Kick | Percussion.Hat,
+                1 => Percussion.Hat | Percussion.GhostHat,
+                2 => Percussion.Snare | Percussion.Clap | Percussion.Hat,
+                3 => Percussion.Kick | Percussion.GhostHat,
                 4 => Percussion.Kick | Percussion.Hat,
-                6 => Percussion.Clap,
-                _ => Percussion.None
+                5 => Percussion.Kick | Percussion.GhostHat,
+                6 => Percussion.Snare | Percussion.Clap | Percussion.Hat,
+                _ => Percussion.Hat | Percussion.GhostHat
+            },
+            GrooveFeel.MatrixTech => step switch
+            {
+                0 or 4 => Percussion.Kick | Percussion.Hat,
+                2 or 6 => Percussion.Kick | Percussion.Clap | Percussion.Snare | Percussion.Hat,
+                _ => Percussion.Hat | Percussion.GhostHat
             },
             _ => step switch
             {
                 0 or 4 => Percussion.Kick | Percussion.Hat,
-                2 or 6 => Percussion.Snare,
-                1 or 5 => Percussion.Hat,
-                _ => Percussion.GhostHat
+                2 or 6 => Percussion.Snare | Percussion.Clap,
+                _ => Percussion.Hat | Percussion.GhostHat
             }
         };
     }
 
     private static double[]? GetPadNotes(GrooveFeel feel, GrooveChord chord, int step)
     {
-        return feel switch
-        {
-            GrooveFeel.Wide => step is 0 ? chord.Pad : null,
-            GrooveFeel.Lounge => step is 0 or 5 ? chord.Pad : null,
-            GrooveFeel.Airy => step is 0 or 6 ? chord.Pad : null,
-            GrooveFeel.Upbeat => step is 0 or 3 or 6 ? TrimChord(chord.Pad, 4) : null,
-            GrooveFeel.Crisp => step is 0 or 4 or 7 ? TrimChord(chord.Pad, 3) : null,
-            GrooveFeel.Digital => step is 0 or 2 or 5 ? TrimChord(chord.Pad, 3) : null,
-            GrooveFeel.SoftHouse => step is 0 or 4 ? chord.Pad : null,
-            GrooveFeel.Brand => step is 0 or 4 or 6 ? chord.Pad : null,
-            GrooveFeel.Mobile => step is 0 or 4 ? TrimChord(chord.Pad, 3) : null,
-            GrooveFeel.Smooth => step is 0 or 4 ? chord.Pad : null,
-            _ => step is 0 or 4 ? chord.Pad : null
-        };
+        return step is 0 or 2 or 4 or 6 ? chord.Pad : null;
     }
 
     private static double[]? GetHookNotes(GrooveFeel feel, GrooveChord chord, int bar, int step)
     {
         return feel switch
         {
-            GrooveFeel.Smooth => step switch
+            GrooveFeel.TranceAnthem => step switch
             {
-                1 => chord.Hook,
-                5 => ShiftOctave(chord.Hook, 0.75),
+                0 or 4 => chord.Hook,
+                2 or 6 => ShiftOctave(chord.Hook, 1.5),
+                3 or 7 => ShiftOctave(chord.Hook, 0.75),
                 _ => null
             },
-            GrooveFeel.Digital => step switch
+            GrooveFeel.TeamsRemix => step switch
             {
-                1 or 3 => ShiftOctave(chord.Hook, 1.5),
-                6 => chord.Hook,
-                _ => null
-            },
-            GrooveFeel.Wide => step switch
-            {
-                2 => chord.Hook,
-                7 => ShiftOctave(chord.Hook, 1.5),
-                _ => null
-            },
-            GrooveFeel.Crisp => step switch
-            {
-                1 => chord.Hook,
-                3 => ShiftOctave(chord.Hook, 1.5),
-                5 => ShiftOctave(chord.Hook, 0.75),
-                7 => chord.Hook,
-                _ => null
-            },
-            GrooveFeel.SoftHouse => step switch
-            {
-                2 => ShiftOctave(chord.Hook, 0.75),
-                6 => chord.Hook,
-                _ => null
-            },
-            GrooveFeel.Upbeat => step switch
-            {
-                0 => bar % 2 == 0 ? null : chord.Hook,
-                1 => chord.Hook,
-                3 => ShiftOctave(chord.Hook, 1.5),
-                4 => ShiftOctave(chord.Hook, 0.75),
-                7 => chord.Hook,
-                _ => null
-            },
-            GrooveFeel.Lounge => step switch
-            {
-                2 => ShiftOctave(chord.Hook, 0.75),
-                6 => ShiftOctave(chord.Hook, 1.5),
-                _ => null
-            },
-            GrooveFeel.Airy => step switch
-            {
-                3 => chord.Hook,
-                7 => ShiftOctave(chord.Hook, 1.5),
-                _ => null
-            },
-            GrooveFeel.Brand => step switch
-            {
-                1 => chord.Hook,
+                0 => chord.Hook,
+                1 => ShiftOctave(chord.Hook, 1.25),
                 2 => ShiftOctave(chord.Hook, 1.5),
+                3 => ShiftOctave(chord.Hook, 0.75),
+                4 => ShiftOctave(chord.Hook, 1.33),
                 5 => chord.Hook,
-                7 => ShiftOctave(chord.Hook, 0.75),
+                6 => ShiftOctave(chord.Hook, 1.5),
+                7 => ShiftOctave(chord.Hook, 1.2),
                 _ => null
             },
-            GrooveFeel.Mobile => step switch
+            GrooveFeel.SkypeSpark => step switch
             {
+                0 => ShiftOctave(chord.Hook, 0.75),
                 1 => chord.Hook,
-                2 => ShiftOctave(chord.Hook, 0.75),
+                2 => ShiftOctave(chord.Hook, 1.25),
+                3 => ShiftOctave(chord.Hook, 1.5),
+                4 => ShiftOctave(chord.Hook, 2.0),
+                5 => ShiftOctave(chord.Hook, 1.25),
+                6 => ShiftOctave(chord.Hook, 1.5),
+                7 => chord.Hook,
+                _ => null
+            },
+            GrooveFeel.MerlinAnthem => step switch
+            {
+                0 => chord.Hook,
+                1 => ShiftOctave(chord.Hook, 1.5),
+                2 => ShiftOctave(chord.Hook, 1.25),
+                3 => ShiftOctave(chord.Hook, 0.75),
+                4 => ShiftOctave(chord.Hook, 1.25),
+                5 => ShiftOctave(chord.Hook, 1.75),
+                6 => ShiftOctave(chord.Hook, 1.5),
+                7 => chord.Hook,
+                _ => null
+            },
+            GrooveFeel.Cyberpunk => step switch
+            {
+                0 => chord.Hook,
+                1 => ShiftOctave(chord.Hook, 1.25),
+                2 => ShiftOctave(chord.Hook, 1.5),
+                3 => ShiftOctave(chord.Hook, 1.25),
+                4 => ShiftOctave(chord.Hook, 0.75),
                 5 => chord.Hook,
+                6 => ShiftOctave(chord.Hook, 1.5),
+                7 => chord.Hook,
+                _ => null
+            },
+            GrooveFeel.Synthwave => step switch
+            {
+                0 => chord.Hook,
+                1 => ShiftOctave(chord.Hook, 1.25),
+                2 => ShiftOctave(chord.Hook, 1.5),
+                3 => ShiftOctave(chord.Hook, 1.5),
+                4 => chord.Hook,
+                5 => ShiftOctave(chord.Hook, 0.75),
+                6 => ShiftOctave(chord.Hook, 1.25),
+                7 => ShiftOctave(chord.Hook, 1.5),
+                _ => null
+            },
+            GrooveFeel.ElectroBass => step switch
+            {
+                0 => chord.Hook,
+                1 => ShiftOctave(chord.Hook, 1.25),
+                2 => ShiftOctave(chord.Hook, 1.5),
+                3 => ShiftOctave(chord.Hook, 0.75),
+                4 => chord.Hook,
+                5 => ShiftOctave(chord.Hook, 0.75),
+                6 => ShiftOctave(chord.Hook, 1.25),
+                7 => ShiftOctave(chord.Hook, 1.5),
+                _ => null
+            },
+            GrooveFeel.FunkFusion => step switch
+            {
+                0 => chord.Hook,
+                1 => ShiftOctave(chord.Hook, 1.25),
+                2 => ShiftOctave(chord.Hook, 1.5),
+                3 => chord.Hook,
+                4 => ShiftOctave(chord.Hook, 0.75),
+                5 => ShiftOctave(chord.Hook, 1.5),
+                6 => ShiftOctave(chord.Hook, 1.25),
+                7 => chord.Hook,
+                _ => null
+            },
+            GrooveFeel.MatrixTech => step switch
+            {
+                0 => chord.Hook,
+                1 => ShiftOctave(chord.Hook, 1.25),
+                2 => ShiftOctave(chord.Hook, 1.5),
+                3 => ShiftOctave(chord.Hook, 1.5),
+                4 => chord.Hook,
+                5 => ShiftOctave(chord.Hook, 0.75),
+                6 => ShiftOctave(chord.Hook, 1.25),
                 7 => ShiftOctave(chord.Hook, 1.5),
                 _ => null
             },
             _ => step switch
             {
-                1 => chord.Hook,
-                3 => ShiftOctave(chord.Hook, 0.75),
-                5 => chord.Hook,
-                7 => ShiftOctave(chord.Hook, 1.5),
-                _ => null
+                0 or 4 => chord.Hook,
+                2 or 6 => ShiftOctave(chord.Hook, 1.5),
+                _ => ShiftOctave(chord.Hook, 0.75)
             }
         };
     }
@@ -470,15 +457,16 @@ public sealed class RingtonePlayer : IDisposable
     {
         return feel switch
         {
-            GrooveFeel.Wide => step is 0 or 4 ? chord.Pad[0] : null,
-            GrooveFeel.Lounge => step is 0 or 5 ? chord.Pad[0] : null,
-            GrooveFeel.Upbeat => step is 0 or 3 or 4 ? chord.Pad[0] : null,
-            GrooveFeel.Digital => step is 0 or 4 or 6 ? chord.Pad[0] : null,
-            GrooveFeel.SoftHouse => step is 0 or 2 or 4 or 6 ? chord.Pad[0] : null,
-            GrooveFeel.Brand => step is 0 or 4 or 7 ? chord.Pad[0] : null,
-            GrooveFeel.Mobile => step is 0 or 4 ? chord.Pad[0] : null,
-            GrooveFeel.Airy => step == 0 ? chord.Pad[0] : null,
-            _ => step is 0 or 4 ? chord.Pad[0] : null
+            GrooveFeel.TranceAnthem => chord.Pad[0] * (step % 2 == 1 ? 2.0 : 1.0),
+            GrooveFeel.TeamsRemix => chord.Pad[0] * (step switch { 1 or 5 => 1.25, 2 or 6 => 1.5, 7 => 2.0, _ => 1.0 }),
+            GrooveFeel.SkypeSpark => chord.Pad[0] * (step switch { 2 or 6 => 1.5, 3 or 7 => 2.0, _ => 1.0 }),
+            GrooveFeel.MerlinAnthem => chord.Pad[0] * (step switch { 1 or 5 => 1.5, 3 or 7 => 2.0, _ => 1.0 }),
+            GrooveFeel.Cyberpunk => chord.Pad[0] * (step % 2 == 1 ? 0.5 : 1.0),
+            GrooveFeel.Synthwave => chord.Pad[0] * (step % 2 == 1 ? 2.0 : 1.0),
+            GrooveFeel.ElectroBass => chord.Pad[0] * (step switch { 2 or 6 => 1.5, 3 or 7 => 0.75, _ => 1.0 }),
+            GrooveFeel.FunkFusion => chord.Pad[0] * (step switch { 1 => 1.5, 3 => 2.0, 5 => 1.25, 7 => 1.5, _ => 1.0 }),
+            GrooveFeel.MatrixTech => chord.Pad[0] * (step switch { 1 or 3 or 5 or 7 => 2.0, _ => 1.0 }),
+            _ => chord.Pad[0]
         };
     }
 
@@ -521,7 +509,7 @@ public sealed class RingtonePlayer : IDisposable
     private void QueueGrooveStep(double seconds, double[]? pad, double[]? pluck, double? bass, Percussion percussion, GrooveFeel feel)
     {
         var sampleCount = Math.Max(1, (int)(SampleRate * seconds));
-        QueueWave(seconds, 0.74, i =>
+        QueueWave(seconds, 0.76, i =>
         {
             var t = (double)i / SampleRate;
             var progress = (double)i / sampleCount;
@@ -539,7 +527,13 @@ public sealed class RingtonePlayer : IDisposable
 
             if (pluck is not null)
             {
-                value += MixNotes(pluck, t, progress, feel == GrooveFeel.Mobile ? MalletVoice : PluckVoice) * FeelHookGain(feel);
+                Func<double, double, double, double> voice = feel switch
+                {
+                    GrooveFeel.TeamsRemix => SparkleMalletVoice,
+                    GrooveFeel.SkypeSpark => SparkleLeadVoice,
+                    _ => LeadSawVoice
+                };
+                value += MixNotes(pluck, t, progress, voice) * FeelHookGain(feel);
             }
 
             value += PercussionVoice(percussion, t, progress, i) * FeelDrumGain(feel);
@@ -556,7 +550,7 @@ public sealed class RingtonePlayer : IDisposable
             var progress = (double)i / sampleCount;
             var value = 0.0;
             if (pad is not null) value += MixNotes(pad, t, progress, PadVoice);
-            if (pluck is not null) value += MixNotes(pluck, t, progress, PluckVoice);
+            if (pluck is not null) value += MixNotes(pluck, t, progress, LeadSawVoice);
             value += PercussionVoice(percussion, t, progress, i);
             return value;
         });
@@ -575,15 +569,16 @@ public sealed class RingtonePlayer : IDisposable
 
     private static double BassVoice(double frequency, double t, double progress)
     {
-        var env = Math.Exp(-1.6 * progress);
-        var body = Math.Sin(2 * Math.PI * frequency * 0.5 * t) * 0.55;
-        var upper = Math.Sin(2 * Math.PI * frequency * t) * 0.22;
-        return (body + upper) * env;
+        var env = Math.Exp(-1.8 * progress);
+        var body = Math.Sin(2 * Math.PI * frequency * 0.5 * t) * 0.58;
+        var upper = Math.Sin(2 * Math.PI * frequency * t) * 0.26;
+        var sub = Math.Sin(2 * Math.PI * frequency * 0.25 * t) * 0.18;
+        return (body + upper + sub) * env;
     }
 
     private static double PadVoice(double frequency, double t, double progress)
     {
-        var attack = Math.Min(1.0, progress / 0.18);
+        var attack = Math.Min(1.0, progress / 0.16);
         var release = 0.68 + Math.Sin(progress * Math.PI) * 0.32;
         var detune = frequency * (1.0 + Math.Sin(2 * Math.PI * 4.1 * t) * 0.002);
         var main = Math.Sin(2 * Math.PI * detune * t) * 0.44;
@@ -592,23 +587,38 @@ public sealed class RingtonePlayer : IDisposable
         return (main + octave + fifth) * attack * release;
     }
 
-    private static double PluckVoice(double frequency, double t, double progress)
+    private static double LeadSawVoice(double frequency, double t, double progress)
     {
-        var decay = Math.Exp(-5.2 * progress);
-        var main = Math.Sin(2 * Math.PI * frequency * t) * 0.44;
-        var glass = Math.Sin(2 * Math.PI * frequency * 2.01 * t) * 0.16;
-        var chime = Math.Sin(2 * Math.PI * frequency * 3.02 * t) * 0.06;
-        return (main + glass + chime) * decay;
+        var decay = Math.Exp(-2.8 * progress);
+        var f = frequency * (1.0 + Math.Sin(2 * Math.PI * 5.2 * t) * 0.003);
+        var osc1 = ((t * f) % 1.0) * 2.0 - 1.0;
+        var osc2 = ((t * (f * 1.006)) % 1.0) * 2.0 - 1.0;
+        var osc3 = ((t * (f * 0.994)) % 1.0) * 2.0 - 1.0;
+        var saw = (osc1 + osc2 + osc3) * 0.28;
+        var sub = Math.Sin(2 * Math.PI * (f * 0.5) * t) * 0.20;
+        return (saw + sub) * decay;
     }
 
-    private static double MalletVoice(double frequency, double t, double progress)
+    private static double SparkleLeadVoice(double frequency, double t, double progress)
     {
-        var decay = Math.Exp(-4.0 * progress);
-        var body = Math.Sin(2 * Math.PI * frequency * t) * 0.34;
-        var woody = Math.Sin(2 * Math.PI * frequency * 1.997 * t) * 0.20;
-        var bell = Math.Sin(2 * Math.PI * frequency * 3.01 * t) * 0.08;
-        var tap = Math.Sin(2 * Math.PI * frequency * 6.0 * t) * Math.Exp(-34.0 * progress) * 0.05;
-        return (body + woody + bell + tap) * decay;
+        var decay = Math.Exp(-3.4 * progress);
+        var f = frequency * (1.0 + Math.Sin(2 * Math.PI * 6.0 * t) * 0.002);
+        var osc1 = Math.Sin(2 * Math.PI * f * t) * 0.42;
+        var osc2 = Math.Sin(2 * Math.PI * f * 2.003 * t) * 0.22;
+        var osc3 = Math.Sin(2 * Math.PI * f * 3.007 * t) * 0.12;
+        var chime = Math.Sin(2 * Math.PI * f * 4.0 * t) * Math.Exp(-12.0 * progress) * 0.15;
+        return (osc1 + osc2 + osc3 + chime) * decay;
+    }
+
+    private static double SparkleMalletVoice(double frequency, double t, double progress)
+    {
+        var decay = Math.Exp(-3.2 * progress);
+        var body = Math.Sin(2 * Math.PI * frequency * t) * 0.38;
+        var harmonic = Math.Sin(2 * Math.PI * frequency * 2.0 * t) * 0.22;
+        var bell = Math.Sin(2 * Math.PI * frequency * 3.01 * t) * 0.14;
+        var sparkle = Math.Sin(2 * Math.PI * frequency * 4.02 * t) * Math.Exp(-8.0 * progress) * 0.12;
+        var tap = Math.Sin(2 * Math.PI * frequency * 6.0 * t) * Math.Exp(-30.0 * progress) * 0.06;
+        return (body + harmonic + bell + sparkle + tap) * decay;
     }
 
     private static double PercussionVoice(Percussion percussion, double t, double progress, int sampleIndex)
@@ -616,15 +626,15 @@ public sealed class RingtonePlayer : IDisposable
         var value = 0.0;
         if (percussion.HasFlag(Percussion.Kick))
         {
-            var freq = 78.0 - (34.0 * Math.Min(1.0, progress * 3.0));
-            value += Math.Sin(2 * Math.PI * freq * t) * Math.Exp(-9.0 * progress) * 0.72;
-            value += Noise(sampleIndex) * Math.Exp(-60.0 * progress) * 0.08;
+            var freq = 82.0 - (38.0 * Math.Min(1.0, progress * 3.0));
+            value += Math.Sin(2 * Math.PI * freq * t) * Math.Exp(-8.5 * progress) * 0.78;
+            value += Noise(sampleIndex) * Math.Exp(-55.0 * progress) * 0.09;
         }
 
         if (percussion.HasFlag(Percussion.Snare))
         {
-            value += Noise(sampleIndex + 173) * Math.Exp(-18.0 * progress) * 0.24;
-            value += Math.Sin(2 * Math.PI * 190.0 * t) * Math.Exp(-13.0 * progress) * 0.10;
+            value += Noise(sampleIndex + 173) * Math.Exp(-17.0 * progress) * 0.26;
+            value += Math.Sin(2 * Math.PI * 195.0 * t) * Math.Exp(-12.0 * progress) * 0.12;
         }
 
         if (percussion.HasFlag(Percussion.Clap))
@@ -632,19 +642,19 @@ public sealed class RingtonePlayer : IDisposable
             var burst = Math.Exp(-30.0 * Math.Abs(progress - 0.08)) +
                         Math.Exp(-36.0 * Math.Abs(progress - 0.16)) +
                         Math.Exp(-44.0 * Math.Abs(progress - 0.24));
-            value += Noise(sampleIndex + 911) * burst * 0.09;
+            value += Noise(sampleIndex + 911) * burst * 0.11;
         }
 
         if (percussion.HasFlag(Percussion.Hat))
         {
             var hat = Noise(sampleIndex + 511) - Noise(sampleIndex / 2 + 19);
-            value += hat * Math.Exp(-32.0 * progress) * 0.070;
+            value += hat * Math.Exp(-30.0 * progress) * 0.075;
         }
 
         if (percussion.HasFlag(Percussion.GhostHat))
         {
             var hat = Noise(sampleIndex + 1201) - Noise(sampleIndex / 3 + 71);
-            value += hat * Math.Exp(-45.0 * progress) * 0.040;
+            value += hat * Math.Exp(-42.0 * progress) * 0.045;
         }
 
         return value;
@@ -662,47 +672,20 @@ public sealed class RingtonePlayer : IDisposable
         }
     }
 
-    private static double FeelBassGain(GrooveFeel feel)
-    {
-        return feel switch
-        {
-            GrooveFeel.Lounge or GrooveFeel.SoftHouse => 0.24,
-            GrooveFeel.Upbeat or GrooveFeel.Crisp => 0.20,
-            _ => 0.18
-        };
-    }
+    private static double FeelBassGain(GrooveFeel feel) => 0.27;
 
-    private static double FeelPadGain(GrooveFeel feel)
-    {
-        return feel switch
-        {
-            GrooveFeel.Wide or GrooveFeel.Lounge or GrooveFeel.Airy => 0.34,
-            GrooveFeel.Crisp or GrooveFeel.Upbeat => 0.24,
-            _ => 0.28
-        };
-    }
+    private static double FeelPadGain(GrooveFeel feel) => 0.36;
 
-    private static double FeelHookGain(GrooveFeel feel)
-    {
-        return feel switch
-        {
-            GrooveFeel.Upbeat or GrooveFeel.Brand => 0.34,
-            GrooveFeel.Digital or GrooveFeel.Crisp => 0.31,
-            _ => 0.27
-        };
-    }
+    private static double FeelHookGain(GrooveFeel feel) => 0.38;
 
-    private static double FeelDrumGain(GrooveFeel feel)
+    private static double FeelDrumGain(GrooveFeel feel) => feel switch
     {
-        return feel switch
-        {
-            GrooveFeel.Smooth or GrooveFeel.Airy => 0.42,
-            GrooveFeel.Mobile => 0.28,
-            GrooveFeel.Lounge or GrooveFeel.SoftHouse => 0.55,
-            GrooveFeel.Upbeat or GrooveFeel.Crisp => 0.62,
-            _ => 0.50
-        };
-    }
+        GrooveFeel.TranceAnthem or GrooveFeel.Cyberpunk or GrooveFeel.MatrixTech => 0.68,
+        GrooveFeel.MerlinAnthem or GrooveFeel.ElectroBass or GrooveFeel.FunkFusion => 0.66,
+        GrooveFeel.TeamsRemix or GrooveFeel.Synthwave => 0.64,
+        GrooveFeel.SkypeSpark => 0.62,
+        _ => 0.65
+    };
 
     private void QueuePause(double seconds)
     {
@@ -777,18 +760,15 @@ public sealed class RingtonePlayer : IDisposable
 
     private enum GrooveFeel
     {
-        Corporate,
-        Smooth,
-        Digital,
-        Wide,
-        Crisp,
-        SoftHouse,
-        Upbeat,
-        Lounge,
-        Airy,
-        Brand
-        ,
-        Mobile
+        TranceAnthem,
+        TeamsRemix,
+        SkypeSpark,
+        MerlinAnthem,
+        Cyberpunk,
+        Synthwave,
+        ElectroBass,
+        FunkFusion,
+        MatrixTech
     }
 
     [Flags]

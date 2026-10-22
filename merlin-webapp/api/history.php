@@ -23,6 +23,10 @@ $validStatuses = ['Ended', 'Connected', 'Busy', 'Declined', 'Missed', 'Cancelled
 if (isset($input['record']) && is_array($input['record'])) {
     $item = $input['record'];
     $number = preg_replace('/[^a-zA-Z0-9+*#@.:_-]/', '', merlin_string($item, 'number', 80));
+    if ($number === '') {
+        merlin_json_response(['ok' => false, 'error' => 'A valid phone number or SIP destination is required.'], 400);
+    }
+
     $status = merlin_string($item, 'status', 40) ?: 'Ended';
     if (!in_array($status, $validStatuses, true)) {
         $status = 'Ended';
@@ -61,6 +65,10 @@ foreach ($items as $item) {
     }
 
     $number = preg_replace('/[^a-zA-Z0-9+*#@.:_-]/', '', merlin_string($item, 'number', 80));
+    if ($number === '') {
+        continue; // Skip invalid empty destination entries
+    }
+
     $status = merlin_string($item, 'status', 40) ?: 'Ended';
     if (!in_array($status, $validStatuses, true)) {
         $status = 'Ended';
@@ -80,6 +88,3 @@ foreach ($items as $item) {
 
 merlin_write_json('history.json', array_slice(array_values($history), 0, 300));
 merlin_json_response(['ok' => true, 'history' => $history]);
-
-
-

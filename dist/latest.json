@@ -1,5 +1,5 @@
 {
-  "Version": "1.2.1",
-  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.2.1-x64-faststart.msi",
-  "Notes": "Release 1.2.1: Fixed network diagnostics post-scan stability and UDP socket resource management, resolved background task lifecycle exceptions, improved audio device initialization, and streamlined Settings UI."
+  "Version": "1.2.9",
+  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.2.9-x64-faststart.msi",
+  "Notes": "Release 1.2.9: Fix 603 Decline teardown hang and audio driver deadlock. Added instant Redial, color-coded call status badges, configurable call decline actions (603 Decline, 486 Busy, 480 Unavailable, Forward to Mobile), and real-time HD Voice call quality HUD."
 }

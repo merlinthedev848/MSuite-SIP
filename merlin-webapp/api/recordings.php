@@ -23,9 +23,14 @@ $input = merlin_request_json();
 
 if (isset($input['record']) && is_array($input['record'])) {
     $item = $input['record'];
+    $number = preg_replace('/[^a-zA-Z0-9+*#@.:_-]/', '', merlin_string($item, 'number', 80));
+    if ($number === '') {
+        merlin_json_response(['ok' => false, 'error' => 'A valid phone number or target is required.'], 400);
+    }
+
     $entry = [
         'id' => merlin_string($item, 'id', 80) ?: ('rec-' . bin2hex(random_bytes(6))),
-        'number' => preg_replace('/[^a-zA-Z0-9+*#@.:_-]/', '', merlin_string($item, 'number', 80)),
+        'number' => $number,
         'name' => merlin_string($item, 'name', 120) ?: 'Unknown',
         'direction' => in_array(($item['direction'] ?? ''), ['Inbound', 'Outbound'], true) ? $item['direction'] : 'Outbound',
         'duration' => max(0, (int) ($item['duration'] ?? 0)),
@@ -49,14 +54,18 @@ if (!is_array($items)) {
     merlin_json_response(['ok' => false, 'error' => 'Recordings array required.'], 400);
 }
 
-$sanitized = [];
+$validatedRecordings = [];
 foreach ($items as $item) {
     if (!is_array($item)) {
         continue;
     }
-    $sanitized[] = [
+    $number = preg_replace('/[^a-zA-Z0-9+*#@.:_-]/', '', merlin_string($item, 'number', 80));
+    if ($number === '') {
+        continue;
+    }
+    $validatedRecordings[] = [
         'id' => merlin_string($item, 'id', 80) ?: ('rec-' . bin2hex(random_bytes(6))),
-        'number' => preg_replace('/[^a-zA-Z0-9+*#@.:_-]/', '', merlin_string($item, 'number', 80)),
+        'number' => $number,
         'name' => merlin_string($item, 'name', 120) ?: 'Unknown',
         'direction' => in_array(($item['direction'] ?? ''), ['Inbound', 'Outbound'], true) ? $item['direction'] : 'Outbound',
         'duration' => max(0, (int) ($item['duration'] ?? 0)),
@@ -65,7 +74,7 @@ foreach ($items as $item) {
         'size' => max(0, (int) ($item['size'] ?? 0)),
     ];
 }
-$trimmed = array_slice($sanitized, 0, 100);
 
+$trimmed = array_slice($validatedRecordings, 0, 100);
 merlin_write_json('recordings.json', $trimmed);
 merlin_json_response(['ok' => true, 'recordings' => $trimmed]);
