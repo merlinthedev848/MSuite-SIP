@@ -26,7 +26,7 @@ public class CallQualityAndRingtoneTests
         };
 
         Assert.Equal("4.4 MOS", entry.MosDisplay);
-        Assert.Equal("🟢 4.4 MOS", entry.QualitySummaryDisplay);
+        Assert.Equal("● 4.4 MOS", entry.QualitySummaryDisplay);
         Assert.Equal("#DEF7EC", entry.QualityBadgeBackground);
         Assert.Equal("#03543F", entry.QualityBadgeForeground);
         Assert.Equal(92.5, entry.RFactor);
@@ -36,9 +36,10 @@ public class CallQualityAndRingtoneTests
     public void RingtonePlayer_Choices_ContainExpectedTones()
     {
         var choices = RingtonePlayer.Choices;
-        Assert.Contains(choices, c => c.Id == "orbital-anthem");
+        Assert.Equal(3, choices.Count);
+        Assert.Contains(choices, c => c.Id == "ring-classic");
         Assert.Contains(choices, c => c.Id == "teams-anthem");
         Assert.Contains(choices, c => c.Id == "skype-spark");
-        Assert.Contains(choices, c => c.Id == "ring-classic");
+        Assert.DoesNotContain(choices, c => c.Id == "orbital-anthem");
     }
 }

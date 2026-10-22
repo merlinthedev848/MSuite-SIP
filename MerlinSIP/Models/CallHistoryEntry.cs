@@ -16,6 +16,8 @@ public sealed record CallHistoryEntry
     public double PacketLossPercent { get; init; } = 0.0;
     public double JitterMs { get; init; } = 1.8;
     public double LatencyMs { get; init; } = 22.0;
+    public double BitrateSendKbps { get; init; } = 64.0;
+    public double BitrateRecvKbps { get; init; } = 64.0;
     public int SignalBars { get; init; } = 5;
     public string Codec { get; init; } = "PCMU (G.711u)";
     public double RFactor { get; init; } = 92.5;
@@ -26,11 +28,11 @@ public sealed record CallHistoryEntry
     [System.Text.Json.Serialization.JsonIgnore]
     public string QualitySummaryDisplay => QualityLevel switch
     {
-        "Excellent" => $"🟢 {MosDisplay}",
-        "Good" => $"🔵 {MosDisplay}",
-        "Fair" => $"🟡 {MosDisplay}",
-        "Poor" => $"🔴 {MosDisplay}",
-        _ => $"⚪ {MosDisplay}"
+        "Excellent" => $"● {MosDisplay}",
+        "Good" => $"● {MosDisplay}",
+        "Fair" => $"● {MosDisplay}",
+        "Poor" => $"● {MosDisplay}",
+        _ => $"○ {MosDisplay}"
     };
 
     [System.Text.Json.Serialization.JsonIgnore]

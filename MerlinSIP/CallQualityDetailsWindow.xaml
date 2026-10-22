@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Call Quality Analysis"
         Icon="Assets/CKMedia-Icon.ico"
-        Width="500"
+        Width="520"
         SizeToContent="Height"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -33,24 +33,25 @@
                 <Button DockPanel.Dock="Right"
                         Content="Close"
                         Width="82"
-                        Height="36"
+                        Height="34"
+                        Style="{StaticResource SoftButton}"
                         Click="CloseButton_Click" />
                 <StackPanel>
                     <TextBlock x:Name="TitleTextBlock"
                                Text="Call Quality Analysis"
-                               FontSize="22"
+                               FontSize="21"
                                FontWeight="SemiBold"
                                Foreground="#111827" />
                     <TextBlock x:Name="SubtitleTextBlock"
                                Text="Real-time RTP Stream &amp; Network Health"
-                               FontSize="13"
+                               FontSize="12.5"
                                Foreground="#64748B"
                                Margin="0,3,0,0" />
                 </StackPanel>
             </DockPanel>
 
             <!-- Hero Score Card -->
-            <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,18,0,16">
+            <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,16,0,14">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -77,9 +78,9 @@
             </Border>
 
             <!-- Metrics Grid -->
-            <UniformGrid Grid.Row="2" Columns="2" Margin="0,0,0,18">
+            <UniformGrid Grid.Row="2" Columns="2" Margin="0,0,0,14">
                 <!-- Packet Loss -->
-                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,6,8">
+                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,5,8">
                     <StackPanel>
                         <TextBlock Text="Packet Loss" FontSize="11" Foreground="#64748B" FontWeight="Medium" />
                         <TextBlock x:Name="PacketLossTextBlock" Text="0.0 %" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,2,0,0" />
@@ -88,7 +89,7 @@
                 </Border>
 
                 <!-- Jitter -->
-                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="6,0,0,8">
+                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="5,0,0,8">
                     <StackPanel>
                         <TextBlock Text="Jitter" FontSize="11" Foreground="#64748B" FontWeight="Medium" />
                         <TextBlock x:Name="JitterTextBlock" Text="1.8 ms" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,2,0,0" />
@@ -97,7 +98,7 @@
                 </Border>
 
                 <!-- Round-Trip Latency -->
-                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,6,0">
+                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,5,8">
                     <StackPanel>
                         <TextBlock Text="Round-trip Latency" FontSize="11" Foreground="#64748B" FontWeight="Medium" />
                         <TextBlock x:Name="LatencyTextBlock" Text="22 ms" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,2,0,0" />
@@ -105,22 +106,22 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Codec & Stream -->
-                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="6,0,0,0">
+                <!-- RTP Bitrate -->
+                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="5,0,0,8">
                     <StackPanel>
-                        <TextBlock Text="VoIP Audio Codec" FontSize="11" Foreground="#64748B" FontWeight="Medium" />
-                        <TextBlock x:Name="CodecTextBlock" Text="PCMU (G.711u)" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,2,0,0" />
-                        <TextBlock Text="64 kbps standard" FontSize="10" Foreground="#94A3B8" />
+                        <TextBlock Text="RTP Bitrate (Tx / Rx)" FontSize="11" Foreground="#64748B" FontWeight="Medium" />
+                        <TextBlock x:Name="BitrateTextBlock" Text="64.0 / 64.0 kbps" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,2,0,0" />
+                        <TextBlock Text="G.711u standard" FontSize="10" Foreground="#94A3B8" />
                     </StackPanel>
                 </Border>
             </UniformGrid>
 
             <!-- Diagnostic Details -->
-            <Border Grid.Row="3" Background="#F1F5F9" CornerRadius="8" Padding="12" Margin="0,0,0,16">
+            <Border Grid.Row="3" Background="#F1F5F9" CornerRadius="8" Padding="12" Margin="0,0,0,4">
                 <StackPanel>
                     <TextBlock Text="Telephony Diagnostic Summary" FontWeight="SemiBold" FontSize="12" Foreground="#334155" />
                     <TextBlock x:Name="DiagnosticSummaryTextBlock"
-                               Text="RTP stream connection established with pbx.chriskendall.media. Both forward and reverse RTP paths maintain optimal packet delivery without underruns."
+                               Text="RTP stream connection established with PBX. Forward and reverse RTP paths maintain optimal packet delivery without underruns."
                                FontSize="11.5" Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>

@@ -10,16 +10,9 @@ public sealed class RingtonePlayer : IDisposable
 
     public static readonly IReadOnlyList<RingtoneChoice> Choices =
     [
-        new("orbital-anthem", "🚀 Orbital Dance (Trance Peak)"),
-        new("teams-anthem", "✨ Teams Modern Remix (Studio Audio)"),
-        new("skype-spark", "🌟 Skype Spark Dynamic (Studio Audio)"),
         new("ring-classic", "🔔 Classic Deskphone (Studio Audio)"),
-        new("merlin-anthem", "🔥 Merlin Signature Anthem (Banging Hook)"),
-        new("cyberpunk", "⚡ Cyberpunk Overdrive (Drop)"),
-        new("miami-midnight", "🌴 Miami Midnight 1984 (Synthwave)"),
-        new("tokyo-drift", "🏎️ Tokyo Drift (Electro Bass)"),
-        new("neon-funk", "🎷 Neon Funk Fusion (Slap Bass)"),
-        new("matrix-tech", "🕶️ Matrix Tech (Club Drop)")
+        new("teams-anthem", "✨ Teams Modern Remix (Studio Audio)"),
+        new("skype-spark", "🌟 Skype Spark Dynamic (Studio Audio)")
     ];
 
     private readonly List<AudioBuffer> _buffers = [];
@@ -142,15 +135,6 @@ public sealed class RingtonePlayer : IDisposable
 
         switch (_ringtone)
         {
-            case "ring-classic":
-                Repeat(4, () =>
-                {
-                    QueueToneStep(0.40, [400.00, 450.00], null, Percussion.None, 0.10);
-                    QueuePause(0.20);
-                    QueueToneStep(0.40, [400.00, 450.00], null, Percussion.None, 0.10);
-                    QueuePause(2.00);
-                });
-                return 12000;
             case "uk-ringback":
                 Repeat(4, () =>
                 {
@@ -161,87 +145,16 @@ public sealed class RingtonePlayer : IDisposable
                 });
                 return 12000;
 
-            case "teams-anthem":
-                PlayGroove(126, GrooveFeel.TeamsRemix, [
-                    Chord([130.81, 196.00, 261.63, 329.63, 392.00, 493.88], [783.99, 1046.50, 1318.51]),
-                    Chord([110.00, 164.81, 220.00, 261.63, 329.63, 392.00], [880.00, 1046.50, 1318.51]),
-                    Chord([87.31, 130.81, 174.61, 220.00, 261.63, 329.63], [698.46, 880.00, 1046.50]),
-                    Chord([98.00, 146.83, 196.00, 246.94, 293.66, 349.23], [783.99, 987.77, 1174.66])
-                ]);
-                return 7600;
-
-            case "skype-spark":
-                PlayGroove(125, GrooveFeel.SkypeSpark, [
-                    Chord([146.83, 220.00, 293.66, 369.99, 440.00, 554.37], [739.99, 1108.73, 1479.98]),
-                    Chord([123.47, 185.00, 246.94, 293.66, 369.99, 440.00], [587.33, 739.99, 1174.66]),
-                    Chord([98.00, 146.83, 196.00, 246.94, 293.66, 369.99], [783.99, 987.77, 1174.66]),
-                    Chord([110.00, 164.81, 220.00, 277.18, 329.63, 440.00], [880.00, 1108.73, 1318.51])
-                ]);
-                return 7700;
-
-            case "merlin-anthem":
-                PlayGroove(128, GrooveFeel.MerlinAnthem, [
-                    Chord([130.81, 196.00, 261.63, 329.63, 392.00, 523.25], [659.25, 1046.50, 1318.51]),
-                    Chord([146.83, 220.00, 293.66, 369.99, 440.00, 587.33], [739.99, 1174.66, 1479.98]),
-                    Chord([164.81, 246.94, 329.63, 392.00, 493.88, 659.25], [783.99, 1318.51, 1567.98]),
-                    Chord([146.83, 220.00, 293.66, 392.00, 493.88, 587.33], [783.99, 1174.66, 1479.98])
-                ]);
-                return 7500;
-
-            case "cyberpunk":
-                PlayGroove(130, GrooveFeel.Cyberpunk, [
-                    Chord([146.83, 220.00, 261.63, 293.66, 349.23, 440.00], [587.33, 880.00, 1174.66]),
-                    Chord([174.61, 261.63, 329.63, 349.23, 440.00, 523.25], [698.46, 1046.50, 1396.91]),
-                    Chord([130.81, 196.00, 261.63, 329.63, 392.00, 493.88], [587.33, 987.77, 1174.66]),
-                    Chord([116.54, 174.61, 233.08, 293.66, 349.23, 440.00], [698.46, 880.00, 1396.91])
-                ]);
-                return 7400;
-
-            case "miami-midnight":
-                PlayGroove(122, GrooveFeel.Synthwave, [
-                    Chord([110.00, 220.00, 261.63, 329.63, 440.00], [659.25, 880.00, 1318.51]),
-                    Chord([87.31, 174.61, 261.63, 329.63, 349.23], [698.46, 1046.50, 1396.91]),
-                    Chord([130.81, 196.00, 261.63, 329.63, 392.00], [659.25, 987.77, 1318.51]),
-                    Chord([98.00, 196.00, 246.94, 293.66, 392.00], [587.33, 783.99, 1174.66])
-                ]);
-                return 7800;
-
-            case "tokyo-drift":
-                PlayGroove(132, GrooveFeel.ElectroBass, [
-                    Chord([164.81, 246.94, 329.63, 392.00, 493.88], [659.25, 987.77, 1318.51]),
-                    Chord([130.81, 261.63, 329.63, 392.00, 523.25], [659.25, 1046.50, 1318.51]),
-                    Chord([146.83, 293.66, 369.99, 440.00, 587.33], [739.99, 1174.66, 1479.98]),
-                    Chord([123.47, 246.94, 293.66, 369.99, 493.88], [587.33, 987.77, 1174.66])
-                ]);
-                return 7300;
-
-            case "neon-funk":
-                PlayGroove(122, GrooveFeel.FunkFusion, [
-                    Chord([155.56, 233.08, 277.18, 311.13, 369.99, 466.16], [622.25, 932.33, 1244.51]),
-                    Chord([103.83, 207.65, 261.63, 311.13, 369.99, 415.30], [523.25, 830.61, 1046.50]),
-                    Chord([138.59, 207.65, 277.18, 329.63, 415.30, 523.25], [659.25, 830.61, 1046.50]),
-                    Chord([116.54, 233.08, 293.66, 349.23, 466.16, 587.33], [587.33, 932.33, 1174.66])
-                ]);
-                return 7800;
-
-            case "matrix-tech":
-                PlayGroove(128, GrooveFeel.MatrixTech, [
-                    Chord([196.00, 293.66, 349.23, 392.00, 466.16], [783.99, 1174.66, 1567.98]),
-                    Chord([233.08, 293.66, 349.23, 466.16, 587.33], [698.46, 1174.66, 1396.91]),
-                    Chord([174.61, 261.63, 349.23, 440.00, 523.25], [698.46, 1046.50, 1396.91]),
-                    Chord([155.56, 233.08, 311.13, 392.00, 466.16], [622.25, 932.33, 1244.51])
-                ]);
-                return 7500;
-
-            case "orbital-anthem":
+            case "ring-classic":
             default:
-                PlayGroove(128, GrooveFeel.TranceAnthem, [
-                    Chord([185.00, 277.18, 369.99, 440.00, 554.37], [739.99, 1108.73, 1479.98]),
-                    Chord([146.83, 293.66, 369.99, 440.00, 587.33], [739.99, 1174.66, 1479.98]),
-                    Chord([110.00, 220.00, 277.18, 329.63, 440.00], [659.25, 880.00, 1318.51]),
-                    Chord([164.81, 246.94, 329.63, 415.30, 493.88], [659.25, 830.61, 1318.51])
-                ]);
-                return 7500;
+                Repeat(4, () =>
+                {
+                    QueueToneStep(0.40, [400.00, 450.00], null, Percussion.None, 0.10);
+                    QueuePause(0.20);
+                    QueueToneStep(0.40, [400.00, 450.00], null, Percussion.None, 0.10);
+                    QueuePause(2.00);
+                });
+                return 12000;
         }
     }
 

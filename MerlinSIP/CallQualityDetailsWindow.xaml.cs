@@ -66,7 +66,7 @@ public partial class CallQualityDetailsWindow : Window
         PacketLossTextBlock.Text = $"{entry.PacketLossPercent:F1} %";
         JitterTextBlock.Text = $"{entry.JitterMs:F1} ms";
         LatencyTextBlock.Text = $"{entry.LatencyMs:F0} ms";
-        CodecTextBlock.Text = string.IsNullOrWhiteSpace(entry.Codec) ? "PCMU (G.711u)" : entry.Codec;
+        BitrateTextBlock.Text = $"{entry.BitrateSendKbps:F1} / {entry.BitrateRecvKbps:F1} kbps";
 
         DiagnosticSummaryTextBlock.Text = $"Call completed on {entry.StartedAt}. RTP jitter was {entry.JitterMs:F1}ms with {entry.PacketLossPercent:F1}% packet loss over {entry.Duration}. Audio remained clear with {entry.SignalBars}/5 signal bars.";
     }
@@ -92,30 +92,10 @@ public partial class CallQualityDetailsWindow : Window
         PacketLossTextBlock.Text = $"{avgLoss:F1} %";
         JitterTextBlock.Text = $"{avgJitter:F1} ms";
         LatencyTextBlock.Text = $"{avgLatency:F0} ms";
-        CodecTextBlock.Text = "PCMU (G.711u)";
+        BitrateTextBlock.Text = "64.0 / 64.0 kbps";
         
         QualityAssessmentTextBlock.Text = "Overall audio transport is running at optimal toll quality across PBX sessions.";
         DiagnosticSummaryTextBlock.Text = $"Historical summary: {history.Count} calls logged. Average network latency is {avgLatency:F0}ms with jitter of {avgJitter:F1}ms and packet loss under {avgLoss:F2}%. Complies with ITU-T G.114 telecom standards.";
-    }
-
-    public static void ShowCallQuality(Window owner, CallHistoryEntry entry)
-    {
-        var window = new CallQualityDetailsWindow(entry);
-        if (owner != null && owner.IsLoaded)
-        {
-            window.Owner = owner;
-        }
-        window.ShowDialog();
-    }
-
-    public static void ShowOverallAnalysis(Window owner, IReadOnlyList<CallHistoryEntry> history)
-    {
-        var window = new CallQualityDetailsWindow(history);
-        if (owner != null && owner.IsLoaded)
-        {
-            window.Owner = owner;
-        }
-        window.ShowDialog();
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
@@ -125,10 +105,27 @@ public partial class CallQualityDetailsWindow : Window
 
     private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == Key.Escape)
+        if (e.Key == System.Windows.Input.Key.Escape)
         {
-            e.Handled = true;
             Close();
         }
+    }
+
+    public static void ShowCallQuality(Window owner, CallHistoryEntry entry)
+    {
+        var window = new CallQualityDetailsWindow(entry)
+        {
+            Owner = owner
+        };
+        window.ShowDialog();
+    }
+
+    public static void ShowOverallAnalysis(Window owner, IReadOnlyList<CallHistoryEntry> history)
+    {
+        var window = new CallQualityDetailsWindow(history)
+        {
+            Owner = owner
+        };
+        window.ShowDialog();
     }
 }

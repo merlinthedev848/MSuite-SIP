@@ -566,19 +566,11 @@ public partial class MainWindow : Window
             if (mos < 1.0) mos = 4.35;
             var level = mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
 
-            LiveCallStatisticsCard.Visibility = Visibility.Visible;
-            LiveQualityLevelText.Text = $"🟢 {mos:F1} MOS • {level}";
-            LiveLossText.Text = $"{quality.LossPercent:F1}%";
-            LiveJitterText.Text = $"{jitter:F1} ms";
-            LiveLatencyText.Text = $"{latency:F0} ms";
-            LiveSignalText.Text = $"{quality.SignalBars}/5 Bars";
-
-            CallQualityText.Text = $"G.711 • {mos:F1} MOS • {quality.LossPercent:F1}% loss";
+            CallQualityText.Text = $"● {mos:F1} MOS · {level}";
             CallQualityPill.Visibility = Visibility.Visible;
         }
         else
         {
-            LiveCallStatisticsCard.Visibility = Visibility.Collapsed;
             CallQualityPill.Visibility = Visibility.Collapsed;
         }
     }
@@ -3426,7 +3418,6 @@ del ""%~f0""
         {
             InCallButtonsGrid.Visibility = Visibility.Visible;
             DialerQuickActionsGrid.Visibility = Visibility.Collapsed;
-            LiveCallStatisticsCard.Visibility = Visibility.Visible;
 
             DestinationPreviewText.FontSize = 36;
             CallerLookupText.FontSize = 15;
@@ -3435,7 +3426,6 @@ del ""%~f0""
         {
             InCallButtonsGrid.Visibility = Visibility.Collapsed;
             DialerQuickActionsGrid.Visibility = Visibility.Visible;
-            LiveCallStatisticsCard.Visibility = Visibility.Collapsed;
 
             DestinationPreviewText.FontSize = 28;
             CallerLookupText.FontSize = 13;
@@ -3853,6 +3843,10 @@ del ""%~f0""
 
     private void UpdateLineAppearances()
     {
+        // Agilico style: idle lines show just the line number; status only appears while a line is in use
+        Line1InfoPanel.Visibility = _line1.HasCall ? Visibility.Visible : Visibility.Collapsed;
+        Line2InfoPanel.Visibility = _line2.HasCall ? Visibility.Visible : Visibility.Collapsed;
+
         // Highlight active line selection (Agilico Connect style numbers & soft active tint)
         if (_selectedLine == 1)
         {
