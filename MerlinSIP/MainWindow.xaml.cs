@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Text;
@@ -1279,7 +1280,8 @@ public partial class MainWindow : Window
         try
         {
             using var ping = new Ping();
-            var reply = await ping.SendPingAsync(AppStartupConfig.FixedSipServer, 2500);
+            var targetHost = _sipRegistrationService.ServerEndpointAddress ?? _config.Server;
+            var reply = await ping.SendPingAsync(targetHost, 2500);
             if (reply.Status == IPStatus.Success)
             {
                 PingStatusText.Text = $"{reply.RoundtripTime} ms";
@@ -2276,7 +2278,7 @@ public partial class MainWindow : Window
         {
             Server = server,
             Port = AppStartupConfig.FixedSipPort,
-            Domain = server,
+            Domain = IPAddress.TryParse(server, out _) ? AppStartupConfig.FixedSipServer : server,
             Extension = ExtensionTextBox.Text.Trim(),
             Username = UsernameTextBox.Text.Trim(),
             Password = _passwordRevealed ? PasswordTextBox.Text : PasswordBox.Password,
@@ -2776,7 +2778,7 @@ public partial class MainWindow : Window
             {
                 Server = server,
                 Port = AppStartupConfig.FixedSipPort,
-                Domain = server,
+                Domain = IPAddress.TryParse(server, out _) ? AppStartupConfig.FixedSipServer : server,
                 Extension = ExtensionTextBox.Text.Trim(),
                 Username = UsernameTextBox.Text.Trim(),
                 Password = _passwordRevealed ? PasswordTextBox.Text : PasswordBox.Password,

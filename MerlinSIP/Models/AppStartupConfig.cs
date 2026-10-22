@@ -1,3 +1,5 @@
+using System.Net;
+
 namespace MerlinSip.Models;
 
 public sealed record AppStartupConfig(

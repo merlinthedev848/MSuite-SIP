@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -55,14 +56,15 @@ public sealed class AppCacheService
 
         var licenseKey = Unprotect(settings.LicenseKey, settings.EncryptedLicenseKey);
         var customServer = Unprotect(settings.Server, settings.EncryptedServer);
-        var server = licenseKey.StartsWith("PR", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(customServer)
+        var server = !string.IsNullOrWhiteSpace(customServer)
             ? customServer
             : AppStartupConfig.FixedSipServer;
 
+        var domain = IPAddress.TryParse(server, out _) ? AppStartupConfig.FixedSipServer : server;
         return new AppStartupConfig(
             server,
             settings.Port is > 0 ? settings.Port.Value : AppStartupConfig.FixedSipPort,
-            server,
+            domain,
             Unprotect(settings.Extension, settings.EncryptedExtension),
             Unprotect(settings.Username, settings.EncryptedUsername),
             Unprotect(settings.Password, settings.EncryptedPassword),

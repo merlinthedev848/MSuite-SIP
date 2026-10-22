@@ -128,6 +128,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         QueueRegistrationRefresh(reason);
     }
 
+    public string? ServerEndpointAddress => _cachedServerEndPoint?.Address.ToString();
+
     public string LastCallFailureReason => _lastCallFailureResponse is null
         ? "No outbound route failure has been recorded in this session."
         : $"{_lastCallFailureResponse.Code} {_lastCallFailureResponse.Reason}".Trim();
@@ -1510,6 +1512,21 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 ? await SendAndWaitFromListenerAsync(first, cancellationToken)
                 : await SendAndReceiveDirectAsync(first, cancellationToken);
             DebugLog.Write($"REGISTER RESPONSE code={firstResponse.Code} reason={firstResponse.Reason}");
+
+            if (firstResponse.Code == 0 && !UseStreamSignalling)
+            {
+                DebugLog.Write($"SIP server {_config.Server} timed out at {_cachedServerEndPoint}. Probing for local LAN PBX / NAT Hairpin fallback...");
+                var lanPbx = await ProbeLocalLanPbxAsync(cancellationToken);
+                if (lanPbx is not null && !lanPbx.Equals(_cachedServerEndPoint))
+                {
+                    _cachedServerEndPoint = lanPbx;
+                    DebugLog.Write($"Retrying REGISTER against local LAN PBX at {_cachedServerEndPoint}...");
+                    firstResponse = _listenerStarted
+                        ? await SendAndWaitFromListenerAsync(first, cancellationToken)
+                        : await SendAndReceiveDirectAsync(first, cancellationToken);
+                    DebugLog.Write($"LAN REGISTER RESPONSE code={firstResponse.Code} reason={firstResponse.Reason}");
+                }
+            }
             UpdateLocalEndpointFromResponse(firstResponse);
             if (firstResponse.Code == 200)
             {
@@ -3472,6 +3489,82 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         }
 
         return "127.0.0.1";
+    }
+
+    private async Task<IPEndPoint?> ProbeLocalLanPbxAsync(CancellationToken cancellationToken)
+    {
+        return await Task.Run(() =>
+        {
+            try
+            {
+                var candidates = new List<string> { "10.0.0.40" };
+
+                if (IPAddress.TryParse(_localAddress, out var localIp) && localIp.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    var bytes = localIp.GetAddressBytes();
+                    var subnetBase = $"{bytes[0]}.{bytes[1]}.{bytes[2]}";
+                    if (!candidates.Contains($"{subnetBase}.40")) candidates.Add($"{subnetBase}.40");
+                    if (!candidates.Contains($"{subnetBase}.1")) candidates.Add($"{subnetBase}.1");
+                    if (!candidates.Contains($"{subnetBase}.200")) candidates.Add($"{subnetBase}.200");
+                    if (!candidates.Contains($"{subnetBase}.250")) candidates.Add($"{subnetBase}.250");
+                }
+
+                foreach (var candidate in candidates)
+                {
+                    if (candidate == _localAddress) continue;
+                    if (!IPAddress.TryParse(candidate, out var candidateIp)) continue;
+
+                    try
+                    {
+                        using var probeSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                        probeSocket.ReceiveTimeout = 300;
+                        probeSocket.SendTimeout = 300;
+                        probeSocket.Bind(new IPEndPoint(IPAddress.Any, 0));
+
+                        var probePort = ((IPEndPoint)probeSocket.LocalEndPoint!).Port;
+                        var pingOptions = string.Join("\r\n", [
+                            $"OPTIONS sip:{_domain} SIP/2.0",
+                            $"Via: SIP/2.0/UDP {_localAddress}:{probePort};branch=z9hG4bK-{Guid.NewGuid():N}",
+                            "Max-Forwards: 70",
+                            $"From: <sip:ping@{_domain}>;tag={Guid.NewGuid():N}",
+                            $"To: <sip:{_domain}>",
+                            $"Call-ID: {Guid.NewGuid():N}@merlin-sip",
+                            "CSeq: 1 OPTIONS",
+                            "User-Agent: MerlinSIP-LAN-Probe",
+                            "Content-Length: 0",
+                            "",
+                            ""
+                        ]);
+
+                        var probeBytes = Encoding.UTF8.GetBytes(pingOptions);
+                        var ep = new IPEndPoint(candidateIp, _config?.Port > 0 ? _config.Port : 5060);
+                        probeSocket.SendTo(probeBytes, ep);
+
+                        var buf = new byte[1024];
+                        EndPoint remoteEp = new IPEndPoint(IPAddress.Any, 0);
+                        var received = probeSocket.ReceiveFrom(buf, ref remoteEp);
+                        if (received > 0)
+                        {
+                            var text = Encoding.UTF8.GetString(buf, 0, received);
+                            if (text.StartsWith("SIP/2.0", StringComparison.OrdinalIgnoreCase))
+                            {
+                                DebugLog.Write($"[LAN PBX PROBE] Found active SIP PBX at {candidate}: {text.Split('\r')[0]}");
+                                return ep;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"[LAN PBX PROBE] Probe error: {ex.Message}");
+            }
+
+            return null;
+        }, cancellationToken);
     }
 
     private void DisposeClient()
