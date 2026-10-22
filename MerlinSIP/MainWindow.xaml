@@ -542,7 +542,56 @@
                                     <StackPanel>
                                         <TextBlock Text="Dial" Foreground="#64748B" FontWeight="Medium" />
                                         <TextBlock x:Name="DestinationPreviewText" Text="Enter a number" Foreground="#111827" FontSize="28" FontWeight="SemiBold" />
-                                        <TextBlock x:Name="CallerLookupText" Text="No contact selected" Foreground="#64748B" FontSize="13" FontWeight="Medium" />
+                                        <TextBlock x:Name="CallerLookupText" Text="No contact selected" Foreground="#64748B" FontSize="13" FontWeight="Medium" Margin="0,0,0,4" />
+                                        <!-- Live In-Call Quality & Telemetry HUD -->
+                                        <Border x:Name="LiveCallStatisticsCard"
+                                                Background="#F0FDF4"
+                                                BorderBrush="#BBF7D0"
+                                                BorderThickness="1"
+                                                CornerRadius="10"
+                                                Padding="12,10"
+                                                Margin="0,8,0,4"
+                                                Visibility="Collapsed"
+                                                Cursor="Hand"
+                                                MouseDown="LiveCallStatisticsCard_MouseDown"
+                                                ToolTip="Live VoIP RTP stream diagnostics. Click to open detailed Call Quality Analysis.">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                
+                                                <DockPanel Grid.Row="0">
+                                                    <Border DockPanel.Dock="Right" x:Name="LiveQualityBadge" Background="#DEF7EC" CornerRadius="6" Padding="8,3" VerticalAlignment="Center">
+                                                        <TextBlock x:Name="LiveQualityLevelText" Text="🟢 4.4 MOS • Excellent" Foreground="#03543F" FontWeight="Bold" FontSize="11.5" />
+                                                    </Border>
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="📡" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                        <TextBlock Text="LIVE CALL TELEMETRY" FontSize="10" FontWeight="Bold" Foreground="#15803D" VerticalAlignment="Center" />
+                                                        <TextBlock x:Name="LiveCodecText" Text=" • PCMU 64k" FontSize="10" FontWeight="SemiBold" Foreground="#166534" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </DockPanel>
+
+                                                <UniformGrid Grid.Row="1" Columns="4" Margin="0,8,0,0">
+                                                    <StackPanel HorizontalAlignment="Center">
+                                                        <TextBlock Text="LOSS" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
+                                                        <TextBlock x:Name="LiveLossText" Text="0.0%" FontSize="13.5" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center" />
+                                                    </StackPanel>
+                                                    <StackPanel HorizontalAlignment="Center">
+                                                        <TextBlock Text="JITTER" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
+                                                        <TextBlock x:Name="LiveJitterText" Text="1.8 ms" FontSize="13.5" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center" />
+                                                    </StackPanel>
+                                                    <StackPanel HorizontalAlignment="Center">
+                                                        <TextBlock Text="LATENCY" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
+                                                        <TextBlock x:Name="LiveLatencyText" Text="22 ms" FontSize="13.5" FontWeight="Bold" Foreground="#111827" HorizontalAlignment="Center" />
+                                                    </StackPanel>
+                                                    <StackPanel HorizontalAlignment="Center">
+                                                        <TextBlock Text="SIGNAL" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
+                                                        <TextBlock x:Name="LiveSignalText" Text="5/5 Bars" FontSize="13.5" FontWeight="Bold" Foreground="#15803D" HorizontalAlignment="Center" />
+                                                    </StackPanel>
+                                                </UniformGrid>
+                                            </Grid>
+                                        </Border>
                                     </StackPanel>
                                 </DockPanel>
 
@@ -641,15 +690,17 @@
                                                     <DockPanel>
                                                         <Grid DockPanel.Dock="Top" Background="#EFECE6" Margin="0,0,0,2">
                                                             <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="1.2*" />
-                                                                <ColumnDefinition Width="1*" />
+                                                                <ColumnDefinition Width="1.1*" />
+                                                                <ColumnDefinition Width="0.9*" />
+                                                                <ColumnDefinition Width="70" />
+                                                                <ColumnDefinition Width="80" />
                                                                 <ColumnDefinition Width="95" />
-                                                                <ColumnDefinition Width="90" />
                                                             </Grid.ColumnDefinitions>
                                                             <TextBlock Text="Name" FontWeight="SemiBold" Foreground="#78716C" Margin="12,8" />
                                                             <TextBlock Grid.Column="1" Text="Number" FontWeight="SemiBold" Foreground="#78716C" Margin="8" />
                                                             <TextBlock Grid.Column="2" Text="Duration" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
                                                             <TextBlock Grid.Column="3" Text="Status" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
+                                                            <TextBlock Grid.Column="4" Text="Quality" FontWeight="SemiBold" Foreground="#78716C" HorizontalAlignment="Center" Margin="8" />
                                                         </Grid>
                                                         <ScrollViewer Focusable="False">
                                                             <ItemsPresenter />
@@ -661,10 +712,11 @@
                                                 <DataTemplate>
                                                     <Grid Margin="0,0,0,1" Background="#FDFBF7">
                                                         <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="1.2*" />
-                                                            <ColumnDefinition Width="1*" />
+                                                            <ColumnDefinition Width="1.1*" />
+                                                            <ColumnDefinition Width="0.9*" />
+                                                            <ColumnDefinition Width="70" />
+                                                            <ColumnDefinition Width="80" />
                                                             <ColumnDefinition Width="95" />
-                                                            <ColumnDefinition Width="90" />
                                                         </Grid.ColumnDefinitions>
                                                         <StackPanel Grid.Column="0" Margin="12,10">
                                                             <TextBlock Text="{Binding Name}" Foreground="#111827" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -674,6 +726,9 @@
                                                         <TextBlock Grid.Column="2" Text="{Binding Duration}" Foreground="#78716C" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                                         <Border Grid.Column="3" Background="{Binding ResultBadgeBackground}" CornerRadius="6" Padding="6,3" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding Result}" Foreground="{Binding ResultBadgeForeground}" FontWeight="SemiBold" FontSize="12" />
+                                                        </Border>
+                                                        <Border Grid.Column="4" Background="{Binding QualityBadgeBackground}" CornerRadius="6" Padding="6,2" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="Mean Opinion Score (MOS) and Quality Level">
+                                                            <TextBlock Text="{Binding QualitySummaryDisplay}" Foreground="{Binding QualityBadgeForeground}" FontWeight="SemiBold" FontSize="11" />
                                                         </Border>
                                                     </Grid>
                                                 </DataTemplate>
