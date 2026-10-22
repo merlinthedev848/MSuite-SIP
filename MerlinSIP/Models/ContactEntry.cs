@@ -33,41 +33,58 @@ public sealed record ContactEntry
         "Available" => "Available",
         "Ringing" => "Ringing",
         "Busy" => "Busy",
+        "DND" or "Do Not Disturb" => "DND",
         "Away" or "Appear Away" => "Away",
-        "Offline" => "Offline",
-        _ => "Offline"
+        "Offline" => "",
+        _ => ""
     };
 
     [JsonIgnore]
     public string PresenceBrush => Presence switch
     {
         "Available" => "#10B981",
-        "Ringing" => "#F59E0B",
+        "Away" or "Appear Away" => "#10B981",
+        "DND" or "Do Not Disturb" => "#DC2626",
         "Busy" => "#EF4444",
-        "Away" or "Appear Away" => "#F59E0B",
-        "Offline" => "#94A3B8",
-        _ => "#94A3B8"
+        "Ringing" => "#F59E0B",
+        "Offline" => "#00000000",
+        _ => "#00000000"
     };
 
     [JsonIgnore]
     public string PresenceBackground => Presence switch
     {
         "Available" => "#DFF8EE",
+        "Away" or "Appear Away" => "#DFF8EE",
+        "DND" or "Do Not Disturb" => "#FEE2E2",
+        "Busy" => "#FEE2E2",
         "Ringing" => "#FFF3D6",
-        "Busy" => "#FFE2E2",
-        "Away" or "Appear Away" => "#FFF3D6",
-        "Offline" => "#EEF2F7",
-        _ => "#EEF2F7"
+        "Offline" => "#00000000",
+        _ => "#00000000"
     };
 
     [JsonIgnore]
     public string PresenceForeground => Presence switch
     {
         "Available" => "#106247",
-        "Ringing" => "#8A4F08",
+        "Away" or "Appear Away" => "#106247",
+        "DND" or "Do Not Disturb" => "#9B1C1C",
         "Busy" => "#9B1C1C",
-        "Away" or "Appear Away" => "#8A4F08",
-        "Offline" => "#475569",
-        _ => "#475569"
+        "Ringing" => "#8A4F08",
+        "Offline" => "#00000000",
+        _ => "#00000000"
     };
+
+    [JsonIgnore]
+    public string PresenceBorderBrush => Presence switch
+    {
+        "Offline" => "#00000000",
+        _ => "#111317"
+    };
+
+    [JsonIgnore]
+    public bool IsPresenceVisible => !string.Equals(Presence, "Offline", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(Presence);
+
+    [JsonIgnore]
+    public System.Windows.Visibility PresenceVisibility => IsPresenceVisible ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
 }

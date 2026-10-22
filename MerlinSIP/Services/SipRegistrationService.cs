@@ -42,6 +42,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     private string _publishCallId = "";
     private string _publishLocalTag = "";
     private string _publishEtag = "";
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _subscriptionCallIds = new(StringComparer.OrdinalIgnoreCase);
     private ActiveCall? _line1Call;
     private ActiveCall? _line2Call;
     private int _selectedLine = 1;
@@ -418,37 +419,85 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             }
 
             var publishCseq = _publishCseq++;
-            
-            var basicStatus = status.Equals("Offline", StringComparison.OrdinalIgnoreCase) ? "closed" : "open";
-            
+            var isOffline = status.Equals("Offline", StringComparison.OrdinalIgnoreCase) ||
+                            status.Equals("Appear Offline", StringComparison.OrdinalIgnoreCase);
+            var basicStatus = isOffline ? "closed" : "open";
+            var expires = isOffline ? 0 : 3600;
+
+            var activityXml = status.ToLowerInvariant() switch
+            {
+                "away" or "appear away" => "      <rpid:away/>\n",
+                "dnd" or "do not disturb" => "      <rpid:do-not-disturb/>\n",
+                "busy" => "      <rpid:busy/>\n",
+                "available" => "      <rpid:available/>\n",
+                _ => ""
+            };
+
             var contentBuilder = new StringBuilder();
             contentBuilder.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-            contentBuilder.AppendLine($"<presence xmlns=\"urn:ietf:params:xml:ns:pidf\" entity=\"sip:{_config.Extension}@{_domain}\">");
+            contentBuilder.AppendLine("<presence xmlns=\"urn:ietf:params:xml:ns:pidf\"");
+            contentBuilder.AppendLine("          xmlns:dm=\"urn:ietf:params:xml:ns:pidf:data-model\"");
+            contentBuilder.AppendLine("          xmlns:rpid=\"urn:ietf:params:xml:ns:pidf:rpid\"");
+            contentBuilder.AppendLine($"          entity=\"sip:{_config.Extension}@{_domain}\">");
             contentBuilder.AppendLine($"  <tuple id=\"{_config.Extension}\">");
             contentBuilder.AppendLine("    <status>");
             contentBuilder.AppendLine($"      <basic>{basicStatus}</basic>");
             contentBuilder.AppendLine("    </status>");
             contentBuilder.AppendLine($"    <note>{status}</note>");
             contentBuilder.AppendLine("  </tuple>");
+            if (!string.IsNullOrWhiteSpace(activityXml))
+            {
+                contentBuilder.AppendLine($"  <dm:person id=\"p_{_config.Extension}\">");
+                contentBuilder.AppendLine("    <rpid:activities>");
+                contentBuilder.Append(activityXml);
+                contentBuilder.AppendLine("    </rpid:activities>");
+                contentBuilder.AppendLine($"    <dm:note>{status}</dm:note>");
+                contentBuilder.AppendLine("  </dm:person>");
+            }
             contentBuilder.Append("</presence>");
             
             var content = contentBuilder.ToString();
 
-            var publishRequest = BuildPublish(_config.Extension, _publishCallId, _publishLocalTag, publishCseq, content, null);
+            var publishRequest = BuildPublish(_config.Extension, _publishCallId, _publishLocalTag, publishCseq, content, expires, null);
             
             try
             {
                 var response = await SendAndWaitFromListenerAsync(publishRequest, cancellationToken);
+                if (response.Code is 401 or 407)
+                {
+                    var challengeHeader = response.Headers.TryGetValue("www-authenticate", out var wwwAuthenticate)
+                        ? wwwAuthenticate
+                        : response.Headers.GetValueOrDefault("proxy-authenticate", "");
+                    var authCseq = _publishCseq++;
+                    var isProxy = response.Code == 407 || !response.Headers.ContainsKey("www-authenticate");
+                    var authorization = BuildDigestAuthorization("PUBLISH", $"sip:{_config.Extension}@{_domain}", challengeHeader);
+                    var authHeaderVal = isProxy ? $"Proxy-{authorization}" : authorization;
+                    var authorizedRequest = BuildPublish(_config.Extension, _publishCallId, _publishLocalTag, authCseq, content, expires, authHeaderVal);
+                    response = await SendAndWaitFromListenerAsync(authorizedRequest, cancellationToken);
+                }
+
                 if (response.Code is >= 200 and < 300)
                 {
                     if (response.Headers.TryGetValue("sip-etag", out var etag))
                     {
                         _publishEtag = etag;
                     }
+                    if (isOffline)
+                    {
+                        _publishEtag = "";
+                    }
+                    DebugLog.Write($"BLF publish presence succeeded status={status} code={response.Code} etag={_publishEtag}");
                 }
                 else if (response.Code == 412)
                 {
                     _publishEtag = "";
+                    var retryCseq = _publishCseq++;
+                    var retryRequest = BuildPublish(_config.Extension, _publishCallId, _publishLocalTag, retryCseq, content, expires, null);
+                    _ = await SendAndWaitFromListenerAsync(retryRequest, cancellationToken);
+                }
+                else
+                {
+                    DebugLog.Write($"BLF publish presence response code={response.Code} reason={response.Reason}");
                 }
             }
             catch (Exception ex)
@@ -462,23 +511,30 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         }
     }
 
-    private string BuildPublish(string target, string callId, string localTag, int cseq, string content, string? authorization)
+    private string BuildPublish(string target, string callId, string localTag, int cseq, string content, int expires, string? authorization)
     {
         var sipIfMatch = string.IsNullOrEmpty(_publishEtag) ? "" : $"\r\nSIP-If-Match: {_publishEtag}";
-        var authHeader = authorization is null ? "" : $"\r\nProxy-Authorization: {authorization}";
+        var authHeader = "";
+        if (!string.IsNullOrWhiteSpace(authorization))
+        {
+            authHeader = authorization.StartsWith("Proxy-", StringComparison.OrdinalIgnoreCase)
+                ? $"\r\nProxy-Authorization: {authorization["Proxy-".Length..]}"
+                : $"\r\nAuthorization: {authorization}";
+        }
 
         var contentLength = Encoding.UTF8.GetByteCount(content);
 
         var sb = new StringBuilder();
         sb.Append($"PUBLISH sip:{target}@{_domain} SIP/2.0\r\n");
-        sb.Append($"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch=z9hG4bK{Guid.NewGuid():N}\r\n");
+        sb.Append($"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={CreateBranch()};rport\r\n");
         sb.Append("Max-Forwards: 70\r\n");
         sb.Append($"To: <sip:{target}@{_domain}>\r\n");
         sb.Append($"From: <sip:{_config!.Extension}@{_domain}>;tag={localTag}\r\n");
         sb.Append($"Call-ID: {callId}\r\n");
         sb.Append($"CSeq: {cseq} PUBLISH\r\n");
+        sb.Append("User-Agent: CK Media Services Merlin SIP\r\n");
         sb.Append("Event: presence\r\n");
-        sb.Append("Expires: 3600\r\n");
+        sb.Append($"Expires: {expires}\r\n");
         sb.Append($"Content-Type: application/pidf+xml{sipIfMatch}{authHeader}\r\n");
         sb.Append($"Content-Length: {contentLength}\r\n\r\n");
         sb.Append(content);
@@ -973,17 +1029,24 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             return;
         }
 
-        foreach (var extension in extensions.Select(NormalizeExtension).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase))
+        var validExtensions = extensions
+            .Select(NormalizeExtension)
+            .Where(value => !string.IsNullOrWhiteSpace(value) && value.Length <= 10)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var tasks = validExtensions.Select(async ext =>
         {
             try
             {
-                await SubscribeToContactPresenceAsync(extension, cancellationToken);
+                await SubscribeToContactPresenceAsync(ext, cancellationToken);
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                DebugLog.Write($"BLF subscribe failed extension={extension} error={error.Message}");
+                DebugLog.Write($"BLF subscribe failed extension={ext} error={error.Message}");
             }
-        }
+        });
+        await Task.WhenAll(tasks);
     }
 
     private bool ValidateTlsCertificate(object? sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
@@ -1045,6 +1108,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     {
         var callId = $"{Guid.NewGuid():N}@merlin-sip";
         var localTag = Guid.NewGuid().ToString("N")[..12];
+        _subscriptionCallIds[callId] = extension;
         var cseq = _subscribeCseq++;
         var request = BuildSubscribe(target, callId, localTag, cseq, eventName, accept, null);
         DebugLog.Write($"SEND BLF SUBSCRIBE target={target} event={eventName} callId={callId}");
@@ -3075,11 +3139,33 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         {
             var headers = ParseHeaders(message);
             var body = ExtractBody(message);
-            var extension = ExtractPresenceExtension(body);
+            
+            var callId = headers.GetValueOrDefault("call-id", "");
+            string extension = "";
+            if (!string.IsNullOrWhiteSpace(callId) && _subscriptionCallIds.TryGetValue(callId, out var subExt))
+            {
+                extension = subExt;
+            }
+
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                extension = ExtractPresenceExtension(body);
+            }
+
             if (string.IsNullOrWhiteSpace(extension))
             {
                 var source = headers.GetValueOrDefault("from", "");
-                extension = NormalizeExtension(ExtractCaller(source));
+                var fromExt = NormalizeExtension(ExtractCaller(source));
+                if (!string.Equals(fromExt, "asterisk", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(fromExt, "pbx", StringComparison.OrdinalIgnoreCase))
+                {
+                    extension = fromExt;
+                }
+            }
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                var toHeader = headers.GetValueOrDefault("to", "");
+                extension = NormalizeExtension(ExtractCaller(toHeader));
             }
             if (string.IsNullOrWhiteSpace(extension))
             {
@@ -3092,7 +3178,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 return;
             }
 
-            DebugLog.Write($"BLF notify extension={extension} presence={presence}");
+            DebugLog.Write($"BLF notify extension={extension} presence={presence} callId={callId}");
             ContactPresenceChanged?.Invoke(this, new ContactPresenceEventArgs(extension, presence));
         }
         catch (Exception error)
@@ -3437,85 +3523,125 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         return builder.ToString();
     }
 
-    private static string ExtractPresenceExtension(string body)
+    internal static string ExtractPresenceExtension(string body)
     {
         if (string.IsNullOrWhiteSpace(body))
         {
             return "";
         }
 
-        foreach (var pattern in new[]
+        string[] patterns = new[]
         {
-            "entity\\s*=\\s*\"sip:([^@\";>]+)",
-            "<local>.*?<identity[^>]*>\\s*([^<@]+)",
-            "<remote>.*?<identity[^>]*>\\s*([^<@]+)"
-        })
+            "entity\\s*=\\s*[\"'’]?(?:sip:)?([^@\"'’>;]+)",
+            "<tuple\\s+id\\s*=\\s*[\"'’]?(?:sip:)?([^@\"'’>;]+)",
+            "<local>.*?<identity[^>]*>\\s*(?:sip:)?([^<@>;]+)",
+            "<remote>.*?<identity[^>]*>\\s*(?:sip:)?([^<@>;]+)",
+            "<identity[^>]*>\\s*(?:sip:)?([^<@>;]+)"
+        };
+
+        foreach (var pattern in patterns)
         {
             var match = Regex.Match(body, pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
             if (match.Success)
             {
-                return NormalizeExtension(match.Groups[1].Value);
+                var candidate = NormalizeExtension(match.Groups[1].Value);
+                if (!string.IsNullOrWhiteSpace(candidate) && !string.Equals(candidate, "asterisk", StringComparison.OrdinalIgnoreCase))
+                {
+                    return candidate;
+                }
             }
         }
 
         return "";
     }
 
-    private static string ParsePresenceState(string body)
+    internal static string ParsePresenceState(string body)
     {
         if (string.IsNullOrWhiteSpace(body))
         {
             return "";
         }
 
-        var noteMatch = Regex.Match(body, @"<note>\s*([^<]+)\s*</note>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        // 1. Note tags: <note>...</note> or <dm:note>...</dm:note>
+        var noteMatch = Regex.Match(body, "<note>\\s*([^<]+)\\s*</note>|<dm:note>\\s*([^<]+)\\s*</dm:note>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
         if (noteMatch.Success)
         {
-            var note = noteMatch.Groups[1].Value.Trim();
+            var note = (noteMatch.Groups[1].Success ? noteMatch.Groups[1].Value : noteMatch.Groups[2].Value).Trim();
             if (note.Equals("Available", StringComparison.OrdinalIgnoreCase) ||
                 note.Equals("Busy", StringComparison.OrdinalIgnoreCase) ||
                 note.Equals("DND", StringComparison.OrdinalIgnoreCase) ||
+                note.Equals("Do Not Disturb", StringComparison.OrdinalIgnoreCase) ||
                 note.Equals("Away", StringComparison.OrdinalIgnoreCase) ||
                 note.Equals("Offline", StringComparison.OrdinalIgnoreCase))
             {
                 return note.ToLowerInvariant() switch
                 {
                     "available" => "Available",
-                    "busy" => "Busy",
-                    "dnd" => "Busy",
                     "away" => "Away",
+                    "dnd" or "do not disturb" => "DND",
+                    "busy" => "Busy",
                     "offline" => "Offline",
-                    _ => "Offline"
+                    _ => "Available"
                 };
             }
         }
 
-        if (Regex.IsMatch(body, @"<state>\s*early\s*</state>|<dialog[^>]*>\s*<state>\s*early", RegexOptions.IgnoreCase | RegexOptions.Singleline))
+        // 2. RPID activities: <rpid:do-not-disturb/>, <rpid:busy/>, <rpid:away/>, <rpid:available/>
+        if (Regex.IsMatch(body, "<rpid:do-not-disturb\\s*/>|<ep:do-not-disturb\\s*/>", RegexOptions.IgnoreCase))
         {
-            return "Ringing";
+            return "DND";
         }
-
-        if (Regex.IsMatch(body, @"<state>\s*confirmed\s*</state>", RegexOptions.IgnoreCase | RegexOptions.Singleline))
+        if (Regex.IsMatch(body, "<rpid:busy\\s*/>|<rpid:on-the-phone\\s*/>|<ep:busy\\s*/>", RegexOptions.IgnoreCase))
         {
             return "Busy";
         }
+        if (Regex.IsMatch(body, "<rpid:away\\s*/>|<rpid:be-right-back\\s*/>|<ep:away\\s*/>", RegexOptions.IgnoreCase))
+        {
+            return "Away";
+        }
+        if (Regex.IsMatch(body, "<rpid:available\\s*/>", RegexOptions.IgnoreCase))
+        {
+            return "Available";
+        }
 
-        if (Regex.IsMatch(body, @"<basic>\s*closed\s*</basic>", RegexOptions.IgnoreCase | RegexOptions.Singleline))
+        // 3. Dialog-Info (RFC 4235):
+        if (body.Contains("dialog-info", StringComparison.OrdinalIgnoreCase))
+        {
+            // Ringing states
+            if (Regex.IsMatch(body, "<state>\\s*(?:early|trying)\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'’]?(?:early|trying)", RegexOptions.IgnoreCase))
+            {
+                return "Ringing";
+            }
+
+            // Confirmed / active call states
+            if (Regex.IsMatch(body, "<state>\\s*confirmed\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'’]?confirmed", RegexOptions.IgnoreCase))
+            {
+                return "Busy";
+            }
+
+            // Terminated or idle states -> Available
+            if (Regex.IsMatch(body, "<state>\\s*terminated\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'’]?terminated", RegexOptions.IgnoreCase))
+            {
+                return "Available";
+            }
+
+            // Dialog-info present without active early/confirmed dialog is idle -> Available
+            return "Available";
+        }
+
+        // 4. Basic PIDF status: <basic>open</basic> / <basic>closed</basic>
+        if (Regex.IsMatch(body, "<basic>\\s*closed\\s*</basic>", RegexOptions.IgnoreCase))
         {
             return "Offline";
         }
 
-        if (Regex.IsMatch(body, @"<basic>\s*open\s*</basic>", RegexOptions.IgnoreCase | RegexOptions.Singleline))
+        if (Regex.IsMatch(body, "<basic>\\s*open\\s*</basic>", RegexOptions.IgnoreCase))
         {
             return "Available";
         }
 
-        if (Regex.IsMatch(body, @"<state>\s*terminated\s*</state>", RegexOptions.IgnoreCase | RegexOptions.Singleline))
-        {
-            return "Available";
-        }
-
-        if (body.Contains("busy", StringComparison.OrdinalIgnoreCase))
+        // 5. Fallback string matches
+        if (body.Contains("busy", StringComparison.OrdinalIgnoreCase) || body.Contains("inuse", StringComparison.OrdinalIgnoreCase))
         {
             return "Busy";
         }
@@ -3525,7 +3651,17 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             return "Ringing";
         }
 
-        if (body.Contains("open", StringComparison.OrdinalIgnoreCase) || body.Contains("available", StringComparison.OrdinalIgnoreCase))
+        if (body.Contains("dnd", StringComparison.OrdinalIgnoreCase))
+        {
+            return "DND";
+        }
+
+        if (body.Contains("away", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Away";
+        }
+
+        if (body.Contains("open", StringComparison.OrdinalIgnoreCase) || body.Contains("available", StringComparison.OrdinalIgnoreCase) || body.Contains("idle", StringComparison.OrdinalIgnoreCase))
         {
             return "Available";
         }
