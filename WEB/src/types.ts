@@ -24,6 +24,11 @@ export interface AudioDevice {
   name: string;
 }
 
+export interface VideoDevice {
+  id: string;
+  name: string;
+}
+
 export interface SipSettings {
   sipServer: string;
   extension: string;
@@ -36,6 +41,7 @@ export interface SipSettings {
   sipAlgCompat: boolean;
   audioInput: string;
   audioOutput: string;
+  videoSource?: string;
   queuePickupPrefix?: string;
   licenseStatus?: string;
   allowCustomSip?: boolean;

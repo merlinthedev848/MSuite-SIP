@@ -1,0 +1,211 @@
+<Window x:Class="MerlinSip.VideoCallWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Merlin SIP - Video Call"
+        Width="960"
+        Height="640"
+        MinWidth="680"
+        MinHeight="480"
+        WindowStartupLocation="CenterScreen"
+        Background="#0B0F19"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
+        Loaded="Window_Loaded"
+        Closing="Window_Closing">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /> <!-- Header Bar -->
+            <RowDefinition Height="*" />    <!-- Main Video Viewport -->
+            <RowDefinition Height="Auto" /> <!-- In-Call Floating Control Bar -->
+        </Grid.RowDefinitions>
+
+        <!-- HEADER BAR -->
+        <Border Grid.Row="0" Background="#111827" BorderBrush="#1F2937" BorderThickness="0,0,0,1" Padding="18,12">
+            <DockPanel LastChildFill="True">
+                <!-- Yeastar SIP/WebRTC & Status Badges on the Right -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="#1E1B4B" BorderBrush="#4338CA" BorderThickness="1" CornerRadius="6" Padding="10,5" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="7" Height="7" Fill="#818CF8" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="YeastarProtocolBadge" Text="Yeastar SIP/WebRTC  •  H.264 / VP8 (720p HD)" FontSize="11.5" FontWeight="SemiBold" Foreground="#E0E7FF" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="#1F2937" CornerRadius="6" Padding="9,5" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE823;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" Foreground="#9CA3AF" Margin="0,0,5,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="CallDurationText" Text="00:00" FontSize="12" FontWeight="Bold" Foreground="#F3F4F6" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Remote Contact Info on the Left -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="34" Height="34" CornerRadius="17" Background="#312E81" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="ContactInitialsText" Text="VC" FontWeight="Bold" FontSize="13" Foreground="#C7D2FE" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="CallerNameText" Text="Contact Name" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" />
+                        <TextBlock x:Name="CallerNumberText" Text="Ext: 101" FontSize="11.5" Foreground="#9CA3AF" />
+                    </StackPanel>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- MAIN VIDEO VIEWPORT -->
+        <Grid Grid.Row="1" Background="#0A0E17">
+            <!-- Remote Video Surface -->
+            <Border x:Name="RemoteVideoContainer" Background="#111827" CornerRadius="12" Margin="14" BorderBrush="#1F2937" BorderThickness="1">
+                <Grid>
+                    <!-- Simulated / Live Video Viewport -->
+                    <Rectangle x:Name="RemoteVideoSurface" Fill="#0F172A" />
+
+                    <!-- Remote Participant Avatar Placeholder (Shown while connecting or active) -->
+                    <StackPanel x:Name="RemotePlaceholderPanel" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border Width="110" Height="110" CornerRadius="55" Background="#1E293B" BorderBrush="#334155" BorderThickness="2" Margin="0,0,0,16">
+                            <Grid>
+                                <Ellipse x:Name="RemotePulseRing" Width="100" Height="100" Stroke="#6366F1" StrokeThickness="2" Opacity="0.4" />
+                                <TextBlock x:Name="LargeInitialsText" Text="MS" FontSize="36" FontWeight="Black" Foreground="#818CF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <TextBlock x:Name="RemoteDisplayStatus" Text="Connected to Yeastar WebRTC/SIP Video" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                        <TextBlock x:Name="RemoteCodecInfo" Text="Receiving H.264 Video Stream  •  1280x720 @ 30fps" FontSize="12" Foreground="#94A3B8" HorizontalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Top Left Overlay in Remote Viewport -->
+                    <Border HorizontalAlignment="Left" VerticalAlignment="Top" Background="#80000000" CornerRadius="6" Padding="8,4" Margin="16">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="6" Height="6" Fill="#10B981" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="StreamQualityLabel" Text="Live Video Stream  •  HD" Foreground="#E2E8F0" FontSize="11" FontWeight="Medium" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Picture-in-Picture Local Camera View (Bottom-Right) -->
+                    <Border x:Name="LocalPipCard"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Bottom"
+                            Width="220"
+                            Height="140"
+                            Margin="20"
+                            CornerRadius="10"
+                            Background="#1E293B"
+                            BorderBrush="#475569"
+                            BorderThickness="1.5"
+                            ClipToBounds="True">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="18" ShadowDepth="6" Opacity="0.4" Color="#000000" />
+                        </Border.Effect>
+                        <Grid>
+                            <!-- Local Camera Feed / Canvas -->
+                            <Rectangle x:Name="LocalVideoCanvas" Fill="#0F172A" />
+
+                            <!-- Camera Muted Overlay -->
+                            <Border x:Name="CameraMutedOverlay" Background="#900F172A" Visibility="Collapsed">
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE715;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="22" Foreground="#EF4444" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                                    <TextBlock Text="Camera Muted" Foreground="#E2E8F0" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Local Device & You Tag -->
+                            <Border HorizontalAlignment="Left" VerticalAlignment="Top" Background="#A0000000" CornerRadius="4" Padding="6,2" Margin="8">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="5" Height="5" Fill="#10B981" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="You (Local Camera)" Foreground="#FFFFFF" FontSize="10" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Background="#80000000" CornerRadius="4" Padding="6,2" Margin="8">
+                                <TextBlock x:Name="LocalCameraDeviceText" Text="Default camera" Foreground="#CBD5E1" FontSize="9.5" TextTrimming="CharacterEllipsis" MaxWidth="190" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- FLOATING IN-CALL CONTROL BAR -->
+        <Border Grid.Row="2" Background="#111827" BorderBrush="#1F2937" BorderThickness="0,1,0,0" Padding="16,14">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <!-- Toggle Microphone Button -->
+                <Button x:Name="MuteMicButton" Width="50" Height="50" Margin="8,0" Click="MuteMicButton_Click" ToolTip="Mute / Unmute Microphone" Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="BtnBdr" CornerRadius="25" Background="#1F2937" BorderBrush="#374151" BorderThickness="1">
+                                <TextBlock x:Name="BtnIcon" Text="&#xE720;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="#F3F4F6" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="BtnBdr" Property="Background" Value="#374151" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <!-- Toggle Camera Button -->
+                <Button x:Name="ToggleCameraButton" Width="50" Height="50" Margin="8,0" Click="ToggleCameraButton_Click" ToolTip="Turn Camera On / Off" Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="BtnBdr" CornerRadius="25" Background="#1F2937" BorderBrush="#374151" BorderThickness="1">
+                                <TextBlock x:Name="BtnIcon" Text="&#xE714;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="#F3F4F6" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="BtnBdr" Property="Background" Value="#374151" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <!-- Request Keyframe (RTCP PLI) -->
+                <Button x:Name="RequestKeyframeButton" Width="50" Height="50" Margin="8,0" Click="RequestKeyframeButton_Click" ToolTip="Refresh Video Quality (Yeastar RTCP PLI Keyframe)" Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="BtnBdr" CornerRadius="25" Background="#1F2937" BorderBrush="#374151" BorderThickness="1">
+                                <TextBlock x:Name="BtnIcon" Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="#A78BFA" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="BtnBdr" Property="Background" Value="#374151" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <!-- Fullscreen Toggle Button -->
+                <Button x:Name="FullscreenButton" Width="50" Height="50" Margin="8,0" Click="FullscreenButton_Click" ToolTip="Toggle Fullscreen" Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="BtnBdr" CornerRadius="25" Background="#1F2937" BorderBrush="#374151" BorderThickness="1">
+                                <TextBlock x:Name="BtnIcon" Text="&#xE740;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="#F3F4F6" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="BtnBdr" Property="Background" Value="#374151" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <!-- End Call Button (Prominent Red) -->
+                <Button x:Name="EndCallButton" Width="54" Height="54" Margin="14,0,8,0" Click="EndCallButton_Click" ToolTip="End Video Call" Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="BtnBdr" CornerRadius="27" Background="#DC2626" BorderBrush="#EF4444" BorderThickness="1">
+                                <TextBlock Text="&#xE778;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="20" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="BtnBdr" Property="Background" Value="#B91C1C" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

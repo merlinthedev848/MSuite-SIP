@@ -232,6 +232,21 @@ const SettingsModalDialog: React.FC<SettingsModalProps> = ({
                   {audioOutputs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </div>
+              <div className="form-group">
+                <label className="form-label">Video Source (Camera)</label>
+                <select 
+                  className="form-input" 
+                  value={draft.videoSource || 'default-video'} 
+                  onChange={e => setDraft(s => ({ ...s, videoSource: e.target.value }))}
+                >
+                  <option value="default-video">Default camera</option>
+                  <option value="integrated-webcam">Integrated Webcam</option>
+                  <option value="usb-camera">USB Video Device</option>
+                </select>
+                <span style={{ fontSize: 11, color: 'var(--muted-color)', marginTop: 4, display: 'block' }}>
+                  Webcam device configured for Yeastar SIP and WebRTC video calls (H.264 / VP8).
+                </span>
+              </div>
             </div>
           )}
 
@@ -266,13 +281,18 @@ const SettingsModalDialog: React.FC<SettingsModalProps> = ({
               <div className="settings-card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <span className="settings-card-title">About Merlin SIP</span>
                 <p className="item-subtitle" style={{ lineHeight: 1.5 }}>CK Media Services softphone for managed SIP, presence, contacts, and reception workflows.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '6px 10px', fontSize: 13, marginTop: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '8px 10px', fontSize: 13, marginTop: 10 }}>
                   <span style={{ color: 'var(--muted-color)' }}>Version</span>
-                  <span>1.3.0</span>
+                  <span>1.3.5</span>
                   <span style={{ color: 'var(--muted-color)' }}>Product</span>
                   <span>merlin-sip</span>
                   <span style={{ color: 'var(--muted-color)' }}>Licensed to</span>
                   <span>CK Media Services</span>
+                  <span style={{ color: 'var(--muted-color)' }}>Handler server</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#22c55e' }}></span>
+                    <span>Connected (Operational)</span>
+                  </span>
                 </div>
               </div>
             </div>

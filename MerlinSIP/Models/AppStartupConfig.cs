@@ -50,7 +50,8 @@ public sealed record AppStartupConfig(
     string PreferredCodecs = "PCMU,PCMA",
     bool IgnoreSslErrors = false,
     MediaDeviceInfo? SecondaryRingerOutput = null,
-    bool AutoAnswerEnabled = false)
+    bool AutoAnswerEnabled = false,
+    MediaDeviceInfo? VideoSource = null)
 {
     public const string FixedSipServer = "pbx.chriskendall.media";
     public const int FixedSipPort = 5060;

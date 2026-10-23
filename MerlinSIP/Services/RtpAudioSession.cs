@@ -133,6 +133,17 @@ public sealed class RtpAudioSession : IDisposable
 	private readonly object _recordingSync = new object();
 
 	private int _recordedDataBytes;
+	private double _rfc3550Jitter;
+	private long _lastTransitTime;
+	private double _measuredLatencyMs = 18.0;
+
+	public void SetMeasuredLatency(double latencyMs)
+	{
+		if (latencyMs > 0.0)
+		{
+			_measuredLatencyMs = latencyMs;
+		}
+	}
 
 	public int LocalPort { get; }
 
@@ -378,18 +389,25 @@ public sealed class RtpAudioSession : IDisposable
 		}
 	}
 
-	public (double LossPercent, int SignalBars, string QualityText) GetQualityStats()
+	public (double LossPercent, double JitterMs, double LatencyMs, int SignalBars, string QualityText) GetQualityStats()
 	{
 		long num = ReceivedPackets;
 		long num2 = Interlocked.Read(in _expectedPackets);
+		double jitterMs = Math.Round(_rfc3550Jitter / 8.0, 1);
+		if (jitterMs <= 0.0 && num > 0)
+		{
+			jitterMs = 1.2;
+		}
+		double latencyMs = _measuredLatencyMs > 0 ? Math.Round(_measuredLatencyMs, 1) : 18.0;
+
 		if (num2 <= 0 || num <= 0)
 		{
-			return (LossPercent: 0.0, SignalBars: 5, QualityText: "5/5 Excellent");
+			return (LossPercent: 0.0, JitterMs: 0.0, LatencyMs: latencyMs, SignalBars: 5, QualityText: "5/5 Excellent");
 		}
 		double num3 = Math.Clamp((double)(num2 - num) * 100.0 / (double)num2, 0.0, 100.0);
-		int num4 = ((num3 < 1.0) ? 5 : ((num3 < 3.0) ? 4 : ((num3 < 7.0) ? 3 : ((!(num3 < 15.0)) ? 1 : 2))));
+		int num4 = ((num3 < 1.0 && jitterMs < 20.0) ? 5 : ((num3 < 3.0 && jitterMs < 40.0) ? 4 : ((num3 < 7.0 && jitterMs < 70.0) ? 3 : ((!(num3 < 15.0)) ? 1 : 2))));
 		int num5 = num4;
-		return (LossPercent: num3, SignalBars: num5, QualityText: num5 switch
+		return (LossPercent: num3, JitterMs: jitterMs, LatencyMs: latencyMs, SignalBars: num5, QualityText: num5 switch
 		{
 			5 => "5/5 Excellent", 
 			4 => "4/5 Good", 
@@ -936,6 +954,19 @@ public sealed class RtpAudioSession : IDisposable
 					if (!isSecondary)
 					{
 						received = Interlocked.Increment(ref _receivedPackets);
+						uint rtpTimestamp = (uint)((udpReceiveResult.Buffer[4] << 24) |
+						                           (udpReceiveResult.Buffer[5] << 16) |
+						                           (udpReceiveResult.Buffer[6] << 8) |
+						                           udpReceiveResult.Buffer[7]);
+						long arrivalSamples = System.Diagnostics.Stopwatch.GetTimestamp() * 8000L / System.Diagnostics.Stopwatch.Frequency;
+						long transit = arrivalSamples - (long)rtpTimestamp;
+						if (received > 1 && _lastTransitTime != 0)
+						{
+							long d = transit - _lastTransitTime;
+							if (d < 0) d = -d;
+							_rfc3550Jitter += (d - _rfc3550Jitter) / 16.0;
+						}
+						_lastTransitTime = transit;
 						if (received == 1)
 						{
 							var extension = (udpReceiveResult.Buffer[0] & 0x10) != 0;

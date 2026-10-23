@@ -109,7 +109,8 @@ public sealed class AppCacheService
             settings.PreferredCodecs ?? "PCMU,PCMA",
             settings.IgnoreSslErrors ?? false,
             settings.SecondaryRingerOutput,
-            settings.AutoAnswerEnabled ?? false).WithFixedSipEndpoint();
+            settings.AutoAnswerEnabled ?? false,
+            settings.VideoSource).WithFixedSipEndpoint();
     }
 
     public async Task SaveSettingsAsync(AppStartupConfig config)
@@ -129,7 +130,7 @@ public sealed class AppCacheService
             config.LicenseStatus,
             config.AudioInput,
             config.AudioOutput,
-            new MediaDeviceInfo("default-video", "Default camera"),
+            config.VideoSource ?? new MediaDeviceInfo("default-video", "Default camera"),
             config.Ringtone,
             config.MicrophoneVolume,
             config.HeadphoneVolume,

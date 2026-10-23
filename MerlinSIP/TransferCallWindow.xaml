@@ -27,11 +27,29 @@
             </Grid.RowDefinitions>
 
             <DockPanel>
-                <Button DockPanel.Dock="Right"
-                        Content="Close"
-                        Width="82"
-                        Height="38"
-                        Click="CancelButton_Click" />
+<Button DockPanel.Dock="Right"
+                        Width="32"
+                        Height="32"
+                        Cursor="Hand"
+                        Background="#F1F5F9"
+                        BorderBrush="#CBD5E1"
+                        BorderThickness="1"
+                        Click="CancelButton_Click"
+                        ToolTip="Close"
+                        AutomationProperties.Name="Close Window">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="CloseCircle" Width="32" Height="32" CornerRadius="16" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                                <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" Foreground="#475569" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="CloseCircle" Property="Background" Value="#E2E8F0" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
                 <StackPanel>
                     <TextBlock Text="Transfer call" FontSize="24" FontWeight="Black" Foreground="#111827" />
                     <TextBlock Text="Choose blind or assisted transfer." FontSize="13" Foreground="#667085" Margin="0,4,0,0" />

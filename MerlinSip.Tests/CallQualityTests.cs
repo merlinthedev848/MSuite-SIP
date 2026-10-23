@@ -36,11 +36,11 @@ public class CallQualityAndRingtoneTests
     public void RingtonePlayer_Choices_ContainExpectedTones()
     {
         var choices = RingtonePlayer.Choices;
-        Assert.Equal(3, choices.Count);
-        Assert.Contains(choices, c => c.Id == "ring-classic");
-        Assert.Contains(choices, c => c.Id == "teams-anthem");
-        Assert.Contains(choices, c => c.Id == "skype-spark");
-        Assert.DoesNotContain(choices, c => c.Id == "orbital-anthem");
+        Assert.Equal(4, choices.Count);
+        Assert.Contains(choices, c => c.Id == "ring-classic" && c.Name.Contains("Ring 1"));
+        Assert.Contains(choices, c => c.Id == "skype-spark" && c.Name.Contains("Ring 2"));
+        Assert.Contains(choices, c => c.Id == "teams-anthem" && c.Name.Contains("Modern Ring"));
+        Assert.Contains(choices, c => c.Id == "orbital-anthem" && c.Name.Contains("Orbital Techno"));
     }
 
     [Fact]
@@ -62,6 +62,54 @@ public class CallQualityAndRingtoneTests
             };
             var window = new MerlinSip.CallQualityDetailsWindow(entry);
             Assert.NotNull(window);
+        });
+        thread.SetApartmentState(System.Threading.ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
+
+    [Fact]
+    public void SipRegistrationService_BuildDialogInfoXml_OffHook_GeneratesCorrectXml()
+    {
+        var xml = SipRegistrationService.BuildDialogInfoXml("101", "pbx.example.com", true, "Phone is off the hook and cannot be contacted");
+        
+        Assert.Contains("xmlns=\"urn:ietf:params:xml:ns:dialog-info\"", xml);
+        Assert.Contains("entity=\"sip:101@pbx.example.com\"", xml);
+        Assert.Contains("<state>confirmed</state>", xml);
+        Assert.Contains("<notes>Phone is off the hook and cannot be contacted</notes>", xml);
+    }
+
+    [Fact]
+    public void SipRegistrationService_BuildDialogInfoXml_OnHook_GeneratesTerminatedXml()
+    {
+        var xml = SipRegistrationService.BuildDialogInfoXml("101", "pbx.example.com", false, "Phone is on the hook and available");
+        
+        Assert.Contains("<state>terminated</state>", xml);
+        Assert.Contains("<notes>Phone is on the hook and available</notes>", xml);
+    }
+
+    [Fact]
+    public void MainWindow_InitializesWithoutXamlParseException()
+    {
+        var thread = new System.Threading.Thread(() =>
+        {
+            var config = new MerlinSip.Models.AppStartupConfig(
+                "pbx.example.com", 5060, "pbx.example.com", "101", "user101", "pass",
+                "LIC", "Licensed",
+                new MerlinSip.Models.MediaDeviceInfo("in", "In"),
+                new MerlinSip.Models.MediaDeviceInfo("out", "Out"));
+            Exception? caughtEx = null;
+            try
+            {
+                var window = new MerlinSip.MainWindow(config);
+                Assert.NotNull(window);
+            }
+            catch (Exception ex)
+            {
+                caughtEx = ex;
+            }
+
+            Assert.Null(caughtEx);
         });
         thread.SetApartmentState(System.Threading.ApartmentState.STA);
         thread.Start();

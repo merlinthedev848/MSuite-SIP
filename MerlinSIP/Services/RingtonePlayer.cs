@@ -10,9 +10,10 @@ public sealed class RingtonePlayer : IDisposable
 
     public static readonly IReadOnlyList<RingtoneChoice> Choices =
     [
-        new("ring-classic", "🔔 Classic Deskphone (Studio Audio)"),
-        new("teams-anthem", "✨ Teams Modern Remix (Studio Audio)"),
-        new("skype-spark", "🌟 Skype Spark Dynamic (Studio Audio)")
+        new("ring-classic", "🔔 Ring 1 (Deskphone)"),
+        new("skype-spark", "🌟 Ring 2 (Skype Spark)"),
+        new("teams-anthem", "✨ Modern Ring (Teams Modern)"),
+        new("orbital-anthem", "🚀 Orbital Techno")
     ];
 
     private readonly List<AudioBuffer> _buffers = [];
@@ -144,6 +145,33 @@ public sealed class RingtonePlayer : IDisposable
                     QueuePause(2.00);
                 });
                 return 12000;
+
+            case "skype-spark":
+                PlayGroove(125, GrooveFeel.SkypeSpark, [
+                    Chord([146.83, 220.00, 293.66, 369.99, 440.00, 554.37], [739.99, 1108.73, 1479.98]),
+                    Chord([123.47, 185.00, 246.94, 293.66, 369.99, 440.00], [587.33, 739.99, 1174.66]),
+                    Chord([98.00, 146.83, 196.00, 246.94, 293.66, 369.99], [783.99, 987.77, 1174.66]),
+                    Chord([110.00, 164.81, 220.00, 277.18, 329.63, 440.00], [880.00, 1108.73, 1318.51])
+                ]);
+                return 7700;
+
+            case "teams-anthem":
+                PlayGroove(126, GrooveFeel.TeamsRemix, [
+                    Chord([130.81, 196.00, 261.63, 329.63, 392.00, 493.88], [783.99, 1046.50, 1318.51]),
+                    Chord([110.00, 164.81, 220.00, 261.63, 329.63, 392.00], [880.00, 1046.50, 1318.51]),
+                    Chord([87.31, 130.81, 174.61, 220.00, 261.63, 329.63], [698.46, 880.00, 1046.50]),
+                    Chord([98.00, 146.83, 196.00, 246.94, 293.66, 349.23], [783.99, 987.77, 1174.66])
+                ]);
+                return 7600;
+
+            case "orbital-anthem":
+                PlayGroove(128, GrooveFeel.TranceAnthem, [
+                    Chord([185.00, 277.18, 369.99, 440.00, 554.37], [739.99, 1108.73, 1479.98]),
+                    Chord([146.83, 293.66, 369.99, 440.00, 587.33], [739.99, 1174.66, 1479.98]),
+                    Chord([110.00, 220.00, 277.18, 329.63, 440.00], [659.25, 880.00, 1318.51]),
+                    Chord([164.81, 246.94, 329.63, 415.30, 493.88], [659.25, 830.61, 1318.51])
+                ]);
+                return 7500;
 
             case "ring-classic":
             default:

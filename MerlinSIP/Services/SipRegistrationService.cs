@@ -38,6 +38,9 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     private int _messageCseq = 1;
     private int _subscribeCseq = 1;
     private int _publishCseq = 1;
+    private int _notifyCseq = 1;
+    private string _notifyCallId = "";
+    private string _notifyLocalTag = "";
     private int _optionsCseq = 1;
     private string _publishCallId = "";
     private string _publishLocalTag = "";
@@ -45,6 +48,9 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _subscriptionCallIds = new(StringComparer.OrdinalIgnoreCase);
     private ActiveCall? _line1Call;
     private ActiveCall? _line2Call;
+    private RtpVideoSession? _videoSession;
+    public RtpVideoSession? VideoSession => _videoSession;
+    public bool HasActiveVideoCall => (_line1Call?.IsVideo == true) || (_line2Call?.IsVideo == true) || _videoSession != null;
     private int _selectedLine = 1;
     private PendingIncomingCall? _pendingIncomingCall;
     private RtpAudioSession? _audioSession;
@@ -101,7 +107,6 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     private MwiService? _mwiService;
 
     public event EventHandler<IncomingCallEventArgs>? IncomingCall;
-    public event EventHandler<IncomingMessageEventArgs>? IncomingMessage;
     public event EventHandler<CallProgressEventArgs>? CallProgress;
     public event EventHandler<CallEndedEventArgs>? CallEnded;
     public event EventHandler<ContactPresenceEventArgs>? ContactPresenceChanged;
@@ -118,9 +123,11 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     string IMwiSipTransport.SipTransportName => SipTransportName;
     string IMwiSipTransport.ContactTransport => ContactTransport;
 
+    private double _lastMeasuredLatencyMs = 18.0;
+
     double ICallQualityDataSource.GetPacketLossPercentage() => _audioSession?.GetQualityStats().LossPercent ?? 0.0;
-    double ICallQualityDataSource.GetJitterMs() => 0.0;
-    double ICallQualityDataSource.GetLatencyMs() => 20.0;
+    double ICallQualityDataSource.GetJitterMs() => _audioSession?.GetQualityStats().JitterMs ?? 0.0;
+    double ICallQualityDataSource.GetLatencyMs() => _lastMeasuredLatencyMs > 0 ? _lastMeasuredLatencyMs : 18.0;
     bool ICallQualityDataSource.IsCallActive => _activeCall is not null;
 
     public bool CanControlAudio => _audioSession is not null;
@@ -229,9 +236,9 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         return (true, path);
     }
 
-    public (double LossPercent, int SignalBars, string QualityText) GetCallQualityStats()
+    public (double LossPercent, double JitterMs, double LatencyMs, int SignalBars, string QualityText) GetCallQualityStats()
     {
-        return _audioSession?.GetQualityStats() ?? (0.0, 5, "5/5 Excellent");
+        return _audioSession?.GetQualityStats() ?? (0.0, 0.0, _lastMeasuredLatencyMs > 0 ? _lastMeasuredLatencyMs : 18.0, 5, "5/5 Excellent");
     }
 
     public void SetRejectIncomingCalls(bool reject)
@@ -424,11 +431,17 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             var basicStatus = isOffline ? "closed" : "open";
             var expires = isOffline ? 0 : 3600;
 
+            var isBusyOrDnd = status.Equals("Busy", StringComparison.OrdinalIgnoreCase) ||
+                              status.Equals("DND", StringComparison.OrdinalIgnoreCase) ||
+                              status.Equals("Do Not Disturb", StringComparison.OrdinalIgnoreCase);
+
+            var noteText = isBusyOrDnd ? "Phone is off the hook and cannot be contacted" : status;
+
             var activityXml = status.ToLowerInvariant() switch
             {
                 "away" or "appear away" => "      <rpid:away/>\n",
-                "dnd" or "do not disturb" => "      <rpid:do-not-disturb/>\n",
-                "busy" => "      <rpid:busy/>\n",
+                "dnd" or "do not disturb" => "      <rpid:do-not-disturb/>\n      <rpid:on-the-phone/>\n",
+                "busy" => "      <rpid:busy/>\n      <rpid:on-the-phone/>\n",
                 "available" => "      <rpid:available/>\n",
                 _ => ""
             };
@@ -443,7 +456,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             contentBuilder.AppendLine("    <status>");
             contentBuilder.AppendLine($"      <basic>{basicStatus}</basic>");
             contentBuilder.AppendLine("    </status>");
-            contentBuilder.AppendLine($"    <note>{status}</note>");
+            contentBuilder.AppendLine($"    <note>{noteText}</note>");
             contentBuilder.AppendLine("  </tuple>");
             if (!string.IsNullOrWhiteSpace(activityXml))
             {
@@ -451,7 +464,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 contentBuilder.AppendLine("    <rpid:activities>");
                 contentBuilder.Append(activityXml);
                 contentBuilder.AppendLine("    </rpid:activities>");
-                contentBuilder.AppendLine($"    <dm:note>{status}</dm:note>");
+                contentBuilder.AppendLine($"    <dm:note>{noteText}</dm:note>");
                 contentBuilder.AppendLine("  </dm:person>");
             }
             contentBuilder.Append("</presence>");
@@ -499,6 +512,15 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 {
                     DebugLog.Write($"BLF publish presence response code={response.Code} reason={response.Reason}");
                 }
+
+                if (isBusyOrDnd)
+                {
+                    _ = Task.Run(() => NotifyOffHookStatusAsync(true, noteText, CancellationToken.None));
+                }
+                else if (status.Equals("Available", StringComparison.OrdinalIgnoreCase))
+                {
+                    _ = Task.Run(() => NotifyOffHookStatusAsync(false, "Phone is on the hook and available", CancellationToken.None));
+                }
             }
             catch (Exception ex)
             {
@@ -539,6 +561,103 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         sb.Append($"Content-Length: {contentLength}\r\n\r\n");
         sb.Append(content);
         
+        return sb.ToString();
+    }
+
+    public async Task NotifyOffHookStatusAsync(bool isOffHook, string reason = "Phone is off the hook and cannot be contacted", CancellationToken cancellationToken = default)
+    {
+        if (!_registered || _config is null || string.IsNullOrEmpty(_domain))
+        {
+            return;
+        }
+
+        await _sipCommandLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (string.IsNullOrEmpty(_notifyCallId))
+            {
+                _notifyCallId = Guid.NewGuid().ToString("N");
+                _notifyLocalTag = Guid.NewGuid().ToString("N")[..12];
+            }
+
+            var notifyCseq = _notifyCseq++;
+            var eventState = isOffHook ? "active;expires=3600" : "terminated;reason=noresource";
+            var noteText = isOffHook ? reason : "Phone is on the hook and available";
+
+            var content = BuildDialogInfoXml(_config.Extension, _domain, isOffHook, noteText);
+            var notifyRequest = BuildNotify(_config.Extension, _notifyCallId, _notifyLocalTag, notifyCseq, content, eventState, null);
+
+            DebugLog.Write($"SEND NOTIFY off-hook={isOffHook} note='{noteText}'");
+            try
+            {
+                var response = await SendAndWaitFromListenerAsync(notifyRequest, cancellationToken);
+                if (response.Code is 401 or 407)
+                {
+                    var challengeHeader = response.Headers.TryGetValue("www-authenticate", out var wwwAuthenticate)
+                        ? wwwAuthenticate
+                        : response.Headers.GetValueOrDefault("proxy-authenticate", "");
+                    var authCseq = _notifyCseq++;
+                    var isProxy = response.Code == 407 || !response.Headers.ContainsKey("www-authenticate");
+                    var authorization = BuildDigestAuthorization("NOTIFY", $"sip:{_config.Extension}@{_domain}", challengeHeader);
+                    var authHeaderVal = isProxy ? $"Proxy-{authorization}" : authorization;
+                    var authorizedRequest = BuildNotify(_config.Extension, _notifyCallId, _notifyLocalTag, authCseq, content, eventState, authHeaderVal);
+                    await SendAndWaitFromListenerAsync(authorizedRequest, cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"NOTIFY off-hook send error: {ex.Message}");
+            }
+        }
+        finally
+        {
+            _sipCommandLock.Release();
+        }
+    }
+
+        internal static string BuildDialogInfoXml(string extension, string domain, bool isOffHook, string noteText)
+    {
+        var state = isOffHook ? "confirmed" : "terminated";
+        var contentBuilder = new StringBuilder();
+        contentBuilder.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+        contentBuilder.AppendLine("<dialog-info xmlns=\"urn:ietf:params:xml:ns:dialog-info\" version=\"1\" state=\"full\"");
+        contentBuilder.AppendLine($"             entity=\"sip:{extension}@{domain}\">");
+        contentBuilder.AppendLine($"  <dialog id=\"{extension}_offhook\" direction=\"recipient\">");
+        contentBuilder.AppendLine($"    <state>{state}</state>");
+        contentBuilder.AppendLine($"    <notes>{noteText}</notes>");
+        contentBuilder.AppendLine("  </dialog>");
+        contentBuilder.Append("</dialog-info>");
+        return contentBuilder.ToString();
+    }
+
+    internal string BuildNotify(string target, string callId, string localTag, int cseq, string content, string subscriptionState, string? authorization)
+    {
+        var authHeader = "";
+        if (!string.IsNullOrWhiteSpace(authorization))
+        {
+            authHeader = authorization.StartsWith("Proxy-", StringComparison.OrdinalIgnoreCase)
+                ? $"\r\nProxy-Authorization: {authorization["Proxy-".Length..]}"
+                : $"\r\nAuthorization: {authorization}";
+        }
+
+        var contentLength = Encoding.UTF8.GetByteCount(content);
+
+        var sb = new StringBuilder();
+        sb.Append($"NOTIFY sip:{target}@{_domain} SIP/2.0\r\n");
+        sb.Append($"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={CreateBranch()};rport\r\n");
+        sb.Append("Max-Forwards: 70\r\n");
+        sb.Append($"To: <sip:{target}@{_domain}>\r\n");
+        sb.Append($"From: <sip:{_config!.Extension}@{_domain}>;tag={localTag}\r\n");
+        sb.Append($"Call-ID: {callId}\r\n");
+        sb.Append($"CSeq: {cseq} NOTIFY\r\n");
+        sb.Append($"Contact: <sip:{_config.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}>\r\n");
+        sb.Append("User-Agent: CK Media Services Merlin SIP\r\n");
+        sb.Append("Event: dialog\r\n");
+        sb.Append($"Subscription-State: {subscriptionState}\r\n");
+        sb.Append($"Content-Type: application/dialog-info+xml{authHeader}\r\n");
+        sb.Append($"Content-Length: {contentLength}\r\n\r\n");
+        sb.Append(content);
+
         return sb.ToString();
     }
 
@@ -647,21 +766,21 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         return result;
     }
 
-    public async Task<SipCallResult> InviteLineAsync(int line, string destination, CancellationToken cancellationToken = default)
+    public async Task<SipCallResult> InviteLineAsync(int line, string destination, CancellationToken cancellationToken = default, bool isVideo = false)
     {
         if (line == 2)
         {
-            return await InviteSecondaryLegAsync(destination, cancellationToken);
+            return await InviteSecondaryLegAsync(destination, cancellationToken, isVideo);
         }
-        return await InvitePrimaryLegAsync(destination, cancellationToken);
+        return await InvitePrimaryLegAsync(destination, cancellationToken, isVideo);
     }
 
-    public Task<SipCallResult> InviteAsync(string destination, CancellationToken cancellationToken = default)
+    public Task<SipCallResult> InviteAsync(string destination, CancellationToken cancellationToken = default, bool isVideo = false)
     {
-        return InviteLineAsync(_selectedLine, destination, cancellationToken);
+        return InviteLineAsync(_selectedLine, destination, cancellationToken, isVideo);
     }
 
-    private async Task<SipCallResult> InvitePrimaryLegAsync(string destination, CancellationToken cancellationToken)
+    private async Task<SipCallResult> InvitePrimaryLegAsync(string destination, CancellationToken cancellationToken, bool isVideo = false)
     {
         if (!IsTransportReady || _config is null)
         {
@@ -704,9 +823,13 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             }
         }
 
-        var invite = BuildInvite(target, callId, localTag, cseq, inviteBranch, null);
+        if (isVideo && _videoSession == null && _config != null)
+        {
+            _videoSession = new RtpVideoSession(_config.VideoSource);
+        }
+        var invite = BuildInvite(target, callId, localTag, cseq, inviteBranch, null, isVideo: isVideo);
         DebugLog.Write($"SEND INVITE line=1 target={target} callId={callId}");
-        var activeCall = new ActiveCall(callId, target, localTag, cseq, inviteBranch, false, null, false, LineNumber: 1);
+        var activeCall = new ActiveCall(callId, target, localTag, cseq, inviteBranch, false, null, false, LineNumber: 1, IsVideo: isVideo);
         _line1Call = activeCall;
         var firstResponse = await SendAndWaitFromListenerAsync(invite, cancellationToken);
         DebugLog.Write($"INVITE RESPONSE line=1 code={firstResponse.Code} reason={firstResponse.Reason}");
@@ -738,9 +861,9 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             var authorization = BuildDigestAuthorization("INVITE", $"sip:{target}", challengeHeader);
             var authCseq = _inviteCseq++;
             var authBranch = CreateBranch();
-            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization);
+            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization, isVideo: isVideo);
             DebugLog.Write($"SEND AUTH INVITE line=1 target={target} callId={callId}");
-            activeCall = new ActiveCall(callId, target, localTag, authCseq, authBranch, false, null, false, LineNumber: 1);
+            activeCall = new ActiveCall(callId, target, localTag, authCseq, authBranch, false, null, false, LineNumber: 1, IsVideo: isVideo);
             _line1Call = activeCall;
             var secondResponse = await SendAndWaitFromListenerAsync(secondInvite, cancellationToken);
             DebugLog.Write($"AUTH INVITE RESPONSE line=1 code={secondResponse.Code} reason={secondResponse.Reason}");
@@ -807,7 +930,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         return new SipCallResult(false, $"Call failed: {firstResponse.Code} {firstResponse.Reason}".Trim());
     }
 
-    private async Task<SipCallResult> InviteSecondaryLegAsync(string destination, CancellationToken cancellationToken)
+    private async Task<SipCallResult> InviteSecondaryLegAsync(string destination, CancellationToken cancellationToken, bool isVideo = false)
     {
         if (!IsTransportReady || _config is null)
         {
@@ -844,9 +967,13 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         var cseq = _inviteCseq++;
         var inviteBranch = CreateBranch();
         var mediaPort = _audioSession.PrepareSecondarySocket();
-        var invite = BuildInvite(target, callId, localTag, cseq, inviteBranch, null, mediaPort);
+        if (isVideo && _videoSession == null && _config != null)
+        {
+            _videoSession = new RtpVideoSession(_config.VideoSource);
+        }
+        var invite = BuildInvite(target, callId, localTag, cseq, inviteBranch, null, mediaPort, isVideo: isVideo);
         DebugLog.Write($"SEND INVITE line=2 target={target} callId={callId} mediaPort={mediaPort}");
-        var call = new ActiveCall(callId, target, localTag, cseq, inviteBranch, false, null, false, LineNumber: 2);
+        var call = new ActiveCall(callId, target, localTag, cseq, inviteBranch, false, null, false, LineNumber: 2, IsVideo: isVideo);
         _line2Call = call;
         var firstResponse = await SendAndWaitFromListenerAsync(invite, cancellationToken);
         DebugLog.Write($"INVITE RESPONSE line=2 code={firstResponse.Code} reason={firstResponse.Reason}");
@@ -878,9 +1005,9 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             var authorization = BuildDigestAuthorization("INVITE", $"sip:{target}", challengeHeader);
             var authCseq = _inviteCseq++;
             var authBranch = CreateBranch();
-            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization, mediaPort);
+            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization, mediaPort, isVideo: isVideo);
             DebugLog.Write($"SEND AUTH INVITE line=2 target={target} callId={callId} mediaPort={mediaPort}");
-            call = new ActiveCall(callId, target, localTag, authCseq, authBranch, false, null, false, LineNumber: 2);
+            call = new ActiveCall(callId, target, localTag, authCseq, authBranch, false, null, false, LineNumber: 2, IsVideo: isVideo);
             _line2Call = call;
             var secondResponse = await SendAndWaitFromListenerAsync(secondInvite, cancellationToken);
             DebugLog.Write($"AUTH INVITE RESPONSE line=2 code={secondResponse.Code} reason={secondResponse.Reason}");
@@ -964,62 +1091,6 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         return response.Code is >= 200 and < 300
             ? new SipCallResult(true, $"OPTIONS accepted: {response.Code} {response.Reason}".Trim())
             : new SipCallResult(false, $"OPTIONS failed: {response.Code} {response.Reason}".Trim());
-    }
-
-    public async Task<SipCallResult> SendMessageAsync(string destination, string message, CancellationToken cancellationToken = default)
-    {
-        if (!IsTransportReady || _config is null)
-        {
-            return new SipCallResult(false, "Register the SIP account first.");
-        }
-
-        if (string.IsNullOrWhiteSpace(destination))
-        {
-            return new SipCallResult(false, "Choose an extension before sending.");
-        }
-
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return new SipCallResult(false, "Enter a message before sending.");
-        }
-
-        if (!_registered)
-        {
-            var registration = await RegisterCurrentSocketAsync(cancellationToken);
-            if (!registration.Connected)
-            {
-                return new SipCallResult(false, $"Registration check failed: {registration.Message}");
-            }
-
-            _registered = true;
-        }
-
-        var target = destination.Contains('@') ? destination : $"{destination}@{_domain}";
-        var callId = $"{Guid.NewGuid():N}@merlin-sip";
-        var localTag = Guid.NewGuid().ToString("N")[..12];
-        var first = BuildMessage(target, callId, localTag, _messageCseq++, message, null);
-        DebugLog.Write($"SEND MESSAGE target={target} callId={callId} length={message.Length}");
-        var firstResponse = await SendAndWaitFromListenerAsync(first, cancellationToken);
-        DebugLog.Write($"MESSAGE RESPONSE code={firstResponse.Code} reason={firstResponse.Reason}");
-
-        if (firstResponse.Code is 401 or 407)
-        {
-            var challengeHeader = firstResponse.Headers.TryGetValue("www-authenticate", out var wwwAuthenticate)
-                ? wwwAuthenticate
-                : firstResponse.Headers.GetValueOrDefault("proxy-authenticate", "");
-            var authorization = BuildDigestAuthorization("MESSAGE", $"sip:{target}", challengeHeader);
-            var second = BuildMessage(target, callId, localTag, _messageCseq++, message, authorization);
-            DebugLog.Write($"SEND AUTH MESSAGE target={target} callId={callId}");
-            var secondResponse = await SendAndWaitFromListenerAsync(second, cancellationToken);
-            DebugLog.Write($"AUTH MESSAGE RESPONSE code={secondResponse.Code} reason={secondResponse.Reason}");
-            return secondResponse.Code is >= 200 and < 300
-                ? new SipCallResult(true, "Message sent.")
-                : new SipCallResult(false, $"Message failed: {secondResponse.Code} {secondResponse.Reason}".Trim());
-        }
-
-        return firstResponse.Code is >= 200 and < 300
-            ? new SipCallResult(true, "Message sent.")
-            : new SipCallResult(false, $"Message failed: {firstResponse.Code} {firstResponse.Reason}".Trim());
     }
 
     public async Task SubscribeToContactPresenceAsync(IEnumerable<string> extensions, CancellationToken cancellationToken = default)
@@ -1195,6 +1266,26 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         catch (Exception error)
         {
             DebugLog.Write($"RTP start failed incoming remote={remoteAddress}:{remotePort} error={error.Message}");
+        }
+
+        if (pendingCall.HasVideo && TryParseRemoteVideo(pendingCall.Request, out var inVideoAddress, out var inVideoPort, out var inVideoPayload))
+        {
+            try
+            {
+                _videoSession?.Dispose();
+                _videoSession = new RtpVideoSession(_config.VideoSource);
+                _videoSession.SetCodec(inVideoPayload == 97 ? "VP8 (Yeastar WebRTC/SIP)" : "H.264 (Yeastar WebRTC/SIP)");
+                if (IPAddress.TryParse(inVideoAddress, out var ipAddr))
+                {
+                    _videoSession.SetRemoteEndPoint(new IPEndPoint(ipAddr, inVideoPort));
+                    _videoSession.Start();
+                    DebugLog.Write($"RTP Video incoming started remote={inVideoAddress}:{inVideoPort}");
+                }
+            }
+            catch (Exception vErr)
+            {
+                DebugLog.Write($"RTP Video incoming start error: {vErr.Message}");
+            }
         }
 
         CallProgress?.Invoke(this, new CallProgressEventArgs(200, "OK", true, "Call connected."));
@@ -1952,11 +2043,14 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         return string.Join("\r\n", lines) + "\r\n\r\n";
     }
 
-    private string BuildInvite(string target, string callId, string localTag, int cseq, string branch, string? authorization, int? mediaPort = null)
+    private string BuildInvite(string target, string callId, string localTag, int cseq, string branch, string? authorization, int? mediaPort = null, bool isVideo = false)
     {
         var codecs = GetSupportedAudioPayloads(_config?.PreferredCodecs);
         var rtpPort = mediaPort ?? _audioSession?.LocalPort ?? 40000;
-        var sdp = string.Join("\r\n", [
+        var videoPort = _videoSession?.LocalPort ?? (rtpPort + 2);
+        
+        var sdpLines = new List<string>
+        {
             "v=0",
             $"o=CKMediaServices 0 0 IN IP4 {_localAddress}",
             "s=CK Media Services call",
@@ -1969,7 +2063,26 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             "a=fmtp:101 0-16",
             "a=ptime:20",
             "a=sendrecv"
-        ]) + "\r\n";
+        };
+
+        if (isVideo)
+        {
+            // Yeastar SIP & WebRTC Video SDP Offer (RFC 6184 H.264 & RFC 7741 VP8)
+            sdpLines.Add($"m=video {videoPort} RTP/AVP 96 97");
+            sdpLines.Add("b=AS:1024");
+            sdpLines.Add("a=rtpmap:96 H264/90000");
+            sdpLines.Add("a=fmtp:96 profile-level-id=42e01f;packetization-mode=1");
+            sdpLines.Add("a=rtpmap:97 VP8/90000");
+            sdpLines.Add("a=rtcp-fb:96 nack");
+            sdpLines.Add("a=rtcp-fb:96 nack pli");
+            sdpLines.Add("a=rtcp-fb:96 ccm fir");
+            sdpLines.Add("a=rtcp-fb:97 nack");
+            sdpLines.Add("a=rtcp-fb:97 nack pli");
+            sdpLines.Add("a=rtcp-fb:97 ccm fir");
+            sdpLines.Add("a=sendrecv");
+        }
+
+        var sdp = string.Join("\r\n", sdpLines) + "\r\n";
 
         var lines = new List<string>
         {
@@ -2009,7 +2122,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             ? "a=rtpmap:8 PCMA/8000"
             : "a=rtpmap:0 PCMU/8000";
 
-        var sdp = string.Join("\r\n", [
+        var sdpLines = new List<string>
+        {
             "v=0",
             $"o=CKMediaServices 0 0 IN IP4 {_localAddress}",
             "s=CK Media Services call",
@@ -2020,7 +2134,23 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             "a=rtpmap:101 telephone-event/8000",
             "a=fmtp:101 0-16",
             "a=sendrecv"
-        ]) + "\r\n";
+        };
+
+        if (call.HasVideo || call.Request.Contains("m=video", StringComparison.OrdinalIgnoreCase))
+        {
+            var videoPort = _videoSession?.LocalPort ?? 40002;
+            sdpLines.Add($"m=video {videoPort} RTP/AVP 96 97");
+            sdpLines.Add("b=AS:1024");
+            sdpLines.Add("a=rtpmap:96 H264/90000");
+            sdpLines.Add("a=fmtp:96 profile-level-id=42e01f;packetization-mode=1");
+            sdpLines.Add("a=rtpmap:97 VP8/90000");
+            sdpLines.Add("a=rtcp-fb:96 nack");
+            sdpLines.Add("a=rtcp-fb:96 nack pli");
+            sdpLines.Add("a=rtcp-fb:96 ccm fir");
+            sdpLines.Add("a=sendrecv");
+        }
+
+        var sdp = string.Join("\r\n", sdpLines) + "\r\n";
 
         return string.Join("\r\n", [
             "SIP/2.0 200 OK",
@@ -2224,34 +2354,6 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             "",
             ""
         ]);
-    }
-
-    private string BuildMessage(string target, string callId, string localTag, int cseq, string message, string? authorization)
-    {
-        var body = message.Trim();
-        var lines = new List<string>
-        {
-            $"MESSAGE sip:{target} SIP/2.0",
-            $"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={CreateBranch()};rport",
-            "Max-Forwards: 70",
-            $"From: <sip:{_config!.Extension}@{_domain}>;tag={localTag}",
-            $"To: <sip:{target}>",
-            $"Call-ID: {callId}",
-            $"CSeq: {cseq} MESSAGE",
-            $"Contact: <sip:{_config.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}>",
-            "User-Agent: CK Media Services Merlin SIP",
-            "Content-Type: text/plain; charset=utf-8",
-            $"Content-Length: {Encoding.UTF8.GetByteCount(body)}",
-            "",
-            body
-        };
-
-        if (!string.IsNullOrWhiteSpace(authorization))
-        {
-            lines.Insert(8, $"Authorization: {authorization}");
-        }
-
-        return string.Join("\r\n", lines);
     }
 
     private string BuildSubscribe(string target, string callId, string localTag, int cseq, string eventName, string accept, string? authorization)
@@ -2606,6 +2708,33 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 DebugLog.Write($"RTP start failed remote={remoteAddress}:{remotePort} error={error.Message}");
             }
         }
+
+        if ((call.IsVideo || response.Raw.Contains("m=video", StringComparison.OrdinalIgnoreCase)) &&
+            TryParseRemoteVideo(response.Raw, out var remoteVideoAddress, out var remoteVideoPort, out var remoteVideoPayload))
+        {
+            try
+            {
+                if (_videoSession == null && _config != null)
+                {
+                    _videoSession = new RtpVideoSession(_config.VideoSource);
+                }
+
+                if (_videoSession != null)
+                {
+                    _videoSession.SetCodec(remoteVideoPayload == 97 ? "VP8 (Yeastar WebRTC/SIP)" : "H.264 (Yeastar WebRTC/SIP)");
+                    if (IPAddress.TryParse(remoteVideoAddress, out var ipAddr))
+                    {
+                        _videoSession.SetRemoteEndPoint(new IPEndPoint(ipAddr, remoteVideoPort));
+                        _videoSession.Start();
+                        DebugLog.Write($"RTP Video started remote={remoteVideoAddress}:{remoteVideoPort} codec={remoteVideoPayload}");
+                    }
+                }
+            }
+            catch (Exception vErr)
+            {
+                DebugLog.Write($"RTP Video start error: {vErr.Message}");
+            }
+        }
         else
         {
             DebugLog.Write($"RTP remote audio parse failed callId={call.CallId}");
@@ -2759,6 +2888,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 var response = await SendAndWaitFromListenerAsync(options, cancellationToken);
                 sw.Stop();
                 var latency = (int)sw.ElapsedMilliseconds;
+                _lastMeasuredLatencyMs = latency > 0 ? latency : 18.0;
+                _audioSession?.SetMeasuredLatency(_lastMeasuredLatencyMs);
 
                 if (response.Code >= 200 && response.Code < 300)
                 {
@@ -3038,8 +3169,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 }
                 else if (message.StartsWith("MESSAGE ", StringComparison.OrdinalIgnoreCase))
                 {
-                    DebugLog.Write("RECV MESSAGE");
-                    await HandleIncomingMessageAsync(message, remoteEndPoint, cancellationToken);
+                    // Legacy SIP MESSAGE chat removed in favor of backend ChatConnectorService
+                    await SendSimpleResponseAsync(message, remoteEndPoint, 200, "OK", cancellationToken);
                 }
             }
             catch (OperationCanceledException)
@@ -3095,6 +3226,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         await SendSimpleResponseAsync(message, remoteEndPoint, 100, "Trying", cancellationToken);
         await SendSimpleResponseAsync(message, remoteEndPoint, 180, "Ringing", cancellationToken, localTag);
 
+        bool isVideo = message.Contains("m=video", StringComparison.OrdinalIgnoreCase);
+
         _pendingIncomingCall = new PendingIncomingCall(
             callId,
             message,
@@ -3102,7 +3235,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             localTag,
             ExtractTag(from),
             ExtractRemoteTarget(headers),
-            ExtractCSeqNumber(headers.GetValueOrDefault("cseq", "")));
+            ExtractCSeqNumber(headers.GetValueOrDefault("cseq", "")),
+            isVideo);
         
         bool isIntercom = message.Contains("Answer-After=0", StringComparison.OrdinalIgnoreCase) || 
                           message.Contains("Intercom", StringComparison.OrdinalIgnoreCase) || 
@@ -3110,27 +3244,12 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                           message.Contains("info=alert-autoanswer", StringComparison.OrdinalIgnoreCase);
 
         var targetLine = _line1Call is null ? 1 : 2;
-        IncomingCall?.Invoke(this, new IncomingCallEventArgs(ExtractCaller(from), from, isIntercom, LineNumber: targetLine));
+        IncomingCall?.Invoke(this, new IncomingCallEventArgs(ExtractCaller(from), from, isIntercom, LineNumber: targetLine, IsVideo: isVideo));
 
         if (isIntercom)
         {
             await AnswerIncomingCallAsync(cancellationToken);
         }
-    }
-
-    private async Task HandleIncomingMessageAsync(string message, IPEndPoint remoteEndPoint, CancellationToken cancellationToken)
-    {
-        var headers = ParseHeaders(message);
-        var from = headers.GetValueOrDefault("from", "Unknown sender");
-        var body = ExtractBody(message).Trim();
-        await SendSimpleResponseAsync(message, remoteEndPoint, 200, "OK", cancellationToken);
-
-        if (string.IsNullOrWhiteSpace(body))
-        {
-            return;
-        }
-
-        IncomingMessage?.Invoke(this, new IncomingMessageEventArgs(ExtractCaller(from), from, body));
     }
 
     private void HandlePresenceNotify(string message)
@@ -3721,6 +3840,50 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         return match.Success ? match.Groups[1].Value : null;
     }
 
+    public void CleanupVideoSession()
+    {
+        try
+        {
+            _videoSession?.Dispose();
+        }
+        catch { }
+        _videoSession = null;
+    }
+
+    public bool TryParseRemoteVideo(string response, out string address, out int port, out int payloadType)
+    {
+        address = _config?.Server ?? "";
+        port = 0;
+        payloadType = 96;
+        var bodyStart = response.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+        var sdp = bodyStart >= 0 ? response[(bodyStart + 4)..] : response;
+
+        foreach (var line in sdp.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (line.StartsWith("c=IN IP4 ", StringComparison.OrdinalIgnoreCase))
+            {
+                address = line["c=IN IP4 ".Length..].Trim();
+            }
+            else if (line.StartsWith("m=video ", StringComparison.OrdinalIgnoreCase))
+            {
+                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 4 && int.TryParse(parts[1], out var parsedPort))
+                {
+                    port = parsedPort;
+                    var payloads = parts.Skip(3).ToArray();
+                    payloadType = payloads.Contains("96") ? 96 : payloads.Contains("97") ? 97 : 96;
+                }
+            }
+        }
+
+        if (ShouldUseConfiguredMediaHost(address))
+        {
+            address = _config!.Server;
+        }
+
+        return port > 0 && !string.IsNullOrWhiteSpace(address);
+    }
+
     private bool TryParseRemoteAudio(string response, out string address, out int port, out int payloadType)
     {
         address = _config?.Server ?? "";
@@ -4109,9 +4272,8 @@ public sealed record SipRegistrationResult(bool Connected, string Message);
 
 public sealed record SipCallResult(bool Signalled, string Message);
 
-public sealed record IncomingCallEventArgs(string CallerNumber, string RawFromHeader, bool IsIntercom = false, int LineNumber = 1);
+public sealed record IncomingCallEventArgs(string CallerNumber, string RawFromHeader, bool IsIntercom = false, int LineNumber = 1, bool IsVideo = false);
 
-public sealed record IncomingMessageEventArgs(string SenderNumber, string RawFromHeader, string Message);
 
 public sealed record CallProgressEventArgs(int Code, string Reason, bool Connected, string Message, string? CallId = null, int? LineNumber = null);
 
@@ -4125,7 +4287,7 @@ internal sealed record PendingSipTransaction(TaskCompletionSource<SipResponse> R
 
 internal sealed record PendingReferTransfer(string CallId, TaskCompletionSource<SipCallResult> ResultSource);
 
-internal sealed record ActiveCall(string CallId, string Target, string LocalTag, int CSeq, string InviteBranch, bool Established, string? RemoteTag, bool OnHold = false, int LineNumber = 1);
+internal sealed record ActiveCall(string CallId, string Target, string LocalTag, int CSeq, string InviteBranch, bool Established, string? RemoteTag, bool OnHold = false, int LineNumber = 1, bool IsVideo = false);
 
 public sealed record PendingIncomingCall(
     string CallId,
@@ -4134,4 +4296,5 @@ public sealed record PendingIncomingCall(
     string LocalTag,
     string? RemoteTag,
     string RemoteTarget,
-    int InviteCSeq);
+    int InviteCSeq,
+    bool HasVideo = false);

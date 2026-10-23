@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, User, Phone } from 'lucide-react';
+import { Search, User, Phone, Video } from 'lucide-react';
 import type { Contact } from '../types';
 
 interface ContactListProps {
@@ -7,13 +7,15 @@ interface ContactListProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   onSelectDestination: (number: string) => void;
+  onVideoCallDestination?: (number: string) => void;
 }
 
 export const ContactList: React.FC<ContactListProps> = ({
   contacts,
   searchQuery,
   setSearchQuery,
-  onSelectDestination
+  onSelectDestination,
+  onVideoCallDestination
 }) => {
   const filteredContacts = contacts.filter(c => 
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -47,6 +49,29 @@ export const ContactList: React.FC<ContactListProps> = ({
                 }}>
                   {c.presence}
                 </span>
+                <button
+                  type="button"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 22,
+                    height: 22,
+                    borderRadius: 11,
+                    background: '#ede9fe',
+                    border: '1px solid #c4b5fd',
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                  title="Video call contact (Yeastar SIP/WebRTC)"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onVideoCallDestination) onVideoCallDestination(c.number);
+                    else onSelectDestination(c.number);
+                  }}
+                >
+                  <Video size={12} style={{ color: '#7c3aed' }} />
+                </button>
                 <Phone size={14} style={{ color: 'var(--muted-color)' }} />
               </div>
             </div>

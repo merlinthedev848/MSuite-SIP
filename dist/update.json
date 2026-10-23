@@ -1,5 +1,8 @@
 {
-  "Version": "1.3.3",
-  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.3-x64-faststart.msi",
-  "Notes": "Release 1.3.3: Full dual-line call support (placing Line 1 on hold and dialing on Line 2 with independent dialog and audio management), audible DTMF feedback on keypad presses, default voicemail set to *2, queue pickup set to *4, refined single-column non-closing settings pages, and MerlinBeta-style Merlin SIP softphone styling."
+  "Version": "1.3.5",
+  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.5-x64-faststart.msi",
+  "Sha256": "2dba5d6fbc651eac0581c3659dca2482051faf41bae0ef09d35d6e15c58c1a28",
+  "FileSizeBytes": 75719019,
+  "ReleaseDate": "2026-10-23",
+  "Notes": "Release 1.3.5: Added Handler Server live monitor to Settings > About section without revealing host addresses; Full Yeastar SIP/WebRTC video calling with camera source selector and interactive video calling; Socket.io chat connector with multipart file uploads and drag-and-drop; Removal of legacy SIP chat; Call quality metrics and restored ringtones."
 }
