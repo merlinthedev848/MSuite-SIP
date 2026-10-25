@@ -183,12 +183,14 @@ public class CallManager
             if (currentCall != null)
             {
                 var holdResult = await _sipProvider.SetHeldAsync(true, cancellationToken);
-                if (holdResult.Signalled)
+                if (!holdResult.Signalled)
                 {
-                    lock (_syncRoot)
-                    {
-                        currentCall.IsOnHold = true;
-                    }
+                    return;
+                }
+
+                lock (_syncRoot)
+                {
+                    currentCall.IsOnHold = true;
                 }
             }
 

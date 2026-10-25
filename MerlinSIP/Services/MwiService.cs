@@ -104,7 +104,7 @@ public class MwiService : IDisposable
             string authHeader = _transport.BuildDigestAuthorization("SUBSCRIBE", $"sip:{_transport.Config.Extension}@{_transport.Domain}", challenge);
             
             cseq = _subscribeCseq++;
-            request = BuildSubscribe(cseq, authHeader);
+            request = BuildSubscribe(cseq, authHeader, response.Code == 407);
             response = await _transport.SendRequestAndWaitAsync(request, cancellationToken);
         }
 
@@ -114,7 +114,7 @@ public class MwiService : IDisposable
         }
     }
 
-    private string BuildSubscribe(int cseq, string? authHeader)
+    private string BuildSubscribe(int cseq, string? authHeader, bool proxyAuthorization = false)
     {
         var config = _transport.Config!;
         string targetUri = $"sip:{config.Extension}@{_transport.Domain}";
@@ -136,7 +136,7 @@ public class MwiService : IDisposable
         
         if (!string.IsNullOrEmpty(authHeader))
         {
-            sb.Append($"Proxy-Authorization: {authHeader}\r\n");
+            sb.Append($"{(proxyAuthorization ? "Proxy-Authorization" : "Authorization")}: {authHeader}\r\n");
         }
 
         sb.Append("Content-Length: 0\r\n\r\n");

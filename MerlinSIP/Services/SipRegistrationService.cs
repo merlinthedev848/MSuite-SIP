@@ -297,7 +297,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             var authCseq = _inviteCseq++;
             var authBranch = CreateBranch();
             var authorization = BuildDigestAuthorization("INVITE", $"sip:{call.Target}", challengeHeader);
-            var authInvite = BuildReInvite(call, authCseq, authBranch, held, authorization, isSecondary ? _audioSession?.SecondaryLocalPort : _audioSession?.LocalPort);
+            var authInvite = BuildReInvite(call, authCseq, authBranch, held, authorization, isSecondary ? _audioSession?.SecondaryLocalPort : _audioSession?.LocalPort, response.Code == 407);
             call = call with { CSeq = authCseq, InviteBranch = authBranch };
             if (line == 2) _line2Call = call; else _line1Call = call;
             DebugLog.Write($"SEND AUTH HOLD REINVITE line={line} callId={call.CallId} held={held}");
@@ -366,7 +366,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             var authCseq = _inviteCseq++;
             var authBranch = CreateBranch();
             var authorization = BuildDigestAuthorization("INVITE", $"sip:{activeCall.Target}", challengeHeader);
-            var authInvite = BuildReInvite(activeCall, authCseq, authBranch, held, authorization);
+            var authInvite = BuildReInvite(activeCall, authCseq, authBranch, held, authorization, proxyAuthorization: response.Code == 407);
             activeCall = activeCall with { CSeq = authCseq, InviteBranch = authBranch };
             _activeCall = activeCall;
             DebugLog.Write($"SEND AUTH HOLD REINVITE callId={activeCall.CallId} held={held}");
@@ -411,6 +411,16 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
     public async Task<SipCallResult> ResumeSpecificCallAsync(string callId, CancellationToken cancellationToken = default)
     {
+        if (string.Equals(_line2Call?.CallId, callId, StringComparison.OrdinalIgnoreCase))
+        {
+            return await HoldLineAsync(2, false, cancellationToken);
+        }
+
+        if (string.Equals(_line1Call?.CallId, callId, StringComparison.OrdinalIgnoreCase))
+        {
+            return await HoldLineAsync(1, false, cancellationToken);
+        }
+
         return await SetHeldAsync(false, cancellationToken);
     }
 
@@ -866,7 +876,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             var authorization = BuildDigestAuthorization("INVITE", $"sip:{target}", challengeHeader);
             var authCseq = _inviteCseq++;
             var authBranch = CreateBranch();
-            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization, isVideo: isVideo);
+            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization, isVideo: isVideo, proxyAuthorization: firstResponse.Code == 407);
             DebugLog.Write($"SEND AUTH INVITE line=1 target={target} callId={callId}");
             activeCall = new ActiveCall(callId, target, localTag, authCseq, authBranch, false, null, false, LineNumber: 1, IsVideo: isVideo);
             _line1Call = activeCall;
@@ -1010,7 +1020,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             var authorization = BuildDigestAuthorization("INVITE", $"sip:{target}", challengeHeader);
             var authCseq = _inviteCseq++;
             var authBranch = CreateBranch();
-            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization, mediaPort, isVideo: isVideo);
+            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization, mediaPort, isVideo: isVideo, proxyAuthorization: firstResponse.Code == 407);
             DebugLog.Write($"SEND AUTH INVITE line=2 target={target} callId={callId} mediaPort={mediaPort}");
             call = new ActiveCall(callId, target, localTag, authCseq, authBranch, false, null, false, LineNumber: 2, IsVideo: isVideo);
             _line2Call = call;
@@ -1197,7 +1207,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 : response.Headers.GetValueOrDefault("proxy-authenticate", "");
             var authCseq = _subscribeCseq++;
             var authorization = BuildDigestAuthorization("SUBSCRIBE", $"sip:{target}", challengeHeader);
-            var authorized = BuildSubscribe(target, callId, localTag, authCseq, eventName, accept, authorization);
+            var authorized = BuildSubscribe(target, callId, localTag, authCseq, eventName, accept, authorization, response.Code == 407);
             response = await SendAndWaitFromListenerAsync(authorized, cancellationToken);
         }
 
@@ -1703,7 +1713,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             var authorization = BuildDigestAuthorization("INVITE", $"sip:{target}", challengeHeader);
             var authCseq = _inviteCseq++;
             var authBranch = CreateBranch();
-            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization, mediaPort);
+            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization, mediaPort, proxyAuthorization: firstResponse.Code == 407);
             DebugLog.Write($"SEND AUTH CONSULT INVITE target={target} callId={callId} mediaPort={mediaPort}");
             _activeCall = new ActiveCall(callId, target, localTag, authCseq, authBranch, false, null);
             var secondResponse = await SendAndWaitFromListenerAsync(secondInvite, cancellationToken);
@@ -1999,7 +2009,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 : firstResponse.Headers.GetValueOrDefault("proxy-authenticate", "");
 
             var authorization = BuildDigestAuthorization("REGISTER", $"sip:{_domain}", challengeHeader);
-            var second = BuildRegister(callId, _registerCseq++, authorization);
+            var second = BuildRegister(callId, _registerCseq++, authorization, firstResponse.Code == 407);
             DebugLog.Write($"SEND AUTH REGISTER callId={callId} listener={_listenerStarted}");
             var secondResponse = _listenerStarted
                 ? await SendAndWaitFromListenerAsync(second, cancellationToken)
@@ -2018,7 +2028,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         }
     }
 
-    private string BuildRegister(string callId, int cseq, string? authorization)
+    private string BuildRegister(string callId, int cseq, string? authorization, bool proxyAuthorization = false)
     {
         var branch = $"z9hG4bK-{Guid.NewGuid():N}";
         var tag = Guid.NewGuid().ToString("N")[..12];
@@ -2042,13 +2052,14 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
         if (!string.IsNullOrWhiteSpace(authorization))
         {
-            lines.Insert(8, $"Authorization: {authorization}");
+            var headerName = proxyAuthorization ? "Proxy-Authorization" : "Authorization";
+            lines.Insert(8, $"{headerName}: {authorization}");
         }
 
         return string.Join("\r\n", lines) + "\r\n\r\n";
     }
 
-    private string BuildInvite(string target, string callId, string localTag, int cseq, string branch, string? authorization, int? mediaPort = null, bool isVideo = false)
+    private string BuildInvite(string target, string callId, string localTag, int cseq, string branch, string? authorization, int? mediaPort = null, bool isVideo = false, bool proxyAuthorization = false)
     {
         var codecs = GetSupportedAudioPayloads(_config?.PreferredCodecs);
         var rtpPort = mediaPort ?? _audioSession?.LocalPort ?? 40000;
@@ -2110,7 +2121,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
         if (!string.IsNullOrWhiteSpace(authorization))
         {
-            lines.Insert(8, $"Authorization: {authorization}");
+            var headerName = proxyAuthorization ? "Proxy-Authorization" : "Authorization";
+            lines.Insert(8, $"{headerName}: {authorization}");
         }
 
         return string.Join("\r\n", lines);
@@ -2174,7 +2186,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         ]);
     }
 
-    private string BuildReInvite(ActiveCall call, int cseq, string branch, bool held, string? authorization, int? mediaPort = null)
+    private string BuildReInvite(ActiveCall call, int cseq, string branch, bool held, string? authorization, int? mediaPort = null, bool proxyAuthorization = false)
     {
         var direction = held ? "sendonly" : "sendrecv";
         var codecs = GetSupportedAudioPayloads(_config?.PreferredCodecs);
@@ -2220,7 +2232,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
         if (!string.IsNullOrWhiteSpace(authorization))
         {
-            lines.Insert(8, $"Authorization: {authorization}");
+            var headerName = proxyAuthorization ? "Proxy-Authorization" : "Authorization";
+            lines.Insert(8, $"{headerName}: {authorization}");
         }
 
         return string.Join("\r\n", lines);
@@ -2361,7 +2374,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         ]);
     }
 
-    private string BuildSubscribe(string target, string callId, string localTag, int cseq, string eventName, string accept, string? authorization)
+    private string BuildSubscribe(string target, string callId, string localTag, int cseq, string eventName, string accept, string? authorization, bool proxyAuthorization = false)
     {
         var lines = new List<string>
         {
@@ -2384,7 +2397,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
         if (!string.IsNullOrWhiteSpace(authorization))
         {
-            lines.Insert(8, $"Authorization: {authorization}");
+            var headerName = proxyAuthorization ? "Proxy-Authorization" : "Authorization";
+            lines.Insert(8, $"{headerName}: {authorization}");
         }
 
         return string.Join("\r\n", lines);
@@ -4270,6 +4284,10 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         _registered = false;
         _audioSession?.Dispose();
         _audioSession = null;
+        try { _mwiService?.Dispose(); } catch { }
+        _mwiService = null;
+        try { _videoSession?.Dispose(); } catch { }
+        _videoSession = null;
     }
 }
 

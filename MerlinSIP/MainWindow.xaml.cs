@@ -2386,7 +2386,15 @@ public partial class MainWindow : Window
             _callConnected = result.Signalled;
             if (result.Signalled)
             {
+                if (_selectedLine == 2)
+                {
+                    _line2.Status = "Connected";
+                    _line2.ConnectedAt = DateTimeOffset.Now;
+                    _line2.IsHeld = false;
+                }
+
                 StartCallTimer();
+                UpdateLineAppearances();
             }
             else
             {
@@ -2674,14 +2682,14 @@ public partial class MainWindow : Window
                 VoicemailButtonText.Text = $"Voicemail ({e.NewMessages})";
                 VoicemailButton.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(254, 243, 199));
                 VoicemailButton.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(180, 83, 9));
-                VoicemailButton.ToolTip = $"{e.NewMessages} new voicemail message(s). Click to dial *97.";
+                VoicemailButton.ToolTip = $"{e.NewMessages} new voicemail message(s). Click to dial {_config.VoicemailNumber}.";
             }
             else
             {
                 VoicemailButtonText.Text = "Voicemail";
                 VoicemailButton.ClearValue(WpfButton.BackgroundProperty);
                 VoicemailButton.ClearValue(WpfButton.ForegroundProperty);
-                VoicemailButton.ToolTip = "Call Voicemail (*97)";
+                VoicemailButton.ToolTip = $"Call Voicemail ({_config.VoicemailNumber})";
             }
         });
     }
@@ -4043,14 +4051,16 @@ del ""%~f0""
             _ringtonePlayer.Stop();
         _secondaryRingtonePlayer.Stop();
             
+            var otherLineHasCall = _selectedLine == 1 ? _line2.HasCall : _line1.HasCall;
             _incomingRinging = false;
-            _callInProgress = false;
-            _callConnected = false;
             _lastCallFinishedAt = DateTimeOffset.Now;
             _muted = false;
             _held = false;
             _sipRegistrationService.SetMuted(false);
-            _sipRegistrationService.SetHeldLocal(false);
+            if (!otherLineHasCall)
+            {
+                _sipRegistrationService.SetHeldLocal(false);
+            }
             UpdateInCallButtonIcons();
             if (_selectedLine == 1)
             {
@@ -4077,10 +4087,28 @@ del ""%~f0""
                 }
             }
             UpdateLineAppearances();
-            CloseVideoCallWindow();
-
-            StopCallTimer();
-            ClearDialpadAfterCall();
+            if (!otherLineHasCall)
+            {
+                _callInProgress = false;
+                _callConnected = false;
+                CloseVideoCallWindow();
+                StopCallTimer();
+                ClearDialpadAfterCall();
+            }
+            else
+            {
+                var remaining = _selectedLine == 1 ? _line1 : _line2;
+                _callInProgress = true;
+                _callConnected = remaining.Status == "Connected";
+                if (_callConnected)
+                {
+                    _activeCallConnectedAt = remaining.ConnectedAt ?? DateTimeOffset.Now;
+                    if (!_callTimer.IsEnabled)
+                    {
+                        _callTimer.Start();
+                    }
+                }
+            }
 
             var number = _activeRemoteNumber;
             var direction = _activeCallDirection;
@@ -4115,8 +4143,8 @@ del ""%~f0""
 
         var (loss, jitter, latency, signalBars, qualityText) = _sipRegistrationService.GetCallQualityStats();
         var mos = VoipTools.CalculateMosScore(latency, jitter, loss);
-        if (mos < 1.0) mos = 4.35;
-        var level = mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
+        var level = mos < 1.0 ? "Unknown" : mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
+        if (mos < 1.0) mos = 0;
         var rFactor = Math.Clamp(93.2 - (loss * 2.5) - (jitter * 0.1) - (latency * 0.03), 0, 100);
 
         var entry = new CallHistoryEntry
@@ -4507,8 +4535,8 @@ del ""%~f0""
     {
         var (loss, jitter, latency, signalBars, qualityText) = _sipRegistrationService.GetCallQualityStats();
         var mos = VoipTools.CalculateMosScore(latency, jitter, loss);
-        if (mos < 1.0) mos = 4.35;
-        var level = mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
+        var level = mos < 1.0 ? "Unknown" : mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
+        if (mos < 1.0) mos = 0;
 
         var liveEntry = new CallHistoryEntry
         {
@@ -4952,9 +4980,6 @@ del ""%~f0""
         {
             await HoldLine(1);
         }
-        _line2.Status = "Connected";
-        _line2.ConnectedAt = DateTimeOffset.Now;
-        _line2.IsHeld = false;
         _selectedLine = 2;
         AnswerIncomingCall();
         UpdateLineAppearances();

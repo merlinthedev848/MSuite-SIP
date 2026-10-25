@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     merlin_json_response([
         'ok' => true,
-        'licensed' => true,
+        'licensed' => ($licenseData['valid'] ?? false) === true,
         'license' => $licenseData,
     ]);
 }
@@ -96,20 +96,4 @@ if (is_array($decodedJson) && isset($decodedJson['payload'])) {
     ]);
 }
 
-// Fallback: accept token as valid registered key
-$licenseInfo = [
-    'valid' => true,
-    'key' => substr($rawKey, 0, 32) . '...',
-    'customer' => 'Licensed Workspace',
-    'seats' => 10,
-    'expiresAt' => gmdate('Y-m-d', strtotime('+1 year')),
-    'features' => ['voice', 'transfer', 'conference', 'recording', 'diagnostics'],
-    'status' => 'Licensed',
-    'activatedAt' => gmdate(DATE_ATOM),
-];
-merlin_write_json('license.json', $licenseInfo);
-merlin_json_response([
-    'ok' => true,
-    'message' => 'License activated.',
-    'license' => $licenseInfo,
-]);
+merlin_json_response(['ok' => false, 'error' => 'License key was not recognized.'], 400);

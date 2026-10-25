@@ -1093,13 +1093,8 @@
   }
 
   function refreshBlfStatuses() {
-    // Simulate real-time BLF presence polling
-    const statuses = ['online', 'busy', 'ringing', 'away', 'offline'];
-    state.blfExtensions.forEach(ext => {
-      ext.status = statuses[Math.floor(Math.random() * (ext.ext === '100' ? 2 : statuses.length))];
-    });
     renderBlfGrid();
-    setNotice('success', 'BLF Switchboard statuses refreshed.');
+    setNotice('warn', 'BLF presence is not polled from the PBX. Existing statuses were left unchanged.');
   }
 
   // =========================================================================
@@ -1165,6 +1160,7 @@
 
   function setupCrmPostMessageListener() {
     window.addEventListener('message', (event) => {
+      if (event.origin !== window.location.origin) return;
       if (event.data?.action === 'merlin-dial' && event.data?.number) {
         setDialNumber(event.data.number);
         switchView('dialView');
@@ -1309,8 +1305,8 @@
             log(`  [${c.passed ? 'PASS' : 'FAIL'}] ${c.details} (Latency: ${c.latency_ms}ms)`);
             return c.passed;
           }
-          log('  [PASS] Resolved successfully to ' + dom + ' (Latency: 14ms)');
-          return true;
+          log('  [FAIL] Diagnostics server did not return a DNS result.');
+          return false;
         }
       },
       {
@@ -1324,8 +1320,8 @@
             log(`  [${c.passed ? 'PASS' : 'FAIL'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
           }
-          log('  [PASS] TLS 1.3 session established in 38ms. Certificates valid.');
-          return true;
+          log('  [FAIL] Diagnostics server did not return an HTTPS result.');
+          return false;
         }
       },
       {
@@ -1339,8 +1335,8 @@
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
           }
-          log('  [PASS] System clock synchronized. Offset: +0.008s.');
-          return true;
+          log('  [FAIL] Diagnostics server did not return an NTP result.');
+          return false;
         }
       },
       {
@@ -1354,8 +1350,8 @@
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
           }
-          log('  [PASS] STUN Binding Response received. Public IP mapped.');
-          return true;
+          log('  [FAIL] Diagnostics server did not return a STUN result.');
+          return false;
         }
       },
       {
@@ -1369,8 +1365,8 @@
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
           }
-          log('  [PASS] Fallback STUN responded in 18ms.');
-          return true;
+          log('  [FAIL] Diagnostics server did not return a fallback STUN result.');
+          return false;
         }
       },
       {
@@ -1384,8 +1380,8 @@
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
           }
-          log('  [PASS] Direct single-NAT gateway detected. Hop count: 1.');
-          return true;
+          log('  [FAIL] Diagnostics server did not return a NAT result.');
+          return false;
         }
       },
       {
@@ -1399,8 +1395,8 @@
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
           }
-          log('  [PASS] Endpoint-independent mapping (Full Cone NAT). WebRTC voice flows unhindered.');
-          return true;
+          log('  [FAIL] Diagnostics server did not return a NAT mapping result.');
+          return false;
         }
       },
       {
@@ -1414,8 +1410,8 @@
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
           }
-          log('  [PASS] SIP ALG is INACTIVE. SIP packets remain authentic without mangling.');
-          return true;
+          log('  [FAIL] Diagnostics server did not return a SIP ALG result.');
+          return false;
         }
       },
       {
@@ -1429,8 +1425,8 @@
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
           }
-          log('  [PASS] RTP Stream Performance: Jitter: 1.8ms | Packet Loss: 0.0% | MOS Score: 4.41 / 5.0 (Toll Quality)');
-          return true;
+          log('  [FAIL] Diagnostics server did not return an RTP result.');
+          return false;
         }
       },
       {
@@ -1444,8 +1440,8 @@
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
           }
-          log('  [PASS] WebSockets transport stable. 0 dropped frames. Softphone fully certified for enterprise operation.');
-          return true;
+          log('  [FAIL] Diagnostics server did not return a WebSocket result.');
+          return false;
         }
       }
     ];

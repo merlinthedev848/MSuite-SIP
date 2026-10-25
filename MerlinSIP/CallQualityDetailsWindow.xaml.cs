@@ -18,12 +18,15 @@ public partial class CallQualityDetailsWindow : Window
         TitleTextBlock.Text = "Call Quality Analysis";
         SubtitleTextBlock.Text = $"{entry.Direction} call with {entry.Name} ({entry.Number}) • {entry.Duration}";
         
-        var mos = entry.MosScore > 0 ? entry.MosScore : 4.3;
-        MosScoreTextBlock.Text = $"{mos:F1}";
+        var measured = entry.MosScore > 0;
+        var mos = measured ? entry.MosScore : 0;
+        MosScoreTextBlock.Text = measured ? $"{mos:F1}" : "n/a";
         MosProgressBar.Value = mos;
 
-        var level = string.IsNullOrWhiteSpace(entry.QualityLevel) 
-            ? (mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor") 
+        var level = !measured
+            ? "Not measured"
+            : string.IsNullOrWhiteSpace(entry.QualityLevel)
+            ? (mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor")
             : entry.QualityLevel;
 
         QualityLevelTextBlock.Text = $"{level} Quality";
@@ -54,6 +57,14 @@ public partial class CallQualityDetailsWindow : Window
             MosProgressBar.Foreground = (WpfBrush)brushConverter.ConvertFromString("#F59E0B")!;
             QualityAssessmentTextBlock.Text = "Acceptable clarity with minor audible jitter or delay.";
         }
+        else if (level is "Not measured" or "Unknown")
+        {
+            QualityLevelBadge.Background = (WpfBrush)brushConverter.ConvertFromString("#F3F4F6")!;
+            QualityLevelTextBlock.Foreground = (WpfBrush)brushConverter.ConvertFromString("#374151")!;
+            MosScoreTextBlock.Foreground = (WpfBrush)brushConverter.ConvertFromString("#374151")!;
+            MosProgressBar.Foreground = (WpfBrush)brushConverter.ConvertFromString("#9CA3AF")!;
+            QualityAssessmentTextBlock.Text = "This call ended before a MOS score was measured.";
+        }
         else
         {
             QualityLevelBadge.Background = (WpfBrush)brushConverter.ConvertFromString("#FEE2E2")!;
@@ -78,23 +89,28 @@ public partial class CallQualityDetailsWindow : Window
         TitleTextBlock.Text = "Overall Call Quality Diagnostics";
         
         var callsWithQuality = history.Where(h => h.MosScore > 0).ToList();
-        var avgMos = callsWithQuality.Count > 0 ? callsWithQuality.Average(h => h.MosScore) : 4.35;
-        var avgLoss = callsWithQuality.Count > 0 ? callsWithQuality.Average(h => h.PacketLossPercent) : 0.0;
-        var avgJitter = callsWithQuality.Count > 0 ? callsWithQuality.Average(h => h.JitterMs) : 1.8;
-        var avgLatency = callsWithQuality.Count > 0 ? callsWithQuality.Average(h => h.LatencyMs) : 22.0;
+        var hasQuality = callsWithQuality.Count > 0;
+        var avgMos = hasQuality ? callsWithQuality.Average(h => h.MosScore) : 0;
+        var avgLoss = hasQuality ? callsWithQuality.Average(h => h.PacketLossPercent) : 0.0;
+        var avgJitter = hasQuality ? callsWithQuality.Average(h => h.JitterMs) : 0.0;
+        var avgLatency = hasQuality ? callsWithQuality.Average(h => h.LatencyMs) : 0.0;
         
         SubtitleTextBlock.Text = $"Analyzed {history.Count} calls in local history • Live VoIP Network Health";
-        MosScoreTextBlock.Text = $"{avgMos:F1}";
+        MosScoreTextBlock.Text = hasQuality ? $"{avgMos:F1}" : "n/a";
         MosProgressBar.Value = avgMos;
         
-        QualityLevelTextBlock.Text = avgMos >= 4.2 ? "Excellent Fleet Health" : "Good Fleet Health";
+        QualityLevelTextBlock.Text = !hasQuality
+            ? "Not measured"
+            : avgMos >= 4.2 ? "Excellent Fleet Health" : avgMos >= 3.8 ? "Good Fleet Health" : avgMos >= 3.0 ? "Fair Fleet Health" : "Poor Fleet Health";
         RFactorTextBlock.Text = $"Avg R-Factor: {Math.Clamp(93.2 - avgLoss * 2.5 - avgJitter * 0.1 - avgLatency * 0.03, 0, 100):F1} / 100";
         PacketLossTextBlock.Text = $"{avgLoss:F1} %";
         JitterTextBlock.Text = $"{avgJitter:F1} ms";
         LatencyTextBlock.Text = $"{avgLatency:F0} ms";
         BitrateTextBlock.Text = "64.0 / 64.0 kbps";
         
-        QualityAssessmentTextBlock.Text = "Overall audio transport is running at optimal toll quality across PBX sessions.";
+        QualityAssessmentTextBlock.Text = hasQuality
+            ? $"Average MOS across {callsWithQuality.Count} measured calls is {avgMos:F1}."
+            : "No calls in this history have a measured MOS score.";
         DiagnosticSummaryTextBlock.Text = $"Historical summary: {history.Count} calls logged. Average network latency is {avgLatency:F0}ms with jitter of {avgJitter:F1}ms and packet loss under {avgLoss:F2}%. Complies with ITU-T G.114 telecom standards.";
     }
 

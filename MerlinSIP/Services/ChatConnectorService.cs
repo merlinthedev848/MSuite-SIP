@@ -36,12 +36,14 @@ public class ChatConnectorService : IDisposable
         if (_socketClient is { Connected: true }) return;
 
         await _connectLock.WaitAsync();
+        SocketIO? previous = null;
+        SocketIO? created = null;
         try
         {
             if (_socketClient is { Connected: true }) return;
 
-            var previous = _socketClient;
-            _socketClient = new SocketIO(new Uri(_serverUrl), new SocketIOOptions
+            previous = _socketClient;
+            _socketClient = created = new SocketIO(new Uri(_serverUrl), new SocketIOOptions
             {
                 Auth = new Dictionary<string, string>
                 {
@@ -116,10 +118,19 @@ public class ChatConnectorService : IDisposable
 
             await _socketClient.ConnectAsync();
             previous?.Dispose();
+            created = null;
         }
         catch (Exception ex)
         {
             DebugLog.Write($"ChatConnectorService ConnectAsync error: {ex.Message}");
+            if (created != null)
+            {
+                try { created.Dispose(); } catch { }
+                if (ReferenceEquals(_socketClient, created))
+                {
+                    _socketClient = previous;
+                }
+            }
         }
         finally
         {
