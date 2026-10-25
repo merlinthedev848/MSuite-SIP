@@ -1,8 +1,8 @@
 {
-  "Version": "1.3.7",
-  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.7-x64-faststart.msi",
-  "Sha256": "df70785b3265401e45a90fe988eacfb5b9267fbeb4276c25019e6890402e6c49",
-  "FileSizeBytes": 80609930,
+  "Version": "1.3.8",
+  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.8-x64-faststart.msi",
+  "Sha256": "fe7bc7fa2b2b388206836933313091fc9965a8b1912881d62ebf5be2fc51376f",
+  "FileSizeBytes": 80650890,
   "ReleaseDate": "2026-10-25",
-  "Notes": "Release 1.3.7: the Audio and Tunes camera thumbnail is a 16:9 frame and the picture fills it. Voicemail and ordinary calls stay on the phone and do not open the video window. A video call shows your webcam. A chat message is marked delivered only when the handler sends it back. Installing an update keeps the saved licence, extension, server, and contacts. The network diagnostic scan stays responsive and can be stopped."
+  "Notes": "Release 1.3.8: Settings fits on the page, and every dropdown uses the same rounded field as the text boxes. The camera thumbnail stays a 16:9 tile. Voicemail and ordinary calls do not open the video window. A video call shows your webcam. A chat message is marked delivered only when the handler sends it back. Installing an update keeps the saved licence, extension, server, and contacts."
 }
