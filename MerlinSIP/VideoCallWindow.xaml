@@ -56,10 +56,9 @@
             <!-- Remote Video Surface -->
             <Border x:Name="RemoteVideoContainer" Background="#111827" CornerRadius="12" Margin="14" BorderBrush="#1F2937" BorderThickness="1">
                 <Grid>
-                    <!-- Simulated / Live Video Viewport -->
-                    <Rectangle x:Name="RemoteVideoSurface" Fill="#0F172A" />
+                    <Image x:Name="RemoteVideoImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
 
-                    <!-- Remote Participant Avatar Placeholder (Shown while connecting or active) -->
+                    <!-- Shown until the camera produces a picture -->
                     <StackPanel x:Name="RemotePlaceholderPanel" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Border Width="110" Height="110" CornerRadius="55" Background="#1E293B" BorderBrush="#334155" BorderThickness="2" Margin="0,0,0,16">
                             <Grid>
@@ -67,15 +66,15 @@
                                 <TextBlock x:Name="LargeInitialsText" Text="MS" FontSize="36" FontWeight="Black" Foreground="#818CF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
                         </Border>
-                        <TextBlock x:Name="RemoteDisplayStatus" Text="Connected to Yeastar WebRTC/SIP Video" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center" Margin="0,0,0,4" />
-                        <TextBlock x:Name="RemoteCodecInfo" Text="Receiving H.264 Video Stream  •  1280x720 @ 30fps" FontSize="12" Foreground="#94A3B8" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="RemoteDisplayStatus" Text="Starting your camera..." FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                        <TextBlock x:Name="RemoteCodecInfo" Text="The other person's video appears here when a picture arrives." FontSize="12" Foreground="#94A3B8" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="420" />
                     </StackPanel>
 
                     <!-- Top Left Overlay in Remote Viewport -->
                     <Border HorizontalAlignment="Left" VerticalAlignment="Top" Background="#80000000" CornerRadius="6" Padding="8,4" Margin="16">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="6" Height="6" Fill="#10B981" Margin="0,0,6,0" VerticalAlignment="Center" />
-                            <TextBlock x:Name="StreamQualityLabel" Text="Live Video Stream  •  HD" Foreground="#E2E8F0" FontSize="11" FontWeight="Medium" />
+                            <TextBlock x:Name="StreamQualityLabel" Text="Your camera" Foreground="#E2E8F0" FontSize="11" FontWeight="Medium" />
                         </StackPanel>
                     </Border>
 
@@ -95,8 +94,7 @@
                             <DropShadowEffect BlurRadius="18" ShadowDepth="6" Opacity="0.4" Color="#000000" />
                         </Border.Effect>
                         <Grid>
-                            <!-- Local Camera Feed / Canvas -->
-                            <Rectangle x:Name="LocalVideoCanvas" Fill="#0F172A" />
+                            <Image x:Name="LocalVideoImage" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" />
 
                             <!-- Camera Muted Overlay -->
                             <Border x:Name="CameraMutedOverlay" Background="#900F172A" Visibility="Collapsed">

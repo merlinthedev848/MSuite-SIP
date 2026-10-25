@@ -55,6 +55,7 @@ public partial class MainWindow : Window
     private DispatcherTimer? _queueFlashTimer;
     private VideoCallWindow? _videoCallWindow;
     private bool _currentCallIsVideo;
+    private bool _incomingCallIsVideo;
     private bool _queueIsRinging = false;
     private bool _queueFlashToggle = false;
     private readonly DispatcherTimer _connectionWatchdog = new() { Interval = TimeSpan.FromSeconds(15) };
@@ -857,6 +858,7 @@ public partial class MainWindow : Window
             var alreadyOnCall = _callConnected || (_callInProgress && !_incomingRinging);
             var silentRinging = IsSilentRingingEnabled();
             var useDesktopPopup = !silentRinging && ShouldUseDesktopIncomingPopup();
+            _incomingCallIsVideo = e.IsVideo;
             _activeRemoteNumber = e.CallerNumber;
             SetPresenceDisplay("Busy");
             ShowDialingCallTimer();
@@ -952,9 +954,13 @@ public partial class MainWindow : Window
                 _incomingRinging = false;
                 _callInProgress = true;
                 _callConnected = true;
-                if (_currentCallIsVideo || _sipRegistrationService.HasActiveVideoCall)
+                if (_currentCallIsVideo)
                 {
                     ShowVideoCallWindow();
+                }
+                else
+                {
+                    CloseVideoCallWindow();
                 }
                 if (_selectedLine == 1)
                 {
@@ -1403,7 +1409,9 @@ public partial class MainWindow : Window
     private void LoadDeviceSelectors()
     {
         AudioInputComboBox.ItemsSource = _deviceDiscoveryService.GetAudioInputs();
-        AudioOutputComboBox.ItemsSource = _deviceDiscoveryService.GetAudioOutputs();
+        var audioOutputs = _deviceDiscoveryService.GetAudioOutputs();
+        AudioOutputComboBox.ItemsSource = audioOutputs;
+        BindSecondaryRinger(audioOutputs);
         var videoSources = _deviceDiscoveryService.GetVideoSources();
         VideoSourceComboBox.ItemsSource = videoSources;
         if (_config.VideoSource != null)
@@ -1423,9 +1431,10 @@ public partial class MainWindow : Window
 
     private void LoadDefaultDeviceSelectors()
     {
-        AudioInputComboBox.ItemsSource = new[] { _config.AudioInput };
-        AudioOutputComboBox.ItemsSource = new[] { _config.AudioOutput };
-        SecondaryRingerComboBox.ItemsSource = _config.SecondaryRingerOutput != null ? new[] { _config.SecondaryRingerOutput } : new[] { _config.AudioOutput };
+        AudioInputComboBox.ItemsSource = _deviceDiscoveryService.GetAudioInputs();
+        var audioOutputs = _deviceDiscoveryService.GetAudioOutputs();
+        AudioOutputComboBox.ItemsSource = audioOutputs.Count > 0 ? audioOutputs : new[] { _config.AudioOutput };
+        BindSecondaryRinger(audioOutputs);
         var videoSources = _deviceDiscoveryService.GetVideoSources();
         VideoSourceComboBox.ItemsSource = videoSources;
         if (_config.VideoSource != null)
@@ -1437,11 +1446,20 @@ public partial class MainWindow : Window
             VideoSourceComboBox.SelectedIndex = 0;
         }
         RingtoneComboBox.ItemsSource = RingtonePlayer.Choices;
-        AudioInputComboBox.SelectedIndex = 0;
-        AudioOutputComboBox.SelectedIndex = 0;
-        SecondaryRingerComboBox.SelectedIndex = 0;
+        SelectDevice(AudioInputComboBox, _config.AudioInput);
+        SelectDevice(AudioOutputComboBox, _config.AudioOutput);
         SelectRingtone(_config.Ringtone);
         LoadVolumeSliders();
+    }
+
+    private void BindSecondaryRinger(IReadOnlyList<MediaDeviceInfo> outputs)
+    {
+        var devices = outputs.Count > 0
+            ? outputs
+            : new[] { _config.SecondaryRingerOutput ?? _config.AudioOutput };
+        SecondaryRingerComboBox.ItemsSource = devices;
+        var selected = _config.SecondaryRingerOutput ?? _config.AudioOutput;
+        SelectDevice(SecondaryRingerComboBox, selected);
     }
 
     private static void SelectDevice(System.Windows.Controls.ComboBox comboBox, MediaDeviceInfo selected)
@@ -2239,6 +2257,11 @@ public partial class MainWindow : Window
             DebugLog.Write("StartOutboundCallAsync rejected: settings were saved recently or settings dialog is open.");
             return;
         }
+        var destinationPreview = NormalizeDialDestination(rawNumber);
+        if (isVideo && destinationPreview.StartsWith('*'))
+        {
+            isVideo = false;
+        }
         _currentCallIsVideo = isVideo;
 
         var targetLine = _selectedLine == 1 ? _line1 : _line2;
@@ -2378,6 +2401,7 @@ public partial class MainWindow : Window
             WindowState = WindowState.Normal;
             Activate();
 
+            _currentCallIsVideo = _incomingCallIsVideo;
             var result = await _sipRegistrationService.AnswerIncomingCallAsync();
             FooterStatusText.Text = result.Message;
             NoticeText.Text = result.Signalled ? "Call answered." : result.Message;
@@ -2776,6 +2800,7 @@ public partial class MainWindow : Window
     {
         if (PhonebookContactsListView.SelectedItem is not ContactEntry contact)
         {
+            _editingContact = null;
             return;
         }
 
@@ -2846,13 +2871,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        var existing = _editingContact
-            ?? _contacts.FirstOrDefault(contact => contact.Number == number);
-        if (existing is not null)
-        {
-            _contacts.Remove(existing);
-        }
-
         var savedContact = new ContactEntry
         {
             Name = name,
@@ -2862,7 +2880,27 @@ public partial class MainWindow : Window
             IsFavorite = ContactIsFavoriteCheckBox.IsChecked == true
         };
 
-        _contacts.Add(savedContact);
+        var updateIndex = -1;
+        if (_editingContact is not null &&
+            string.Equals(_editingContact.Number, number, StringComparison.OrdinalIgnoreCase))
+        {
+            updateIndex = IndexOfContact(_editingContact);
+        }
+
+        if (updateIndex < 0)
+        {
+            updateIndex = IndexOfContactNumber(number);
+        }
+
+        if (updateIndex >= 0)
+        {
+            savedContact = savedContact with { Presence = _contacts[updateIndex].Presence };
+            _contacts[updateIndex] = savedContact;
+        }
+        else
+        {
+            _contacts.Add(savedContact);
+        }
 
         await _contactStore.SaveAsync(_contacts);
         PhonebookContactsListView.SelectedItem = null;
@@ -2873,7 +2911,9 @@ public partial class MainWindow : Window
         ContactNotesTextBox.Text = "";
         ContactIsFavoriteCheckBox.IsChecked = false;
         ApplyGlobalSearchFilter();
-        FooterStatusText.Text = "Contact saved.";
+        NoticeText.Text = $"Contact saved. {_contacts.Count} contacts.";
+        NoticeText.Visibility = Visibility.Visible;
+        FooterStatusText.Text = NoticeText.Text;
         _ = RefreshPresenceSubscriptionsAsync();
     }
 
@@ -2885,7 +2925,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        _contacts.Remove(contact);
+        var deleteIndex = IndexOfContact(contact);
+        if (deleteIndex >= 0)
+        {
+            _contacts.RemoveAt(deleteIndex);
+        }
         await _contactStore.SaveAsync(_contacts);
         _editingContact = null;
         ContactNameTextBox.Text = "";
@@ -2895,6 +2939,46 @@ public partial class MainWindow : Window
         ContactIsFavoriteCheckBox.IsChecked = false;
         ApplyGlobalSearchFilter();
         FooterStatusText.Text = "Contact deleted.";
+    }
+
+    private int IndexOfContact(ContactEntry contact)
+    {
+        for (var index = 0; index < _contacts.Count; index++)
+        {
+            if (ReferenceEquals(_contacts[index], contact))
+            {
+                return index;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(contact.Number))
+        {
+            return -1;
+        }
+
+        for (var index = 0; index < _contacts.Count; index++)
+        {
+            if (string.Equals(_contacts[index].Number, contact.Number, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(_contacts[index].Name, contact.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private int IndexOfContactNumber(string number)
+    {
+        for (var index = 0; index < _contacts.Count; index++)
+        {
+            if (string.Equals(_contacts[index].Number, number, StringComparison.OrdinalIgnoreCase))
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     private void NewContactButton_Click(object sender, RoutedEventArgs e)
@@ -3312,33 +3396,33 @@ public partial class MainWindow : Window
         {
             if (activeBtn == TabBtnGeneral)
             {
-                SettingsTabTitleText.Text = "General Preferences";
-                SettingsTabSubtitleText.Text = "Application behavior, notifications, and contact search preferences";
+                SettingsTabTitleText.Text = "General";
+                SettingsTabSubtitleText.Text = "How Merlin behaves on this PC";
             }
             else if (activeBtn == TabBtnAccount)
             {
                 SettingsTabTitleText.Text = "Account & SIP";
-                SettingsTabSubtitleText.Text = "PBX credentials, provisioning, and signalling protocols";
+                SettingsTabSubtitleText.Text = "Extension, password, and the path to the PBX";
             }
             else if (activeBtn == TabBtnAudio)
             {
                 SettingsTabTitleText.Text = "Audio & Tunes";
-                SettingsTabSubtitleText.Text = "Sound input/output devices, volume levels, and ringtone preview";
+                SettingsTabSubtitleText.Text = "Microphone, speakers, ringtone, and camera";
             }
             else if (activeBtn == TabBtnHandling)
             {
                 SettingsTabTitleText.Text = "Calls & Routing";
-                SettingsTabSubtitleText.Text = "Incoming call handling, diverts, PBX feature codes, and routing rules";
+                SettingsTabSubtitleText.Text = "Answer, divert, dial codes, and timeouts";
             }
             else if (activeBtn == TabBtnDiagnostics)
             {
                 SettingsTabTitleText.Text = "Diagnostics";
-                SettingsTabSubtitleText.Text = "Network connectivity tests, update checks, and support logs";
+                SettingsTabSubtitleText.Text = "Connection test and support tools";
             }
             else if (activeBtn == TabBtnAbout)
             {
-                SettingsTabTitleText.Text = "About Merlin SIP";
-                SettingsTabSubtitleText.Text = "Version information, licensing, and telemetry";
+                SettingsTabTitleText.Text = "About";
+                SettingsTabSubtitleText.Text = "Version, licence, and connection";
             }
         }
     }
@@ -3411,6 +3495,15 @@ public partial class MainWindow : Window
 
     private async void RunPbxDiagnosticsButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_networkDiagnosticsRunning)
+        {
+            _activeNetworkDiagnostics?.Cancel();
+            RunPbxDiagnosticsButton.IsEnabled = false;
+            RunPbxDiagnosticsButton.Content = "Stopping";
+            PbxDiagnosticsText.Text = "Stopping network diagnostics...";
+            return;
+        }
+
         await RunNetworkDiagnosticsAsync();
     }
 
@@ -3423,11 +3516,12 @@ public partial class MainWindow : Window
 
         _networkDiagnosticsRunning = true;
         _networkDiagnosticsProgress.Clear();
-        RunPbxDiagnosticsButton.IsEnabled = false;
-        RunPbxDiagnosticsButton.Content = "Running";
-        PbxDiagnosticsText.Text = "1/10 DNS Resolution - RUNNING";
-        FooterStatusText.Text = "Running network diagnostics in the background.";
+        RunPbxDiagnosticsButton.IsEnabled = true;
+        RunPbxDiagnosticsButton.Content = "Stop";
+        PbxDiagnosticsText.Text = "Starting network diagnostics...";
+        FooterStatusText.Text = "Network diagnostics are running. You can keep using the phone.";
         DebugLog.Write("Network diagnostics started from Settings.");
+        await Task.Yield();
 
         var engine = new NetworkEngine
         {
@@ -3451,7 +3545,7 @@ public partial class MainWindow : Window
                 catch
                 {
                 }
-            }, DispatcherPriority.Background);
+            });
         };
         engine.OnComplete += (_, score) =>
         {
@@ -3503,7 +3597,9 @@ public partial class MainWindow : Window
         }
 
         var displayTest = GetNetworkDiagnosticDisplayTest(testName);
-        PbxDiagnosticsText.Text = $"{displayTest.Number}/10 {displayTest.Name} - {GetNetworkDiagnosticDisplayStatus(status)}";
+        PbxDiagnosticsText.Text = status == "Running" && !string.IsNullOrWhiteSpace(details)
+            ? $"{displayTest.Number}/10 {displayTest.Name} - {details}"
+            : $"{displayTest.Number}/10 {displayTest.Name} - {GetNetworkDiagnosticDisplayStatus(status)}";
     }
 
     private static (int Number, string Name) GetNetworkDiagnosticDisplayTest(string testName)
@@ -4224,17 +4320,33 @@ del ""%~f0""
 
         await EnsureChatConnectedAsync();
         await _chatService.JoinConversationAsync(_selectedChatNumber);
-        var success = await _chatService.UploadAndSendFileAsync(filePath, _selectedChatNumber, _config.Extension);
-        if (success)
+        var upload = await _chatService.UploadAndSendFileAsync(filePath, _selectedChatNumber, _config.Extension);
+        if (!upload.Uploaded)
         {
-            await AddChatMessage("Outbound", name, _selectedChatNumber, $"Sent file: {fileName}", "Sent");
-            NoticeText.Text = $"File {fileName} sent successfully.";
-            FooterStatusText.Text = $"File uploaded: {fileName}";
+            NoticeText.Text = upload.Detail;
+            FooterStatusText.Text = upload.Detail;
+            return;
+        }
+
+        var fileMessage = string.IsNullOrWhiteSpace(upload.Url) ? fileName : $"{fileName} {upload.Url}";
+        var sent = await _chatService.SendMessageAsync(_selectedChatNumber, _config.Extension, fileMessage, "file", upload.Url);
+        if (sent.Delivered)
+        {
+            await AddChatMessage("Outbound", name, _selectedChatNumber, $"Sent file: {fileName}", "Delivered");
+            NoticeText.Text = $"File {fileName} delivered.";
+            FooterStatusText.Text = $"File delivered: {fileName}";
+        }
+        else if (sent.Accepted)
+        {
+            await AddChatMessage("Outbound", name, _selectedChatNumber, $"Sent file: {fileName}", "Not delivered");
+            NoticeText.Text = $"File uploaded. {sent.Detail}";
+            FooterStatusText.Text = sent.Detail;
         }
         else
         {
-            NoticeText.Text = $"Failed to upload {fileName}.";
-            FooterStatusText.Text = "Upload failed.";
+            await AddChatMessage("Outbound", name, _selectedChatNumber, $"Uploaded file: {fileName}", "Uploaded");
+            NoticeText.Text = $"File uploaded, but the handler did not add it to the conversation. {sent.Detail}";
+            FooterStatusText.Text = sent.Detail;
         }
     }
 
@@ -4275,13 +4387,13 @@ del ""%~f0""
 
         if (string.IsNullOrWhiteSpace(destination))
         {
-            FooterStatusText.Text = "Enter an extension to message.";
+            ShowChatNotice("Enter an extension to message.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(message))
         {
-            FooterStatusText.Text = "Enter a message first.";
+            ShowChatNotice("Enter a message first.");
             return;
         }
 
@@ -4302,16 +4414,25 @@ del ""%~f0""
             await EnsureChatConnectedAsync();
             if (!_chatService.IsConnected)
             {
-                FooterStatusText.Text = "Chat server is offline.";
+                ShowChatNotice("Chat server is offline.");
                 return;
             }
 
             await _chatService.JoinConversationAsync(destination);
-            await _chatService.SendMessageAsync(destination, _config.Extension, message);
-            await AddChatMessage("Outbound", name, destination, message, "Sent");
-            FooterStatusText.Text = "Message sent.";
-            MessageBodyTextBox.Text = string.Empty;
-            MessageBodyTextBox.Focus();
+            var sent = await _chatService.SendMessageAsync(destination, _config.Extension, message);
+            if (!sent.Accepted)
+            {
+                ShowChatNotice(sent.Detail);
+                return;
+            }
+
+            await AddChatMessage("Outbound", name, destination, message, sent.Delivered ? "Delivered" : "Not delivered");
+            ShowChatNotice(sent.Detail);
+            if (sent.Delivered)
+            {
+                MessageBodyTextBox.Text = string.Empty;
+                MessageBodyTextBox.Focus();
+            }
         }
         finally
         {
@@ -4319,13 +4440,37 @@ del ""%~f0""
         }
     }
 
-    private void MessageBodyTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    private void MessageBodyTextBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+        if (e.Key != Key.Enter && e.Key != Key.Return)
         {
+            return;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            var box = MessageBodyTextBox;
+            var index = box.SelectionStart;
+            box.SelectedText = Environment.NewLine;
+            box.SelectionStart = index + Environment.NewLine.Length;
+            box.SelectionLength = 0;
             e.Handled = true;
+            return;
+        }
+
+        if (!e.IsRepeat)
+        {
             _ = SendCurrentMessageAsync();
         }
+
+        e.Handled = true;
+    }
+
+    private void ShowChatNotice(string message)
+    {
+        FooterStatusText.Text = message;
+        NoticeText.Text = message;
+        NoticeText.Visibility = Visibility.Visible;
     }
 
     private void ChatContactsListView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -4451,6 +4596,7 @@ del ""%~f0""
             if (!string.IsNullOrWhiteSpace(normalizedSender) &&
                 normalizedSender.Equals(self, StringComparison.OrdinalIgnoreCase))
             {
+                MarkOwnMessageDelivered(payload.Content, normalizedConversation);
                 return;
             }
 
@@ -4487,6 +4633,35 @@ del ""%~f0""
         catch (Exception ex)
         {
             DebugLog.Write($"Chat message handle error: {ex.Message}");
+        }
+    }
+
+    private void MarkOwnMessageDelivered(string? content, string conversationId)
+    {
+        var text = content?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        for (var index = _chatMessages.Count - 1; index >= 0; index--)
+        {
+            var message = _chatMessages[index];
+            if (!string.Equals(message.Direction, "Outbound", StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(message.Message?.Trim(), text, StringComparison.Ordinal) ||
+                !NormalizeDialDestination(message.Number).Equals(conversationId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (string.Equals(message.Result, "Delivered", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _chatMessages[index] = message with { Result = "Delivered" };
+            RefreshChatThread();
+            return;
         }
     }
 
@@ -5261,13 +5436,54 @@ del ""%~f0""
         }
     }
 
+    private CameraPreviewWindow? _cameraPreview;
+
+    private void CameraPreviewFrame_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is not FrameworkElement frame || frame.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        var height = Math.Round(frame.ActualWidth * 9 / 16);
+        if (Math.Abs(frame.Height - height) > 0.5)
+        {
+            frame.Height = height;
+        }
+    }
+
     private void TestCameraButton_Click(object sender, RoutedEventArgs e)
     {
-        var dev = VideoSourceComboBox.SelectedItem as MediaDeviceInfo ?? _config.VideoSource;
-        var name = dev?.Name ?? "Default camera";
-        NoticeText.Text = $"Testing camera: {name}. Device is active.";
+        var dev = VideoSourceComboBox.SelectedItem as MediaDeviceInfo ?? _config.VideoSource ?? new MediaDeviceInfo("default-video", "Default camera");
+        _cameraPreview?.Close();
+
+        var preview = new CameraPreviewWindow(dev) { Owner = this };
+        _cameraPreview = preview;
+        preview.PreviewUpdated += source =>
+        {
+            CameraPreviewImage.Source = source;
+            CameraPreviewPlaceholder.Visibility = Visibility.Collapsed;
+        };
+        preview.PreviewFailed += message =>
+        {
+            CameraStatusText.Text = message;
+            CameraPreviewPlaceholder.Text = message;
+            CameraPreviewPlaceholder.Visibility = CameraPreviewImage.Source is null ? Visibility.Visible : Visibility.Collapsed;
+            NoticeText.Text = message;
+            NoticeText.Visibility = Visibility.Visible;
+        };
+        preview.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_cameraPreview, preview))
+            {
+                _cameraPreview = null;
+            }
+        };
+        preview.Show();
+        preview.Activate();
+        CameraStatusText.Text = $"Previewing {dev.Name}.";
+        NoticeText.Text = $"Showing {dev.Name}.";
         NoticeText.Visibility = Visibility.Visible;
-        CameraStatusText.Text = $"Camera verified: {name} • Ready for Yeastar SIP/WebRTC calls.";
     }
 
     private void StartVideoCallContactButton_Click(object sender, RoutedEventArgs e)
@@ -5415,41 +5631,75 @@ del ""%~f0""
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
-                Title = "Import Contacts from CSV"
+                Filter = "Contacts (*.csv;*.xml)|*.csv;*.xml|CSV files (*.csv)|*.csv|XML files (*.xml)|*.xml",
+                Title = "Import contacts"
             };
-            if (dialog.ShowDialog(this) == true)
+            if (dialog.ShowDialog(this) != true)
             {
-                var imported = await ContactStore.ImportCsvAsync(dialog.FileName);
-                if (imported.Count > 0)
+                return;
+            }
+
+            var fileName = dialog.FileName;
+            var sheet = await Task.Run(() => ContactImportReader.Read(fileName));
+            if (sheet.Columns.Count == 0 || sheet.Rows.Count == 0)
+            {
+                NoticeText.Text = "That file has no contacts to import.";
+                NoticeText.Visibility = Visibility.Visible;
+                return;
+            }
+
+            var mapper = new ImportContactsWindow(sheet, System.IO.Path.GetFileName(fileName))
+            {
+                Owner = this
+            };
+            if (mapper.ShowDialog() != true)
+            {
+                return;
+            }
+
+            var existingIndexes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (var index = 0; index < _contacts.Count; index++)
+            {
+                var number = _contacts[index].Number;
+                if (!string.IsNullOrWhiteSpace(number) && !existingIndexes.ContainsKey(number))
                 {
-                    var existingNumbers = new HashSet<string>(_contacts.Select(c => c.Number));
-                    int added = 0;
-                    foreach (var c in imported)
-                    {
-                        if (!existingNumbers.Contains(c.Number))
-                        {
-                            _contacts.Add(c);
-                            existingNumbers.Add(c.Number);
-                            added++;
-                        }
-                    }
-                    await _contactStore.SaveAsync(_contacts);
-                    ApplyGlobalSearchFilter();
-                    _ = RefreshPresenceSubscriptionsAsync();
-                    NoticeText.Text = $"Imported {added} new contacts from CSV.";
-                    NoticeText.Visibility = Visibility.Visible;
-                }
-                else
-                {
-                    NoticeText.Text = "No valid contacts found in CSV.";
-                    NoticeText.Visibility = Visibility.Visible;
+                    existingIndexes[number] = index;
                 }
             }
+
+            var added = 0;
+            var updated = 0;
+            var skipped = 0;
+            foreach (var contact in mapper.ImportedContacts)
+            {
+                if (existingIndexes.TryGetValue(contact.Number, out var index))
+                {
+                    if (!mapper.UpdateExisting)
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    _contacts[index] = contact with { Presence = _contacts[index].Presence };
+                    updated++;
+                    continue;
+                }
+
+                _contacts.Add(contact);
+                existingIndexes[contact.Number] = _contacts.Count - 1;
+                added++;
+            }
+
+            await _contactStore.SaveAsync(_contacts);
+            ApplyGlobalSearchFilter();
+            _ = RefreshPresenceSubscriptionsAsync();
+            NoticeText.Text = $"Imported {added} contacts. Updated {updated}. Skipped {skipped} already in the book. {_contacts.Count} contacts saved.";
+            NoticeText.Visibility = Visibility.Visible;
+            FooterStatusText.Text = NoticeText.Text;
         }
         catch (Exception ex)
         {
-            DebugLog.Write($"Import CSV failed: {ex.Message}");
+            DebugLog.Write($"Import contacts failed: {ex.Message}");
             NoticeText.Text = $"Import failed: {ex.Message}";
             NoticeText.Visibility = Visibility.Visible;
         }

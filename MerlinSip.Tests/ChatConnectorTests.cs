@@ -24,7 +24,7 @@ public class ChatConnectorTests
         var service = new ChatConnectorService();
         var nonExistentPath = Path.Combine(Path.GetTempPath(), $"missing_{Guid.NewGuid():N}.dat");
         var result = await service.UploadAndSendFileAsync(nonExistentPath, "101", "100");
-        Assert.False(result);
+        Assert.False(result.Uploaded);
     }
 
     [Fact]

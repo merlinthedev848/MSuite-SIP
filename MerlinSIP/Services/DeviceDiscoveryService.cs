@@ -46,12 +46,20 @@ public sealed class DeviceDiscoveryService
 
     public IReadOnlyList<MediaDeviceInfo> GetVideoSources()
     {
-        var task = System.Threading.Tasks.Task.Run(GetVideoSourcesInternal);
-        if (task.Wait(3000))
+        try
         {
-            return task.Result;
+            var devices = GetVideoSourcesInternal();
+            if (devices.Count > 0 && !string.Equals(devices[0].Id, DefaultVideoSource.Id, StringComparison.Ordinal))
+            {
+                return devices;
+            }
         }
-        return [DefaultVideoSource];
+        catch
+        {
+        }
+
+        var mediaFoundationDevices = MediaFoundationCamera.ListVideoDevices();
+        return mediaFoundationDevices.Count > 0 ? mediaFoundationDevices : [DefaultVideoSource];
     }
 
     private IReadOnlyList<MediaDeviceInfo> GetVideoSourcesInternal()

@@ -28,10 +28,11 @@ public static class AtomicFileStorage
 
             tempPath = $"{destinationPath}.{Guid.NewGuid():N}.tmp";
 
-            await using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true))
+            await using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
             {
                 await JsonSerializer.SerializeAsync(fs, data, options, ct);
                 await fs.FlushAsync(ct);
+                fs.Flush(flushToDisk: true);
             }
 
             await ReplaceFileWithRetryAsync(tempPath, destinationPath, ct);
@@ -81,7 +82,14 @@ public static class AtomicFileStorage
         {
             try
             {
-                File.Move(sourceTemp, destinationPath, overwrite: true);
+                if (File.Exists(destinationPath))
+                {
+                    File.Replace(sourceTemp, destinationPath, destinationPath + ".bak", ignoreMetadataErrors: true);
+                }
+                else
+                {
+                    File.Move(sourceTemp, destinationPath);
+                }
                 return;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

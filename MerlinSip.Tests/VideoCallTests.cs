@@ -94,7 +94,7 @@ public class VideoCallTests
     [Fact]
     public async Task AppCacheService_SaveAndLoadSettings_PersistsVideoSource()
     {
-        var cache = new AppCacheService();
+        var cache = new AppCacheService(Path.Combine(Path.GetTempPath(), "MerlinSIP-tests", Guid.NewGuid().ToString("N")));
         var videoDevice = new MediaDeviceInfo("cam-custom", "Ultra HD Camera");
         var config = new AppStartupConfig(
             "pbx.example.com", 5060, "pbx.example.com", "101", "user101", "pass",

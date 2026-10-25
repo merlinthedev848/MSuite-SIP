@@ -201,18 +201,21 @@
             </Setter>
         </Style>
 
-        <Style TargetType="ComboBox">
+        <Style x:Key="RoundedComboBox" TargetType="ComboBox">
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, sans-serif" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="MinHeight" Value="42" />
-            <Setter Property="Padding" Value="12,10,40,10" />
+            <Setter Property="Padding" Value="12,8,36,8" />
             <Setter Property="Foreground" Value="{StaticResource InkBrush}" />
-            <Setter Property="Background" Value="#FBFCFF" />
+            <Setter Property="Background" Value="#FFFFFF" />
             <Setter Property="BorderBrush" Value="#D4C9B3" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="FontSize" Value="14" />
-            <Setter Property="MaxDropDownHeight" Value="220" />
-            <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+            <Setter Property="MaxDropDownHeight" Value="240" />
+            <Setter Property="ScrollViewer.CanContentScroll" Value="False" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ComboBox">
@@ -229,20 +232,23 @@
                                                       Content="{TemplateBinding SelectionBoxItem}"
                                                       ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
                                                       ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                                      IsHitTestVisible="False" />
+                                                      IsHitTestVisible="False"
+                                                      RecognizesAccessKey="True" />
                                     <Path x:Name="Arrow"
                                           Width="10"
                                           Height="6"
-                                          Margin="0,0,12,0"
+                                          Margin="0,0,14,0"
                                           HorizontalAlignment="Right"
                                           VerticalAlignment="Center"
-                                          Fill="{StaticResource MutedBrush}"
-                                          Data="M 0 0 L 5 6 L 10 0 Z" />
+                                          Fill="#64748B"
+                                          Data="M 0 0 L 5 6 L 10 0 Z"
+                                          IsHitTestVisible="False" />
                                 </Grid>
                             </Border>
                             <ToggleButton Background="Transparent"
                                           BorderThickness="0"
                                           Focusable="False"
+                                          ClickMode="Press"
                                           IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                                 <ToggleButton.Template>
                                     <ControlTemplate TargetType="ToggleButton">
@@ -252,20 +258,27 @@
                             </ToggleButton>
                             <Popup x:Name="PART_Popup"
                                    AllowsTransparency="True"
-                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Focusable="False"
                                    Placement="Bottom"
-                                 PopupAnimation="Fade">
+                                   PlacementTarget="{Binding ElementName=Chrome}"
+                                   PopupAnimation="Fade"
+                                   StaysOpen="False"
+                                   IsOpen="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
                                 <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                         MaxHeight="{TemplateBinding MaxDropDownHeight}"
-                                        Margin="0,4,0,0"
+                                        Margin="0,6,8,8"
                                         Background="#FFFFFF"
-                                        BorderBrush="#D4C9B3"
+                                        BorderBrush="#E2E8F0"
                                         BorderThickness="1"
-                                        CornerRadius="8">
+                                        CornerRadius="8"
+                                        SnapsToDevicePixels="True">
                                     <Border.Effect>
-                                        <DropShadowEffect BlurRadius="12" ShadowDepth="3" Opacity="0.08" Color="#1E293B" />
+                                        <DropShadowEffect BlurRadius="16" ShadowDepth="4" Opacity="0.12" Color="#1E293B" />
                                     </Border.Effect>
-                                    <ScrollViewer Padding="4" SnapsToDevicePixels="True">
+                                    <ScrollViewer Padding="4"
+                                                  CanContentScroll="False"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  VerticalScrollBarVisibility="Auto">
                                         <ItemsPresenter />
                                     </ScrollViewer>
                                 </Border>
@@ -273,15 +286,15 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#AFC2D8" />
-                                <Setter TargetName="Chrome" Property="Background" Value="#FFFFFF" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#94A3B8" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#D4C9B3" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#0E987E" />
+                                <Setter TargetName="Chrome" Property="BorderThickness" Value="1.5" />
                             </Trigger>
                             <Trigger Property="IsDropDownOpen" Value="True">
-                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#D4C9B3" />
-                                <Setter TargetName="Arrow" Property="Fill" Value="#D97706" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#0E987E" />
+                                <Setter TargetName="Arrow" Property="Fill" Value="#0E987E" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.55" />
@@ -291,6 +304,8 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style TargetType="ComboBox" BasedOn="{StaticResource RoundedComboBox}" />
 
         <Style TargetType="ComboBoxItem">
             <Setter Property="Padding" Value="10,9" />
@@ -316,13 +331,21 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="ItemChrome" Property="Background" Value="#FEF3C7" />
-                                <Setter Property="Foreground" Value="#92400E" />
+                                <Setter TargetName="ItemChrome" Property="Background" Value="#F1F5F9" />
+                                <Setter Property="Foreground" Value="#0F172A" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="ItemChrome" Property="Background" Value="#F8FAFC" />
-                                <Setter Property="Foreground" Value="#111827" />
+                                <Setter TargetName="ItemChrome" Property="Background" Value="#ECFDF5" />
+                                <Setter Property="Foreground" Value="#065F46" />
                             </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected" Value="True" />
+                                    <Condition Property="IsHighlighted" Value="True" />
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="ItemChrome" Property="Background" Value="#D1FAE5" />
+                                <Setter Property="Foreground" Value="#065F46" />
+                            </MultiTrigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.55" />
                             </Trigger>

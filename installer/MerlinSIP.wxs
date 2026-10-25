@@ -2,7 +2,7 @@
   <Package
     Name="Merlin SIP"
     Manufacturer="CK Media Services"
-    Version="1.3.5"
+    Version="1.3.7"
     UpgradeCode="{8E5C2C6E-3A1E-4F83-9897-4E62EB06E0EC}"
     Scope="perMachine">
 
@@ -58,10 +58,8 @@
 
     <StandardDirectory Id="SystemFolder" />
     <CustomAction Id="CloseRunningApp" Directory="SystemFolder" ExeCommand="taskkill.exe /f /im MerlinSIP.exe" Execute="immediate" Return="ignore" />
-    <CustomAction Id="LaunchApp" FileRef="MerlinSipExe" ExeCommand="" Execute="immediate" Return="asyncNoWait" />
     <InstallExecuteSequence>
       <Custom Action="CloseRunningApp" Before="InstallValidate" />
-      <Custom Action="LaunchApp" After="InstallFinalize" Condition="NOT REMOVE" />
     </InstallExecuteSequence>
   </Package>
 </Wix>

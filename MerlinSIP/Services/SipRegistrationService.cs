@@ -50,7 +50,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     private ActiveCall? _line2Call;
     private RtpVideoSession? _videoSession;
     public RtpVideoSession? VideoSession => _videoSession;
-    public bool HasActiveVideoCall => (_line1Call?.IsVideo == true) || (_line2Call?.IsVideo == true) || _videoSession != null;
+    public bool HasActiveVideoCall => _line1Call?.IsVideo == true || _line2Call?.IsVideo == true;
     private int _selectedLine = 1;
     private PendingIncomingCall? _pendingIncomingCall;
     private RtpAudioSession? _audioSession;
@@ -2727,8 +2727,12 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 DebugLog.Write($"RTP start failed remote={remoteAddress}:{remotePort} error={error.Message}");
             }
         }
+        else
+        {
+            DebugLog.Write($"RTP remote audio parse failed callId={call.CallId}");
+        }
 
-        if ((call.IsVideo || response.Raw.Contains("m=video", StringComparison.OrdinalIgnoreCase)) &&
+        if (call.IsVideo &&
             TryParseRemoteVideo(response.Raw, out var remoteVideoAddress, out var remoteVideoPort, out var remoteVideoPayload))
         {
             try
@@ -2753,10 +2757,6 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             {
                 DebugLog.Write($"RTP Video start error: {vErr.Message}");
             }
-        }
-        else
-        {
-            DebugLog.Write($"RTP remote audio parse failed callId={call.CallId}");
         }
     }
 
@@ -3245,7 +3245,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         await SendSimpleResponseAsync(message, remoteEndPoint, 100, "Trying", cancellationToken);
         await SendSimpleResponseAsync(message, remoteEndPoint, 180, "Ringing", cancellationToken, localTag);
 
-        bool isVideo = message.Contains("m=video", StringComparison.OrdinalIgnoreCase);
+        bool isVideo = TryParseRemoteVideo(message, out _, out _, out _);
 
         _pendingIncomingCall = new PendingIncomingCall(
             callId,

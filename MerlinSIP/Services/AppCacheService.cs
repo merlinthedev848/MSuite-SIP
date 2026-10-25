@@ -10,17 +10,20 @@ namespace MerlinSip.Services;
 public sealed class AppCacheService
 {
     public static AppStartupConfig? ActiveConfig { get; set; }
-    private readonly string _root = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "MerlinSIP");
+    private readonly string _root;
 
     private readonly string SettingsPath;
+    private readonly string SettingsBackupPath;
     private readonly string ContactsPath;
     private readonly string HistoryPath;
 
-    public AppCacheService()
+    public AppCacheService(string? storageRoot = null)
     {
+        _root = storageRoot ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MerlinSIP");
         SettingsPath = Path.Combine(_root, "settings.json");
+        SettingsBackupPath = SettingsPath + ".bak";
         ContactsPath = Path.Combine(_root, "contacts.json");
         HistoryPath = Path.Combine(_root, "call-history.json");
     }
@@ -32,21 +35,34 @@ public sealed class AppCacheService
 
     public async Task<AppStartupConfig?> LoadSettingsAsync()
     {
-        if (!File.Exists(SettingsPath))
+        var settings = await ReadSettingsFileAsync(SettingsPath);
+        if (settings is null)
         {
-            return null;
+            settings = await ReadSettingsFileAsync(SettingsBackupPath);
+            if (settings is not null)
+            {
+                DebugLog.Write("SETTINGS restored from backup after the main file could not be read.");
+                try
+                {
+                    Directory.CreateDirectory(_root);
+                    File.Copy(SettingsBackupPath, SettingsPath, overwrite: true);
+                }
+                catch (Exception error)
+                {
+                    DebugLog.Write($"SETTINGS backup copy failed error={error.Message}");
+                }
+            }
         }
-
-        SavedAppSettings? settings;
-        try
+        else if (!File.Exists(SettingsBackupPath))
         {
-            await using var stream = new FileStream(SettingsPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
-            settings = await JsonSerializer.DeserializeAsync<SavedAppSettings>(stream);
-        }
-        catch (Exception error)
-        {
-            DebugLog.Write($"SETTINGS load failed error={error.Message}");
-            return null;
+            try
+            {
+                File.Copy(SettingsPath, SettingsBackupPath, overwrite: false);
+            }
+            catch (Exception error)
+            {
+                DebugLog.Write($"SETTINGS backup create failed error={error.Message}");
+            }
         }
 
         if (settings is null)
@@ -70,8 +86,8 @@ public sealed class AppCacheService
             Unprotect(settings.Password, settings.EncryptedPassword),
             licenseKey,
             settings.LicenseStatus ?? "Licensed",
-            settings.AudioInput,
-            settings.AudioOutput,
+            settings.AudioInput ?? new MediaDeviceInfo("default-input", "Default microphone"),
+            settings.AudioOutput ?? new MediaDeviceInfo("default-output", "Default speaker"),
             string.IsNullOrWhiteSpace(settings.Ringtone) || !RingtonePlayer.Choices.Any(c => c.Id == settings.Ringtone) ? AppStartupConfig.DefaultRingtone : settings.Ringtone,
             ClampVolume(settings.MicrophoneVolume),
             ClampVolume(settings.HeadphoneVolume),
@@ -115,6 +131,12 @@ public sealed class AppCacheService
 
     public async Task SaveSettingsAsync(AppStartupConfig config)
     {
+        if (WouldEraseSavedAccount(config) && await SavedAccountExistsAsync())
+        {
+            DebugLog.Write("SETTINGS save skipped because it would erase the saved licence or extension.");
+            return;
+        }
+
         var settings = new SavedAppSettings(
             null,
             null,
@@ -184,8 +206,72 @@ public sealed class AppCacheService
     public void Reset()
     {
         DeleteIfExists(SettingsPath);
+        DeleteIfExists(SettingsBackupPath);
         DeleteIfExists(ContactsPath);
         DeleteIfExists(HistoryPath);
+    }
+
+    private async Task<SavedAppSettings?> ReadSettingsFileAsync(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            var bytes = await File.ReadAllBytesAsync(path);
+            var start = 0;
+            while (start < bytes.Length && bytes[start] == 0)
+            {
+                start++;
+            }
+
+            if (start >= bytes.Length)
+            {
+                return null;
+            }
+
+            if (bytes[start] == 0xEF && start + 2 < bytes.Length && bytes[start + 1] == 0xBB && bytes[start + 2] == 0xBF)
+            {
+                start += 3;
+            }
+
+            var json = Encoding.UTF8.GetString(bytes, start, bytes.Length - start);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            return JsonSerializer.Deserialize<SavedAppSettings>(json, JsonOptions);
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"SETTINGS load failed file={Path.GetFileName(path)} error={error.Message}");
+            return null;
+        }
+    }
+
+    private async Task<bool> SavedAccountExistsAsync()
+    {
+        var existing = await ReadSettingsFileAsync(SettingsPath) ?? await ReadSettingsFileAsync(SettingsBackupPath);
+        if (existing is null)
+        {
+            return false;
+        }
+
+        return !string.IsNullOrWhiteSpace(existing.LicenseKey)
+            || !string.IsNullOrWhiteSpace(existing.EncryptedLicenseKey)
+            || !string.IsNullOrWhiteSpace(existing.Extension)
+            || !string.IsNullOrWhiteSpace(existing.EncryptedExtension);
+    }
+
+    private static bool WouldEraseSavedAccount(AppStartupConfig config)
+    {
+        return string.IsNullOrWhiteSpace(config.LicenseKey)
+            && string.IsNullOrWhiteSpace(config.Extension)
+            && string.IsNullOrWhiteSpace(config.Username)
+            && string.IsNullOrWhiteSpace(config.Password);
     }
 
     private static void DeleteIfExists(string path)
@@ -273,9 +359,9 @@ public sealed class AppCacheService
         string? LicenseKey,
         string? EncryptedLicenseKey,
         string? LicenseStatus,
-        MediaDeviceInfo AudioInput,
-        MediaDeviceInfo AudioOutput,
-        MediaDeviceInfo VideoSource,
+        MediaDeviceInfo? AudioInput,
+        MediaDeviceInfo? AudioOutput,
+        MediaDeviceInfo? VideoSource,
         string? Ringtone = null,
         double? MicrophoneVolume = null,
         double? HeadphoneVolume = null,

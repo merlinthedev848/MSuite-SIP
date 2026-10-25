@@ -169,12 +169,6 @@ public sealed class RtpVideoSession : IDisposable
                 // Send frame to UI local preview
                 LocalFrameUpdated?.Invoke(this, new VideoFrameEventArgs(_videoWidth, _videoHeight, frameTime, IsLocal: true, Muted: _isMuted));
 
-                // Send simulated RTP packet to remote peer if configured and not muted
-                if (_remoteEndPoint != null && !_isMuted)
-                {
-                    SendRtpVideoPacket();
-                }
-
                 await Task.Delay(interval, token);
             }
         }

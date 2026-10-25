@@ -158,23 +158,6 @@ public class NetworkEngine : IDisposable
 		Pcap.Stop();
 	}
 
-	private static Process[]? _cachedProcesses;
-	private static DateTime _lastProcessCacheTime = DateTime.MinValue;
-	private static readonly object _processCacheLock = new object();
-
-	private static Process[] GetCachedProcesses()
-	{
-		lock (_processCacheLock)
-		{
-			if (_cachedProcesses == null || (DateTime.Now - _lastProcessCacheTime).TotalSeconds > 30)
-			{
-				_cachedProcesses = Process.GetProcesses();
-				_lastProcessCacheTime = DateTime.Now;
-			}
-			return _cachedProcesses;
-		}
-	}
-
 	private void LoadSettingsFromRegistry()
 	{
 		try
@@ -235,32 +218,6 @@ public class NetworkEngine : IDisposable
 		else
 		{
 			Log("Registry credentials: None found. Softphone may not be registered.");
-		}
-		try
-		{
-			bool flag = false;
-			Process[] processes = GetCachedProcesses();
-			foreach (Process process in processes)
-			{
-				try 
-				{
-					string text = process.ProcessName.ToLower();
-					if (text.Contains("merlinsip") || text.Contains("merlin") || text.Contains("sip"))
-					{
-						Log($"Active voice client process: '{process.ProcessName}' (PID: {process.Id}) is running.");
-						flag = true;
-					}
-				}
-				catch { }
-			}
-			if (!flag)
-			{
-				Log("Active voice client process: No running client processes detected.");
-			}
-		}
-		catch (Exception ex)
-		{
-			Log("Error scanning processes: " + ex.Message);
 		}
 		try
 		{
@@ -1717,9 +1674,11 @@ public class NetworkEngine : IDisposable
 	private async Task<(int sent, int received, double loss, double jitter, double avgRtt, bool pass)> RunSingleRtpPathCheckAsync(string pathName, string targetHost, int targetPort, string payloadType, CancellationToken token)
 	{
 		Log($"Starting path check: {pathName} ({targetHost}:{targetPort}) via {payloadType}...");
-		int numPackets = 100;
-		int packetDelayMs = 20;
+		int numPackets = 8;
+		int packetDelayMs = 15;
+		int packetsSent = 0;
 		int packetsReceived = 0;
+		int consecutiveMisses = 0;
 		List<double> rtts = new List<double>();
 		UdpClient? client = null;
 		try
@@ -1745,8 +1704,10 @@ public class NetworkEngine : IDisposable
 			{
 				if (token.IsCancellationRequested)
 				{
-					return (sent: numPackets, received: 0, loss: 100.0, jitter: 0.0, avgRtt: 0.0, pass: false);
+					return (sent: packetsSent, received: packetsReceived, loss: 100.0, jitter: 0.0, avgRtt: 0.0, pass: false);
 				}
+				UpdateProgress("RTP Jitter/Loss Check", "Running", pathName);
+				packetsSent++;
 				byte[] transactionId = new byte[12];
 				string callId = string.Empty;
 				byte[] array2;
@@ -1769,25 +1730,37 @@ public class NetworkEngine : IDisposable
 				try
 				{
 					using CancellationTokenSource perPacketCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-					perPacketCts.CancelAfter(500);
+					perPacketCts.CancelAfter(200);
 					UdpReceiveResult udpReceiveResult = await client.ReceiveAsync(perPacketCts.Token);
 					watch.Stop();
 					Pcap.RecordPacket(udpReceiveResult.Buffer, endpoint.Address.ToString(), endpoint.Port, localIp, localPort, isUdp: true);
 					if ((!(payloadType == "SIP")) ? ValidateStunResponse(udpReceiveResult.Buffer, transactionId) : Encoding.UTF8.GetString(udpReceiveResult.Buffer).Contains(callId, StringComparison.OrdinalIgnoreCase))
 					{
 						packetsReceived++;
+						consecutiveMisses = 0;
 						rtts.Add(watch.Elapsed.TotalMilliseconds);
+					}
+					else
+					{
+						consecutiveMisses++;
 					}
 				}
 				catch (OperationCanceledException)
 				{
+					consecutiveMisses++;
 				}
 				catch
 				{
+					consecutiveMisses++;
+				}
+				if (consecutiveMisses >= 3)
+				{
+					Log($"  [{pathName}] No reply after {consecutiveMisses} attempts. Skipping the rest of this path.");
+					break;
 				}
 				await Task.Delay(packetDelayMs, token);
 			}
-			double num = (double)(numPackets - packetsReceived) / (double)numPackets * 100.0;
+			double num = packetsSent == 0 ? 100.0 : (double)(packetsSent - packetsReceived) / packetsSent * 100.0;
 			double num2 = 0.0;
 			double num3 = 0.0;
 			if (packetsReceived > 0)
@@ -1808,9 +1781,9 @@ public class NetworkEngine : IDisposable
 					num3 = num5 / (double)(rtts.Count - 1);
 				}
 			}
-			Log($"  [{pathName}] Sent: {numPackets}, Recv: {packetsReceived}, Loss: {num:0.0}%, Jitter: {num3:0.1}ms, RTT: {num2:0.1}ms");
+			Log($"  [{pathName}] Sent: {packetsSent}, Recv: {packetsReceived}, Loss: {num:0.0}%, Jitter: {num3:0.1}ms, RTT: {num2:0.1}ms");
 			bool item = num <= 5.0 && num3 <= 30.0 && packetsReceived > 0;
-			return (sent: numPackets, received: packetsReceived, loss: num, jitter: num3, avgRtt: num2, pass: item);
+			return (sent: packetsSent, received: packetsReceived, loss: num, jitter: num3, avgRtt: num2, pass: item);
 		}
 		catch (Exception ex2)
 		{
@@ -2111,7 +2084,7 @@ public class NetworkEngine : IDisposable
 			{
 				try
 				{
-					await connection.StopAsync(CancellationToken.None);
+					await Task.WhenAny(connection.StopAsync(), Task.Delay(1500));
 				}
 				catch
 				{

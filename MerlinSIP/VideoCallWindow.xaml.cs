@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using MerlinSip.Models;
 using MerlinSip.Services;
@@ -11,10 +12,13 @@ public partial class VideoCallWindow : Window
 {
     private readonly RtpVideoSession? _videoSession;
     private readonly DispatcherTimer _durationTimer;
+    private readonly CameraPreviewSession _camera = new();
+    private WriteableBitmap? _localBitmap;
     private DateTimeOffset _startTime;
     private bool _isMicMuted;
     private bool _isCameraMuted;
     private bool _isFullscreen;
+    private int _closing;
 
     public event EventHandler? EndCallRequested;
     public event EventHandler<bool>? MuteMicRequested;
@@ -57,11 +61,61 @@ public partial class VideoCallWindow : Window
         return $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[^1][0])}";
     }
 
-    private void Window_Loaded(object sender, RoutedEventArgs e)
+    private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         _durationTimer.Start();
         ApplyMuteVisual();
         ApplyCameraVisual();
+        var device = _videoSession?.VideoDevice ?? new MediaDeviceInfo("default-video", "Default camera");
+        LocalCameraDeviceText.Text = device.Name;
+        _camera.FrameReady += OnCameraFrame;
+        _camera.Failed += OnCameraFailed;
+        await _camera.StartAsync(device);
+    }
+
+    private void OnCameraFrame(int width, int height, byte[] pixels)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => OnCameraFrame(width, height, pixels));
+            return;
+        }
+
+        try
+        {
+            if (_isCameraMuted)
+            {
+                return;
+            }
+
+            if (_localBitmap is null || _localBitmap.PixelWidth != width || _localBitmap.PixelHeight != height)
+            {
+                _localBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
+                RemoteVideoImage.Source = _localBitmap;
+                LocalVideoImage.Source = _localBitmap;
+            }
+
+            _localBitmap.WritePixels(new Int32Rect(0, 0, width, height), pixels, width * 4, 0);
+            RemotePlaceholderPanel.Visibility = Visibility.Collapsed;
+            StreamQualityLabel.Text = $"Your camera  •  {width}x{height}";
+        }
+        finally
+        {
+            _camera.ReleaseFrameSlot();
+        }
+    }
+
+    private void OnCameraFailed(string message)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => OnCameraFailed(message));
+            return;
+        }
+
+        RemoteDisplayStatus.Text = "Camera not available";
+        RemoteCodecInfo.Text = message;
+        StreamQualityLabel.Text = "No camera picture";
     }
 
     private void DurationTimer_Tick(object? sender, EventArgs e)
@@ -90,8 +144,10 @@ public partial class VideoCallWindow : Window
     {
         Dispatcher.InvokeAsync(() =>
         {
-            RemotePlaceholderPanel.Visibility = Visibility.Collapsed;
-            StreamQualityLabel.Text = $"Live Video Stream  •  {e.Width}x{e.Height} HD";
+            if (RemoteVideoImage.Source is null)
+            {
+                RemoteCodecInfo.Text = "Video packets are arriving, but there is no picture to show yet.";
+            }
         });
     }
 
@@ -106,7 +162,6 @@ public partial class VideoCallWindow : Window
     private void UpdateCodecDisplay(string codec)
     {
         YeastarProtocolBadge.Text = $"Yeastar SIP/WebRTC  •  {codec}";
-        RemoteCodecInfo.Text = $"Receiving {codec} Stream  •  1280x720 @ 30fps";
     }
 
     private void MuteMicButton_Click(object sender, RoutedEventArgs e)
@@ -163,7 +218,6 @@ public partial class VideoCallWindow : Window
     private void RequestKeyframeButton_Click(object sender, RoutedEventArgs e)
     {
         _videoSession?.SendPictureLossIndication();
-        StreamQualityLabel.Text = "Requested Keyframe (Yeastar RTCP PLI)...";
     }
 
     private void FullscreenButton_Click(object sender, RoutedEventArgs e)
@@ -187,14 +241,32 @@ public partial class VideoCallWindow : Window
         Close();
     }
 
-    private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    private async void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        if (Interlocked.Exchange(ref _closing, 1) != 0)
+        {
+            return;
+        }
+
+        e.Cancel = true;
         _durationTimer.Stop();
+        _camera.FrameReady -= OnCameraFrame;
+        _camera.Failed -= OnCameraFailed;
         if (_videoSession != null)
         {
             _videoSession.LocalFrameUpdated -= VideoSession_LocalFrameUpdated;
             _videoSession.RemoteFrameUpdated -= VideoSession_RemoteFrameUpdated;
             _videoSession.CodecChanged -= VideoSession_CodecChanged;
         }
+
+        try
+        {
+            await _camera.StopAsync();
+        }
+        catch
+        {
+        }
+
+        Close();
     }
 }
