@@ -32,7 +32,7 @@
 
                     <Border Background="#1F2937" CornerRadius="6" Padding="9,5" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE823;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" Foreground="#9CA3AF" Margin="0,0,5,0" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xE823;" FontFamily="Segoe MDL2 Assets" FontSize="11" Foreground="#9CA3AF" Margin="0,0,5,0" VerticalAlignment="Center" />
                             <TextBlock x:Name="CallDurationText" Text="00:00" FontSize="12" FontWeight="Bold" Foreground="#F3F4F6" VerticalAlignment="Center" />
                         </StackPanel>
                     </Border>
@@ -101,7 +101,7 @@
                             <!-- Camera Muted Overlay -->
                             <Border x:Name="CameraMutedOverlay" Background="#900F172A" Visibility="Collapsed">
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="&#xE715;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="22" Foreground="#EF4444" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                                    <TextBlock Text="&#xE715;" FontFamily="Segoe MDL2 Assets" FontSize="22" Foreground="#EF4444" HorizontalAlignment="Center" Margin="0,0,0,4" />
                                     <TextBlock Text="Camera Muted" Foreground="#E2E8F0" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" />
                                 </StackPanel>
                             </Border>
@@ -131,7 +131,7 @@
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="BtnBdr" CornerRadius="25" Background="#1F2937" BorderBrush="#374151" BorderThickness="1">
-                                <TextBlock x:Name="BtnIcon" Text="&#xE720;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="#F3F4F6" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock x:Name="BtnIcon" Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#F3F4F6" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
@@ -147,7 +147,7 @@
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="BtnBdr" CornerRadius="25" Background="#1F2937" BorderBrush="#374151" BorderThickness="1">
-                                <TextBlock x:Name="BtnIcon" Text="&#xE714;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="#F3F4F6" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock x:Name="BtnIcon" Text="&#xE714;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#F3F4F6" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
@@ -163,7 +163,7 @@
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="BtnBdr" CornerRadius="25" Background="#1F2937" BorderBrush="#374151" BorderThickness="1">
-                                <TextBlock x:Name="BtnIcon" Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="#A78BFA" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock x:Name="BtnIcon" Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#A78BFA" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
@@ -179,7 +179,7 @@
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="BtnBdr" CornerRadius="25" Background="#1F2937" BorderBrush="#374151" BorderThickness="1">
-                                <TextBlock x:Name="BtnIcon" Text="&#xE740;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="#F3F4F6" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock x:Name="BtnIcon" Text="&#xE740;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="#F3F4F6" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
@@ -195,7 +195,7 @@
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="BtnBdr" CornerRadius="27" Background="#DC2626" BorderBrush="#EF4444" BorderThickness="1">
-                                <TextBlock Text="&#xE778;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="20" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Text="&#xE778;" FontFamily="Segoe MDL2 Assets" FontSize="20" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">

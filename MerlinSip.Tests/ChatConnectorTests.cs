@@ -14,7 +14,7 @@ public class ChatConnectorTests
     {
         var service = new ChatConnectorService();
         Assert.Equal("https://handler.chriskendall.media", service.ServerUrl);
-        Assert.Equal("oBupPHDSTSuiAKqUDcdmwd7zIIUPjhjKacfmTe7aZG8>", service.Token);
+        Assert.Equal("UClDFZpFu1gj7I8oGmKVsOvzGTqSFwq3jpcgLoC2ApmkyZTjpq1ftIZmJ5EMoshE", service.Token);
         Assert.False(service.IsConnected);
     }
 

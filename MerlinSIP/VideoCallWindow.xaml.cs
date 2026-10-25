@@ -18,6 +18,7 @@ public partial class VideoCallWindow : Window
 
     public event EventHandler? EndCallRequested;
     public event EventHandler<bool>? MuteMicRequested;
+    public event EventHandler<bool>? ToggleCameraRequested;
 
     public VideoCallWindow(string callerName, string callerNumber, RtpVideoSession? videoSession = null)
     {
@@ -59,12 +60,22 @@ public partial class VideoCallWindow : Window
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
         _durationTimer.Start();
+        ApplyMuteVisual();
+        ApplyCameraVisual();
     }
 
     private void DurationTimer_Tick(object? sender, EventArgs e)
     {
         var elapsed = DateTimeOffset.Now - _startTime;
-        CallDurationText.Text = elapsed.ToString(@"mm\:ss");
+        CallDurationText.Text = elapsed.TotalHours >= 1
+            ? elapsed.ToString(@"hh\:mm\:ss")
+            : elapsed.ToString(@"mm\:ss");
+    }
+
+    public void SyncMicrophone(bool muted)
+    {
+        _isMicMuted = muted;
+        ApplyMuteVisual();
     }
 
     private void VideoSession_LocalFrameUpdated(object? sender, VideoFrameEventArgs e)
@@ -101,20 +112,24 @@ public partial class VideoCallWindow : Window
     private void MuteMicButton_Click(object sender, RoutedEventArgs e)
     {
         _isMicMuted = !_isMicMuted;
+        ApplyMuteVisual();
         MuteMicRequested?.Invoke(this, _isMicMuted);
+    }
 
+    private void ApplyMuteVisual()
+    {
         if (MuteMicButton.Template.FindName("BtnBdr", MuteMicButton) is System.Windows.Controls.Border bdr &&
             MuteMicButton.Template.FindName("BtnIcon", MuteMicButton) is System.Windows.Controls.TextBlock icon)
         {
             if (_isMicMuted)
             {
-                bdr.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(220, 38, 38)); // Red
-                icon.Text = "\uE74F"; // Mic Muted icon
+                bdr.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(220, 38, 38));
+                icon.Text = "\uE74F";
             }
             else
             {
                 bdr.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(31, 41, 55));
-                icon.Text = "\uE720"; // Normal mic icon
+                icon.Text = "\uE720";
             }
         }
     }
@@ -122,21 +137,25 @@ public partial class VideoCallWindow : Window
     private void ToggleCameraButton_Click(object sender, RoutedEventArgs e)
     {
         _isCameraMuted = !_isCameraMuted;
-        _videoSession?.SetMute(_isCameraMuted);
         CameraMutedOverlay.Visibility = _isCameraMuted ? Visibility.Visible : Visibility.Collapsed;
+        ApplyCameraVisual();
+        ToggleCameraRequested?.Invoke(this, _isCameraMuted);
+    }
 
+    private void ApplyCameraVisual()
+    {
         if (ToggleCameraButton.Template.FindName("BtnBdr", ToggleCameraButton) is System.Windows.Controls.Border bdr &&
             ToggleCameraButton.Template.FindName("BtnIcon", ToggleCameraButton) is System.Windows.Controls.TextBlock icon)
         {
             if (_isCameraMuted)
             {
-                bdr.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(220, 38, 38)); // Red
-                icon.Text = "\uE715"; // Video off icon
+                bdr.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(220, 38, 38));
+                icon.Text = "\uE715";
             }
             else
             {
                 bdr.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(31, 41, 55));
-                icon.Text = "\uE714"; // Normal camera icon
+                icon.Text = "\uE714";
             }
         }
     }

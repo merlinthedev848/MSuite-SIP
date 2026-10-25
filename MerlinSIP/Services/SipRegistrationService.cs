@@ -263,6 +263,11 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         _audioSession?.SetMuted(muted);
     }
 
+    public void SetVideoMuted(bool muted)
+    {
+        _videoSession?.SetMute(muted);
+    }
+
     public async Task<SipCallResult> HoldLineAsync(int line, bool held, CancellationToken cancellationToken = default)
     {
         var call = line == 2 ? _line2Call : _line1Call;

@@ -119,7 +119,7 @@ public partial class MainWindow : Window
     private const int WM_DEVICECHANGE = 0x0219;
     private const int DBT_DEVNODES_CHANGED = 0x0007;
     private string _lastClipboardText = "";
-    private static readonly System.Windows.Media.FontFamily InCallIconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+    private static readonly System.Windows.Media.FontFamily InCallIconFont = new("Segoe MDL2 Assets");
     private const string HangupIcon = "\uE778";
     private const string MicIcon = "\uE720";
     private const string MutedMicIcon = "\uE74F";
@@ -204,43 +204,22 @@ public partial class MainWindow : Window
         CallHistoryListView.ItemsSource = _filteredCallHistory;
         ChatMessagesListView.ItemsSource = _chatThreadMessages;
         _sipRegistrationService.IncomingCall += SipRegistrationService_IncomingCall;
-        _ = _chatService.ConnectAsync();
         _chatService.OnConnectionStateChanged += (connected, msg) =>
         {
-            App.Current?.Dispatcher.Invoke(() => SetHandlerServerStatus(connected, 0, msg));
-        };
-        _chatService.OnMessageReceived += (msgJson) =>
-        {
-            App.Current?.Dispatcher.Invoke(async () =>
+            Dispatcher.InvokeAsync(async () =>
             {
-                try
+                SetHandlerServerStatus(connected, 0, msg);
+                if (connected)
                 {
-                    using var doc = System.Text.Json.JsonDocument.Parse(msgJson);
-                    var root = doc.RootElement;
-                    var senderId = root.TryGetProperty("senderId", out var s) ? s.GetString() ?? "" : "";
-                    var conversationId = root.TryGetProperty("conversationId", out var c) ? c.GetString() ?? "" : "";
-                    var content = root.TryGetProperty("content", out var ct) ? ct.GetString() ?? "" : "";
-                    var fileUrl = root.TryGetProperty("fileUrl", out var f) ? f.GetString() ?? "" : "";
-
-                    var displayMessage = string.IsNullOrWhiteSpace(fileUrl) ? content : $"{content} [File: {fileUrl}]".Trim();
-                    var contact = _contactStore.FindByNumber(_contacts, senderId);
-                    var senderName = contact?.Name ?? senderId;
-
-                    await AddChatMessage("Inbound", senderName, senderId, displayMessage, "Received");
-                    FooterStatusText.Text = $"Chat message received from {senderName}.";
-
-                    if (MessageBelongsToThread(new ChatMessageEntry { Number = senderId }, _selectedChatNumber) ||
-                        MessageBelongsToThread(new ChatMessageEntry { Number = conversationId }, _selectedChatNumber))
-                    {
-                        RefreshChatThread();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    DebugLog.Write($"Chat message parse error: {ex.Message}");
+                    await JoinChatRoomsAsync();
                 }
             });
         };
+        _chatService.OnChatMessageReceived += payload =>
+        {
+            Dispatcher.InvokeAsync(async () => await HandleIncomingChatMessageAsync(payload));
+        };
+        _ = _chatService.ConnectAsync();
         _sipRegistrationService.CallProgress += SipRegistrationService_CallProgress;
         _sipRegistrationService.CallEnded += SipRegistrationService_CallEnded;
         _sipRegistrationService.ContactPresenceChanged += SipRegistrationService_ContactPresenceChanged;
@@ -267,17 +246,34 @@ public partial class MainWindow : Window
         AudioInputComboBox.SelectionChanged += (s, e) => { if (SettingsOverlay.Visibility == Visibility.Visible) StartMicVuMeter(); };
     }
 
-    private static TextBlock CreateInCallIcon(string glyph)
+    private static TextBlock CreateInCallIcon(string glyph, double fontSize = 21)
     {
         return new TextBlock
         {
             Text = glyph,
             FontFamily = InCallIconFont,
-            FontSize = 21,
-            FontWeight = FontWeights.Bold,
+            FontSize = fontSize,
+            FontWeight = FontWeights.Normal,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
             VerticalAlignment = System.Windows.VerticalAlignment.Center
         };
+    }
+
+    private static void SetLineIconButton(WpfButton button, string glyph, string? tooltip = null, string? foregroundHex = null)
+    {
+        var icon = CreateInCallIcon(glyph, 16);
+        if (!string.IsNullOrWhiteSpace(foregroundHex))
+        {
+            var brush = (WpfBrush)new BrushConverter().ConvertFromString(foregroundHex)!;
+            icon.Foreground = brush;
+            button.Foreground = brush;
+        }
+
+        button.Content = icon;
+        if (tooltip is not null)
+        {
+            button.ToolTip = tooltip;
+        }
     }
 
     private static void SetIconButton(WpfButton button, string glyph, string label)
@@ -2506,6 +2502,7 @@ public partial class MainWindow : Window
         _muted = !_muted;
         _sipRegistrationService.SetMuted(_muted);
         UpdateInCallButtonIcons();
+        _videoCallWindow?.SyncMicrophone(_muted);
         FooterStatusText.Text = _muted ? "Microphone muted." : "Microphone unmuted.";
     }
 
@@ -4116,6 +4113,7 @@ del ""%~f0""
                 }
             }
             UpdateLineAppearances();
+            CloseVideoCallWindow();
 
             StopCallTimer();
             ClearDialpadAfterCall();
@@ -4232,6 +4230,8 @@ del ""%~f0""
         var contact = _contactStore.FindByNumber(_contacts, _selectedChatNumber);
         var name = contact?.Name ?? _selectedChatNumber;
 
+        await EnsureChatConnectedAsync();
+        await _chatService.JoinConversationAsync(_selectedChatNumber);
         var success = await _chatService.UploadAndSendFileAsync(filePath, _selectedChatNumber, _config.Extension);
         if (success)
         {
@@ -4307,6 +4307,14 @@ del ""%~f0""
                     : $"{destination}  {contact.Company}";
             }
 
+            await EnsureChatConnectedAsync();
+            if (!_chatService.IsConnected)
+            {
+                FooterStatusText.Text = "Chat server is offline.";
+                return;
+            }
+
+            await _chatService.JoinConversationAsync(destination);
             await _chatService.SendMessageAsync(destination, _config.Extension, message);
             await AddChatMessage("Outbound", name, destination, message, "Sent");
             FooterStatusText.Text = "Message sent.";
@@ -4355,8 +4363,31 @@ del ""%~f0""
             ? contact.Number
             : $"{contact.Number}  {contact.Company}";
         RefreshChatThread();
-        _ = _chatService.JoinConversationAsync(_selectedChatNumber);
+        _ = EnsureChatConnectedAsync();
         MessageBodyTextBox.Focus();
+    }
+
+    private async Task EnsureChatConnectedAsync()
+    {
+        if (!_chatService.IsConnected)
+        {
+            await _chatService.ConnectAsync();
+        }
+
+        await JoinChatRoomsAsync();
+    }
+
+    private async Task JoinChatRoomsAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(_config.Extension))
+        {
+            await _chatService.JoinConversationAsync(_config.Extension);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_selectedChatNumber))
+        {
+            await _chatService.JoinConversationAsync(_selectedChatNumber);
+        }
     }
 
     private void RefreshChatThread()
@@ -4409,6 +4440,62 @@ del ""%~f0""
         await _chatMessageStore.SaveAsync(_chatMessages);
         RefreshChatThread();
         FooterStatusText.Text = $"Conversation with {displayName} cleared.";
+    }
+
+    private async Task HandleIncomingChatMessageAsync(ChatMessagePayload? payload)
+    {
+        if (payload is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var senderId = payload.SenderId?.Trim() ?? "";
+            var conversationId = payload.ConversationId?.Trim() ?? "";
+            var self = NormalizeDialDestination(_config.Extension);
+            var normalizedSender = NormalizeDialDestination(senderId);
+            var normalizedConversation = NormalizeDialDestination(conversationId);
+            if (!string.IsNullOrWhiteSpace(normalizedSender) &&
+                normalizedSender.Equals(self, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var content = payload.Content?.Trim() ?? "";
+            var fileUrl = payload.FileUrl?.Trim() ?? "";
+            var displayMessage = string.IsNullOrWhiteSpace(fileUrl)
+                ? content
+                : string.IsNullOrWhiteSpace(content) ? $"[File: {fileUrl}]" : $"{content} [File: {fileUrl}]";
+
+            if (string.IsNullOrWhiteSpace(displayMessage))
+            {
+                return;
+            }
+
+            var threadNumber = !string.IsNullOrWhiteSpace(normalizedSender) &&
+                               !normalizedSender.Equals(self, StringComparison.OrdinalIgnoreCase)
+                ? normalizedSender
+                : normalizedConversation;
+            if (!string.IsNullOrWhiteSpace(_selectedChatNumber) &&
+                (_selectedChatNumber.Equals(normalizedConversation, StringComparison.OrdinalIgnoreCase) ||
+                 _selectedChatNumber.Equals(normalizedSender, StringComparison.OrdinalIgnoreCase)))
+            {
+                threadNumber = _selectedChatNumber;
+            }
+
+            var contact = _contactStore.FindByNumber(_contacts, threadNumber)
+                ?? _contactStore.FindByNumber(_contacts, conversationId);
+            var senderName = contact?.Name ?? (string.IsNullOrWhiteSpace(senderId) ? threadNumber : senderId);
+
+            await AddChatMessage("Inbound", senderName, threadNumber, displayMessage, "Received");
+            FooterStatusText.Text = $"Chat message received from {senderName}.";
+            RefreshChatThread();
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"Chat message handle error: {ex.Message}");
+        }
     }
 
     private static bool MessageBelongsToThread(ChatMessageEntry message, string destination)
@@ -4538,21 +4625,12 @@ del ""%~f0""
             Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString(_line1.IsHeld ? "#D97706" : "#059669")!;
             Line1DetailText.Text = string.IsNullOrWhiteSpace(_line1.RemoteName) ? _line1.RemoteNumber : $"{_line1.RemoteName} ({_line1.RemoteNumber})";
 
-            // In-call buttons: high quality icons with tooltips
-            Line1HoldResumeButton.Content = _line1.IsHeld ? "\uE768" : "\uE769";
-            Line1HoldResumeButton.ToolTip = _line1.IsHeld ? "Resume Call" : "Hold Call";
-            Line1MuteButton.Content = _muted ? "\uE74F" : "\uE720";
-            Line1MuteButton.Foreground = _muted ? (WpfBrush)new BrushConverter().ConvertFromString("#EF4444")! : (WpfBrush)new BrushConverter().ConvertFromString("#1E293B")!;
-            Line1MuteButton.ToolTip = _muted ? "Unmute Microphone" : "Mute Microphone";
-            Line1RecordButton.Content = _sipRegistrationService.IsRecording ? "\uE71A" : "\uE7C8";
-            Line1RecordButton.Foreground = _sipRegistrationService.IsRecording ? (WpfBrush)new BrushConverter().ConvertFromString("#EF4444")! : (WpfBrush)new BrushConverter().ConvertFromString("#1E293B")!;
-            Line1RecordButton.ToolTip = _sipRegistrationService.IsRecording ? "Stop Recording" : "Record Call";
-            Line1TransferButton.Content = "\uE72A";
-            Line1TransferButton.ToolTip = "Transfer Call";
-            Line1ConferenceButton.Content = "\uE716";
-            Line1ConferenceButton.ToolTip = "Conference Calls";
-            Line1HangupButton.Content = "\uE778";
-            Line1HangupButton.ToolTip = "End Call";
+            SetLineIconButton(Line1HoldResumeButton, _line1.IsHeld ? ResumeIcon : HoldIcon, _line1.IsHeld ? "Resume Call" : "Hold Call");
+            SetLineIconButton(Line1MuteButton, _muted ? MutedMicIcon : MicIcon, _muted ? "Unmute Microphone" : "Mute Microphone", _muted ? "#EF4444" : "#1E293B");
+            SetLineIconButton(Line1RecordButton, _sipRegistrationService.IsRecording ? "\uE73B" : RecordIcon, _sipRegistrationService.IsRecording ? "Stop Recording" : "Record Call", _sipRegistrationService.IsRecording ? "#EF4444" : "#1E293B");
+            SetLineIconButton(Line1TransferButton, TransferIcon, "Transfer Call");
+            SetLineIconButton(Line1ConferenceButton, ConferenceIcon, "Conference Calls");
+            SetLineIconButton(Line1HangupButton, HangupIcon, "End Call");
         }
         else if (_line1.Status == "Calling")
         {
@@ -4567,9 +4645,12 @@ del ""%~f0""
             Line1StatusText.Text = "Calling...";
             Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#2563EB")!;
             Line1DetailText.Text = string.IsNullOrWhiteSpace(_line1.RemoteName) ? _line1.RemoteNumber : $"{_line1.RemoteName} ({_line1.RemoteNumber})";
-            Line1HoldResumeButton.Content = "\uE769";
-            Line1MuteButton.Content = "\uE720";
-            Line1RecordButton.Content = "\uE7C8";
+            SetLineIconButton(Line1HoldResumeButton, HoldIcon, "Hold Call");
+            SetLineIconButton(Line1MuteButton, MicIcon, "Mute Microphone", "#1E293B");
+            SetLineIconButton(Line1RecordButton, RecordIcon, "Record Call", "#1E293B");
+            SetLineIconButton(Line1TransferButton, TransferIcon, "Transfer Call");
+            SetLineIconButton(Line1ConferenceButton, ConferenceIcon, "Conference Calls");
+            SetLineIconButton(Line1HangupButton, HangupIcon, "End Call");
         }
         else if (_line1.Status == "Incoming")
         {
@@ -4660,21 +4741,12 @@ del ""%~f0""
                 Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString(_line2.IsHeld ? "#D97706" : "#059669")!;
                 Line2DetailText.Text = string.IsNullOrWhiteSpace(_line2.RemoteName) ? _line2.RemoteNumber : $"{_line2.RemoteName} ({_line2.RemoteNumber})";
 
-                // In-call buttons: high quality icons with tooltips
-                Line2HoldResumeButton.Content = _line2.IsHeld ? "\uE768" : "\uE769";
-                Line2HoldResumeButton.ToolTip = _line2.IsHeld ? "Resume Call" : "Hold Call";
-                Line2MuteButton.Content = _muted ? "\uE74F" : "\uE720";
-                Line2MuteButton.Foreground = _muted ? (WpfBrush)new BrushConverter().ConvertFromString("#EF4444")! : (WpfBrush)new BrushConverter().ConvertFromString("#1E293B")!;
-                Line2MuteButton.ToolTip = _muted ? "Unmute Microphone" : "Mute Microphone";
-                Line2RecordButton.Content = _sipRegistrationService.IsRecording ? "\uE71A" : "\uE7C8";
-                Line2RecordButton.Foreground = _sipRegistrationService.IsRecording ? (WpfBrush)new BrushConverter().ConvertFromString("#EF4444")! : (WpfBrush)new BrushConverter().ConvertFromString("#1E293B")!;
-                Line2RecordButton.ToolTip = _sipRegistrationService.IsRecording ? "Stop Recording" : "Record Call";
-                Line2TransferButton.Content = "\uE72A";
-                Line2TransferButton.ToolTip = "Transfer Call";
-                Line2ConferenceButton.Content = "\uE716";
-                Line2ConferenceButton.ToolTip = "Conference Calls";
-                Line2HangupButton.Content = "\uE778";
-                Line2HangupButton.ToolTip = "End Call";
+                SetLineIconButton(Line2HoldResumeButton, _line2.IsHeld ? ResumeIcon : HoldIcon, _line2.IsHeld ? "Resume Call" : "Hold Call");
+                SetLineIconButton(Line2MuteButton, _muted ? MutedMicIcon : MicIcon, _muted ? "Unmute Microphone" : "Mute Microphone", _muted ? "#EF4444" : "#1E293B");
+                SetLineIconButton(Line2RecordButton, _sipRegistrationService.IsRecording ? "\uE73B" : RecordIcon, _sipRegistrationService.IsRecording ? "Stop Recording" : "Record Call", _sipRegistrationService.IsRecording ? "#EF4444" : "#1E293B");
+                SetLineIconButton(Line2TransferButton, TransferIcon, "Transfer Call");
+                SetLineIconButton(Line2ConferenceButton, ConferenceIcon, "Conference Calls");
+                SetLineIconButton(Line2HangupButton, HangupIcon, "End Call");
             }
             else if (_line2.Status == "Calling")
             {
@@ -4690,9 +4762,12 @@ del ""%~f0""
                 Line2StatusText.Text = "Calling...";
                 Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#2563EB")!;
                 Line2DetailText.Text = string.IsNullOrWhiteSpace(_line2.RemoteName) ? _line2.RemoteNumber : $"{_line2.RemoteName} ({_line2.RemoteNumber})";
-                Line2HoldResumeButton.Content = "\uE769";
-                Line2MuteButton.Content = "\uE720";
-                Line2RecordButton.Content = "\uE7C8";
+                SetLineIconButton(Line2HoldResumeButton, HoldIcon, "Hold Call");
+                SetLineIconButton(Line2MuteButton, MicIcon, "Mute Microphone", "#1E293B");
+                SetLineIconButton(Line2RecordButton, RecordIcon, "Record Call", "#1E293B");
+                SetLineIconButton(Line2TransferButton, TransferIcon, "Transfer Call");
+                SetLineIconButton(Line2ConferenceButton, ConferenceIcon, "Conference Calls");
+                SetLineIconButton(Line2HangupButton, HangupIcon, "End Call");
             }
             else if (_line2.Status == "Failed")
             {
@@ -4857,6 +4932,7 @@ del ""%~f0""
 
     private async void Line1HangupButton_Click(object sender, RoutedEventArgs e)
     {
+        CloseVideoCallWindow();
         _line1.Status = "Idle";
         _line1.RemoteNumber = "";
         _line1.RemoteName = "";
@@ -4882,6 +4958,7 @@ del ""%~f0""
 
     private async void Line2HangupButton_Click(object sender, RoutedEventArgs e)
     {
+        CloseVideoCallWindow();
         _line2.Status = "Idle";
         _line2.RemoteNumber = "";
         _line2.RemoteName = "";
@@ -5256,24 +5333,82 @@ del ""%~f0""
 
         var contact = _contactStore.FindByNumber(_contacts, _activeRemoteNumber);
         var name = contact?.Name ?? _activeRemoteNumber;
-        _videoCallWindow = new VideoCallWindow(name, _activeRemoteNumber, _sipRegistrationService.VideoSession);
-        _videoCallWindow.EndCallRequested += (s, e) =>
+        var window = new VideoCallWindow(name, _activeRemoteNumber, _sipRegistrationService.VideoSession);
+        window.SyncMicrophone(_muted);
+        window.EndCallRequested += (_, _) =>
         {
             Dispatcher.InvokeAsync(async () =>
             {
-                await _sipRegistrationService.EndCallAsync();
-                await OnCallFinished("Ended", "Video call ended.");
+                var result = await _sipRegistrationService.EndCallAsync();
+                FooterStatusText.Text = result.Message;
+                await OnCallFinished("Ended", string.IsNullOrWhiteSpace(result.Message) ? "Video call ended." : result.Message);
             });
         };
-        _videoCallWindow.MuteMicRequested += (s, muted) =>
+        window.MuteMicRequested += (_, muted) =>
+        {
+            Dispatcher.InvokeAsync(() => ApplyMicrophoneMuted(muted));
+        };
+        window.ToggleCameraRequested += (_, muted) =>
         {
             Dispatcher.InvokeAsync(() =>
             {
-                if (_selectedLine == 1) Line1MuteButton_Click(this, new RoutedEventArgs());
-                else Line2MuteButton_Click(this, new RoutedEventArgs());
+                _sipRegistrationService.SetVideoMuted(muted);
+                FooterStatusText.Text = muted ? "Camera off." : "Camera on.";
             });
         };
-        _videoCallWindow.Show();
+        window.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_videoCallWindow, window))
+            {
+                _videoCallWindow = null;
+            }
+        };
+        _videoCallWindow = window;
+        window.Show();
+    }
+
+    private void ApplyMicrophoneMuted(bool muted)
+    {
+        if (!_sipRegistrationService.CanControlAudio)
+        {
+            FooterStatusText.Text = "Connect a call before muting.";
+            _videoCallWindow?.SyncMicrophone(_muted);
+            return;
+        }
+
+        if (_muted == muted)
+        {
+            UpdateLineAppearances();
+            return;
+        }
+
+        _muted = muted;
+        _sipRegistrationService.SetMuted(_muted);
+        UpdateInCallButtonIcons();
+        UpdateLineAppearances();
+        FooterStatusText.Text = _muted ? "Microphone muted." : "Microphone unmuted.";
+    }
+
+    private void CloseVideoCallWindow()
+    {
+        _currentCallIsVideo = false;
+        Line1VideoBadge.Visibility = Visibility.Collapsed;
+        Line2VideoBadge.Visibility = Visibility.Collapsed;
+        var window = _videoCallWindow;
+        _videoCallWindow = null;
+        if (window == null)
+        {
+            return;
+        }
+
+        try
+        {
+            window.Close();
+        }
+        catch
+        {
+            // Window may already be closing from the end-call button.
+        }
     }
 
     private void CallbackContactButton_Click(object sender, RoutedEventArgs e)

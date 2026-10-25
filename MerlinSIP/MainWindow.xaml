@@ -187,8 +187,9 @@
                 <Style x:Key="LineActionButton" TargetType="Button">
             <Setter Property="Height" Value="32" />
             <Setter Property="MinHeight" Value="30" />
-            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
-            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="Normal" />
             <Setter Property="Foreground" Value="#1E293B" />
             <Setter Property="Background" Value="#FFFFFF" />
             <Setter Property="BorderBrush" Value="#CBD5E1" />
@@ -309,9 +310,9 @@
         </Style>
 
         <Style x:Key="IconSoftButton" TargetType="Button" BasedOn="{StaticResource SoftButton}">
-            <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
-            <Setter Property="FontSize" Value="21" />
-            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="Normal" />
         </Style>
 
                 <Style x:Key="MerlinBetaNavButton" TargetType="Button">
@@ -1016,13 +1017,25 @@
                                                 </DockPanel>
 
                                                 <!-- Line 1 In-Call Controls Row (High-Quality Segoe Icons) -->
-                                                <UniformGrid x:Name="Line1ActionRow" Columns="6" Height="32" Margin="0,8,0,2" Visibility="Collapsed" TextElement.FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" TextElement.FontSize="14">
-                                                    <Button x:Name="Line1HoldResumeButton" Content="&#xE769;" Style="{StaticResource LineIconActionButton}" Click="Line1HoldResumeButton_Click" ToolTip="Hold Call" />
-                                                    <Button x:Name="Line1MuteButton" Content="&#xE720;" Style="{StaticResource LineIconActionButton}" Click="Line1MuteButton_Click" ToolTip="Mute Microphone" />
-                                                    <Button x:Name="Line1TransferButton" Content="&#xE72A;" Style="{StaticResource LineIconActionButton}" Click="Line1TransferButton_Click" ToolTip="Transfer Call" />
-                                                    <Button x:Name="Line1ConferenceButton" Content="&#xE716;" Style="{StaticResource LineIconActionButton}" Click="Line1ConferenceButton_Click" ToolTip="Conference Calls" />
-                                                    <Button x:Name="Line1RecordButton" Content="&#xE7C8;" Style="{StaticResource LineIconActionButton}" Click="Line1RecordButton_Click" ToolTip="Record Call" />
-                                                    <Button x:Name="Line1HangupButton" Content="&#xE778;" Style="{StaticResource LineDangerIconActionButton}" Click="Line1HangupButton_Click" ToolTip="End Call" />
+                                                <UniformGrid x:Name="Line1ActionRow" Columns="6" Height="32" Margin="0,8,0,2" Visibility="Collapsed">
+                                                    <Button x:Name="Line1HoldResumeButton" Style="{StaticResource LineIconActionButton}" Click="Line1HoldResumeButton_Click" ToolTip="Hold Call">
+                                                        <TextBlock Text="&#xE769;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#1E293B" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Button>
+                                                    <Button x:Name="Line1MuteButton" Style="{StaticResource LineIconActionButton}" Click="Line1MuteButton_Click" ToolTip="Mute Microphone">
+                                                        <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#1E293B" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Button>
+                                                    <Button x:Name="Line1TransferButton" Style="{StaticResource LineIconActionButton}" Click="Line1TransferButton_Click" ToolTip="Transfer Call">
+                                                        <TextBlock Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#1E293B" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Button>
+                                                    <Button x:Name="Line1ConferenceButton" Style="{StaticResource LineIconActionButton}" Click="Line1ConferenceButton_Click" ToolTip="Conference Calls">
+                                                        <TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#1E293B" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Button>
+                                                    <Button x:Name="Line1RecordButton" Style="{StaticResource LineIconActionButton}" Click="Line1RecordButton_Click" ToolTip="Record Call">
+                                                        <TextBlock Text="&#xE7C8;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#1E293B" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Button>
+                                                    <Button x:Name="Line1HangupButton" Style="{StaticResource LineDangerIconActionButton}" Click="Line1HangupButton_Click" ToolTip="End Call">
+                                                        <TextBlock Text="&#xE778;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Button>
                                                 </UniformGrid>
                                             </StackPanel>
                                         </Border>
@@ -1070,26 +1083,38 @@
                                                 </DockPanel>
 
                                                 <!-- Line 2 Connected In-Call Controls Row (High-Quality Segoe Icons) -->
-                                                <UniformGrid x:Name="Line2ActionRow" Columns="6" Height="32" Margin="0,8,0,2" Visibility="Collapsed" TextElement.FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" TextElement.FontSize="14">
-                                                    <Button x:Name="Line2HoldResumeButton" Content="&#xE769;" Style="{StaticResource LineIconActionButton}" Click="Line2HoldResumeButton_Click" ToolTip="Hold Call" />
-                                                    <Button x:Name="Line2MuteButton" Content="&#xE720;" Style="{StaticResource LineIconActionButton}" Click="Line2MuteButton_Click" ToolTip="Mute Microphone" />
-                                                    <Button x:Name="Line2TransferButton" Content="&#xE72A;" Style="{StaticResource LineIconActionButton}" Click="Line2TransferButton_Click" ToolTip="Transfer Call" />
-                                                    <Button x:Name="Line2ConferenceButton" Content="&#xE716;" Style="{StaticResource LineIconActionButton}" Click="Line2ConferenceButton_Click" ToolTip="Conference Calls" />
-                                                    <Button x:Name="Line2RecordButton" Content="&#xE7C8;" Style="{StaticResource LineIconActionButton}" Click="Line2RecordButton_Click" ToolTip="Record Call" />
-                                                    <Button x:Name="Line2HangupButton" Content="&#xE778;" Style="{StaticResource LineDangerIconActionButton}" Click="Line2HangupButton_Click" ToolTip="End Call" />
+                                                <UniformGrid x:Name="Line2ActionRow" Columns="6" Height="32" Margin="0,8,0,2" Visibility="Collapsed">
+                                                    <Button x:Name="Line2HoldResumeButton" Style="{StaticResource LineIconActionButton}" Click="Line2HoldResumeButton_Click" ToolTip="Hold Call">
+                                                        <TextBlock Text="&#xE769;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#1E293B" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Button>
+                                                    <Button x:Name="Line2MuteButton" Style="{StaticResource LineIconActionButton}" Click="Line2MuteButton_Click" ToolTip="Mute Microphone">
+                                                        <TextBlock Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#1E293B" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Button>
+                                                    <Button x:Name="Line2TransferButton" Style="{StaticResource LineIconActionButton}" Click="Line2TransferButton_Click" ToolTip="Transfer Call">
+                                                        <TextBlock Text="&#xE72A;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#1E293B" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Button>
+                                                    <Button x:Name="Line2ConferenceButton" Style="{StaticResource LineIconActionButton}" Click="Line2ConferenceButton_Click" ToolTip="Conference Calls">
+                                                        <TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#1E293B" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Button>
+                                                    <Button x:Name="Line2RecordButton" Style="{StaticResource LineIconActionButton}" Click="Line2RecordButton_Click" ToolTip="Record Call">
+                                                        <TextBlock Text="&#xE7C8;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#1E293B" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Button>
+                                                    <Button x:Name="Line2HangupButton" Style="{StaticResource LineDangerIconActionButton}" Click="Line2HangupButton_Click" ToolTip="End Call">
+                                                        <TextBlock Text="&#xE778;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Button>
                                                 </UniformGrid>
 
                                                 <!-- Line 2 Incoming Call Actions (Answer / Decline) -->
                                                 <UniformGrid x:Name="Line2IncomingActionRow" Columns="2" Height="32" Margin="0,8,0,2" Visibility="Collapsed">
                                                     <Button x:Name="Line2AnswerButton" Style="{StaticResource LineSuccessIconActionButton}" Click="Line2AnswerButton_Click" ToolTip="Answer Incoming Call">
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                            <TextBlock Text="&#xE717;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                            <TextBlock Text="&#xE717;" FontFamily="Segoe MDL2 Assets" FontSize="13" FontWeight="Normal" Margin="0,0,6,0" VerticalAlignment="Center" />
                                                             <TextBlock Text="Answer" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" />
                                                         </StackPanel>
                                                     </Button>
                                                     <Button x:Name="Line2DeclineButton" Style="{StaticResource LineDangerIconActionButton}" Click="Line2DeclineButton_Click" ToolTip="Decline Incoming Call">
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                            <TextBlock Text="&#xE778;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                            <TextBlock Text="&#xE778;" FontFamily="Segoe MDL2 Assets" FontSize="13" FontWeight="Normal" Margin="0,0,6,0" VerticalAlignment="Center" />
                                                             <TextBlock Text="Decline" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" />
                                                         </StackPanel>
                                                     </Button>
@@ -1265,8 +1290,11 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <Button x:Name="DialButton" Content="Dial" Style="{StaticResource SoftButton}" Height="42" Background="{StaticResource PrimaryBrush}" Foreground="#0F172A" FontWeight="Bold" Click="DialButton_Click" Margin="0,0,6,0" HorizontalAlignment="Stretch" AutomationProperties.Name="Dial" />
-                                    <Button Grid.Column="1" x:Name="VideoDialButton" Style="{StaticResource SoftButton}" Height="42" Width="48" Background="#F5F3FF" BorderBrush="#DDD6FE" Foreground="#7C3AED" FontWeight="Bold" Click="VideoDialButton_Click" ToolTip="Start Video Call (Yeastar SIP/WebRTC)" AutomationProperties.Name="Video Dial">
-                                        <TextBlock Text="&#xE714;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Foreground="#7C3AED" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" x:Name="VideoDialButton" Style="{StaticResource SoftButton}" Height="42" MinWidth="118" Padding="14,0" Background="#EEF2FF" BorderBrush="#C7D2FE" Foreground="#312E81" FontWeight="Bold" Click="VideoDialButton_Click" ToolTip="Start Video Call (Yeastar SIP/WebRTC)" AutomationProperties.Name="Video Dial">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#4338CA" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <TextBlock Text="Video" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13" FontWeight="Bold" Foreground="#312E81" VerticalAlignment="Center" />
+                                        </StackPanel>
                                     </Button>
                                     <Button x:Name="HangupButton" Visibility="Collapsed" Width="0" Height="0" />
                                 </Grid>

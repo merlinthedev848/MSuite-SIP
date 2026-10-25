@@ -13,8 +13,9 @@ public class ChatConnectorService : IDisposable
 {
     private SocketIO? _socketClient;
     private readonly string _serverUrl = "https://handler.chriskendall.media";
-    private readonly string _token = "oBupPHDSTSuiAKqUDcdmwd7zIIUPjhjKacfmTe7aZG8>";
+    private readonly string _token = "UClDFZpFu1gj7I8oGmKVsOvzGTqSFwq3jpcgLoC2ApmkyZTjpq1ftIZmJ5EMoshE";
     private readonly HttpClient _httpClient;
+    private readonly SemaphoreSlim _connectLock = new(1, 1);
     private bool _disposed;
 
     public string ServerUrl => _serverUrl;
@@ -32,10 +33,14 @@ public class ChatConnectorService : IDisposable
 
     public async Task ConnectAsync()
     {
-        if (_socketClient != null && _socketClient.Connected) return;
+        if (_socketClient is { Connected: true }) return;
 
+        await _connectLock.WaitAsync();
         try
         {
+            if (_socketClient is { Connected: true }) return;
+
+            var previous = _socketClient;
             _socketClient = new SocketIO(new Uri(_serverUrl), new SocketIOOptions
             {
                 Auth = new Dictionary<string, string>
@@ -110,10 +115,15 @@ public class ChatConnectorService : IDisposable
             };
 
             await _socketClient.ConnectAsync();
+            previous?.Dispose();
         }
         catch (Exception ex)
         {
             DebugLog.Write($"ChatConnectorService ConnectAsync error: {ex.Message}");
+        }
+        finally
+        {
+            _connectLock.Release();
         }
     }
 
@@ -229,6 +239,7 @@ public class ChatConnectorService : IDisposable
         }
         catch { }
         _httpClient.Dispose();
+        _connectLock.Dispose();
     }
 }
 
