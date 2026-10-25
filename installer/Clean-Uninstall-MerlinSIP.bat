@@ -33,7 +33,7 @@ if exist "C:\Program Files\CK Media Services\Merlin SIP" (
 echo.
 echo ========================================================
 echo   Cleanup completed successfully!
-echo   You can now run MerlinSIP-1.3.2-x64-faststart.msi
+echo   You can now run MerlinSIP-1.3.5-x64-faststart.msi
 echo ========================================================
 echo.
 pause

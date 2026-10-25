@@ -628,7 +628,19 @@ public partial class MainWindow : Window
         {
             var (loss, jitter, latency, signalBars, qualityText) = _sipRegistrationService.GetCallQualityStats();
             var mos = VoipTools.CalculateMosScore(latency, jitter, loss);
-            if (mos < 1.0) mos = 4.35;
+            if (!_config.ShowCallStatistics)
+            {
+                CallQualityPill.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            if (mos < 1.0)
+            {
+                CallQualityPill.Visibility = Visibility.Visible;
+                CallQualityPill.ToolTip = "Measuring call quality...";
+                return;
+            }
+
             var level = mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
 
             CallQualityPill.Visibility = Visibility.Visible;
@@ -915,7 +927,7 @@ public partial class MainWindow : Window
                     await Task.Delay(1200);
                     await Dispatcher.InvokeAsync(async () =>
                     {
-                        if (_callInProgress || _incomingCallWindow != null)
+                        if (_incomingRinging && !_callConnected)
                         {
                             IncomingCallWindow_AnswerRequested(this, EventArgs.Empty);
                         }
@@ -1762,55 +1774,7 @@ public partial class MainWindow : Window
         var loadedCalls = await _callHistoryStore.LoadAsync();
         foreach (var call in loadedCalls)
         {
-            var entry = call.MosScore <= 0 
-                ? call with { MosScore = 4.4, QualityLevel = "Excellent", RFactor = 92.5 }
-                : call;
-            _callHistory.Add(entry);
-        }
-
-        if (_callHistory.Count == 0)
-        {
-            var sample1 = new CallHistoryEntry
-            {
-                Direction = "Outbound",
-                Name = "PBX Echo & Line Quality Test",
-                Number = "100",
-                StartedAt = DateTimeOffset.Now.AddHours(-1).ToString("yyyy-MM-dd HH:mm:ss"),
-                EndedAt = DateTimeOffset.Now.AddHours(-1).AddSeconds(48).ToString("yyyy-MM-dd HH:mm:ss"),
-                Duration = "00:48",
-                Result = "Connected",
-                Detail = "Line quality test completed.",
-                MosScore = 4.4,
-                QualityLevel = "Excellent",
-                PacketLossPercent = 0.0,
-                JitterMs = 1.8,
-                LatencyMs = 22.0,
-                SignalBars = 5,
-                RFactor = 92.5,
-                Codec = "PCMU (G.711u)"
-            };
-            var sample2 = new CallHistoryEntry
-            {
-                Direction = "Inbound",
-                Name = "Voicemail Audio Diagnostic",
-                Number = "*97",
-                StartedAt = DateTimeOffset.Now.AddHours(-3).ToString("yyyy-MM-dd HH:mm:ss"),
-                EndedAt = DateTimeOffset.Now.AddHours(-3).AddMinutes(1).AddSeconds(15).ToString("yyyy-MM-dd HH:mm:ss"),
-                Duration = "01:15",
-                Result = "Answered",
-                Detail = "Voicemail greeting played.",
-                MosScore = 4.3,
-                QualityLevel = "Excellent",
-                PacketLossPercent = 0.0,
-                JitterMs = 2.1,
-                LatencyMs = 24.0,
-                SignalBars = 5,
-                RFactor = 91.8,
-                Codec = "PCMU (G.711u)"
-            };
-            _callHistory.Add(sample1);
-            _callHistory.Add(sample2);
-            _ = _callHistoryStore.SaveAsync(_callHistory);
+            _callHistory.Add(call);
         }
 
         var lastOutbound = _callHistory.FirstOrDefault(c => string.Equals(c.Direction, "Outbound", StringComparison.OrdinalIgnoreCase));
@@ -3616,6 +3580,7 @@ public partial class MainWindow : Window
                 Password = _passwordRevealed ? PasswordTextBox.Text : PasswordBox.Password,
                 AudioInput = audioInput,
                 AudioOutput = audioOutput,
+                SecondaryRingerOutput = SecondaryRingerComboBox.SelectedItem as MediaDeviceInfo ?? _config.SecondaryRingerOutput,
                 VideoSource = videoSource,
                 Ringtone = ringtone?.Id ?? _config.Ringtone,
                 MicrophoneVolume = Math.Clamp(MicrophoneVolumeSlider.Value / 100, 0.25, 2.0),
@@ -3995,7 +3960,6 @@ del ""%~f0""
         var activeCall = _callInProgress || _incomingRinging || _callConnected;
 
         DialButton.Visibility = Visibility.Visible;
-        DialButton.IsEnabled = !_licenseLocked && _registered;
         HangupButton.Visibility = Visibility.Collapsed;
 
         // In-call options are all on the Line cards; dialer actions stay accessible at the bottom

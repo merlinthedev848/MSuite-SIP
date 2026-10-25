@@ -37,7 +37,7 @@ public sealed class AudioFrameQueue
 		{
 			return new short[sampleCount];
 		}
-		return SharedSilenceFrame;
+		return (short[])SharedSilenceFrame.Clone();
 	}
 
 	public short[] DequeueOrSilence(int sampleCount)

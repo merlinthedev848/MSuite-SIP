@@ -1568,7 +1568,7 @@
     const favList = $('favoritesList');
 
     const html = state.contacts.length > 0 ? state.contacts.map(c => 
-      `<div class="contact-card ${state.selectedContactId === c.id ? 'active' : ''}" data-id="${c.id}">
+      `<div class="contact-card ${state.selectedContactId === c.id ? 'active' : ''}" data-id="${escapeHtml(c.id)}">
         <div class="contact-avatar ${c.presence || 'online'}">${c.name.charAt(0).toUpperCase()}</div>
         <div class="contact-info">
           <strong>${escapeHtml(c.name)}</strong>

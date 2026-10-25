@@ -1327,7 +1327,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                     _pendingIncomingCall.LocalTag);
                 DebugLog.Write($"SEND INCOMING REJECT (480) callId={_pendingIncomingCall.CallId}");
             }
-            else if (!string.IsNullOrWhiteSpace(mobileNumber) && (declineAction.Contains("Mobile", StringComparison.OrdinalIgnoreCase) || declineAction.Contains("302", StringComparison.OrdinalIgnoreCase) || declineAction.Equals("Send busy", StringComparison.OrdinalIgnoreCase)))
+            else if (!string.IsNullOrWhiteSpace(mobileNumber) && (declineAction.Contains("Mobile", StringComparison.OrdinalIgnoreCase) || declineAction.Contains("302", StringComparison.OrdinalIgnoreCase)))
             {
                 var targetUri = $"sip:{mobileNumber}@{_domain}";
                 await SendSimpleResponseAsync(

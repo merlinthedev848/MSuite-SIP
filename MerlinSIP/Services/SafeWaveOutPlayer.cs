@@ -74,7 +74,13 @@ public sealed class SafeWaveOutPlayer : IDisposable
         Marshal.StructureToPtr(header, headerPtr, false);
 
         int writeResult = WinMm.waveOutWrite(_hWaveOut, headerPtr, Marshal.SizeOf<WaveHeader>());
-        return writeResult == 0;
+        if (writeResult != 0)
+        {
+            _freeBufferIndexes.Enqueue(bufferIndex);
+            return false;
+        }
+
+        return true;
     }
 
     private volatile bool _isClosing;

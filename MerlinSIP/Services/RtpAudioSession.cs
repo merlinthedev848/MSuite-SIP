@@ -783,7 +783,7 @@ public sealed class RtpAudioSession : IDisposable
 
 	private void SendPrimaryFrame(short[] micFrame, short[] call2Frame)
 	{
-		if (!_running || _call1Held || _remoteEndPoint == null)
+		if (!_running || !_transmitMicrophone || _call1Held || _remoteEndPoint == null)
 		{
 			return;
 		}
@@ -809,7 +809,7 @@ public sealed class RtpAudioSession : IDisposable
 
 	private void SendSecondaryFrame(short[] micFrame, short[] call1Frame)
 	{
-		if (!_secondaryRunning || _call2Held || _secondaryRemoteEndPoint == null || _secondaryRtpClient == null)
+		if (!_transmitMicrophone || !_secondaryRunning || _call2Held || _secondaryRemoteEndPoint == null || _secondaryRtpClient == null)
 		{
 			return;
 		}
