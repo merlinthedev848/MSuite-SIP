@@ -3,53 +3,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
 
-$defaultContacts = [
-    [
-        'id' => 'c-100',
-        'name' => 'Reception Desk',
-        'number' => '100',
-        'company' => 'Head Office',
-        'notes' => 'Main front desk and operator line',
-        'favorite' => true,
-        'presence' => 'online',
-    ],
-    [
-        'id' => 'c-101',
-        'name' => 'Sales Department',
-        'number' => '101',
-        'company' => 'Commercial',
-        'notes' => 'Direct sales & inquiry line',
-        'favorite' => true,
-        'presence' => 'busy',
-    ],
-    [
-        'id' => 'c-150',
-        'name' => 'IT Support Hotdesk',
-        'number' => '150',
-        'company' => 'Technical Operations',
-        'notes' => 'Internal infrastructure and PBX support',
-        'favorite' => true,
-        'presence' => 'online',
-    ],
-    [
-        'id' => 'c-201',
-        'name' => 'Conference Room A',
-        'number' => '201',
-        'company' => 'Meeting Facilities',
-        'notes' => 'Polycom soundstation in Boardroom A',
-        'favorite' => false,
-        'presence' => 'offline',
-    ],
-    [
-        'id' => 'c-9',
-        'name' => 'Outbound Trunk',
-        'number' => '9',
-        'company' => 'SIP Gateway',
-        'notes' => 'Primary PSTN route prefix',
-        'favorite' => false,
-        'presence' => 'online',
-    ],
-];
+$defaultContacts = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $contacts = merlin_read_json('contacts.json', null);

@@ -22,7 +22,8 @@ public class CallQualityAndRingtoneTests
             PacketLossPercent = 0.0,
             JitterMs = 1.8,
             LatencyMs = 22.0,
-            RFactor = 92.5
+            RFactor = 92.5,
+            QualityMeasured = true
         };
 
         Assert.Equal("4.4 MOS", entry.MosDisplay);
@@ -30,6 +31,19 @@ public class CallQualityAndRingtoneTests
         Assert.Equal("#DEF7EC", entry.QualityBadgeBackground);
         Assert.Equal("#03543F", entry.QualityBadgeForeground);
         Assert.Equal(92.5, entry.RFactor);
+    }
+
+    [Fact]
+    public void CallHistoryEntry_WithoutMeasurement_DoesNotInventAScore()
+    {
+        var entry = new CallHistoryEntry { Name = "Alice Smith", Result = "Declined" };
+
+        Assert.False(entry.HasMeasuredQuality);
+        Assert.Equal(0, entry.MosScore);
+        Assert.Equal("Not measured", entry.MosDisplay);
+        Assert.Equal("Not measured", entry.QualitySummaryDisplay);
+        Assert.Equal("", entry.Codec);
+        Assert.Equal(0, entry.SignalBars);
     }
 
     [Fact]
@@ -68,15 +82,26 @@ public class CallQualityAndRingtoneTests
         thread.Join();
     }
 
-    [Fact]
-    public void SipRegistrationService_BuildDialogInfoXml_OffHook_GeneratesCorrectXml()
+    [Theory]
+    [InlineData("Busy")]
+    [InlineData("DND")]
+    [InlineData("Do Not Disturb")]
+    [InlineData("BusyHere")]
+    public void PresenceNote_BusyAndDnd_IsBusyHere(string status)
     {
-        var xml = SipRegistrationService.BuildDialogInfoXml("101", "pbx.example.com", true, "Phone is off the hook and cannot be contacted");
+        Assert.Equal("BusyHere", SipRegistrationService.PresenceNote(status));
+        Assert.True(SipRegistrationService.IsBusyOrDndPresence(status));
+    }
+
+    [Fact]
+    public void SipRegistrationService_BuildDialogInfoXml_OffHook_SendsBusyHere()
+    {
+        var xml = SipRegistrationService.BuildDialogInfoXml("101", "pbx.example.com", true, SipRegistrationService.BusyHereStatus);
         
         Assert.Contains("xmlns=\"urn:ietf:params:xml:ns:dialog-info\"", xml);
         Assert.Contains("entity=\"sip:101@pbx.example.com\"", xml);
         Assert.Contains("<state>confirmed</state>", xml);
-        Assert.Contains("<notes>Phone is off the hook and cannot be contacted</notes>", xml);
+        Assert.Contains("<notes>BusyHere</notes>", xml);
     }
 
     [Fact]

@@ -35,8 +35,8 @@ public sealed record ContactEntry
         "Busy" => "Busy",
         "DND" or "Do Not Disturb" => "DND",
         "Away" or "Appear Away" => "Away",
-        "Offline" => "",
-        _ => ""
+        "Offline" => "Offline",
+        _ => "Offline"
     };
 
     [JsonIgnore]
@@ -46,9 +46,9 @@ public sealed record ContactEntry
         "Away" or "Appear Away" => "#10B981",
         "DND" or "Do Not Disturb" => "#DC2626",
         "Busy" => "#EF4444",
-        "Ringing" => "#F59E0B",
-        "Offline" => "#00000000",
-        _ => "#00000000"
+        "Ringing" => "#EF4444",
+        "Offline" => "#94A3B8",
+        _ => "#94A3B8"
     };
 
     [JsonIgnore]
@@ -58,9 +58,9 @@ public sealed record ContactEntry
         "Away" or "Appear Away" => "#DFF8EE",
         "DND" or "Do Not Disturb" => "#FEE2E2",
         "Busy" => "#FEE2E2",
-        "Ringing" => "#FFF3D6",
-        "Offline" => "#00000000",
-        _ => "#00000000"
+        "Ringing" => "#FEE2E2",
+        "Offline" => "#F1F5F9",
+        _ => "#F1F5F9"
     };
 
     [JsonIgnore]
@@ -70,21 +70,29 @@ public sealed record ContactEntry
         "Away" or "Appear Away" => "#106247",
         "DND" or "Do Not Disturb" => "#9B1C1C",
         "Busy" => "#9B1C1C",
-        "Ringing" => "#8A4F08",
-        "Offline" => "#00000000",
-        _ => "#00000000"
+        "Ringing" => "#9B1C1C",
+        "Offline" => "#475569",
+        _ => "#475569"
     };
 
     [JsonIgnore]
     public string PresenceBorderBrush => Presence switch
     {
-        "Offline" => "#00000000",
+        "Offline" => "#64748B",
         _ => "#111317"
     };
 
     [JsonIgnore]
-    public bool IsPresenceVisible => !string.Equals(Presence, "Offline", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(Presence);
+    public bool IsPresenceVisible => !string.IsNullOrWhiteSpace(Presence);
 
     [JsonIgnore]
     public System.Windows.Visibility PresenceVisibility => IsPresenceVisible ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+
+    public const string DirectedPickupPrefix = "*04";
+
+    [JsonIgnore]
+    public string BlfDialNumber => Presence == "Ringing" ? DirectedPickupPrefix + Number : Number;
+
+    [JsonIgnore]
+    public string CallToolTip => Presence == "Ringing" ? "Pick up ringing call" : "Call contact";
 }

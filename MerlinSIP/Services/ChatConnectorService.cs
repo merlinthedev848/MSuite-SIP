@@ -11,11 +11,6 @@ namespace MerlinSip.Services;
 
 public class ChatConnectorService : IDisposable
 {
-    private static readonly JsonSerializerOptions PayloadJson = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
     private SocketIO? _socketClient;
     private readonly string _serverUrl = "https://handler.chriskendall.media";
     private readonly string _token = "UClDFZpFu1gj7I8oGmKVsOvzGTqSFwq3jpcgLoC2ApmkyZTjpq1ftIZmJ5EMoshE";
@@ -161,7 +156,7 @@ public class ChatConnectorService : IDisposable
         }
     }
 
-    public async Task<ChatSendResult> SendMessageAsync(string conversationId, string senderId, string content, string messageType = "text", string? fileUrl = null)
+    public async Task<ChatSendResult> SendMessageAsync(string conversationId, string senderId, string content, string messageType = "text", string? fileName = null, long? fileSize = null)
     {
         if (string.IsNullOrWhiteSpace(conversationId) || string.IsNullOrWhiteSpace(content))
         {
@@ -183,19 +178,8 @@ public class ChatConnectorService : IDisposable
         _awaitingContent = content.Trim();
         try
         {
-            var payload = new Dictionary<string, string>
-            {
-                ["conversationId"] = conversationId,
-                ["senderId"] = senderId,
-                ["messageType"] = string.IsNullOrWhiteSpace(messageType) ? "text" : messageType,
-                ["content"] = content,
-                ["timestamp"] = DateTimeOffset.UtcNow.ToString("o")
-            };
-            if (!string.IsNullOrWhiteSpace(fileUrl))
-            {
-                payload["fileUrl"] = fileUrl;
-            }
-
+            var payload = CreateSendPayload(conversationId, senderId, content, messageType, fileName, fileSize);
+            DebugLog.Write($"ChatConnector send_message conv={payload.conversationId} type={payload.messageType} file={(payload.fileName is null ? "none" : payload.fileName)}");
             await _socketClient.EmitAsync("send_message", new object[] { payload });
             var completed = await Task.WhenAny(rejected.Task, delivered.Task, Task.Delay(TimeSpan.FromSeconds(2)));
             if (completed == rejected.Task)
@@ -211,7 +195,7 @@ public class ChatConnectorService : IDisposable
                 return ChatSendResult.Received();
             }
 
-            DebugLog.Write($"ChatConnector handler did not deliver conv={conversationId} type={payload["messageType"]}");
+            DebugLog.Write($"ChatConnector handler did not deliver conv={conversationId} type={payload.messageType}");
             return ChatSendResult.NotDelivered();
         }
         catch (Exception ex)
@@ -260,43 +244,51 @@ public class ChatConnectorService : IDisposable
         return "The chat handler rejected the message.";
     }
 
+    public static OutboundChatMessage CreateSendPayload(string conversationId, string senderId, string content, string messageType = "text", string? fileName = null, long? fileSize = null)
+    {
+        return new OutboundChatMessage
+        {
+            conversationId = conversationId.Trim(),
+            senderId = senderId?.Trim() ?? "",
+            messageType = string.IsNullOrWhiteSpace(messageType) ? "text" : messageType.Trim(),
+            content = content,
+            fileName = string.IsNullOrWhiteSpace(fileName) ? null : fileName.Trim(),
+            fileSize = string.IsNullOrWhiteSpace(fileName) ? null : fileSize
+        };
+    }
+
     private static bool TryReadMessage(dynamic response, out ChatMessagePayload? payload, out string raw)
     {
         raw = response.ToString() ?? string.Empty;
-        payload = null;
+        payload = ChatMessagePayload.TryParse(raw);
+        if (payload is not null)
+        {
+            return true;
+        }
+
         try
         {
-            payload = response.GetValue<ChatMessagePayload>(0);
+            var text = response.GetValue<string>(0);
+            raw = text ?? raw;
+            payload = ChatMessagePayload.TryParse(text);
         }
         catch
         {
             try
             {
-                var text = response.GetValue<string>(0);
-                raw = text ?? raw;
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    payload = JsonSerializer.Deserialize<ChatMessagePayload>(text, PayloadJson);
-                }
+                payload = response.GetValue<ChatMessagePayload>(0);
             }
             catch
             {
-                if (!string.IsNullOrWhiteSpace(raw))
-                {
-                    try
-                    {
-                        payload = JsonSerializer.Deserialize<ChatMessagePayload>(raw.Trim().TrimStart('[').TrimEnd(']'), PayloadJson);
-                    }
-                    catch
-                    {
-                        payload = null;
-                    }
-                }
+                payload = ChatMessagePayload.TryParse(raw.Trim().TrimStart('[').TrimEnd(']'));
             }
         }
 
         return payload is not null &&
-               (!string.IsNullOrWhiteSpace(payload.Content) || !string.IsNullOrWhiteSpace(payload.ConversationId) || !string.IsNullOrWhiteSpace(payload.FileUrl));
+               (!string.IsNullOrWhiteSpace(payload.Content) ||
+                !string.IsNullOrWhiteSpace(payload.ConversationId) ||
+                !string.IsNullOrWhiteSpace(payload.FileUrl) ||
+                !string.IsNullOrWhiteSpace(payload.FileName));
     }
 
     public async Task<ChatFileResult> UploadAndSendFileAsync(string filePath, string conversationId, string senderId)
@@ -397,13 +389,121 @@ public class ChatConnectorService : IDisposable
     }
 }
 
+public sealed class OutboundChatMessage
+{
+    public string conversationId { get; init; } = "";
+    public string senderId { get; init; } = "";
+    public string messageType { get; init; } = "text";
+    public string content { get; init; } = "";
+    public string? fileName { get; init; }
+    public long? fileSize { get; init; }
+}
+
 public sealed record ChatMessagePayload(
     string? ConversationId = null,
     string? SenderId = null,
     string? MessageType = null,
     string? Content = null,
     string? Timestamp = null,
-    string? FileUrl = null);
+    string? FileUrl = null,
+    string? FileName = null,
+    long? FileSize = null,
+    long? Id = null)
+{
+    public static ChatMessagePayload? TryParse(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                if (root.GetArrayLength() == 0)
+                {
+                    return null;
+                }
+
+                root = root[0];
+            }
+
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            var payload = new ChatMessagePayload(
+                ConversationId: ReadString(root, "conversation_id", "conversationId", "ConversationId"),
+                SenderId: ReadString(root, "sender_id", "senderId", "SenderId"),
+                MessageType: ReadString(root, "message_type", "messageType", "MessageType"),
+                Content: ReadString(root, "content", "Content"),
+                Timestamp: ReadString(root, "timestamp", "Timestamp"),
+                FileUrl: ReadString(root, "file_url", "fileUrl", "FileUrl"),
+                FileName: ReadString(root, "file_name", "fileName", "FileName"),
+                FileSize: ReadInt64(root, "file_size", "fileSize", "FileSize"),
+                Id: ReadInt64(root, "id", "Id"));
+
+            if (string.IsNullOrWhiteSpace(payload.Content) &&
+                string.IsNullOrWhiteSpace(payload.ConversationId) &&
+                string.IsNullOrWhiteSpace(payload.FileUrl) &&
+                string.IsNullOrWhiteSpace(payload.FileName))
+            {
+                return null;
+            }
+
+            return payload;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string? ReadString(JsonElement root, params string[] names)
+    {
+        if (!TryGet(root, names, out var value) || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        {
+            return null;
+        }
+
+        return value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
+    }
+
+    private static long? ReadInt64(JsonElement root, params string[] names)
+    {
+        if (!TryGet(root, names, out var value) || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number))
+        {
+            return number;
+        }
+
+        return value.ValueKind == JsonValueKind.String && long.TryParse(value.GetString(), out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static bool TryGet(JsonElement root, string[] names, out JsonElement value)
+    {
+        foreach (var name in names)
+        {
+            if (root.TryGetProperty(name, out value))
+            {
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+}
 
 public readonly record struct ChatSendResult(bool Accepted, string Detail, bool Delivered)
 {

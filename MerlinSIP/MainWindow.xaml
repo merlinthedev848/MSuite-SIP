@@ -309,6 +309,100 @@
             <Setter Property="FontSize" Value="13" />
         </Style>
 
+        <Style x:Key="QuietCallButton" TargetType="Button">
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TranslateTransform Y="0" />
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.04" Color="#0F172A" />
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"
+                                              TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                              TextElement.FontSize="{TemplateBinding FontSize}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#CBD5E1" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform Y="1" />
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.92" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryCallButton" TargetType="Button" BasedOn="{StaticResource QuietCallButton}">
+            <Setter Property="Background" Value="#FBBF24" />
+            <Setter Property="BorderBrush" Value="#F5C518" />
+            <Setter Property="Foreground" Value="#111827" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="6" ShadowDepth="1" Opacity="0.08" Color="#92400E" />
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"
+                                              TextElement.FontWeight="{TemplateBinding FontWeight}"
+                                              TextElement.FontSize="{TemplateBinding FontSize}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#F59E0B" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform Y="1" />
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="Chrome" Property="Background" Value="#D97706" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="IconSoftButton" TargetType="Button" BasedOn="{StaticResource SoftButton}">
             <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
             <Setter Property="FontSize" Value="18" />
@@ -550,6 +644,25 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="BlfLamp" TargetType="Ellipse">
+            <Setter Property="Width" Value="7" />
+            <Setter Property="Height" Value="7" />
+            <Setter Property="Fill" Value="{Binding PresenceBrush}" />
+            <Setter Property="Stroke" Value="{Binding PresenceBorderBrush}" />
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Presence}" Value="Ringing">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.15" Duration="0:0:0.45" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
 </Window.Resources>
 
     <Grid Background="{StaticResource AppBackdrop}">
@@ -613,7 +726,7 @@
                                TextAlignment="Center"
                                TextWrapping="Wrap" />
                     <TextBlock x:Name="AppVersionText"
-                               Text="v1.3.8"
+                               Text="v1.3.9"
                                Foreground="#64748B"
                                FontSize="9"
                                FontWeight="Medium"
@@ -1283,17 +1396,24 @@
                                     </Button>
                                 </UniformGrid>
 
-                                <!-- ROW 6: Dial -->
-                                <Grid Grid.Row="6" Margin="0,0,0,6">
+                                <!-- ROW 6: Dial, video, voicemail -->
+                                <Grid Grid.Row="6" Margin="3,0,3,8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="108" />
+                                        <ColumnDefinition Width="148" />
                                     </Grid.ColumnDefinitions>
-                                    <Button x:Name="DialButton" Content="Dial" Style="{StaticResource SoftButton}" Height="42" Background="{StaticResource PrimaryBrush}" Foreground="#0F172A" FontWeight="Bold" Click="DialButton_Click" Margin="0,0,6,0" HorizontalAlignment="Stretch" AutomationProperties.Name="Dial" />
-                                    <Button Grid.Column="1" x:Name="VideoDialButton" Style="{StaticResource SoftButton}" Height="42" MinWidth="118" Padding="14,0" Background="#EEF2FF" BorderBrush="#C7D2FE" Foreground="#312E81" FontWeight="Bold" Click="VideoDialButton_Click" ToolTip="Start Video Call (Yeastar SIP/WebRTC)" AutomationProperties.Name="Video Dial">
+                                    <Button x:Name="DialButton" Content="Dial" Style="{StaticResource PrimaryCallButton}" Click="DialButton_Click" Margin="0,0,6,0" HorizontalAlignment="Stretch" AutomationProperties.Name="Dial" />
+                                    <Button Grid.Column="1" x:Name="VideoDialButton" Style="{StaticResource QuietCallButton}" Click="VideoDialButton_Click" Margin="0,0,6,0" ToolTip="Start a video call" AutomationProperties.Name="Video Dial">
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" FontSize="16" FontWeight="Normal" Foreground="#4338CA" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                            <TextBlock Text="Video" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13" FontWeight="Bold" Foreground="#312E81" VerticalAlignment="Center" />
+                                            <TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#475569" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock Text="Video" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Grid.Column="2" x:Name="VoicemailButton" Style="{StaticResource QuietCallButton}" Click="VoicemailButton_Click" ToolTip="Check voicemail (*2)" AutomationProperties.Name="Voicemail">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="&#xE715;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#475569" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <TextBlock x:Name="VoicemailButtonText" Text="Voicemail" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
                                     </Button>
                                     <Button x:Name="HangupButton" Visibility="Collapsed" Width="0" Height="0" />
@@ -1309,12 +1429,29 @@
                                          <Button x:Name="TransferButton" Visibility="Collapsed" />
                                      </UniformGrid>
                                      <Grid x:Name="DialerQuickActionsGrid" Margin="0,-2,0,0">
-                                         <Button x:Name="VoicemailButton" Style="{StaticResource SoftButton}" Height="38" Margin="0,2,0,2" HorizontalAlignment="Stretch" Click="VoicemailButton_Click" ToolTip="Call Voicemail (*2)" AutomationProperties.Name="Voicemail">
-                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                 <TextBlock Text="&#xE715;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                 <TextBlock x:Name="VoicemailButtonText" Text="Voicemail" VerticalAlignment="Center" />
-                                             </StackPanel>
-                                         </Button>
+                                         <Grid.RowDefinitions>
+                                             <RowDefinition Height="Auto" />
+                                             <RowDefinition Height="Auto" />
+                                         </Grid.RowDefinitions>
+                                         <UniformGrid Columns="3" Margin="0,0,0,4">
+                                             <Button Style="{StaticResource SoftButton}" Height="34" Margin="0,0,4,0" Click="GroupPickupButton_Click" ToolTip="Pick up a ringing call in your group (*4)" AutomationProperties.Name="Group pickup">
+                                                 <TextBlock Text="Pickup" FontSize="11" />
+                                             </Button>
+                                             <Button Style="{StaticResource SoftButton}" Height="34" Margin="0,0,4,0" Click="ParkButton_Click" ToolTip="During a call, park it on the PBX (*6)" AutomationProperties.Name="Call park">
+                                                 <TextBlock Text="Park" FontSize="11" />
+                                             </Button>
+                                             <Button Style="{StaticResource SoftButton}" Height="34" Click="IntercomButton_Click" ToolTip="Intercom the extension in the box (*5)" AutomationProperties.Name="Intercom">
+                                                 <TextBlock Text="Intercom" FontSize="11" />
+                                             </Button>
+                                         </UniformGrid>
+                                         <UniformGrid Grid.Row="1" Columns="2">
+                                             <Button Style="{StaticResource SoftButton}" Height="34" Margin="0,0,4,0" Click="ForwardAllButton_Click" ToolTip="Forward all calls. An empty box forwards to voicemail (*71). A number forwards there." AutomationProperties.Name="Forward all calls">
+                                                 <TextBlock Text="Forward" FontSize="11" />
+                                             </Button>
+                                             <Button Style="{StaticResource SoftButton}" Height="34" Click="RedialLastButton_Click" ToolTip="Redial the last number you dialed" AutomationProperties.Name="Redial">
+                                                 <TextBlock Text="Redial" FontSize="11" />
+                                             </Button>
+                                         </UniformGrid>
                                      </Grid>
                                 </Grid>
                             </Grid>
@@ -1525,7 +1662,7 @@
                                                         <TextBlock Grid.Column="2" Text="{Binding Number}" Foreground="#D97706" FontWeight="SemiBold" Margin="8,10" TextTrimming="CharacterEllipsis" />
                                                         <Border Grid.Column="3" Background="{Binding PresenceBackground}" Visibility="{Binding PresenceVisibility}" CornerRadius="6" Padding="6,3" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                             <StackPanel Orientation="Horizontal">
-                                                                <Ellipse Width="7" Height="7" Fill="{Binding PresenceBrush}" Stroke="{Binding PresenceBorderBrush}" StrokeThickness="1" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                                                <Ellipse Style="{StaticResource BlfLamp}" Margin="0,0,5,0" />
                                                                 <TextBlock Text="{Binding PresenceLabel}" Foreground="{Binding PresenceForeground}" FontWeight="Medium" FontSize="12" />
                                                             </StackPanel>
                                                         </Border>
@@ -1556,7 +1693,7 @@
                                                                     Cursor="Hand"
                                                                     Width="26"
                                                                     Height="26"
-                                                                    ToolTip="Call contact">
+                                                                    ToolTip="{Binding CallToolTip}">
                                                                 <Button.Template>
                                                                     <ControlTemplate TargetType="Button">
                                                                         <Border x:Name="CbContactBdr" Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" CornerRadius="13">
@@ -1625,7 +1762,7 @@
                                                         <TextBlock Grid.Column="2" Text="{Binding Number}" Foreground="#D97706" FontWeight="SemiBold" Margin="8,10" TextTrimming="CharacterEllipsis" />
                                                         <Border Grid.Column="3" Background="{Binding PresenceBackground}" Visibility="{Binding PresenceVisibility}" CornerRadius="6" Padding="6,3" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                             <StackPanel Orientation="Horizontal">
-                                                                <Ellipse Width="7" Height="7" Fill="{Binding PresenceBrush}" Stroke="{Binding PresenceBorderBrush}" StrokeThickness="1" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                                                <Ellipse Style="{StaticResource BlfLamp}" Margin="0,0,5,0" />
                                                                 <TextBlock Text="{Binding PresenceLabel}" Foreground="{Binding PresenceForeground}" FontWeight="Medium" FontSize="12" />
                                                             </StackPanel>
                                                         </Border>
@@ -1728,7 +1865,7 @@
                                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Border Background="{Binding PresenceBackground}" Visibility="{Binding PresenceVisibility}" CornerRadius="6" Padding="7,4" VerticalAlignment="Center" Margin="0,0,10,0">
                                                         <StackPanel Orientation="Horizontal">
-                                                            <Ellipse Width="7" Height="7" Fill="{Binding PresenceBrush}" Stroke="{Binding PresenceBorderBrush}" StrokeThickness="1" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                            <Ellipse Style="{StaticResource BlfLamp}" Margin="0,0,6,0" />
                                                             <TextBlock Text="{Binding PresenceLabel}" Foreground="{Binding PresenceForeground}" FontWeight="Medium" />
                                                         </StackPanel>
                                                     </Border>
@@ -1769,7 +1906,7 @@
                                                             Width="28"
                                                             Height="28"
                                                             VerticalAlignment="Center"
-                                                            ToolTip="Call contact">
+                                                            ToolTip="{Binding CallToolTip}">
                                                         <Button.Template>
                                                             <ControlTemplate TargetType="Button">
                                                                 <Border x:Name="CbPbBorder"
@@ -2091,7 +2228,7 @@
                                                 <TextBlock Text="{Binding Name}" Foreground="#111827" FontWeight="SemiBold" Margin="10,8" TextTrimming="CharacterEllipsis" />
                                                 <Border Grid.Column="1" Background="{Binding PresenceBackground}" Visibility="{Binding PresenceVisibility}" CornerRadius="6" Padding="6,3" Margin="8" HorizontalAlignment="Left" VerticalAlignment="Center">
                                                     <StackPanel Orientation="Horizontal">
-                                                        <Ellipse Width="7" Height="7" Fill="{Binding PresenceBrush}" Stroke="{Binding PresenceBorderBrush}" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                                        <Ellipse Style="{StaticResource BlfLamp}" Margin="0,0,5,0" />
                                                         <TextBlock Text="{Binding Number}" Foreground="{Binding PresenceForeground}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
                                                     </StackPanel>
                                                 </Border>
@@ -2684,7 +2821,7 @@
                                                     <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0" Text="Version" Foreground="#64748B" Margin="0,0,0,8" />
-                                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AboutVersionText" Text="1.3.8" Foreground="#0F172A" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AboutVersionText" Text="1.3.9" Foreground="#0F172A" FontWeight="SemiBold" Margin="0,0,0,8" />
                                                 <TextBlock Grid.Row="1" Text="Product" Foreground="#64748B" Margin="0,0,0,8" />
                                                 <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ProductIdText" Text="merlin-sip" Foreground="#0F172A" Margin="0,0,0,8" />
                                                 <TextBlock Grid.Row="2" Text="Licensed to" Foreground="#64748B" Margin="0,0,0,8" />

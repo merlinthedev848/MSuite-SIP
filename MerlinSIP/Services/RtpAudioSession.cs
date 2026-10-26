@@ -192,6 +192,13 @@ public sealed class RtpAudioSession : IDisposable
 		}
 	}
 
+	public string NegotiatedCodec => _payloadType switch
+	{
+		0 => "PCMU",
+		8 => "PCMA",
+		_ => ""
+	};
+
 	public async Task StartAsync(string remoteAddress, int remotePort, int payloadType, bool transmitMicrophone = true)
 	{
 		if (_running)
@@ -391,30 +398,32 @@ public sealed class RtpAudioSession : IDisposable
 
 	public (double LossPercent, double JitterMs, double LatencyMs, int SignalBars, string QualityText) GetQualityStats()
 	{
-		long num = ReceivedPackets;
-		long num2 = Interlocked.Read(in _expectedPackets);
-		double jitterMs = Math.Round(_rfc3550Jitter / 8.0, 1);
-		if (jitterMs <= 0.0 && num > 0)
+		long received = ReceivedPackets;
+		long expected = Interlocked.Read(in _expectedPackets);
+		if (received <= 0)
 		{
-			jitterMs = 1.2;
+			return (LossPercent: 0.0, JitterMs: 0.0, LatencyMs: 0.0, SignalBars: 0, QualityText: "Not measured");
 		}
-		double latencyMs = _measuredLatencyMs > 0 ? Math.Round(_measuredLatencyMs, 1) : 18.0;
 
-		if (num2 <= 0 || num <= 0)
+		double jitterMs = Math.Round(_rfc3550Jitter / 8.0, 1);
+		double latencyMs = _measuredLatencyMs > 0 ? Math.Round(_measuredLatencyMs, 1) : 0.0;
+		double lossPercent = expected > 0
+			? Math.Clamp((double)(expected - received) * 100.0 / expected, 0.0, 100.0)
+			: 0.0;
+		int bars = lossPercent < 1.0 && jitterMs < 20.0 ? 5
+			: lossPercent < 3.0 && jitterMs < 40.0 ? 4
+			: lossPercent < 7.0 && jitterMs < 70.0 ? 3
+			: lossPercent < 15.0 ? 2
+			: 1;
+		var qualityText = bars switch
 		{
-			return (LossPercent: 0.0, JitterMs: 0.0, LatencyMs: latencyMs, SignalBars: 5, QualityText: "5/5 Excellent");
-		}
-		double num3 = Math.Clamp((double)(num2 - num) * 100.0 / (double)num2, 0.0, 100.0);
-		int num4 = ((num3 < 1.0 && jitterMs < 20.0) ? 5 : ((num3 < 3.0 && jitterMs < 40.0) ? 4 : ((num3 < 7.0 && jitterMs < 70.0) ? 3 : ((!(num3 < 15.0)) ? 1 : 2))));
-		int num5 = num4;
-		return (LossPercent: num3, JitterMs: jitterMs, LatencyMs: latencyMs, SignalBars: num5, QualityText: num5 switch
-		{
-			5 => "5/5 Excellent", 
-			4 => "4/5 Good", 
-			3 => "3/5 Fair", 
-			2 => "2/5 Poor", 
-			_ => "1/5 Weak Signal", 
-		});
+			5 => "5/5 Excellent",
+			4 => "4/5 Good",
+			3 => "3/5 Fair",
+			2 => "2/5 Poor",
+			_ => "1/5 Weak Signal"
+		};
+		return (lossPercent, jitterMs, latencyMs, bars, qualityText);
 	}
 
 	public async Task SendDtmfAsync(char digit, CancellationToken cancellationToken = default(CancellationToken), bool isSecondary = false)

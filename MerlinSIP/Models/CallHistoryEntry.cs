@@ -11,16 +11,20 @@ public sealed record CallHistoryEntry
     public string Duration { get; init; } = "";
     public string Result { get; init; } = "";
     public string Detail { get; init; } = "";
-    public double MosScore { get; init; } = 4.3;
-    public string QualityLevel { get; init; } = "Excellent";
-    public double PacketLossPercent { get; init; } = 0.0;
-    public double JitterMs { get; init; } = 1.8;
-    public double LatencyMs { get; init; } = 22.0;
-    public double BitrateSendKbps { get; init; } = 64.0;
-    public double BitrateRecvKbps { get; init; } = 64.0;
-    public int SignalBars { get; init; } = 5;
-    public string Codec { get; init; } = "PCMU (G.711u)";
-    public double RFactor { get; init; } = 92.5;
+    public double MosScore { get; init; }
+    public string QualityLevel { get; init; } = "";
+    public double PacketLossPercent { get; init; }
+    public double JitterMs { get; init; }
+    public double LatencyMs { get; init; }
+    public double BitrateSendKbps { get; init; }
+    public double BitrateRecvKbps { get; init; }
+    public int SignalBars { get; init; }
+    public string Codec { get; init; } = "";
+    public double RFactor { get; init; }
+    public bool QualityMeasured { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasMeasuredQuality => QualityMeasured && MosScore > 0;
 
     [System.Text.Json.Serialization.JsonIgnore]
     public string Initials
@@ -37,37 +41,40 @@ public sealed record CallHistoryEntry
     }
 
     [System.Text.Json.Serialization.JsonIgnore]
-    public string MosDisplay => MosScore > 0 ? $"{MosScore:F1} MOS" : "N/A";
+    public string MosDisplay => HasMeasuredQuality ? $"{MosScore:F1} MOS" : "Not measured";
 
     [System.Text.Json.Serialization.JsonIgnore]
-    public string QualitySummaryDisplay => QualityLevel switch
-    {
-        "Excellent" => $"● {MosDisplay}",
-        "Good" => $"● {MosDisplay}",
-        "Fair" => $"● {MosDisplay}",
-        "Poor" => $"● {MosDisplay}",
-        _ => $"○ {MosDisplay}"
-    };
+    public string QualitySummaryDisplay => HasMeasuredQuality
+        ? QualityLevel switch
+        {
+            "Excellent" or "Good" or "Fair" or "Poor" => $"● {MosDisplay}",
+            _ => MosDisplay
+        }
+        : "Not measured";
 
     [System.Text.Json.Serialization.JsonIgnore]
-    public string QualityBadgeBackground => QualityLevel switch
-    {
-        "Excellent" => "#DEF7EC",
-        "Good" => "#E0F2FE",
-        "Fair" => "#FEF3C7",
-        "Poor" => "#FEE2E2",
-        _ => "#F3F4F6"
-    };
+    public string QualityBadgeBackground => HasMeasuredQuality
+        ? QualityLevel switch
+        {
+            "Excellent" => "#DEF7EC",
+            "Good" => "#E0F2FE",
+            "Fair" => "#FEF3C7",
+            "Poor" => "#FEE2E2",
+            _ => "#F3F4F6"
+        }
+        : "#F1F5F9";
 
     [System.Text.Json.Serialization.JsonIgnore]
-    public string QualityBadgeForeground => QualityLevel switch
-    {
-        "Excellent" => "#03543F",
-        "Good" => "#0369A1",
-        "Fair" => "#92400E",
-        "Poor" => "#B91C1C",
-        _ => "#4B5563"
-    };
+    public string QualityBadgeForeground => HasMeasuredQuality
+        ? QualityLevel switch
+        {
+            "Excellent" => "#03543F",
+            "Good" => "#0369A1",
+            "Fair" => "#92400E",
+            "Poor" => "#B91C1C",
+            _ => "#4B5563"
+        }
+        : "#64748B";
 
     [System.Text.Json.Serialization.JsonIgnore]
     public string ResultBadgeBackground => Result switch
@@ -110,4 +117,14 @@ public sealed record CallHistoryEntry
         "Missed" => "#EF4444",
         _ => "#64748B"
     };
+
+    public static bool IsStockFiller(CallHistoryEntry call)
+    {
+        var name = call.Name?.Trim() ?? "";
+        var detail = call.Detail?.Trim() ?? "";
+        return name.Equals("PBX Echo & Line Quality Test", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Voicemail Audio Diagnostic", StringComparison.OrdinalIgnoreCase)
+            || detail.Equals("Line quality test completed.", StringComparison.OrdinalIgnoreCase)
+            || detail.Equals("Voicemail greeting played.", StringComparison.OrdinalIgnoreCase);
+    }
 }

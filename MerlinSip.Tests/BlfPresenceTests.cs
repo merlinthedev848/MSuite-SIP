@@ -14,8 +14,8 @@ public class BlfPresenceTests
     [InlineData("DND", "DND", "#DC2626", "#FEE2E2", "#9B1C1C", true, Visibility.Visible)]
     [InlineData("Do Not Disturb", "DND", "#DC2626", "#FEE2E2", "#9B1C1C", true, Visibility.Visible)]
     [InlineData("Busy", "Busy", "#EF4444", "#FEE2E2", "#9B1C1C", true, Visibility.Visible)]
-    [InlineData("Ringing", "Ringing", "#F59E0B", "#FFF3D6", "#8A4F08", true, Visibility.Visible)]
-    [InlineData("Offline", "", "#00000000", "#00000000", "#00000000", false, Visibility.Collapsed)]
+    [InlineData("Ringing", "Ringing", "#EF4444", "#FEE2E2", "#9B1C1C", true, Visibility.Visible)]
+    [InlineData("Offline", "Offline", "#94A3B8", "#F1F5F9", "#475569", true, Visibility.Visible)]
     public void ContactEntry_PresenceProperties_MatchRequirements(
         string presence,
         string expectedLabel,
@@ -33,6 +33,49 @@ public class BlfPresenceTests
         Assert.Equal(expectedForeground, contact.PresenceForeground);
         Assert.Equal(expectedIsVisible, contact.IsPresenceVisible);
         Assert.Equal(expectedVisibility, contact.PresenceVisibility);
+    }
+
+    [Theory]
+    [InlineData("", "Offline", "presence", "Offline")]
+    [InlineData("Available", "Offline", "presence", "Offline")]
+    [InlineData("Available", "Available", "presence", "Available")]
+    [InlineData("Offline", "DND", "presence", "DND")]
+    [InlineData("Offline", "Available", "dialog", "Offline")]
+    [InlineData("Available", "Busy", "dialog", "Busy")]
+    [InlineData("Available", "Ringing", "dialog", "Ringing")]
+    [InlineData("Available", "Available", "dialog", "Available")]
+    public void BlfChannels_UsesServerConnectivityAndCallState(string reachability, string incoming, string eventName, string expected)
+    {
+        var updated = SipRegistrationService.BlfChannels.Apply(new SipRegistrationService.BlfChannels(Reachability: reachability), incoming, eventName);
+        Assert.Equal(expected, updated.Resolve());
+    }
+
+    [Fact]
+    public void BlfChannels_IdleDialogDoesNotHideAnOfflinePhone()
+    {
+        var afterPresence = SipRegistrationService.BlfChannels.Apply(default, "Offline", "presence");
+        var afterDialog = SipRegistrationService.BlfChannels.Apply(afterPresence, "Available", "dialog");
+
+        Assert.Equal("Offline", afterDialog.Resolve());
+    }
+
+    [Fact]
+    public void BlfChannels_ConnectedIdlePhoneStaysAvailable()
+    {
+        var afterPresence = SipRegistrationService.BlfChannels.Apply(default, "Available", "presence");
+        var afterDialog = SipRegistrationService.BlfChannels.Apply(afterPresence, "Available", "dialog");
+
+        Assert.Equal("Available", afterDialog.Resolve());
+    }
+
+    [Fact]
+    public void ContactEntry_RingingBlf_DialsYeastarDirectedPickup()
+    {
+        var ringing = new ContactEntry { Number = "705", Presence = "Ringing" };
+        var idle = new ContactEntry { Number = "705", Presence = "Available" };
+
+        Assert.Equal("*04705", ringing.BlfDialNumber);
+        Assert.Equal("705", idle.BlfDialNumber);
     }
 
     [Fact]

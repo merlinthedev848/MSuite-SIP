@@ -10,8 +10,8 @@
 - **WebRTC Voice Calling**: Pure in-browser SIP over Secure WebSockets (`wss://`) powered by SIP.js with early media audio detection and local UK/US ringback synthesis.
 - **Dual-Channel Call Recording**: Real-time WebRTC audio recording (mixing microphone + remote caller streams) with live recording timer, in-browser audio playback, and 1-click `.webm` / `.wav` file download.
 - **Live Oscilloscope & Frequency Waveform Visualizer**: High-performance Web Audio API `AnalyserNode` rendering real-time animated frequency visualizer during active calls.
-- **BLF Switchboard & Presence Wallboard**: Multi-extension Busy Lamp Field (BLF) dashboard with live status indicators (Available, Busy, Ringing, Away, Offline), 1-click Quick Dial, Direct Intercom (`*80`), Directed Pickup (`*8<ext>`), and Group Pickup (`*8`).
-- **Visual Voicemail & PBX Feature Codes**: Voicemail Box (`*97`) with MWI status badge, Call Parking Lot (`*70`, Slots 71-73), Echo Audio Test (`*43`), Call Forwarding (`*72`/`*73`), and DND Toggle (`*78`).
+- **BLF Switchboard**: Busy lamps follow the PBX. Green is idle, solid red is in use, flashing red is ringing. Directed pickup is `*04` plus the extension. Group pickup is `*4`.
+- **Visual Voicemail & PBX Feature Codes**: Voicemail Box (`*97`) with MWI status badge, Call Parking Lot (`*70`, Slots 71-73), Call Forwarding (`*72`/`*73`), and DND Toggle (`*78`).
 - **Multi-Line Management**: Dual line support (Line 1 / Line 2) with line holding, call swapping, and 3-way conference audio bridge.
 - **In-Call Controls & Audio Quality HUD**:
   - Microphone Mute / Unmute

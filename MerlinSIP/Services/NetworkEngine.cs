@@ -1802,8 +1802,8 @@ public class NetworkEngine : IDisposable
 		{
 			return false;
 		}
-		UpdateProgress("RTP Jitter/Loss Check", "Running", "Simulating G.711 media paths...");
-		Log("Test 9: Advanced SIP Media (RTP) Quality Simulation...");
+		UpdateProgress("RTP Jitter/Loss Check", "Running", "Checking G.711 media paths...");
+		Log("Test 9: Checking SIP media paths...");
 		Log("Running three test streams to verify standard SIP ports, primary STUN, and Google WebRTC STUN (high port 19302)...");
 		if (IsSimulationMode)
 		{

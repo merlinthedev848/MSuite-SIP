@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ink">#111317</color>
+    <color name="ink_soft">#0F172A</color>
+    <color name="muted">#5D6B7C</color>
+    <color name="slate">#64748B</color>
+    <color name="line">#E2E8F0</color>
+    <color name="line_strong">#CBD5E1</color>
+    <color name="sand">#D4C9B3</color>
+    <color name="page">#F4F6F8</color>
+    <color name="card">#FFFFFF</color>
+    <color name="night">#111317</color>
+    <color name="night_deep">#0C0A09</color>
+    <color name="amber">#FBBF24</color>
+    <color name="amber_deep">#D97706</color>
+    <color name="amber_text">#111317</color>
+    <color name="danger">#DC2626</color>
+    <color name="success">#059669</color>
+    <color name="registered">#10B981</color>
+    <color name="nav_idle">#94A3B8</color>
+    <color name="key_pressed">#F1F5F9</color>
+</resources>

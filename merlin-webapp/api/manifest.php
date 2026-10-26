@@ -25,7 +25,7 @@ merlin_json_response([
         'freepbx' => [
             'name' => 'FreePBX / Asterisk (v16 - v21+)',
             'sip_transport' => 'PJSIP WebRTC (WSS Port 8089)',
-            'features' => ['calls', 'hold', 'transfer', 'dtmf', 'ami_events', 'voicemail_97', 'echo_43'],
+            'features' => ['calls', 'hold', 'transfer', 'dtmf', 'ami_events', 'voicemail_97'],
         ],
         'generic_sip' => [
             'name' => 'Generic SIP / Kamailio / OpenSIPS / FreeSWITCH',

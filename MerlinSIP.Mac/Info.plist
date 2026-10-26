@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>Merlin SIP</string>
+  <key>CFBundleDisplayName</key>
+  <string>Merlin SIP</string>
+  <key>CFBundleIdentifier</key>
+  <string>uk.co.ckmediaservices.merlinsip</string>
+  <key>CFBundleVersion</key>
+  <string>1.3.8</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.3.8</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleExecutable</key>
+  <string>MerlinSIP</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Merlin SIP uses the microphone for phone calls.</string>
+  <key>NSCameraUsageDescription</key>
+  <string>Merlin SIP uses the camera for video calls.</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Merlin SIP talks to your phone system on the local network.</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>uk.co.ckmediaservices.merlinsip.dial</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>tel</string>
+        <string>sip</string>
+        <string>callto</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>

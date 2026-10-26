@@ -1,10 +1,6 @@
 using System;
-using System.Diagnostics;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using MerlinSip.Models;
@@ -29,30 +25,18 @@ public sealed class RtpVideoSession : IDisposable
     private readonly object _sendSync = new();
     private bool _disposed;
     private bool _isMuted;
-    private ushort _sequenceNumber = 1000;
-    private uint _timestamp = 0;
     private uint _ssrc;
 
-    // Statistics
-    private long _packetsSent;
+    // Statistics from packets this socket actually received.
     private long _packetsReceived;
-    private long _bytesSent;
     private long _bytesReceived;
-    private double _fps = 30.0;
-    private int _videoWidth = 1280;
-    private int _videoHeight = 720;
-    private string _negotiatedCodec = "H.264 (High Profile)";
+    private string _negotiatedCodec = "";
 
     public int LocalPort { get; }
     public MediaDeviceInfo VideoDevice => _videoDevice;
     public bool IsMuted => _isMuted;
     public string NegotiatedCodec => _negotiatedCodec;
-    public int VideoWidth => _videoWidth;
-    public int VideoHeight => _videoHeight;
-    public double Fps => _fps;
-    public long PacketsSent => Interlocked.Read(ref _packetsSent);
     public long PacketsReceived => Interlocked.Read(ref _packetsReceived);
-    public long BytesSent => Interlocked.Read(ref _bytesSent);
     public long BytesReceived => Interlocked.Read(ref _bytesReceived);
 
     public event EventHandler<VideoFrameEventArgs>? LocalFrameUpdated;
@@ -103,13 +87,13 @@ public sealed class RtpVideoSession : IDisposable
     public void SetMute(bool muted)
     {
         _isMuted = muted;
+        LocalFrameUpdated?.Invoke(this, new VideoFrameEventArgs(0, 0, DateTimeOffset.UtcNow, IsLocal: true, Muted: muted));
         DebugLog.Write($"RTP Video Session mute set to: {muted}");
     }
 
     public void Start()
     {
         _ = Task.Run(() => ReceiveLoopAsync(_cts.Token));
-        _ = Task.Run(() => FrameGeneratorLoopAsync(_cts.Token));
     }
 
     private async Task ReceiveLoopAsync(CancellationToken token)
@@ -140,7 +124,7 @@ public sealed class RtpVideoSession : IDisposable
 
                     if (marker)
                     {
-                        RemoteFrameUpdated?.Invoke(this, new VideoFrameEventArgs(_videoWidth, _videoHeight, DateTimeOffset.UtcNow, IsLocal: false));
+                        RemoteFrameUpdated?.Invoke(this, new VideoFrameEventArgs(0, 0, DateTimeOffset.UtcNow, IsLocal: false));
                     }
                 }
             }
@@ -151,80 +135,6 @@ public sealed class RtpVideoSession : IDisposable
             if (!_disposed)
             {
                 DebugLog.Write($"RTP Video Session receive error: {ex.Message}");
-            }
-        }
-    }
-
-    private async Task FrameGeneratorLoopAsync(CancellationToken token)
-    {
-        var interval = TimeSpan.FromMilliseconds(1000.0 / 30.0); // 30 FPS
-        var stopwatch = Stopwatch.StartNew();
-
-        try
-        {
-            while (!token.IsCancellationRequested && !_disposed)
-            {
-                var frameTime = DateTimeOffset.UtcNow;
-
-                // Send frame to UI local preview
-                LocalFrameUpdated?.Invoke(this, new VideoFrameEventArgs(_videoWidth, _videoHeight, frameTime, IsLocal: true, Muted: _isMuted));
-
-                await Task.Delay(interval, token);
-            }
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            if (!_disposed)
-            {
-                DebugLog.Write($"RTP Video Session frame loop error: {ex.Message}");
-            }
-        }
-    }
-
-    private void SendRtpVideoPacket()
-    {
-        if (_remoteEndPoint == null || _disposed) return;
-
-        lock (_sendSync)
-        {
-            try
-            {
-                // RTP Header (12 bytes)
-                // V=2, P=0, X=0, CC=0 -> 0x80
-                // M=1, PT=96 (H264) -> 0x80 | 96 = 0xE0
-                byte[] packet = new byte[1200];
-                packet[0] = 0x80;
-                packet[1] = (byte)(0x80 | DefaultVideoPayloadTypeH264);
-
-                // Sequence Number
-                ushort seq = _sequenceNumber++;
-                packet[2] = (byte)(seq >> 8);
-                packet[3] = (byte)(seq & 0xFF);
-
-                // Timestamp (90000 Hz clock)
-                _timestamp += 3000;
-                packet[4] = (byte)(_timestamp >> 24);
-                packet[5] = (byte)(_timestamp >> 16);
-                packet[6] = (byte)(_timestamp >> 8);
-                packet[7] = (byte)(_timestamp & 0xFF);
-
-                // SSRC
-                packet[8] = (byte)(_ssrc >> 24);
-                packet[9] = (byte)(_ssrc >> 16);
-                packet[10] = (byte)(_ssrc >> 8);
-                packet[11] = (byte)(_ssrc & 0xFF);
-
-                // H.264 NAL header simulation (Single NAL / IDR)
-                packet[12] = 0x65; // NAL unit type 5 (IDR Slice)
-
-                _rtpClient.Send(packet, packet.Length, _remoteEndPoint);
-                Interlocked.Increment(ref _packetsSent);
-                Interlocked.Add(ref _bytesSent, packet.Length);
-            }
-            catch (Exception ex)
-            {
-                DebugLog.Write($"RTP Video send packet failed: {ex.Message}");
             }
         }
     }

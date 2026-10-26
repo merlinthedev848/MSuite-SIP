@@ -239,10 +239,10 @@ $version = '1.3.0';
           <div class="panel-heading">
             <div>
               <h2>BLF Switchboard & Extension Monitor</h2>
-              <p>Real-time corporate Busy Lamp Field (BLF) status, 1-click intercom, and direct call pickup (*8).</p>
+              <p>Busy lamps from the PBX. Green is idle, red is in use, and a flashing red lamp is ringing. Pickup dials *04 and the extension.</p>
             </div>
             <div class="blf-quick-actions">
-              <button id="btnGroupPickup" class="primary-button" style="min-height: 36px; padding: 6px 14px; font-size: 13px;" type="button">Group Pickup (*8)</button>
+              <button id="btnGroupPickup" class="primary-button" style="min-height: 36px; padding: 6px 14px; font-size: 13px;" type="button">Group Pickup (*4)</button>
               <button id="btnRefreshBlf" class="soft-button" style="min-height: 36px; padding: 6px 14px; font-size: 13px;" type="button">Refresh BLF</button>
             </div>
           </div>
@@ -323,20 +323,6 @@ $version = '1.3.0';
               <button class="parking-slot-btn" data-park-code="71"><strong>Retrieve Slot 71</strong><span>Ext 71</span></button>
               <button class="parking-slot-btn" data-park-code="72"><strong>Retrieve Slot 72</strong><span>Ext 72</span></button>
               <button class="parking-slot-btn" data-park-code="73"><strong>Retrieve Slot 73</strong><span>Ext 73</span></button>
-            </div>
-          </section>
-
-          <!-- Echo Audio Test Card -->
-          <section class="panel feature-card">
-            <div class="feature-card-header">
-              <div class="feature-icon-badge">&#127897;</div>
-              <div>
-                <h3>Echo Loopback Test</h3>
-                <p>Dial *43 to perform an instant live microphone loopback test to verify audio clarity & latency.</p>
-              </div>
-            </div>
-            <div class="feature-action-box">
-              <button id="btnDialEchoTest" class="primary-button" type="button">Dial Echo Test (*43)</button>
             </div>
           </section>
 
@@ -567,7 +553,6 @@ Ready to run diagnostics. Press "Run 10-Step Check" above to verify all DNS, STU
             </p>
             <div class="settings-grid">
               <label>Voicemail Feature Code<input type="text" value="*97" readonly></label>
-              <label>Echo Test Feature Code<input type="text" value="*43" readonly></label>
             </div>
           </div>
         </section>

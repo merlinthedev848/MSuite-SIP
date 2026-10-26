@@ -107,6 +107,8 @@ public partial class MainWindow : Window
     private bool _passwordRevealed;
     private bool _testTonePlaying;
     private DateTimeOffset _lastSettingsSavedAt = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastPresenceSubscribe = DateTimeOffset.MinValue;
+    private readonly Dictionary<string, SipRegistrationService.BlfChannels> _blfChannels = new(StringComparer.OrdinalIgnoreCase);
     private ContactEntry? _editingContact;
     private IncomingCallWindow? _incomingCallWindow;
     private System.Windows.Interop.HwndSource? _hwndSource;
@@ -556,6 +558,10 @@ public partial class MainWindow : Window
 
             _registered = true;
             SetConnectionState("Connected", "#DFF8EE", "#106247");
+            if (DateTimeOffset.UtcNow - _lastPresenceSubscribe > TimeSpan.FromMinutes(30))
+            {
+                await RefreshPresenceSubscriptionsAsync();
+            }
         }
         catch (Exception error)
         {
@@ -627,7 +633,14 @@ public partial class MainWindow : Window
 
         if (_callConnected || _callInProgress)
         {
-            var (loss, jitter, latency, signalBars, qualityText) = _sipRegistrationService.GetCallQualityStats();
+            if (!_sipRegistrationService.HasMeasuredCallQuality)
+            {
+                CallQualityPill.Visibility = _config.ShowCallStatistics ? Visibility.Visible : Visibility.Collapsed;
+                CallQualityPill.ToolTip = "Call quality has not been measured yet.";
+                return;
+            }
+
+            var (loss, jitter, latency, _, _) = _sipRegistrationService.GetCallQualityStats();
             var mos = VoipTools.CalculateMosScore(latency, jitter, loss);
             if (!_config.ShowCallStatistics)
             {
@@ -635,10 +648,10 @@ public partial class MainWindow : Window
                 return;
             }
 
-            if (mos < 1.0)
+            if (mos < 1.0 || latency <= 0)
             {
                 CallQualityPill.Visibility = Visibility.Visible;
-                CallQualityPill.ToolTip = "Measuring call quality...";
+                CallQualityPill.ToolTip = "Call quality has not been measured yet.";
                 return;
             }
 
@@ -1063,7 +1076,7 @@ public partial class MainWindow : Window
                 }
             }
 
-            SetContactPresence(e.Number, e.Presence);
+            SetContactPresence(e.Number, e.Presence, e.EventName);
             if (string.Equals(e.Presence, "Ringing", StringComparison.OrdinalIgnoreCase))
             {
                 SetQueueRingingState(true, e.Number);
@@ -1763,9 +1776,10 @@ public partial class MainWindow : Window
             extensions = extensions.Concat(new[] { _config.Extension });
         }
         await _sipRegistrationService.SubscribeToContactPresenceAsync(extensions.Distinct());
+        _lastPresenceSubscribe = DateTimeOffset.UtcNow;
     }
 
-    private void SetContactPresence(string number, string presence)
+    private void SetContactPresence(string number, string presence, string eventName = "")
     {
         if (string.IsNullOrWhiteSpace(number))
         {
@@ -1773,6 +1787,10 @@ public partial class MainWindow : Window
         }
 
         var normalized = NormalizeDialDestination(number);
+        _blfChannels.TryGetValue(normalized, out var channels);
+        channels = SipRegistrationService.BlfChannels.Apply(channels, presence, eventName);
+        _blfChannels[normalized] = channels;
+        var resolved = channels.Resolve();
         for (var index = 0; index < _contacts.Count; index++)
         {
             if (!string.Equals(NormalizeDialDestination(_contacts[index].Number), normalized, StringComparison.OrdinalIgnoreCase))
@@ -1780,7 +1798,7 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            _contacts[index] = _contacts[index] with { Presence = presence };
+            _contacts[index] = _contacts[index] with { Presence = resolved };
         }
 
         ApplyGlobalSearchFilter();
@@ -2147,10 +2165,10 @@ public partial class MainWindow : Window
             else
             {
                 SetPresenceDisplay("DND");
-                _ = _sipRegistrationService.NotifyOffHookStatusAsync(true, "Phone is off the hook and cannot be contacted");
+                _ = _sipRegistrationService.NotifyOffHookStatusAsync(true, SipRegistrationService.BusyHereStatus);
             }
 
-            FooterStatusText.Text = "Presence set to DND (Do Not Disturb).";
+            FooterStatusText.Text = "Do not disturb is on.";
             return;
         }
 
@@ -2163,7 +2181,7 @@ public partial class MainWindow : Window
             SetPresenceDisplay(status);
             if (status.Equals("Busy", StringComparison.OrdinalIgnoreCase))
             {
-                _ = _sipRegistrationService.NotifyOffHookStatusAsync(true, "Phone is off the hook and cannot be contacted");
+                _ = _sipRegistrationService.NotifyOffHookStatusAsync(true, SipRegistrationService.BusyHereStatus);
             }
             else if (status.Equals("Available", StringComparison.OrdinalIgnoreCase))
             {
@@ -2670,11 +2688,82 @@ public partial class MainWindow : Window
             return;
         }
 
-        DestinationTextBox.Text = string.IsNullOrWhiteSpace(_config.VoicemailNumber) ? "*2" : _config.VoicemailNumber;
+        DestinationTextBox.Text = string.IsNullOrWhiteSpace(_config.VoicemailNumber) ? DeskPhone.Voicemail : _config.VoicemailNumber;
         DialButton_Click(sender, e);
     }
 
-    private void RecordButton_Click(object sender, RoutedEventArgs e)
+    private void GroupPickupButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_callConnected)
+        {
+            FooterStatusText.Text = "Group pickup is used when the phone is idle.";
+            return;
+        }
+
+        DestinationTextBox.Text = string.IsNullOrWhiteSpace(_config.CallPickupPrefix) ? DeskPhone.GroupPickup : _config.CallPickupPrefix;
+        DialButton_Click(sender, e);
+    }
+
+    private async void ParkButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_callConnected)
+        {
+            FooterStatusText.Text = "Park is used during a call. The PBX announces the parking slot.";
+            return;
+        }
+
+        var result = await _sipRegistrationService.SendDtmfSequenceAsync(DeskPhone.Park, _selectedLine);
+        FooterStatusText.Text = result.Signalled
+            ? "Park code *6 sent. Listen for the parking slot, then dial that slot from another phone."
+            : result.Message;
+    }
+
+    private void IntercomButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_callConnected)
+        {
+            FooterStatusText.Text = "Intercom is used when the phone is idle.";
+            return;
+        }
+
+        var extension = DeskPhone.Digits(DestinationTextBox.Text);
+        if (extension.Length == 0)
+        {
+            FooterStatusText.Text = "Enter an extension, then press Intercom.";
+            return;
+        }
+
+        DestinationTextBox.Text = DeskPhone.IntercomTo(extension);
+        DialButton_Click(sender, e);
+    }
+
+    private void ForwardAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_callConnected)
+        {
+            FooterStatusText.Text = "Call forward is set when the phone is idle.";
+            return;
+        }
+
+        DestinationTextBox.Text = DeskPhone.ForwardAllTo(DestinationTextBox.Text);
+        DialButton_Click(sender, e);
+    }
+
+    private void RedialLastButton_Click(object sender, RoutedEventArgs e)
+    {
+        var last = _callHistory.FirstOrDefault(call =>
+            call.Direction.Equals("Outbound", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(call.Number));
+        if (last is null)
+        {
+            FooterStatusText.Text = "There is no number to redial.";
+            return;
+        }
+
+        RedialCall(last);
+    }
+
+    private async void RecordButton_Click(object sender, RoutedEventArgs e)
     {
         if (_licenseLocked || !_callConnected)
         {
@@ -2683,17 +2772,23 @@ public partial class MainWindow : Window
 
         var target = !string.IsNullOrWhiteSpace(_activeRemoteNumber) ? _activeRemoteNumber : "Call";
         var (active, pathOrMsg) = _sipRegistrationService.ToggleCallRecording(target);
+        var recordCode = string.IsNullOrWhiteSpace(_config.CallRecordingCode) ? DeskPhone.OneTouchRecord : _config.CallRecordingCode;
+        var pbx = await _sipRegistrationService.SendDtmfSequenceAsync(recordCode, _selectedLine);
         if (active)
         {
             RecordButton.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
             SetIconButton(RecordButton, RecordIcon, "Stop recording");
-            FooterStatusText.Text = $"Recording call to {System.IO.Path.GetFileName(pathOrMsg)}";
+            FooterStatusText.Text = pbx.Signalled
+                ? $"Recording locally and sent {recordCode} to the PBX."
+                : $"Recording call to {System.IO.Path.GetFileName(pathOrMsg)}";
         }
         else
         {
             RecordButton.ClearValue(WpfButton.ForegroundProperty);
             SetIconButton(RecordButton, RecordIcon, "Record Call");
-            FooterStatusText.Text = pathOrMsg;
+            FooterStatusText.Text = pbx.Signalled
+                ? $"Local recording stopped. Sent {recordCode} to the PBX."
+                : pathOrMsg;
         }
     }
 
@@ -2728,7 +2823,6 @@ public partial class MainWindow : Window
                 : "Available");
 
         await SetDndModeInternalAsync(targetDnd, targetPresence);
-        FooterStatusText.Text = targetDnd ? "Do not disturb is on." : "Do not disturb is off.";
     }
 
 
@@ -2761,13 +2855,18 @@ public partial class MainWindow : Window
         UpdateDndUi();
         _userSelectedPresence = targetPresence;
         SetPresenceDisplay(targetPresence);
-        _ = _sipRegistrationService.NotifyOffHookStatusAsync(_dndEnabled, _dndEnabled ? "Phone is off the hook and cannot be contacted" : "Phone is on the hook and available");
+        _ = _sipRegistrationService.NotifyOffHookStatusAsync(_dndEnabled, _dndEnabled ? SipRegistrationService.BusyHereStatus : "Phone is on the hook and available");
         UpdateCallControls();
 
         if (!_dndEnabled && !_registered && NetworkInterface.GetIsNetworkAvailable())
         {
             FooterStatusText.Text = "Reconnecting after do not disturb.";
             await RegisterSipAsync();
+        }
+
+        if (!_callInProgress && !_callConnected && !_incomingRinging)
+        {
+            await StartOutboundCallAsync(_dndEnabled ? DeskPhone.DndOn : DeskPhone.DndOff);
         }
     }
 
@@ -2793,7 +2892,7 @@ public partial class MainWindow : Window
     private async void CallContact(ContactEntry contact)
     {
         UseSelectedContact(contact);
-        await StartOutboundCallAsync(contact.Number);
+        await StartOutboundCallAsync(contact.BlfDialNumber);
     }
 
     private void PhonebookContactsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -4237,11 +4336,11 @@ del ""%~f0""
         var end = DateTimeOffset.Now;
         var duration = end > start ? (end - start).ToString(@"mm\:ss") : "";
 
-        var (loss, jitter, latency, signalBars, qualityText) = _sipRegistrationService.GetCallQualityStats();
-        var mos = VoipTools.CalculateMosScore(latency, jitter, loss);
-        var level = mos < 1.0 ? "Unknown" : mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
-        if (mos < 1.0) mos = 0;
-        var rFactor = Math.Clamp(93.2 - (loss * 2.5) - (jitter * 0.1) - (latency * 0.03), 0, 100);
+        var measured = _sipRegistrationService.HasMeasuredCallQuality;
+        var (loss, jitter, latency, signalBars, _) = _sipRegistrationService.GetCallQualityStats();
+        var mos = measured && latency > 0 ? VoipTools.CalculateMosScore(latency, jitter, loss) : 0;
+        var level = mos <= 0 ? "" : mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
+        var rFactor = mos > 0 ? Math.Clamp(93.2 - (loss * 2.5) - (jitter * 0.1) - (latency * 0.03), 0, 100) : 0;
 
         var entry = new CallHistoryEntry
         {
@@ -4253,14 +4352,15 @@ del ""%~f0""
             Duration = duration,
             Result = result,
             Detail = detail,
-            MosScore = Math.Round(mos, 1),
+            MosScore = mos > 0 ? Math.Round(mos, 1) : 0,
             QualityLevel = level,
-            PacketLossPercent = Math.Round(loss, 2),
-            JitterMs = Math.Round(jitter, 1),
-            LatencyMs = Math.Round(latency, 1),
-            SignalBars = signalBars > 0 ? signalBars : 5,
-            RFactor = Math.Round(rFactor, 1),
-            Codec = "PCMU (G.711u)"
+            PacketLossPercent = measured ? Math.Round(loss, 2) : 0,
+            JitterMs = measured ? Math.Round(jitter, 1) : 0,
+            LatencyMs = measured && latency > 0 ? Math.Round(latency, 1) : 0,
+            SignalBars = measured ? signalBars : 0,
+            RFactor = mos > 0 ? Math.Round(rFactor, 1) : 0,
+            Codec = measured ? _sipRegistrationService.NegotiatedAudioCodec : "",
+            QualityMeasured = mos > 0
         };
 
         _callHistory.Insert(0, entry);
@@ -4328,8 +4428,9 @@ del ""%~f0""
             return;
         }
 
-        var fileMessage = string.IsNullOrWhiteSpace(upload.Url) ? fileName : $"{fileName} {upload.Url}";
-        var sent = await _chatService.SendMessageAsync(_selectedChatNumber, _config.Extension, fileMessage, "file", upload.Url);
+        var fileInfo = new FileInfo(filePath);
+        var fileMessage = string.IsNullOrWhiteSpace(upload.Url) ? fileName : upload.Url;
+        var sent = await _chatService.SendMessageAsync(_selectedChatNumber, _config.Extension, fileMessage, "file", fileName, fileInfo.Length);
         if (sent.Delivered)
         {
             await AddChatMessage("Outbound", name, _selectedChatNumber, $"Sent file: {fileName}", "Delivered");
@@ -4601,10 +4702,14 @@ del ""%~f0""
             }
 
             var content = payload.Content?.Trim() ?? "";
+            var fileName = payload.FileName?.Trim() ?? "";
             var fileUrl = payload.FileUrl?.Trim() ?? "";
-            var displayMessage = string.IsNullOrWhiteSpace(fileUrl)
+            var attachment = !string.IsNullOrWhiteSpace(fileName) ? fileName : fileUrl;
+            var displayMessage = string.IsNullOrWhiteSpace(attachment)
                 ? content
-                : string.IsNullOrWhiteSpace(content) ? $"[File: {fileUrl}]" : $"{content} [File: {fileUrl}]";
+                : string.IsNullOrWhiteSpace(content) || string.Equals(content, attachment, StringComparison.Ordinal)
+                    ? $"[File: {attachment}]"
+                    : $"{content} [File: {attachment}]";
 
             if (string.IsNullOrWhiteSpace(displayMessage))
             {
@@ -4708,10 +4813,10 @@ del ""%~f0""
 
     private void LiveCallStatisticsCard_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        var (loss, jitter, latency, signalBars, qualityText) = _sipRegistrationService.GetCallQualityStats();
-        var mos = VoipTools.CalculateMosScore(latency, jitter, loss);
-        var level = mos < 1.0 ? "Unknown" : mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
-        if (mos < 1.0) mos = 0;
+        var measured = _sipRegistrationService.HasMeasuredCallQuality;
+        var (loss, jitter, latency, signalBars, _) = _sipRegistrationService.GetCallQualityStats();
+        var mos = measured && latency > 0 ? VoipTools.CalculateMosScore(latency, jitter, loss) : 0;
+        var level = mos <= 0 ? "" : mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
 
         var liveEntry = new CallHistoryEntry
         {
@@ -4720,15 +4825,16 @@ del ""%~f0""
             Number = DestinationTextBox.Text,
             Duration = CallTimerText.Text.Replace("Active ", ""),
             Result = "In Progress",
-            Detail = "Live RTP call telemetry analysis.",
-            MosScore = Math.Round(mos, 1),
+            Detail = measured ? "Measured from received audio." : "No audio has been measured for this call.",
+            MosScore = mos > 0 ? Math.Round(mos, 1) : 0,
             QualityLevel = level,
-            PacketLossPercent = Math.Round(loss, 2),
-            JitterMs = Math.Round(jitter, 1),
-            LatencyMs = Math.Round(latency, 1),
-            SignalBars = signalBars > 0 ? signalBars : 5,
-            RFactor = Math.Round(Math.Clamp(93.2 - (loss * 2.5) - (jitter * 0.1) - (latency * 0.03), 0, 100), 1),
-            Codec = "PCMU (G.711u)"
+            PacketLossPercent = measured ? Math.Round(loss, 2) : 0,
+            JitterMs = measured ? Math.Round(jitter, 1) : 0,
+            LatencyMs = measured && latency > 0 ? Math.Round(latency, 1) : 0,
+            SignalBars = measured ? signalBars : 0,
+            RFactor = mos > 0 ? Math.Round(Math.Clamp(93.2 - (loss * 2.5) - (jitter * 0.1) - (latency * 0.03), 0, 100), 1) : 0,
+            Codec = measured ? _sipRegistrationService.NegotiatedAudioCodec : "",
+            QualityMeasured = mos > 0
         };
 
         CallQualityDetailsWindow.ShowCallQuality(this, liveEntry);
@@ -5432,7 +5538,7 @@ del ""%~f0""
     {
         if (VideoSourceComboBox.SelectedItem is MediaDeviceInfo dev)
         {
-            CameraStatusText.Text = $"Camera ready: {dev.Name} (Yeastar SIP/WebRTC • 720p HD)";
+            CameraStatusText.Text = $"Camera ready: {dev.Name}";
         }
     }
 

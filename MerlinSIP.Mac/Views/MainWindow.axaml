@@ -1,0 +1,343 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MerlinSip.Mac.MainWindow"
+        Title="Merlin SIP"
+        Width="1280"
+        Height="820"
+        MinWidth="1080"
+        MinHeight="680"
+        WindowStartupLocation="CenterScreen">
+  <Grid RowDefinitions="64,Auto,*">
+    <Border Background="#111317" Padding="16,0">
+      <Grid ColumnDefinitions="220,*,Auto">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Border Width="28" Height="28" CornerRadius="7" Background="#FBBF24">
+            <TextBlock Text="M" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="Merlin SIP" Foreground="White" FontWeight="Bold" />
+            <TextBlock Text="macOS" Foreground="#94A3B8" FontSize="11" />
+          </StackPanel>
+        </StackPanel>
+        <TextBox x:Name="SearchBox" Grid.Column="1" Watermark="Search contacts, history, and messages" Margin="12,14" TextChanged="Search_Changed" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+          <Button x:Name="AutoAnswerButton" Classes="pill" Content="Auto Answer: OFF" Click="AutoAnswer_Click" />
+          <Button x:Name="DndButton" Classes="pill" Content="DND: OFF" Click="Dnd_Click" />
+          <Button x:Name="PresenceButton" Classes="pill" Content="Available" Click="Presence_Click" MinWidth="110" />
+          <StackPanel VerticalAlignment="Center" Margin="8,0,0,0">
+            <TextBlock x:Name="UserText" Foreground="White" FontWeight="SemiBold" FontSize="12" Text="Extension" />
+            <StackPanel Orientation="Horizontal">
+              <Border x:Name="StatusDot" Width="8" Height="8" CornerRadius="4" Background="#94A3B8" Margin="0,0,6,0" VerticalAlignment="Center" />
+              <TextBlock x:Name="StatusText" Foreground="#CBD5E1" FontSize="11" Text="Offline" />
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Border x:Name="Banner" Grid.Row="1" Background="#FEF3C7" Padding="16,8" IsVisible="False">
+      <TextBlock x:Name="BannerText" Foreground="#92400E" TextWrapping="Wrap" />
+    </Border>
+
+    <TabControl x:Name="Pages" Grid.Row="2" Margin="12">
+      <TabItem Header="Phone">
+        <Grid ColumnDefinitions="430,*" Margin="4">
+          <StackPanel>
+            <Border Classes="card" Margin="0,0,0,10" Padding="12">
+              <StackPanel>
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel>
+                    <TextBlock x:Name="Line1Title" Text="Line 1  ·  Ready" FontWeight="SemiBold" />
+                    <TextBlock x:Name="Line1Detail" Classes="muted" Text="" />
+                  </StackPanel>
+                  <TextBlock x:Name="Line1Clock" Grid.Column="1" FontWeight="Bold" Text="" />
+                </Grid>
+                <StackPanel x:Name="Line1Actions" Orientation="Horizontal" Margin="0,8,0,0" IsVisible="False">
+                  <Button Classes="line" Content="Hold" Click="Line1Hold_Click" />
+                  <Button Classes="line" Content="Mute" Click="Line1Mute_Click" />
+                  <Button Classes="line" Content="Transfer" Click="Line1Transfer_Click" />
+                  <Button Classes="line" Content="Conference" Click="Conference_Click" />
+                  <Button Classes="line" Content="Record" Click="Line1Record_Click" />
+                  <Button Classes="line danger" Content="End" Click="Line1Hangup_Click" />
+                  <Button Classes="line" Content="Quality" Click="Line1Quality_Click" />
+                </StackPanel>
+                <StackPanel x:Name="Line1Incoming" Orientation="Horizontal" Margin="0,8,0,0" IsVisible="False">
+                  <Button Classes="good" Content="Answer" Click="Line1Answer_Click" />
+                  <Button Classes="danger" Content="Decline" Margin="8,0,0,0" Click="Line1Decline_Click" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+            <Border Classes="card" Margin="0,0,0,10" Padding="12">
+              <StackPanel>
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel>
+                    <TextBlock x:Name="Line2Title" Text="Line 2  ·  Idle" FontWeight="SemiBold" Foreground="#94A3B8" />
+                    <TextBlock x:Name="Line2Detail" Classes="muted" Text="" />
+                  </StackPanel>
+                  <TextBlock x:Name="Line2Clock" Grid.Column="1" FontWeight="Bold" Text="" />
+                </Grid>
+                <StackPanel x:Name="Line2Actions" Orientation="Horizontal" Margin="0,8,0,0" IsVisible="False">
+                  <Button Classes="line" Content="Hold" Click="Line2Hold_Click" />
+                  <Button Classes="line" Content="Mute" Click="Line2Mute_Click" />
+                  <Button Classes="line" Content="Transfer" Click="Line2Transfer_Click" />
+                  <Button Classes="line" Content="Conference" Click="Conference_Click" />
+                  <Button Classes="line" Content="Record" Click="Line2Record_Click" />
+                  <Button Classes="line danger" Content="End" Click="Line2Hangup_Click" />
+                  <Button Classes="line" Content="Quality" Click="Line2Quality_Click" />
+                </StackPanel>
+                <StackPanel x:Name="Line2Incoming" Orientation="Horizontal" Margin="0,8,0,0" IsVisible="False">
+                  <Button Classes="good" Content="Answer" Click="Line2Answer_Click" />
+                  <Button Classes="danger" Content="Decline" Margin="8,0,0,0" Click="Line2Decline_Click" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+            <Border Classes="card">
+              <StackPanel>
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBox x:Name="DestinationBox" Watermark="Number or extension" FontSize="18" KeyDown="Destination_KeyDown" TextChanged="Destination_Changed" />
+                  <Button Grid.Column="1" Content="⌫" Margin="8,0,0,0" Click="Backspace_Click" />
+                </Grid>
+                <TextBlock x:Name="LookupText" Classes="muted" Margin="2,6,0,4" />
+                <UniformGrid x:Name="Keypad" Columns="3" />
+                <Grid ColumnDefinitions="*,*,*" Margin="0,8,0,0">
+                  <Button Classes="primary" Content="Dial" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Dial_Click" />
+                  <Button Grid.Column="1" Content="Video" Margin="8,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Video_Click" />
+                  <Button Grid.Column="2" Content="Voicemail" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Voicemail_Click" />
+                </Grid>
+                <Grid ColumnDefinitions="*,*" Margin="0,8,0,0">
+                  <Button Content="Pickup" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Pickup_Click" />
+                  <Button Grid.Column="1" Content="Queue" Margin="8,0,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Queue_Click" />
+                </Grid>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+          <Border Grid.Column="1" Classes="card" Margin="12,0,0,0">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                <Button x:Name="HistoryTab" Content="History" Click="ShowHistory_Click" />
+                <Button x:Name="ContactsTab" Content="Contacts" Margin="8,0" Click="ShowContacts_Click" />
+                <Button x:Name="FavoritesTab" Content="Favorites" Click="ShowFavorites_Click" />
+              </StackPanel>
+              <TextBlock x:Name="DirectoryEmpty" DockPanel.Dock="Bottom" Classes="muted" Text="Nothing here yet." HorizontalAlignment="Center" Margin="0,12,0,0" />
+              <ListBox x:Name="DirectoryList" DoubleTapped="Directory_Open">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+                      <StackPanel>
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Subtitle}" Foreground="#64748B" FontSize="12" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="1" Text="{Binding Trailing}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </DockPanel>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Contacts">
+        <DockPanel Margin="4">
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button Classes="primary" Content="Add contact" Click="AddContact_Click" />
+            <Button Content="Edit" Margin="8,0" Click="EditContact_Click" />
+            <Button Content="Favorite" Click="Favorite_Click" />
+            <Button Content="Delete" Margin="8,0" Click="DeleteContact_Click" />
+            <Button Content="Import CSV" Click="Import_Click" />
+            <Button Content="Message" Margin="8,0" Click="MessageContact_Click" />
+          </StackPanel>
+          <ListBox x:Name="ContactList" DoubleTapped="Contact_Dial">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,4">
+                  <StackPanel>
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Subtitle}" Foreground="#64748B" FontSize="12" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding Trailing}" Margin="12,0" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="{Binding Kind}" Foreground="#64748B" VerticalAlignment="Center" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </TabItem>
+
+      <TabItem Header="Calls">
+        <DockPanel Margin="4">
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button Content="All" Click="FilterAll_Click" />
+            <Button Content="Incoming" Margin="8,0" Click="FilterIn_Click" />
+            <Button Content="Outgoing" Click="FilterOut_Click" />
+            <Button Content="Missed" Margin="8,0" Click="FilterMissed_Click" />
+            <Button Content="Clear history" Click="ClearHistory_Click" />
+          </StackPanel>
+          <ListBox x:Name="HistoryList" DoubleTapped="History_Dial">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+                  <StackPanel>
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Subtitle}" Foreground="#64748B" FontSize="12" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding Trailing}" VerticalAlignment="Center" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </TabItem>
+
+      <TabItem Header="Messages">
+        <Grid ColumnDefinitions="280,*" Margin="4">
+          <ListBox x:Name="ThreadList" SelectionChanged="Thread_Changed">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <StackPanel Margin="0,4">
+                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Subtitle}" Foreground="#64748B" FontSize="12" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <DockPanel Grid.Column="1" Margin="12,0,0,0">
+            <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+              <TextBox x:Name="Composer" Watermark="Message" KeyDown="Composer_KeyDown" />
+              <Button Grid.Column="1" Classes="primary" Content="Send" Margin="8,0,0,0" Click="SendMessage_Click" />
+            </Grid>
+            <Border Classes="card">
+              <ScrollViewer>
+                <TextBlock x:Name="Transcript" TextWrapping="Wrap" />
+              </ScrollViewer>
+            </Border>
+          </DockPanel>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Settings">
+        <Grid ColumnDefinitions="180,*" Margin="4">
+          <StackPanel Spacing="6">
+            <Button Content="General" Click="ShowGeneral_Click" />
+            <Button Content="Account" Click="ShowAccount_Click" />
+            <Button Content="Audio" Click="ShowAudio_Click" />
+            <Button Content="Routing" Click="ShowRouting_Click" />
+            <Button Content="Diagnostics" Click="ShowDiagnostics_Click" />
+            <Button Content="About" Click="ShowAbout_Click" />
+          </StackPanel>
+          <ScrollViewer Grid.Column="1" Margin="16,0,0,0">
+            <StackPanel>
+              <StackPanel x:Name="GeneralPage" Spacing="8">
+                <TextBlock Text="General" FontSize="20" FontWeight="Bold" />
+                <TextBlock Text="Display name" Classes="muted" />
+                <TextBox x:Name="DisplayNameBox" />
+                <TextBlock Text="Ringtone" Classes="muted" />
+                <ComboBox x:Name="RingtoneBox" />
+                <CheckBox x:Name="StatsBox" Content="Show call statistics on the line" />
+                <CheckBox x:Name="BlindBox" Content="Single click blind transfer uses the dial box" />
+                <Button Classes="primary" Content="Save general" HorizontalAlignment="Left" Click="SaveGeneral_Click" />
+              </StackPanel>
+              <StackPanel x:Name="AccountPage" Spacing="8" IsVisible="False">
+                <TextBlock Text="Account" FontSize="20" FontWeight="Bold" />
+                <TextBlock x:Name="LicenseLabel" Classes="muted" TextWrapping="Wrap" />
+                <TextBlock Text="Server" Classes="muted" />
+                <TextBox x:Name="ServerBox" />
+                <Grid ColumnDefinitions="*,140">
+                  <StackPanel Margin="0,0,8,0">
+                    <TextBlock Text="Domain" Classes="muted" />
+                    <TextBox x:Name="DomainBox" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="Port" Classes="muted" />
+                    <TextBox x:Name="AccountPortBox" />
+                  </StackPanel>
+                </Grid>
+                <TextBlock Text="Extension" Classes="muted" />
+                <TextBox x:Name="ExtensionBox" />
+                <TextBlock Text="Username" Classes="muted" />
+                <TextBox x:Name="UsernameBox" />
+                <TextBlock Text="Password" Classes="muted" />
+                <TextBox x:Name="PasswordBox" PasswordChar="•" />
+                <TextBlock Text="Transport" Classes="muted" />
+                <ComboBox x:Name="TransportBox">
+                  <ComboBoxItem Content="UDP" />
+                  <ComboBoxItem Content="TCP" />
+                  <ComboBoxItem Content="TLS" />
+                </ComboBox>
+                <TextBlock Text="Registration expiry (seconds)" Classes="muted" />
+                <TextBox x:Name="ExpiryBox" />
+                <TextBlock Text="Local SIP port (0 lets the system choose)" Classes="muted" />
+                <TextBox x:Name="LocalPortBox" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Classes="primary" Content="Save and register" Click="SaveAccount_Click" />
+                  <Button Content="Sign out" Click="SignOut_Click" />
+                </StackPanel>
+              </StackPanel>
+              <StackPanel x:Name="AudioPage" Spacing="8" IsVisible="False">
+                <TextBlock Text="Audio and video" FontSize="20" FontWeight="Bold" />
+                <TextBlock Text="Microphone" Classes="muted" />
+                <ComboBox x:Name="InputBox" />
+                <TextBlock Text="Speaker" Classes="muted" />
+                <ComboBox x:Name="OutputBox" />
+                <TextBlock Text="Camera" Classes="muted" />
+                <ComboBox x:Name="CameraBox" />
+                <TextBlock Text="Microphone volume" Classes="muted" />
+                <Slider x:Name="MicSlider" Minimum="0" Maximum="100" />
+                <TextBlock Text="Speaker volume" Classes="muted" />
+                <Slider x:Name="SpeakerSlider" Minimum="0" Maximum="100" />
+                <TextBlock Text="Codecs" Classes="muted" />
+                <ComboBox x:Name="CodecBox">
+                  <ComboBoxItem Content="PCMU,PCMA" />
+                  <ComboBoxItem Content="PCMU" />
+                  <ComboBoxItem Content="PCMA" />
+                </ComboBox>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Content="Refresh devices" Click="RefreshDevices_Click" />
+                  <Button Content="Play test tone" Click="TestTone_Click" />
+                  <Button Classes="primary" Content="Save audio" Click="SaveAudio_Click" />
+                </StackPanel>
+              </StackPanel>
+              <StackPanel x:Name="RoutingPage" Spacing="8" IsVisible="False">
+                <TextBlock Text="Routing" FontSize="20" FontWeight="Bold" />
+                <CheckBox x:Name="WaitingBox" Content="Call waiting on line 2" />
+                <TextBlock Text="Decline action" Classes="muted" />
+                <ComboBox x:Name="DeclineBox">
+                  <ComboBoxItem Content="Send busy" />
+                  <ComboBoxItem Content="Send to voicemail" />
+                </ComboBox>
+                <TextBlock Text="Voicemail number" Classes="muted" />
+                <TextBox x:Name="VoicemailBox" />
+                <TextBlock Text="Call pickup code" Classes="muted" />
+                <TextBox x:Name="PickupBox" />
+                <TextBlock Text="Queue login code" Classes="muted" />
+                <TextBox x:Name="QueueBox" />
+                <TextBlock Text="Call recording code" Classes="muted" />
+                <TextBox x:Name="RecordCodeBox" />
+                <TextBlock Text="Heartbeat OPTIONS interval (seconds, 0 disables)" Classes="muted" />
+                <TextBox x:Name="HeartbeatBox" />
+                <Button Classes="primary" Content="Save routing" HorizontalAlignment="Left" Click="SaveRouting_Click" />
+              </StackPanel>
+              <StackPanel x:Name="DiagnosticsPage" Spacing="8" IsVisible="False">
+                <TextBlock Text="Diagnostics" FontSize="20" FontWeight="Bold" />
+                <TextBlock x:Name="DiagStatus" Classes="muted" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Content="Send OPTIONS" Click="Options_Click" />
+                  <Button Content="Refresh log" Click="RefreshLog_Click" />
+                  <Button Content="Open data folder" Click="OpenData_Click" />
+                </StackPanel>
+                <TextBox x:Name="LogBox" IsReadOnly="True" AcceptsReturn="True" Height="280" FontFamily="Consolas, Menlo, monospace" FontSize="12" />
+              </StackPanel>
+              <StackPanel x:Name="AboutPage" Spacing="8" IsVisible="False">
+                <TextBlock Text="About" FontSize="20" FontWeight="Bold" />
+                <TextBlock Text="Merlin SIP 1.3.8 for macOS" FontWeight="SemiBold" />
+                <TextBlock TextWrapping="Wrap" Text="CK Media Services. The Mac app is the desktop softphone: two lines, registration, contacts, history, messages, transfers, conference, recording, voicemail, and call quality. Audio uses Core Audio." />
+                <TextBlock x:Name="AboutLicense" TextWrapping="Wrap" Classes="muted" />
+                <TextBlock x:Name="AboutData" TextWrapping="Wrap" Classes="muted" />
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </TabItem>
+    </TabControl>
+  </Grid>
+</Window>

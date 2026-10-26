@@ -155,6 +155,29 @@ public class StoreTests
     }
 
     [Fact]
+    public void CallHistoryEntry_StockFiller_IsRecognizedAndRealCallsAreKept()
+    {
+        Assert.True(CallHistoryEntry.IsStockFiller(new CallHistoryEntry
+        {
+            Name = "PBX Echo & Line Quality Test",
+            Number = "100",
+            Detail = "Line quality test completed."
+        }));
+        Assert.True(CallHistoryEntry.IsStockFiller(new CallHistoryEntry
+        {
+            Name = "Voicemail Audio Diagnostic",
+            Number = "*97",
+            Detail = "Voicemail greeting played."
+        }));
+        Assert.False(CallHistoryEntry.IsStockFiller(new CallHistoryEntry
+        {
+            Name = "Kyle Thompson",
+            Number = "505",
+            Detail = "Call ended."
+        }));
+    }
+
+    [Fact]
     public void AppStartupConfig_AutoAnswerEnabled_DefaultsToFalse()
     {
         var config = new AppStartupConfig(

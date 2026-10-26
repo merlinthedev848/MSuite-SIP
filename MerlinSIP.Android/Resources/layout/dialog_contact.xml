@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="4dp">
+
+    <TextView
+        style="@style/FieldLabel"
+        android:text="Name" />
+
+    <EditText
+        android:id="@+id/contact_name"
+        style="@style/FieldInput"
+        android:hint="Alex"
+        android:inputType="textPersonName" />
+
+    <TextView
+        style="@style/FieldLabel"
+        android:text="Number" />
+
+    <EditText
+        android:id="@+id/contact_number"
+        style="@style/FieldInput"
+        android:hint="1002"
+        android:inputType="phone" />
+</LinearLayout>

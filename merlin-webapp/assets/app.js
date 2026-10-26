@@ -21,17 +21,8 @@
     contacts: [],
     history: [],
     recordings: [],
-    blfExtensions: [
-      { ext: '100', name: 'Reception Switchboard', dept: 'Front Office', status: 'online' },
-      { ext: '101', name: 'Commercial Sales', dept: 'Sales', status: 'online' },
-      { ext: '102', name: 'Account Management', dept: 'Client Success', status: 'busy' },
-      { ext: '105', name: 'Billing & Invoicing', dept: 'Finance', status: 'away' },
-      { ext: '110', name: 'Technical Support', dept: 'Helpdesk', status: 'online' },
-      { ext: '150', name: 'IT Infrastructure', dept: 'Operations', status: 'online' },
-      { ext: '200', name: 'Executive Conference Room', dept: 'Facilities', status: 'offline' },
-      { ext: '201', name: 'Sales War Room', dept: 'Meeting', status: 'offline' }
-    ],
-    license: { valid: true, customer: 'Enterprise Client', seats: 25, status: 'Licensed' },
+    blfExtensions: [],
+    license: { valid: false, customer: '', seats: 0, status: 'Unknown' },
     selectedContactId: null,
     userAgent: null,
     registerer: null,
@@ -240,7 +231,7 @@
     });
 
     // BLF Switchboard Actions
-    $('btnGroupPickup')?.addEventListener('click', () => dialNumber('*8'));
+    $('btnGroupPickup')?.addEventListener('click', () => dialNumber('*4'));
     $('btnRefreshBlf')?.addEventListener('click', refreshBlfStatuses);
 
     // Voicemail & Feature Codes
@@ -256,7 +247,6 @@
         dialNumber('*97');
       }
     });
-    $('btnDialEchoTest')?.addEventListener('click', () => dialNumber('*43'));
 
     document.querySelectorAll('[data-park-code]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1061,7 +1051,7 @@
   }
 
   function mergeConference() {
-    setNotice('success', '3-Way Conference Audio bridge connected.');
+    setNotice('warn', 'This phone cannot join the two lines into a conference.');
   }
 
   // =========================================================================
@@ -1070,6 +1060,11 @@
   function renderBlfGrid() {
     const grid = els.blfGrid;
     if (!grid) return;
+
+    if (state.blfExtensions.length === 0) {
+      grid.innerHTML = '<div class="empty-state"><span>No busy lamps yet. Lamps appear when the PBX reports an extension.</span></div>';
+      return;
+    }
 
     grid.innerHTML = state.blfExtensions.map(ext => `
       <div class="blf-card">
@@ -1086,7 +1081,7 @@
         <div class="blf-actions">
           <button class="blf-btn" onclick="window.MerlinSoftphone.dial('${ext.ext}')">Call</button>
           <button class="blf-btn" onclick="window.MerlinSoftphone.dial('*80${ext.ext}')">Intercom</button>
-          <button class="blf-btn" onclick="window.MerlinSoftphone.dial('*8${ext.ext}')">Pickup</button>
+          <button class="blf-btn" onclick="window.MerlinSoftphone.dial('*04${ext.ext}')">Pickup</button>
         </div>
       </div>
     `).join('');
@@ -1416,9 +1411,9 @@
       },
       {
         num: 9,
-        name: 'RTP Audio Quality & MOS Score Simulation',
+        name: 'RTP Audio Quality',
         run: async () => {
-          log('Simulating 10-second G.711 / Opus high-definition WebRTC audio stream...');
+          log('Checking whether the diagnostics server measured an RTP stream...');
           await delay(400);
           const c = checks.rtp_quality;
           if (c) {

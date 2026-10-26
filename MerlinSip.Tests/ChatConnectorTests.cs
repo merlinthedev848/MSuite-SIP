@@ -70,6 +70,62 @@ public class ChatConnectorTests
     }
 
     [Fact]
+    public void CreateSendPayload_TextMessage_IncludesNullFileFields()
+    {
+        var payload = ChatConnectorService.CreateSendPayload("505", "503", "Test Chat Hello");
+        var json = JsonSerializer.Serialize(payload);
+
+        Assert.Contains("\"conversationId\":\"505\"", json);
+        Assert.Contains("\"senderId\":\"503\"", json);
+        Assert.Contains("\"messageType\":\"text\"", json);
+        Assert.Contains("\"content\":\"Test Chat Hello\"", json);
+        Assert.Contains("\"fileName\":null", json);
+        Assert.Contains("\"fileSize\":null", json);
+        Assert.DoesNotContain("timestamp", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("fileUrl", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CreateSendPayload_FileMessage_IncludesNameAndSize()
+    {
+        var payload = ChatConnectorService.CreateSendPayload("505", "503", "https://handler.chriskendall.media/uploads/note.txt", "file", "note.txt", 128);
+        var json = JsonSerializer.Serialize(payload);
+
+        Assert.Contains("\"messageType\":\"file\"", json);
+        Assert.Contains("\"fileName\":\"note.txt\"", json);
+        Assert.Contains("\"fileSize\":128", json);
+    }
+
+    [Fact]
+    public void ChatMessagePayload_ServerRow_ReadsSnakeCaseColumns()
+    {
+        const string row = """
+            {
+              "id": 42,
+              "conversation_id": "505",
+              "sender_id": "503",
+              "message_type": "text",
+              "content": "Test Chat Hello",
+              "file_name": null,
+              "file_size": null,
+              "timestamp": "2026-10-26 00:39:00"
+            }
+            """;
+
+        var payload = ChatMessagePayload.TryParse(row);
+
+        Assert.NotNull(payload);
+        Assert.Equal(42, payload.Id);
+        Assert.Equal("505", payload.ConversationId);
+        Assert.Equal("503", payload.SenderId);
+        Assert.Equal("text", payload.MessageType);
+        Assert.Equal("Test Chat Hello", payload.Content);
+        Assert.Null(payload.FileName);
+        Assert.Null(payload.FileSize);
+        Assert.Equal("2026-10-26 00:39:00", payload.Timestamp);
+    }
+
+    [Fact]
     public async Task ProbeServerAsync_ReturnsStatusWithoutThrowing()
     {
         var service = new ChatConnectorService();

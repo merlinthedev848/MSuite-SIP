@@ -9,13 +9,7 @@ import { ActiveCallOverlay } from './components/ActiveCallOverlay';
 import { SettingsModal } from './components/SettingsModal';
 import { DiagnosticsModal } from './components/DiagnosticsModal';
 
-const INITIAL_CONTACTS: Contact[] = [
-  { name: 'Reception Desk', number: '100', presence: 'online' },
-  { name: 'Chris Kendall', number: '101', presence: 'busy' },
-  { name: 'IT Support Hotdesk', number: '150', presence: 'online' },
-  { name: 'Conference Room A', number: '201', presence: 'offline' },
-  { name: 'Outbound Trunk', number: '9', presence: 'online' }
-];
+const INITIAL_CONTACTS: Contact[] = [];
 
 export default function App() {
   // Navigation & Authentication
@@ -70,7 +64,7 @@ export default function App() {
       return false;
     }
   });
-  const [registerStatusText] = useState('Registered and listening for calls.');
+  const [registerStatusText, setRegisterStatusText] = useState('Not registered. This page does not open a SIP connection.');
   const [destination, setDestination] = useState('');
   const [activeTab, setActiveTab] = useState<'phone' | 'history' | 'contacts'>('phone');
   const [searchQuery, setSearchQuery] = useState('');
@@ -183,15 +177,12 @@ export default function App() {
       }
     }
 
-    const updatedConfig: SipSettings = {
-      ...settings,
-      extension: authMode === 'provision' ? '100' : settings.extension,
-      username: authMode === 'provision' ? 'reception' : settings.username
-    };
+    const updatedConfig: SipSettings = { ...settings };
 
     localStorage.setItem('merlin_sip_config', JSON.stringify(updatedConfig));
     setSettings(updatedConfig);
-    setRegistered(true);
+    setRegistered(false);
+    setRegisterStatusText('Settings saved. This page does not register with the PBX.');
     setStep('main');
   };
 
@@ -206,21 +197,9 @@ export default function App() {
 
   const handleMakeCall = () => {
     if (!destination.trim()) return;
-
     clearCallProgressionTimers();
-    setActiveCall({
-      destination,
-      state: 'dialing',
-      duration: 0,
-      muted: false
-    });
-
-    dialTimeoutRef.current = setTimeout(() => {
-      setActiveCall(prev => prev ? { ...prev, state: 'ringing' } : null);
-      ringTimeoutRef.current = setTimeout(() => {
-        setActiveCall(prev => prev ? { ...prev, state: 'connected' } : null);
-      }, 1500);
-    }, 1000);
+    setActiveCall(null);
+    setRegisterStatusText('This page cannot place a SIP call.');
   };
 
   const handleHangUp = () => {
@@ -286,97 +265,49 @@ export default function App() {
       setDiagLogs(logs.join(''));
     };
 
-    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
     log("Starting Merlin Network Diagnostic Tool...");
     log("=================================================================");
     log(`Timestamp:         ${new Date().toISOString()}`);
-    log(`OS Version:        Browser Sandbox`);
-    log(`Local IP Address:  192.168.1.45 (Simulated)`);
-    log(`Diagnostic Scope:  Strictly checking Merlin SIP Network Guidance`);
+    log("This page reports only checks the browser can actually perform.");
     log("=================================================================");
-    log("All tests are running directly against the servers and ports specified in the network guide.");
-    await delay(800);
 
-    const steps = [
+    const target = (settings.sipServer || '').trim();
+    const steps: { name: string; action: () => Promise<boolean> }[] = [
       {
-        name: "DNS Domain & Resolution Check", action: async () => {
-          log("Resolving Merlin service domains...");
-          log(`Success: Resolved '${settings.sipServer}' to: 104.24.120.5`);
-          return true;
+        name: "Configured server reachability", action: async () => {
+          if (!target) {
+            log("No SIP server is configured.");
+            return false;
+          }
+          const url = /^https?:\/\//i.test(target) ? target : `https://${target}`;
+          const started = performance.now();
+          try {
+            await fetch(url, { mode: 'no-cors', cache: 'no-store' });
+            const ms = Math.round(performance.now() - started);
+            log(`The browser reached ${url} in ${ms}ms. The response body is not readable from this page.`);
+            return true;
+          } catch (err) {
+            log(`The browser could not reach ${url}. ${err instanceof Error ? err.message : ''}`.trim());
+            return false;
+          }
         }
       },
       {
-        name: "HTTP/HTTPS Outbound Probes", action: async () => {
-          log("Testing web connection and TLS handshake...");
-          log("Success: HTTP/HTTPS handshake to portal complete in 42ms.");
-          return true;
-        }
-      },
-      {
-        name: "NTP Time Sync", action: async () => {
-          log("Syncing with NTP server pool.ntp.org...");
-          log("Success: Offset +0.012s. System clock is in sync.");
-          return true;
-        }
-      },
-      {
-        name: "CK Media Services STUN", action: async () => {
-          log("Querying primary STUN servers on port 3478...");
-          log("Success: Port mapping received.");
-          return true;
-        }
-      },
-      {
-        name: "Google STUN Check", action: async () => {
-          log("Querying fallback Google STUN...");
-          log("Success: Google STUN responded in 18ms.");
-          return true;
-        }
-      },
-      {
-        name: "NAT Hops Verification", action: async () => {
-          log("Verifying double-NAT hops routing...");
-          log("Success: Single NAT detected. Routing is direct.");
-          return true;
-        }
-      },
-      {
-        name: "NAT Port Randomness", action: async () => {
-          log("Testing port mapper allocation randomness...");
-          log("Success: Port mapping is symmetric-safe (Full Cone).");
-          return true;
-        }
-      },
-      {
-        name: "SIP ALG Inspection", action: async () => {
-          log("Inspecting SIP headers on port 5060 for ALG modifications...");
-          log("Success: No ALG rewriting or Via header corruption detected.");
-          return true;
-        }
-      },
-      {
-        name: "RTP Quality path checks", action: async () => {
-          log("Simulating G.711 media packet transmission...");
-          log("Path A (SIP Port 5060): Loss 0.0%, Jitter 2ms, MOS: 4.39");
-          log("Path B (PBX Local Port): Loss 0.0%, Jitter 3ms, MOS: 4.39");
-          log("Path C (Google STUN 19302): Loss 0.0%, Jitter 2ms, MOS: 4.39");
-          return true;
-        }
-      },
-      {
-        name: "SignalR WebSocket Stability Check", action: async () => {
-          log("Verifying hub WebSocket connections...");
-          log("Signalling Hub (WebSocket): Connected, state: Active.");
-          log("Presence Hub (WebSocket): Connected, state: Active.");
-          log("Rooms Hub (WebSocket): Connected, state: Active.");
-          log("DPI Checker: Connections remain stable after 2.5s monitor.");
-          return true;
+        name: "Audio devices", action: async () => {
+          if (!navigator.mediaDevices?.enumerateDevices) {
+            log("This browser cannot list audio devices.");
+            return false;
+          }
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const inputs = devices.filter(device => device.kind === 'audioinput').length;
+          const outputs = devices.filter(device => device.kind === 'audiooutput').length;
+          log(`Audio inputs: ${inputs}. Audio outputs: ${outputs}.`);
+          return inputs > 0 && outputs > 0;
         }
       }
     ];
 
-    let overallPass = true;
+    let passedCount = 0;
 
     for (let i = 0; i < steps.length; i++) {
       if (diagCancelRef.current) {
@@ -386,25 +317,23 @@ export default function App() {
         return;
       }
       setDiagStatus(`Running: ${steps[i].name}...`);
-      log(`\n=== CHECK ${i + 1}/10: ${steps[i].name.toUpperCase()} ===`);
+      log(`\n=== CHECK ${i + 1}/${steps.length}: ${steps[i].name.toUpperCase()} ===`);
       log("-----------------------------------------------------------------");
 
       const pass = await steps[i].action();
-      if (!pass) overallPass = false;
-      await delay(1000);
+      if (pass) passedCount += 1;
     }
 
     log("\n=================================================================");
-    if (overallPass) {
-      log("All network checks PASSED! Your firewall configuration is fully compliant with the Merlin SIP Network Guidance.");
+    if (passedCount === steps.length) {
+      log(`All ${steps.length} checks passed.`);
       setDiagStatus("Diagnostics Completed - PASS");
       setDiagPass(true);
     } else {
-      log("Some network checks FAILED. Please review the warnings in red above.");
+      log(`${passedCount} of ${steps.length} checks passed.`);
       setDiagStatus("Diagnostics Completed - FAIL/WARN");
       setDiagPass(false);
     }
-    log("Weighted Diagnostics Score: 100/100");
     setDiagComplete(true);
     setDiagRunning(false);
   };
@@ -538,9 +467,8 @@ export default function App() {
           onToggleMute={toggleMute}
           onToggleHold={toggleHold}
           onHangUp={handleHangUp}
-          onTransfer={(target) => {
-            alert(`Call transferred to ${target}`);
-            handleHangUp();
+          onTransfer={() => {
+            setRegisterStatusText('Transfer is not available on this page.');
           }}
         />
       )}

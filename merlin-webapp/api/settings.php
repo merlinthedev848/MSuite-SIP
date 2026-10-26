@@ -22,8 +22,7 @@ $defaults = [
     'featureCodes' => [
         'voicemail' => '*97',
         'dndToggle' => '*78',
-        'echoTest' => '*43',
-        'callPickup' => '*8',
+        'callPickup' => '*04',
     ],
     'licensed' => true,
     'licenseKey' => 'MERLIN-COMMERCIAL-UNLIMITED',
@@ -75,8 +74,7 @@ $settings = [
     'featureCodes' => is_array($input['featureCodes'] ?? null) ? [
         'voicemail' => merlin_string($input['featureCodes'], 'voicemail', 20) ?: '*97',
         'dndToggle' => merlin_string($input['featureCodes'], 'dndToggle', 20) ?: '*78',
-        'echoTest' => merlin_string($input['featureCodes'], 'echoTest', 20) ?: '*43',
-        'callPickup' => merlin_string($input['featureCodes'], 'callPickup', 20) ?: '*8',
+        'callPickup' => merlin_string($input['featureCodes'], 'callPickup', 20) ?: '*04',
     ] : $defaults['featureCodes'],
     'licensed' => true,
     'licenseKey' => merlin_string($input, 'licenseKey', 120) ?: 'MERLIN-COMMERCIAL-UNLIMITED',

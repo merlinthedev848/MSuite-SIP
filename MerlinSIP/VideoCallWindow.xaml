@@ -26,7 +26,7 @@
                     <Border Background="#1E1B4B" BorderBrush="#4338CA" BorderThickness="1" CornerRadius="6" Padding="10,5" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Fill="#818CF8" Margin="0,0,6,0" VerticalAlignment="Center" />
-                            <TextBlock x:Name="YeastarProtocolBadge" Text="Yeastar SIP/WebRTC  •  H.264 / VP8 (720p HD)" FontSize="11.5" FontWeight="SemiBold" Foreground="#E0E7FF" VerticalAlignment="Center" />
+                            <TextBlock x:Name="YeastarProtocolBadge" Text="Video codec not negotiated" FontSize="11.5" FontWeight="SemiBold" Foreground="#E0E7FF" VerticalAlignment="Center" />
                         </StackPanel>
                     </Border>
 
@@ -66,15 +66,15 @@
                                 <TextBlock x:Name="LargeInitialsText" Text="MS" FontSize="36" FontWeight="Black" Foreground="#818CF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
                         </Border>
-                        <TextBlock x:Name="RemoteDisplayStatus" Text="Starting your camera..." FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                        <TextBlock x:Name="RemoteDisplayStatus" Text="Waiting for their video" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center" Margin="0,0,0,4" />
                         <TextBlock x:Name="RemoteCodecInfo" Text="The other person's video appears here when a picture arrives." FontSize="12" Foreground="#94A3B8" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="420" />
                     </StackPanel>
 
                     <!-- Top Left Overlay in Remote Viewport -->
                     <Border HorizontalAlignment="Left" VerticalAlignment="Top" Background="#80000000" CornerRadius="6" Padding="8,4" Margin="16">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="6" Height="6" Fill="#10B981" Margin="0,0,6,0" VerticalAlignment="Center" />
-                            <TextBlock x:Name="StreamQualityLabel" Text="Your camera" Foreground="#E2E8F0" FontSize="11" FontWeight="Medium" />
+                            <Ellipse Width="6" Height="6" Fill="#94A3B8" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock x:Name="StreamQualityLabel" Text="No remote video" Foreground="#E2E8F0" FontSize="11" FontWeight="Medium" />
                         </StackPanel>
                     </Border>
 
@@ -107,7 +107,7 @@
                             <!-- Local Device & You Tag -->
                             <Border HorizontalAlignment="Left" VerticalAlignment="Top" Background="#A0000000" CornerRadius="4" Padding="6,2" Margin="8">
                                 <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="5" Height="5" Fill="#10B981" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                    <Ellipse x:Name="LocalCameraLiveDot" Width="5" Height="5" Fill="#94A3B8" Margin="0,0,5,0" VerticalAlignment="Center" />
                                     <TextBlock Text="You (Local Camera)" Foreground="#FFFFFF" FontSize="10" FontWeight="SemiBold" />
                                 </StackPanel>
                             </Border>

@@ -30,7 +30,8 @@ public sealed class CallHistoryStore
         try
         {
             await using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
-            return await JsonSerializer.DeserializeAsync<List<CallHistoryEntry>>(stream) ?? [];
+            var loaded = await JsonSerializer.DeserializeAsync<List<CallHistoryEntry>>(stream) ?? [];
+            return loaded.Where(call => !CallHistoryEntry.IsStockFiller(call)).ToList();
         }
         catch (Exception error)
         {
@@ -43,7 +44,7 @@ public sealed class CallHistoryStore
     {
         try
         {
-            await AtomicFileStorage.SaveAtomicAsync(_path, calls.Take(500).ToList(), JsonOptions);
+            await AtomicFileStorage.SaveAtomicAsync(_path, calls.Where(call => !CallHistoryEntry.IsStockFiller(call)).Take(500).ToList(), JsonOptions);
         }
         catch (Exception error)
         {

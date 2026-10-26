@@ -97,13 +97,12 @@ public partial class VideoCallWindow : Window
             if (_localBitmap is null || _localBitmap.PixelWidth != width || _localBitmap.PixelHeight != height)
             {
                 _localBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
-                RemoteVideoImage.Source = _localBitmap;
-                LocalVideoImage.Source = _localBitmap;
             }
 
             _localBitmap.WritePixels(new Int32Rect(0, 0, width, height), pixels, width * 4, 0);
-            RemotePlaceholderPanel.Visibility = Visibility.Collapsed;
-            StreamQualityLabel.Text = $"Your camera  •  {width}x{height}";
+            LocalVideoImage.Source = _localBitmap;
+            LocalCameraLiveDot.Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 185, 129));
+            LocalCameraDeviceText.Text = $"{width}x{height}";
         }
         finally
         {
@@ -119,9 +118,8 @@ public partial class VideoCallWindow : Window
             return;
         }
 
-        RemoteDisplayStatus.Text = "Camera not available";
-        RemoteCodecInfo.Text = message;
-        StreamQualityLabel.Text = "No camera picture";
+        LocalCameraDeviceText.Text = message;
+        LocalCameraLiveDot.Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(148, 163, 184));
     }
 
     private void DurationTimer_Tick(object? sender, EventArgs e)
@@ -153,6 +151,7 @@ public partial class VideoCallWindow : Window
             if (RemoteVideoImage.Source is null)
             {
                 RemoteCodecInfo.Text = "Video packets are arriving, but there is no picture to show yet.";
+                StreamQualityLabel.Text = "Packets received, no picture";
             }
         });
     }
@@ -167,7 +166,7 @@ public partial class VideoCallWindow : Window
 
     private void UpdateCodecDisplay(string codec)
     {
-        YeastarProtocolBadge.Text = $"Yeastar SIP/WebRTC  •  {codec}";
+        YeastarProtocolBadge.Text = string.IsNullOrWhiteSpace(codec) ? "Video codec not negotiated" : codec;
     }
 
     private void MuteMicButton_Click(object sender, RoutedEventArgs e)

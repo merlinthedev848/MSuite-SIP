@@ -88,7 +88,7 @@
                         </DockPanel>
                         
                         <ProgressBar x:Name="MosProgressBar" Height="8" Minimum="1" Maximum="5" Value="4.4" Foreground="#10B981" Background="#E2E8F0" BorderThickness="0" Margin="0,4,0,6" />
-                        <TextBlock x:Name="QualityAssessmentTextBlock" Text="PSTN toll quality. Zero audible jitter or packet degradation." Foreground="#64748B" FontSize="12" TextWrapping="Wrap" />
+                        <TextBlock x:Name="QualityAssessmentTextBlock" Text="No audio measurement for this call." Foreground="#64748B" FontSize="12" TextWrapping="Wrap" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -126,7 +126,7 @@
                 <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="5,0,0,8">
                     <StackPanel>
                         <TextBlock Text="RTP Bitrate (Tx / Rx)" FontSize="11" Foreground="#64748B" FontWeight="Medium" />
-                        <TextBlock x:Name="BitrateTextBlock" Text="64.0 / 64.0 kbps" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,2,0,0" />
+                        <TextBlock x:Name="BitrateTextBlock" Text="n/a" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,2,0,0" />
                         <TextBlock Text="G.711u standard" FontSize="10" Foreground="#94A3B8" />
                     </StackPanel>
                 </Border>

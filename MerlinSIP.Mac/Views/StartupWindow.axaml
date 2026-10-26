@@ -1,0 +1,61 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MerlinSip.Mac.StartupWindow"
+        Title="Merlin SIP"
+        Width="520"
+        Height="640"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen">
+  <Grid RowDefinitions="Auto,*" Margin="28">
+    <StackPanel>
+      <Border Width="42" Height="42" CornerRadius="10" Background="#FBBF24" HorizontalAlignment="Left">
+        <TextBlock Text="M" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <TextBlock Text="Merlin SIP" FontSize="28" FontWeight="Bold" Margin="0,14,0,0" />
+      <TextBlock Text="License the phone, then sign in to your extension." Classes="muted" Margin="0,4,0,0" />
+    </StackPanel>
+    <ScrollViewer Grid.Row="1" Margin="0,18,0,0">
+      <StackPanel>
+        <TextBlock Text="License key" FontWeight="SemiBold" />
+        <TextBox x:Name="LicenseBox" Margin="0,6,0,14" Watermark="Paste your license key" />
+        <TextBlock Text="Account" FontWeight="SemiBold" Margin="0,4,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+          <RadioButton x:Name="ProvisionRadio" Content="Provisioning code" IsChecked="True" GroupName="setup" />
+          <RadioButton x:Name="ManualRadio" Content="SIP account" Margin="16,0,0,0" GroupName="setup" />
+        </StackPanel>
+        <StackPanel x:Name="ProvisionPanel">
+          <TextBlock Text="8 digit code" Classes="muted" />
+          <TextBox x:Name="CodeBox" Margin="0,6,0,12" Watermark="12345678" />
+        </StackPanel>
+        <StackPanel x:Name="ManualPanel" IsVisible="False">
+          <TextBlock Text="Display name" Classes="muted" />
+          <TextBox x:Name="NameBox" Margin="0,6,0,8" />
+          <TextBlock Text="Server" Classes="muted" />
+          <TextBox x:Name="ServerBox" Margin="0,6,0,8" Text="pbx.chriskendall.media" />
+          <Grid ColumnDefinitions="*,120" Margin="0,0,0,8">
+            <StackPanel>
+              <TextBlock Text="Extension" Classes="muted" />
+              <TextBox x:Name="ExtensionBox" Margin="0,6,8,0" />
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+              <TextBlock Text="Port" Classes="muted" />
+              <TextBox x:Name="PortBox" Margin="0,6,0,0" Text="5060" />
+            </StackPanel>
+          </Grid>
+          <TextBlock Text="Username" Classes="muted" />
+          <TextBox x:Name="UsernameBox" Margin="0,6,0,8" />
+          <TextBlock Text="Password" Classes="muted" />
+          <TextBox x:Name="PasswordBox" PasswordChar="•" Margin="0,6,0,8" />
+          <TextBlock Text="Transport" Classes="muted" />
+          <ComboBox x:Name="TransportBox" Margin="0,6,0,8" SelectedIndex="0">
+            <ComboBoxItem Content="UDP" />
+            <ComboBoxItem Content="TCP" />
+            <ComboBoxItem Content="TLS" />
+          </ComboBox>
+        </StackPanel>
+        <TextBlock x:Name="ErrorText" Foreground="#B91C1C" TextWrapping="Wrap" Margin="0,4,0,12" />
+        <Button Classes="primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Continue_Click" Content="Continue" />
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</Window>

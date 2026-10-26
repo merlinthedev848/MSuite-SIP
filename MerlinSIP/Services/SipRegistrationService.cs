@@ -97,6 +97,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         }
     }
     private bool _rejectIncomingCalls;
+    private string _publishedPresence = "";
     private SipResponse? _lastCallFailureResponse;
     private CancellationTokenSource? _heartbeatCancellation;
     private int _heartbeatConsecutiveFailures;
@@ -236,9 +237,18 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         return (true, path);
     }
 
+    public bool HasMeasuredCallQuality => _audioSession?.ReceivedPackets > 0;
+
+    public string NegotiatedAudioCodec => _audioSession?.NegotiatedCodec ?? "";
+
     public (double LossPercent, double JitterMs, double LatencyMs, int SignalBars, string QualityText) GetCallQualityStats()
     {
-        return _audioSession?.GetQualityStats() ?? (0.0, 0.0, _lastMeasuredLatencyMs > 0 ? _lastMeasuredLatencyMs : 18.0, 5, "5/5 Excellent");
+        if (_audioSession is null || _audioSession.ReceivedPackets <= 0)
+        {
+            return (0.0, 0.0, 0.0, 0, "Not measured");
+        }
+
+        return _audioSession.GetQualityStats();
     }
 
     public void SetRejectIncomingCalls(bool reject)
@@ -426,6 +436,11 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
     public async Task PublishPresenceAsync(string status, CancellationToken cancellationToken = default)
     {
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            _publishedPresence = status;
+        }
+
         if (!_registered || _config is null || string.IsNullOrEmpty(_domain))
         {
             return;
@@ -446,11 +461,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             var basicStatus = isOffline ? "closed" : "open";
             var expires = isOffline ? 0 : 3600;
 
-            var isBusyOrDnd = status.Equals("Busy", StringComparison.OrdinalIgnoreCase) ||
-                              status.Equals("DND", StringComparison.OrdinalIgnoreCase) ||
-                              status.Equals("Do Not Disturb", StringComparison.OrdinalIgnoreCase);
-
-            var noteText = isBusyOrDnd ? "Phone is off the hook and cannot be contacted" : status;
+            var isBusyOrDnd = IsBusyOrDndPresence(status);
+            var noteText = PresenceNote(status);
 
             var activityXml = status.ToLowerInvariant() switch
             {
@@ -514,7 +526,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                     {
                         _publishEtag = "";
                     }
-                    DebugLog.Write($"BLF publish presence succeeded status={status} code={response.Code} etag={_publishEtag}");
+                    DebugLog.Write($"BLF publish presence succeeded status={status} note={noteText} code={response.Code} etag={_publishEtag}");
                 }
                 else if (response.Code == 412)
                 {
@@ -597,12 +609,12 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
             var notifyCseq = _notifyCseq++;
             var eventState = isOffHook ? "active;expires=3600" : "terminated;reason=noresource";
-            var noteText = isOffHook ? reason : "Phone is on the hook and available";
+            var noteText = isOffHook ? BusyHereStatus : "Phone is on the hook and available";
 
             var content = BuildDialogInfoXml(_config.Extension, _domain, isOffHook, noteText);
             var notifyRequest = BuildNotify(_config.Extension, _notifyCallId, _notifyLocalTag, notifyCseq, content, eventState, null);
 
-            DebugLog.Write($"SEND NOTIFY off-hook={isOffHook} note='{noteText}'");
+            DebugLog.Write($"SEND NOTIFY off-hook={isOffHook} note='{noteText}' requested='{reason}'");
             try
             {
                 var response = await SendAndWaitFromListenerAsync(notifyRequest, cancellationToken);
@@ -630,7 +642,23 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         }
     }
 
-        internal static string BuildDialogInfoXml(string extension, string domain, bool isOffHook, string noteText)
+    public const string BusyHereStatus = "BusyHere";
+
+    internal static bool IsBusyOrDndPresence(string? status)
+    {
+        return status != null && (
+            status.Equals("Busy", StringComparison.OrdinalIgnoreCase) ||
+            status.Equals("DND", StringComparison.OrdinalIgnoreCase) ||
+            status.Equals("Do Not Disturb", StringComparison.OrdinalIgnoreCase) ||
+            status.Equals(BusyHereStatus, StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal static string PresenceNote(string? status)
+    {
+        return IsBusyOrDndPresence(status) ? BusyHereStatus : status ?? "";
+    }
+
+    internal static string BuildDialogInfoXml(string extension, string domain, bool isOffHook, string noteText)
     {
         var state = isOffHook ? "confirmed" : "terminated";
         var contentBuilder = new StringBuilder();
@@ -698,6 +726,28 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     public Task<SipCallResult> SendDtmfAsync(char digit, CancellationToken cancellationToken = default)
     {
         return SendDtmfAsync(digit, _selectedLine, cancellationToken);
+    }
+
+    public async Task<SipCallResult> SendDtmfSequenceAsync(string code, int line, CancellationToken cancellationToken = default)
+    {
+        var digits = DeskPhone.DtmfDigits(code);
+        if (digits.Count == 0)
+        {
+            return new SipCallResult(false, "No feature code to send.");
+        }
+
+        foreach (var digit in digits)
+        {
+            var result = await SendDtmfAsync(digit, line, cancellationToken);
+            if (!result.Signalled)
+            {
+                return result;
+            }
+
+            await Task.Delay(180, cancellationToken);
+        }
+
+        return new SipCallResult(true, $"Sent {code}.");
     }
 
     public async Task<SipRegistrationResult> RegisterAsync(AppStartupConfig config, CancellationToken cancellationToken = default)
@@ -1965,6 +2015,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             return new SipRegistrationResult(true, "Call in progress.");
         }
 
+        var republishBusyHere = false;
         await _registrationLock.WaitAsync(cancellationToken);
         try
         {
@@ -1995,6 +2046,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             if (firstResponse.Code == 200)
             {
                 _registered = true;
+                republishBusyHere = true;
                 return new SipRegistrationResult(true, "Registered and listening for calls.");
             }
 
@@ -2018,6 +2070,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             UpdateLocalEndpointFromResponse(secondResponse);
 
             _registered = secondResponse.Code == 200;
+            republishBusyHere = _registered;
             return _registered
                 ? new SipRegistrationResult(true, "Registered and listening for calls.")
                 : new SipRegistrationResult(false, $"SIP registration failed: {secondResponse.Code} {secondResponse.Reason}".Trim());
@@ -2025,7 +2078,29 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         finally
         {
             _registrationLock.Release();
+            if (republishBusyHere)
+            {
+                try
+                {
+                    await PublishBusyHereIfSelectedAsync(cancellationToken);
+                }
+                catch (Exception error)
+                {
+                    DebugLog.Write($"BusyHere republish failed error={error.Message}");
+                }
+            }
         }
+    }
+
+    private async Task PublishBusyHereIfSelectedAsync(CancellationToken cancellationToken)
+    {
+        if (!IsBusyOrDndPresence(_publishedPresence))
+        {
+            return;
+        }
+
+        DebugLog.Write($"BusyHere refresh status={_publishedPresence}");
+        await PublishPresenceAsync(_publishedPresence, cancellationToken);
     }
 
     private string BuildRegister(string callId, int cseq, string? authorization, bool proxyAuthorization = false)
@@ -2916,6 +2991,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                     _lastHeartbeatSuccess = DateTimeOffset.Now;
                     _heartbeatConsecutiveFailures = 0;
                     HeartbeatStatus?.Invoke(this, new HeartbeatStatusEventArgs(true, response.Code, latency, 0, "OK"));
+                    await PublishBusyHereIfSelectedAsync(cancellationToken);
                 }
                 else if (response.Code > 0)
                 {
@@ -3316,8 +3392,9 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 return;
             }
 
-            DebugLog.Write($"BLF notify extension={extension} presence={presence} callId={callId}");
-            ContactPresenceChanged?.Invoke(this, new ContactPresenceEventArgs(extension, presence));
+            var eventName = headers.GetValueOrDefault("event", "").Split(';')[0].Trim();
+            DebugLog.Write($"BLF notify extension={extension} presence={presence} event={eventName} callId={callId}");
+            ContactPresenceChanged?.Invoke(this, new ContactPresenceEventArgs(extension, presence, eventName));
         }
         catch (Exception error)
         {
@@ -3659,6 +3736,48 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         }
 
         return builder.ToString();
+    }
+
+    internal readonly record struct BlfChannels(string Dialog = "", string Reachability = "")
+    {
+        public static BlfChannels Apply(BlfChannels current, string? incoming, string? eventName)
+        {
+            if (string.IsNullOrWhiteSpace(incoming))
+            {
+                return current;
+            }
+
+            var source = (eventName ?? "").Split(';')[0].Trim();
+            var isDialog = source.Equals("dialog", StringComparison.OrdinalIgnoreCase);
+            var isPresence = source.Equals("presence", StringComparison.OrdinalIgnoreCase);
+            if (isDialog || (!isPresence && incoming is "Ringing" or "Busy"))
+            {
+                return current with { Dialog = incoming };
+            }
+
+            return current with { Reachability = incoming };
+        }
+
+        public string Resolve()
+        {
+            if (Dialog is "Ringing" or "Busy")
+            {
+                return Dialog;
+            }
+
+            if (Reachability is "Offline" or "DND" or "Away" or "Busy" or "Available")
+            {
+                return Reachability;
+            }
+
+            return "Offline";
+        }
+    }
+
+    internal static string MergeBlfPresence(string? current, string? incoming, string? eventName)
+    {
+        var channels = BlfChannels.Apply(new BlfChannels(Reachability: current ?? ""), incoming, eventName);
+        return channels.Resolve();
     }
 
     internal static string ExtractPresenceExtension(string body)
@@ -4302,7 +4421,7 @@ public sealed record CallProgressEventArgs(int Code, string Reason, bool Connect
 
 public sealed record CallEndedEventArgs(string Message, string? CallId = null, int? LineNumber = null);
 
-public sealed record ContactPresenceEventArgs(string Number, string Presence);
+public sealed record ContactPresenceEventArgs(string Number, string Presence, string EventName = "");
 
 public sealed record SipResponse(int Code, string Reason, IReadOnlyDictionary<string, string> Headers, string Raw);
 
