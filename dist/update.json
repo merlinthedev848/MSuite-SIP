@@ -1,8 +1,8 @@
 {
   "Version": "1.3.8",
   "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.8-x64-faststart.msi",
-  "Sha256": "ed78e4810932786ecd75a85f8cfd623ea9741bd8bcc3dc9d5bd96463e9550855",
-  "FileSizeBytes": 80646794,
-  "ReleaseDate": "2026-10-25",
+  "Sha256": "fccefcd4aac94953280fb52c41e055f50e1eb57e9776e4d82de8cd5119b11dbf",
+  "FileSizeBytes": 80622218,
+  "ReleaseDate": "2026-10-26",
   "Notes": "Release 1.3.8: Settings fits on the page, and every dropdown uses the same rounded field as the text boxes. Closing the camera preview no longer shows an error while the window is shutting down. The camera thumbnail stays a 16:9 tile. Voicemail and ordinary calls do not open the video window. A video call shows your webcam. A chat message is marked delivered only when the handler sends it back. Installing an update keeps the saved licence, extension, server, and contacts."
 }
