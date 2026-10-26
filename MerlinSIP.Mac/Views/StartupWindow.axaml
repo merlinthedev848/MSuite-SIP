@@ -17,7 +17,7 @@
     <ScrollViewer Grid.Row="1" Margin="0,18,0,0">
       <StackPanel>
         <TextBlock Text="License key" FontWeight="SemiBold" />
-        <TextBox x:Name="LicenseBox" Margin="0,6,0,14" Watermark="Paste your license key" />
+        <TextBox x:Name="LicenseBox" Margin="0,6,0,14" PlaceholderText="Paste your license key" />
         <TextBlock Text="Account" FontWeight="SemiBold" Margin="0,4,0,8" />
         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
           <RadioButton x:Name="ProvisionRadio" Content="Provisioning code" IsChecked="True" GroupName="setup" />
@@ -25,7 +25,7 @@
         </StackPanel>
         <StackPanel x:Name="ProvisionPanel">
           <TextBlock Text="8 digit code" Classes="muted" />
-          <TextBox x:Name="CodeBox" Margin="0,6,0,12" Watermark="12345678" />
+          <TextBox x:Name="CodeBox" Margin="0,6,0,12" PlaceholderText="12345678" />
         </StackPanel>
         <StackPanel x:Name="ManualPanel" IsVisible="False">
           <TextBlock Text="Display name" Classes="muted" />

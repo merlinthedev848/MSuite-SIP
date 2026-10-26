@@ -375,6 +375,12 @@
     return body;
   }
 
+  function settingsForServer(settings) {
+    const copy = { ...settings };
+    delete copy.password;
+    return copy;
+  }
+
   // =========================================================================
   // Audio Permissions & Device Enumeration
   // =========================================================================
@@ -1204,7 +1210,11 @@
         if (res.config) {
           state.settings = { ...state.settings, ...res.config };
           if (res.config.password) {
-            localStorage.setItem('merlin_sip_password', res.config.password);
+            try {
+              localStorage.setItem('merlin_sip_password', res.config.password);
+            } catch (storageError) {
+              console.warn('Could not store the SIP password in this browser.', storageError);
+            }
             state.settings.password = res.config.password;
           }
           updateSetupGateState();
@@ -1234,10 +1244,14 @@
         authUsername: user || ext,
         password: pwd
       };
-      localStorage.setItem('merlin_sip_password', pwd);
+      try {
+        localStorage.setItem('merlin_sip_password', pwd);
+      } catch (storageError) {
+        console.warn('Could not store the SIP password in this browser.', storageError);
+      }
 
       try {
-        await postJson(api.settings, state.settings);
+        await postJson(api.settings, settingsForServer(state.settings));
         updateSetupGateState();
         setNotice('success', 'SIP connectivity details saved.');
         await connectSip();
@@ -1323,7 +1337,7 @@
         num: 3,
         name: 'NTP Time Synchronization Check',
         run: async () => {
-          log('Querying NTP pool (pool.ntp.org) on UDP port 123...');
+          log('Checking TCP reachability of pool.ntp.org port 123...');
           await delay(250);
           const c = checks.ntp;
           if (c) {
@@ -1371,6 +1385,10 @@
           log('Inspecting IP hop path and router topology...');
           await delay(250);
           const c = checks.nat_hops;
+          if (c && c.measured === false) {
+            log(`  [SKIP] ${c.details}`);
+            return null;
+          }
           if (c) {
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
@@ -1386,6 +1404,10 @@
           log('Testing NAT port mapping predictability and Full-Cone compliance...');
           await delay(300);
           const c = checks.port_randomness;
+          if (c && c.measured === false) {
+            log(`  [SKIP] ${c.details}`);
+            return null;
+          }
           if (c) {
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
@@ -1401,6 +1423,10 @@
           log('Probing local router for SIP Application-Level Gateway (SIP ALG)...');
           await delay(350);
           const c = checks.sip_alg;
+          if (c && c.measured === false) {
+            log(`  [SKIP] ${c.details}`);
+            return null;
+          }
           if (c) {
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
@@ -1416,6 +1442,10 @@
           log('Checking whether the diagnostics server measured an RTP stream...');
           await delay(400);
           const c = checks.rtp_quality;
+          if (c && c.measured === false) {
+            log(`  [SKIP] ${c.details}`);
+            return null;
+          }
           if (c) {
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
@@ -1428,7 +1458,7 @@
         num: 10,
         name: 'WebSockets Hub Keepalive & Transport Stability',
         run: async () => {
-          log('Testing WSS keepalive ping/pong ping interval stability...');
+          log('Checking TCP reachability of the configured signaling host...');
           await delay(300);
           const c = checks.websocket_hub;
           if (c) {
@@ -1442,24 +1472,37 @@
     ];
 
     let passedCount = 0;
+    let measuredCount = 0;
+    let skippedCount = 0;
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       log(`\n[Step ${step.num}/10] ${step.name}`);
       const ok = await step.run();
-      if (ok) passedCount++;
+      if (ok === null) {
+        skippedCount++;
+      } else {
+        measuredCount++;
+        if (ok) passedCount++;
+      }
       const pct = Math.round(((i + 1) / steps.length) * 100);
       if (els.diagProgressFill) els.diagProgressFill.style.width = pct + '%';
     }
 
-    const score = Math.round((passedCount / steps.length) * 100);
+    const score = measuredCount > 0 ? Math.round((passedCount / measuredCount) * 100) : 0;
+    const allMeasuredPassed = measuredCount > 0 && passedCount === measuredCount;
     log('\n=================================================================');
-    log(`DIAGNOSTIC TEST COMPLETE: ${passedCount}/10 CHECKS PASSED (Score: ${score}/100)`);
-    log('PBX WebRTC environment is fully operational and certified.');
+    log(`DIAGNOSTIC TEST COMPLETE: ${passedCount}/${measuredCount} MEASURED CHECKS PASSED, ${skippedCount} NOT MEASURED (Score: ${score}/100)`);
+    log(allMeasuredPassed
+      ? 'Every check this page can measure passed. Unmeasured checks were skipped.'
+      : 'One or more measured checks did not pass. Unmeasured checks were skipped and were not counted as failures.');
     log('=================================================================');
 
     state.diagRunning = false;
     if (els.diagStatusText) els.diagStatusText.textContent = `Completed (${score}%)`;
-    setNotice('success', `Network Diagnostics completed: ${passedCount}/10 checks passed.`);
+    setNotice(
+      allMeasuredPassed ? 'success' : 'warning',
+      `Network Diagnostics completed: ${passedCount}/${measuredCount} measured checks passed.`
+    );
   }
 
   function exportDiagnosticsReport() {
@@ -1828,7 +1871,11 @@
     };
 
     if (pwd) {
-      localStorage.setItem('merlin_sip_password', pwd);
+      try {
+        localStorage.setItem('merlin_sip_password', pwd);
+      } catch (storageError) {
+        console.warn('Could not store the SIP password in this browser.', storageError);
+      }
     }
 
     if (els.remoteAudio && typeof els.remoteAudio.setSinkId === 'function' && audioOut) {
@@ -1836,7 +1883,7 @@
     }
 
     try {
-      await postJson(api.settings, state.settings);
+      await postJson(api.settings, settingsForServer(state.settings));
       els.settingsOverlay?.classList.add('hidden');
       updateSetupGateState();
       setNotice('success', 'Settings saved.');

@@ -162,7 +162,7 @@ export const CredentialsScreen: React.FC<CredentialsScreenProps> = ({
 
       <div className="setup-actions" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto' }}>
         <button className="btn btn-primary" onClick={onSubmit} style={{ width: 140 }}>
-          {authMode === 'provision' ? 'Provision' : 'Connect'}
+          Continue
         </button>
       </div>
     </div>

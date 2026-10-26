@@ -10,7 +10,7 @@ interface DialPadProps {
 }
 
 const KEYS = [
-  { num: '1', lets: 'o_o' }, { num: '2', lets: 'abc' }, { num: '3', lets: 'def' },
+  { num: '1', lets: '' }, { num: '2', lets: 'abc' }, { num: '3', lets: 'def' },
   { num: '4', lets: 'ghi' }, { num: '5', lets: 'jkl' }, { num: '6', lets: 'mno' },
   { num: '7', lets: 'pqrs' }, { num: '8', lets: 'tuv' }, { num: '9', lets: 'wxyz' },
   { num: '*', lets: '' }, { num: '0', lets: '+' }, { num: '#', lets: '' }

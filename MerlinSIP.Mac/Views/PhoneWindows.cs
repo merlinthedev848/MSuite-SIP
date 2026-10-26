@@ -65,7 +65,7 @@ public sealed class TransferWindow : Window
         Height = 230;
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        _number = new TextBox { Text = suggested, Watermark = "Extension or number" };
+        _number = new TextBox { Text = suggested, PlaceholderText = "Extension or number" };
         var blind = new Button { Content = "Blind transfer" };
         blind.Classes.Add("primary");
         var attended = new Button { Content = "Complete attended transfer", IsEnabled = otherLineConnected };
@@ -98,10 +98,10 @@ public sealed class ContactEditWindow : Window
         Height = 420;
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        var name = new TextBox { Text = existing?.Name ?? "", Watermark = "Name" };
-        var number = new TextBox { Text = existing?.Number ?? "", Watermark = "Number" };
-        var company = new TextBox { Text = existing?.Company ?? "", Watermark = "Company" };
-        var notes = new TextBox { Text = existing?.Notes ?? "", Watermark = "Notes", AcceptsReturn = true, Height = 70 };
+        var name = new TextBox { Text = existing?.Name ?? "", PlaceholderText = "Name" };
+        var number = new TextBox { Text = existing?.Number ?? "", PlaceholderText = "Number" };
+        var company = new TextBox { Text = existing?.Company ?? "", PlaceholderText = "Company" };
+        var notes = new TextBox { Text = existing?.Notes ?? "", PlaceholderText = "Notes", AcceptsReturn = true, Height = 70 };
         var favorite = new CheckBox { Content = "Favorite", IsChecked = existing?.IsFavorite == true };
         var save = new Button { Content = "Save" };
         save.Classes.Add("primary");

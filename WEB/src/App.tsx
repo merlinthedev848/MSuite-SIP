@@ -45,7 +45,10 @@ export default function App() {
     try {
       const cached = localStorage.getItem('merlin_sip_config');
       if (cached) {
-        return { ...defaultSettings, ...JSON.parse(cached) };
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return { ...defaultSettings, ...parsed };
+        }
       }
     } catch (e) {
       console.error('Failed to parse cached config', e);
@@ -76,7 +79,10 @@ export default function App() {
   const [callHistory, setCallHistory] = useState<CallRecord[]>(() => {
     try {
       const cached = localStorage.getItem('merlin_sip_history');
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch (e) {
       console.error('Failed to parse cached history', e);
     }
@@ -179,10 +185,20 @@ export default function App() {
 
     const updatedConfig: SipSettings = { ...settings };
 
-    localStorage.setItem('merlin_sip_config', JSON.stringify(updatedConfig));
+    try {
+      localStorage.setItem('merlin_sip_config', JSON.stringify(updatedConfig));
+    } catch (e) {
+      console.error('Failed to save SIP settings', e);
+      setErrorText('Could not save settings in this browser. Storage may be blocked.');
+      return;
+    }
     setSettings(updatedConfig);
     setRegistered(false);
-    setRegisterStatusText('Settings saved. This page does not register with the PBX.');
+    setRegisterStatusText(
+      authMode === 'provision'
+        ? 'Provisioning codes are not sent from this page. Use Merlin SIP Web or the desktop phone to activate an account.'
+        : 'Settings saved. This page does not register with the PBX.'
+    );
     setStep('main');
   };
 
@@ -216,7 +232,12 @@ export default function App() {
     };
     const updatedHistory = [newRecord, ...callHistory];
     setCallHistory(updatedHistory);
-    localStorage.setItem('merlin_sip_history', JSON.stringify(updatedHistory));
+    try {
+      localStorage.setItem('merlin_sip_history', JSON.stringify(updatedHistory));
+    } catch (e) {
+      console.error('Failed to save call history', e);
+      setRegisterStatusText('Call ended, but history could not be saved in this browser.');
+    }
 
     setActiveCall(null);
     setDestination('');
@@ -236,15 +257,26 @@ export default function App() {
   const handleClearHistory = () => {
     if (window.confirm('Clear all call history?')) {
       setCallHistory([]);
-      localStorage.removeItem('merlin_sip_history');
+      try {
+        localStorage.removeItem('merlin_sip_history');
+      } catch (e) {
+        console.error('Failed to clear call history', e);
+        setRegisterStatusText('Call history could not be cleared. Browser storage is blocked.');
+      }
     }
   };
 
   const handleResetApp = () => {
     if (window.confirm('Reset application and remove cache?')) {
       clearCallProgressionTimers();
-      localStorage.removeItem('merlin_sip_config');
-      localStorage.removeItem('merlin_sip_history');
+      try {
+        localStorage.removeItem('merlin_sip_config');
+        localStorage.removeItem('merlin_sip_history');
+      } catch (e) {
+        console.error('Failed to reset stored settings', e);
+        setRegisterStatusText('Stored settings could not be removed. Browser storage is blocked.');
+        return;
+      }
       setStep('credentials');
       setRegistered(false);
       setShowSettings(false);

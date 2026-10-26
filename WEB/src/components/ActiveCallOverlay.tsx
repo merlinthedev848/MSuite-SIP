@@ -29,9 +29,6 @@ export const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({
     if (transferTarget.trim()) {
       if (onTransfer) {
         onTransfer(transferTarget.trim());
-      } else {
-        alert(`Transferred call to ${transferTarget.trim()}`);
-        onHangUp();
       }
       setShowTransferInput(false);
       setTransferTarget('');

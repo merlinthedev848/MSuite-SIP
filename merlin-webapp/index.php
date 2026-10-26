@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-$version = '1.3.0';
+$version = '1.3.2';
 ?>
 <!doctype html>
 <html lang="en">
@@ -593,7 +593,7 @@ Ready to run diagnostics. Press "Run 10-Step Check" above to verify all DNS, STU
             <div style="display: grid; grid-template-columns: 120px 1fr; gap: 8px; font-size: 13px;">
               <strong style="color: var(--muted);">Version:</strong> <span><?= htmlspecialchars($version, ENT_QUOTES) ?></span>
               <strong style="color: var(--muted);">Runtime:</strong> <span>PHP <?= PHP_VERSION ?> + Browser WebRTC SIP.js</span>
-              <strong style="color: var(--muted);">Vendor:</strong> <span>Merlin Systems</span>
+              <strong style="color: var(--muted);">Vendor:</strong> <span>CK Media Services</span>
             </div>
           </div>
         </section>

@@ -103,34 +103,36 @@ $results['checks']['stun_fallback'] = [
         : 'Google STUN TCP probe failed.',
 ];
 
-// Check 6: NAT Hops Verification
+// Checks 6-9 cannot be measured from shared hosting. They are reported and
+// excluded from the score so an unmeasured probe is not counted as a failure.
 $results['checks']['nat_hops'] = [
     'name' => 'NAT Hops Routing Verification',
     'passed' => false,
+    'measured' => false,
     'latency_ms' => 0,
     'details' => 'Not measured. This server cannot see the client NAT path.',
 ];
 
-// Check 7: Port Randomness / Full Cone Check
 $results['checks']['port_randomness'] = [
     'name' => 'NAT Port Randomness Check',
     'passed' => false,
+    'measured' => false,
     'latency_ms' => 0,
     'details' => 'Not measured. No STUN binding response was parsed.',
 ];
 
-// Check 8: SIP ALG Inspection
 $results['checks']['sip_alg'] = [
     'name' => 'SIP ALG Header Inspection',
     'passed' => false,
+    'measured' => false,
     'latency_ms' => 0,
     'details' => 'Not measured. No SIP packet was compared before and after NAT.',
 ];
 
-// Check 9: RTP Audio Path Quality & MOS Score
 $results['checks']['rtp_quality'] = [
     'name' => 'RTP Media Stream Quality & MOS Check',
     'passed' => false,
+    'measured' => false,
     'latency_ms' => 0,
     'details' => 'Not measured. No RTP stream was received.',
 ];
@@ -146,15 +148,23 @@ $results['checks']['websocket_hub'] = [
         : "Could not open TCP to {$parsedHost}:{$parsedPort}.",
 ];
 
-$checkCount = count($results['checks']);
+$measuredCount = 0;
 $failedCount = 0;
+$skippedCount = 0;
 foreach ($results['checks'] as $check) {
+    if (($check['measured'] ?? true) === false) {
+        $skippedCount++;
+        continue;
+    }
+    $measuredCount++;
     if (empty($check['passed'])) {
         $failedCount++;
     }
 }
-$results['passed'] = $failedCount === 0;
-$results['score'] = $checkCount > 0 ? (int) round(100 * ($checkCount - $failedCount) / $checkCount) : 0;
+$results['measured_checks'] = $measuredCount;
+$results['skipped_checks'] = $skippedCount;
+$results['passed'] = $measuredCount > 0 && $failedCount === 0;
+$results['score'] = $measuredCount > 0 ? (int) round(100 * ($measuredCount - $failedCount) / $measuredCount) : 0;
 merlin_json_response([
     'ok' => true,
     'diagnostics' => $results,

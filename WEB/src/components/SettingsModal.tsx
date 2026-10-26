@@ -42,8 +42,14 @@ const SettingsModalDialog: React.FC<SettingsModalProps> = ({
       mobileNumber: draft.mobileNumber.trim(),
       queuePickupPrefix: (draft.queuePickupPrefix ?? '*8').trim() || '*8'
     };
+    try {
+      localStorage.setItem('merlin_sip_config', JSON.stringify(normalized));
+    } catch (e) {
+      console.error('Failed to save settings', e);
+      window.alert('Could not save settings in this browser. Storage may be blocked.');
+      return;
+    }
     setSettings(normalized);
-    localStorage.setItem('merlin_sip_config', JSON.stringify(normalized));
     onClose();
   };
 
@@ -263,7 +269,7 @@ const SettingsModalDialog: React.FC<SettingsModalProps> = ({
                     Diagnose
                   </button>
                 </div>
-                <p className="item-subtitle">Checks registration latency, messaging capabilities, firewall compatibility, and codec path validation.</p>
+                <p className="item-subtitle">Checks whether the browser can reach the configured server and whether audio input and output devices are available.</p>
               </div>
 
               <div className="settings-card">
@@ -283,15 +289,15 @@ const SettingsModalDialog: React.FC<SettingsModalProps> = ({
                 <p className="item-subtitle" style={{ lineHeight: 1.5 }}>CK Media Services softphone for managed SIP, presence, contacts, and reception workflows.</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '8px 10px', fontSize: 13, marginTop: 10 }}>
                   <span style={{ color: 'var(--muted-color)' }}>Version</span>
-                  <span>1.3.6</span>
+                  <span>1.3.8</span>
                   <span style={{ color: 'var(--muted-color)' }}>Product</span>
                   <span>merlin-sip</span>
                   <span style={{ color: 'var(--muted-color)' }}>Licensed to</span>
                   <span>CK Media Services</span>
-                  <span style={{ color: 'var(--muted-color)' }}>Handler server</span>
+                  <span style={{ color: 'var(--muted-color)' }}>SIP session</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#22c55e' }}></span>
-                    <span>Connected (Operational)</span>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#94a3b8' }}></span>
+                    <span>Offline. This page does not open a SIP session.</span>
                   </span>
                 </div>
               </div>

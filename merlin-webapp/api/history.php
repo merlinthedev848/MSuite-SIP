@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $input = merlin_request_json();
-$validStatuses = ['Ended', 'Connected', 'Busy', 'Declined', 'Missed', 'Cancelled', 'Failed', 'No Answer'];
+$validStatuses = ['Ended', 'Connected', 'Busy', 'Declined', 'Declined (DND)', 'Missed', 'Cancelled', 'Failed', 'No Answer'];
 
 // Check if appending a single call record
 if (isset($input['record']) && is_array($input['record'])) {
@@ -86,5 +86,6 @@ foreach ($items as $item) {
     ];
 }
 
-merlin_write_json('history.json', array_slice(array_values($history), 0, 300));
-merlin_json_response(['ok' => true, 'history' => $history]);
+$saved = array_slice(array_values($history), 0, 300);
+merlin_write_json('history.json', $saved);
+merlin_json_response(['ok' => true, 'history' => $saved]);
