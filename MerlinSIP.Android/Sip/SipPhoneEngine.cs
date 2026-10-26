@@ -1,5 +1,7 @@
 using System.Net;
+using System.Net.Sockets;
 using Android.Content;
+using Android.Content.PM;
 using Android.Media;
 using Android.OS;
 using SIPSorcery.Media;
@@ -9,7 +11,7 @@ using SIPSorcery.SIP.App;
 
 namespace MerlinSip.Mobile;
 
-public sealed class SipPhoneEngine
+public sealed partial class SipPhoneEngine
 {
     private readonly object _gate = new();
     private readonly Context _context;
@@ -249,6 +251,7 @@ public sealed class SipPhoneEngine
             {
                 PhoneSession.Current.SetStatus(PhonePhase.Registered, "Registered", "Ready on extension " + account.Extension);
                 SipForegroundService.Publish("Registered · " + account.Extension, false);
+                OnRegistered();
             };
             _registration.RegistrationFailed += (_, response, message) =>
                 FailRegistration(response, message);
@@ -272,6 +275,11 @@ public sealed class SipPhoneEngine
 
     private Task OnSipRequest(SIPEndPoint local, SIPEndPoint remote, SIPRequest request)
     {
+        if (request.Method == SIPMethodsEnum.NOTIFY)
+        {
+            NoteBlf(request);
+        }
+
         if (request.Method is SIPMethodsEnum.OPTIONS or SIPMethodsEnum.NOTIFY)
         {
             var response = SIPResponse.GetResponse(request, SIPResponseStatusCodesEnum.Ok, null);
@@ -288,6 +296,13 @@ public sealed class SipPhoneEngine
     {
         userAgent.OnIncomingCall += (_, request) =>
         {
+            if (PhoneData.SelectedPresence == "DND")
+            {
+                var dnd = userAgent.AcceptCall(request);
+                dnd.Reject(SIPResponseStatusCodesEnum.BusyHere, "Busy Here");
+                return;
+            }
+
             if (PhoneSession.Current.HasLiveCall)
             {
                 var busy = userAgent.AcceptCall(request);
@@ -350,6 +365,13 @@ public sealed class SipPhoneEngine
         if (_userAgent == null || _account == null || _registration?.IsRegistered != true)
         {
             PhoneSession.Current.SetStatus(PhoneSession.Current.Phase, PhoneSession.Current.Status, "Register the SIP account before dialling.");
+            PhoneSession.Current.SetNotice("Register the SIP account before dialling.");
+            return;
+        }
+
+        if (_context.CheckSelfPermission(global::Android.Manifest.Permission.RecordAudio) != Permission.Granted)
+        {
+            PhoneSession.Current.SetNotice("Allow the microphone to place a call.");
             return;
         }
 
@@ -449,6 +471,7 @@ public sealed class SipPhoneEngine
         session.AcceptRtpFromAny = true;
         _audio = audio;
         _media = session;
+        WatchCallQuality(session);
         return session;
     }
 
@@ -462,6 +485,7 @@ public sealed class SipPhoneEngine
         _clock = new Timer(_ =>
         {
             _callSeconds++;
+            PublishQuality();
             PhoneSession.Current.Tick();
         }, null, 1000, 1000);
     }
@@ -508,15 +532,20 @@ public sealed class SipPhoneEngine
 
     private void RestoreRegisteredStatus()
     {
-        if (PhoneSession.Current.HasLiveCall)
+        PhoneSession.Current.Post(() =>
         {
-            return;
-        }
+            if (!string.IsNullOrEmpty(_callNumber))
+            {
+                return;
+            }
 
-        if (_registration?.IsRegistered == true)
-        {
-            PhoneSession.Current.SetStatus(PhonePhase.Registered, "Registered", "Ready on extension " + _account?.Extension);
-        }
+            var registered = _registration?.IsRegistered == true;
+            PhoneSession.Current.SetStatus(
+                registered ? PhonePhase.Registered : PhonePhase.Offline,
+                registered ? "Registered" : "Offline",
+                registered ? "Ready on extension " + _account?.Extension : null);
+            DrainPendingFeatureDial();
+        });
     }
 
     private void FailRegistration(SIPResponse? response, string message)
@@ -548,6 +577,7 @@ public sealed class SipPhoneEngine
 
     private void TearDownSignalling()
     {
+        StopBlf();
         StopRinging();
         CloseMedia();
         try
@@ -817,4 +847,13 @@ public static class PhoneRuntime
     public static void SetMuted(bool muted) => _engine?.SetMuted(muted);
     public static void SetSpeaker(bool speaker) => _engine?.SetSpeaker(speaker);
     public static void SetHold(bool hold) => _engine?.SetHold(hold);
+    public static void SetPresence(string status) => _engine?.SetPresence(status);
+    public static void Voicemail() => _engine?.Voicemail();
+    public static void GroupPickup() => _engine?.GroupPickup();
+    public static void Park() => _engine?.Park();
+    public static void Intercom(string number) => _engine?.Intercom(number);
+    public static void ForwardAll(string number) => _engine?.ForwardAll(number);
+    public static void Redial() => _engine?.Redial();
+    public static void Record() => _engine?.Record();
+    public static void RefreshBlf() => _engine?.RefreshBlf();
 }

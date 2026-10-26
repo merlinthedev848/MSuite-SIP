@@ -155,14 +155,47 @@ struct SearchBar: View {
     }
 }
 
+struct BlfLamp: View {
+    var presence: String
+
+    private var flashing: Bool { presence == "Ringing" }
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.45, paused: !flashing)) { context in
+            let dim = flashing && Int(context.date.timeIntervalSinceReferenceDate / 0.45) % 2 == 0
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+                .opacity(dim ? 0.15 : 1)
+        }
+    }
+
+    private var color: Color {
+        switch presence {
+        case "Available", "Away", "Appear Away":
+            return Color(hex: 0x10B981)
+        case "DND", "Do Not Disturb":
+            return Color(hex: 0xDC2626)
+        case "Busy", "Ringing":
+            return Color(hex: 0xEF4444)
+        default:
+            return Color(hex: 0x94A3B8)
+        }
+    }
+}
+
 struct PhoneRow: View {
     var title: String
     var subtitle: String
     var tint: Color = Theme.muted
     var icon: String
+    var presence: String? = nil
 
     var body: some View {
         HStack(spacing: 12) {
+            if let presence {
+                BlfLamp(presence: presence)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 15, weight: .medium))

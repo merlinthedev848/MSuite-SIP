@@ -43,6 +43,7 @@ public static class PhoneData
     private static string _directory = "";
 
     public static SipAccount? Account { get; private set; }
+    public static string SelectedPresence { get; private set; } = "Available";
     public static List<PhoneContact> Contacts { get; } = new();
     public static List<CallRecord> History { get; } = new();
 
@@ -55,6 +56,42 @@ public static class PhoneData
         Contacts.AddRange(Read<List<PhoneContact>>("contacts.json") ?? new List<PhoneContact>());
         History.Clear();
         History.AddRange(Read<List<CallRecord>>("history.json") ?? new List<CallRecord>());
+        var presence = Read<PresenceChoice>("presence.json");
+        SelectedPresence = NormalizePresence(presence?.Selected);
+    }
+
+    public static void SetSelectedPresence(string status)
+    {
+        SelectedPresence = NormalizePresence(status);
+        Write("presence.json", new PresenceChoice { Selected = SelectedPresence });
+    }
+
+    public static CallRecord? LastOutbound()
+    {
+        return History.FirstOrDefault(call =>
+            call.Direction.Equals("Out", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(call.Number));
+    }
+
+    private static string NormalizePresence(string? status)
+    {
+        if (status != null && status.Equals("Busy", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Busy";
+        }
+
+        if (status != null && (status.Equals("DND", StringComparison.OrdinalIgnoreCase) ||
+                                status.Equals("Do Not Disturb", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "DND";
+        }
+
+        return "Available";
+    }
+
+    private sealed class PresenceChoice
+    {
+        public string Selected { get; set; } = "Available";
     }
 
     public static void SaveAccount(SipAccount account)

@@ -860,7 +860,7 @@ public class NetworkEngine : IDisposable
 			{
 				Log("");
 				Log("=================================================================");
-				Log("=== CHECK 9/10: SIP MEDIA (RTP) QUALITY & MOS SIMULATION ===");
+				Log("=== CHECK 9/10: SIP AND STUN REPLY CHECK ===");
 				Log("=================================================================");
 				rtpQualityPass = await RunRtpQualityTestAsync(token);
 			}
@@ -1487,7 +1487,7 @@ public class NetworkEngine : IDisposable
 		}
 		UpdateProgress("NAT Port Translation (Random Port)", "Running", "Checking port preservation...");
 		Log("Test 7: Evaluating NAT port translation...");
-		Log("Guideline: 'The public interface NAT port should be random and not be the same as the local NAT port.'");
+		Log("Guideline: the public port should stay the same as the local port. A port that changes on every probe means the router is rewriting it.");
 		int localPort = LocalSipPort;
 		int mappedPort = 0;
 		bool success = false;
@@ -1763,7 +1763,9 @@ public class NetworkEngine : IDisposable
 			double num = packetsSent == 0 ? 100.0 : (double)(packetsSent - packetsReceived) / packetsSent * 100.0;
 			double num2 = 0.0;
 			double num3 = 0.0;
-			if (packetsReceived > 0)
+			bool rttMeasured = rtts.Count > 0;
+			bool jitterMeasured = rtts.Count > 1;
+			if (rttMeasured)
 			{
 				double num4 = 0.0;
 				foreach (double item2 in rtts)
@@ -1771,7 +1773,7 @@ public class NetworkEngine : IDisposable
 					num4 += item2;
 				}
 				num2 = num4 / (double)rtts.Count;
-				if (rtts.Count > 1)
+				if (jitterMeasured)
 				{
 					double num5 = 0.0;
 					for (int j = 1; j < rtts.Count; j++)
@@ -1781,9 +1783,12 @@ public class NetworkEngine : IDisposable
 					num3 = num5 / (double)(rtts.Count - 1);
 				}
 			}
-			Log($"  [{pathName}] Sent: {packetsSent}, Recv: {packetsReceived}, Loss: {num:0.0}%, Jitter: {num3:0.1}ms, RTT: {num2:0.1}ms");
-			bool item = num <= 5.0 && num3 <= 30.0 && packetsReceived > 0;
-			return (sent: packetsSent, received: packetsReceived, loss: num, jitter: num3, avgRtt: num2, pass: item);
+			string rttText = rttMeasured ? $"{num2:0.0} ms" : "not measured";
+			string jitterText = jitterMeasured ? $"{num3:0.0} ms" : "not measured";
+			Log($"  [{pathName}] Sent: {packetsSent}, Recv: {packetsReceived}, Loss: {num:0.0}%, Jitter: {jitterText}, RTT: {rttText}");
+			// Eight probes: one timeout is 12.5%. That is a late reply, not a failed call.
+			bool item = packetsReceived > 0 && num <= 25.0;
+			return (sent: packetsSent, received: packetsReceived, loss: num, jitter: jitterMeasured ? num3 : 0.0, avgRtt: rttMeasured ? num2 : 0.0, pass: item);
 		}
 		catch (Exception ex2)
 		{
@@ -1796,21 +1801,34 @@ public class NetworkEngine : IDisposable
 		}
 	}
 
+	private static string FormatProbeTiming(int received, double jitterMs, double rttMs)
+	{
+		if (received <= 0)
+		{
+			return "RTT not measured";
+		}
+		if (received == 1)
+		{
+			return $"RTT={rttMs:0.0} ms, jitter not measured";
+		}
+		return $"RTT={rttMs:0.0} ms, jitter={jitterMs:0.0} ms";
+	}
+
 	private async Task<bool> RunRtpQualityTestAsync(CancellationToken token)
 	{
 		if (CheckLocalConnectivityBeforeTest("RTP Jitter/Loss Check"))
 		{
 			return false;
 		}
-		UpdateProgress("RTP Jitter/Loss Check", "Running", "Checking G.711 media paths...");
-		Log("Test 9: Checking SIP media paths...");
-		Log("Running three test streams to verify standard SIP ports, primary STUN, and Google WebRTC STUN (high port 19302)...");
+		UpdateProgress("RTP Jitter/Loss Check", "Running", "Checking SIP and STUN replies...");
+		Log("Test 9: Checking SIP and STUN replies...");
+		Log("These are short probes, not a phone call. Call quality is measured only while a call has audio.");
+		Log("Running three probes: a public SIP server on port 5060, the PBX on port 3478, and Google STUN on port 19302.");
 		if (IsSimulationMode)
 		{
 			await Task.Delay(1500, token);
-			double value = VoipTools.CalculateMosScore(20.0, 5.0, 0.0);
-			Log($"[Simulation] Packet Loss: 0%, Jitter: 5ms, Est. MOS: {value}");
-			UpdateProgress("RTP Jitter/Loss Check", "Passed", $"Pass - Excellent Quality (0% loss, 5ms jitter, Est. MOS: {value} - Excellent)");
+			Log("[Simulation] No packets were sent. This mode does not measure a call.");
+			UpdateProgress("RTP Jitter/Loss Check", "Passed", "Pass - Simulation mode, nothing measured");
 			return true;
 		}
 		(int sent, int received, double loss, double jitter, double avgRtt, bool pass) pathA = await RunSingleRtpPathCheckAsync("Path A (SIP Port 5060)", SipAlgServer, SipAlgPort, "SIP", token);
@@ -1825,47 +1843,28 @@ public class NetworkEngine : IDisposable
 		}
 		(int, int, double, double, double, bool) tuple = await RunSingleRtpPathCheckAsync("Path C (Google STUN 19302)", "stun.l.google.com", 19302, "STUN", token);
 		bool num = pathA.pass && tuple.Item6;
-		double num2 = VoipTools.CalculateMosScore(lossPercentage: Math.Max(pathA.loss, tuple.Item3), jitterMs: Math.Max(pathA.jitter, tuple.Item4), latencyMs: (pathA.avgRtt + tuple.Item5) / 2.0);
-		string value2 = "Excellent";
-		if (num2 < 2.0)
-		{
-			value2 = "Very Poor";
-		}
-		else if (num2 < 3.0)
-		{
-			value2 = "Poor";
-		}
-		else if (num2 < 3.6)
-		{
-			value2 = "Fair";
-		}
-		else if (num2 < 4.0)
-		{
-			value2 = "Good";
-		}
-		Log("RTP Quality Summary:");
-		Log($"  Path A (SIP 5060): Loss={pathA.loss:0.0}%, Jitter={pathA.jitter:0.1}ms, RTT={pathA.avgRtt:0.1}ms - {(pathA.pass ? "PASS" : "FAIL")}");
-		Log($"  Path B (Primary STUN): Loss={pathB.loss:0.0}%, Jitter={pathB.jitter:0.1}ms, RTT={pathB.avgRtt:0.1}ms - {(pathB.pass ? "PASS" : "FAIL")} (Informational only)");
-		Log($"  Path C (Google STUN 19302): Loss={tuple.Item3:0.0}%, Jitter={tuple.Item4:0.1}ms, RTT={tuple.Item5:0.1}ms - {(tuple.Item6 ? "PASS" : "FAIL")}");
-		Log($"  Estimated Call Quality: MOS {num2:F2} ({value2})");
+		Log("Reply summary:");
+		Log($"  Path A (SIP 5060): Loss={pathA.loss:0.0}%, {FormatProbeTiming(pathA.received, pathA.jitter, pathA.avgRtt)} - {(pathA.pass ? "PASS" : "FAIL")}");
+		Log($"  Path B (PBX port 3478): Loss={pathB.loss:0.0}%, {FormatProbeTiming(pathB.received, pathB.jitter, pathB.avgRtt)} - {(pathB.received > 0 ? "answered" : "no STUN service on this port")} (Informational only)");
+		Log($"  Path C (Google STUN 19302): Loss={tuple.Item3:0.0}%, {FormatProbeTiming(tuple.Item2, tuple.Item4, tuple.Item5)} - {(tuple.Item6 ? "PASS" : "FAIL")}");
+		Log("Call quality: not measured. This check does not place a call.");
 		if (num)
 		{
-			Log($"Pass: Packet loss and jitter on all paths are within VoIP limits. Est. MOS: {num2:F2}");
-			UpdateProgress("RTP Jitter/Loss Check", "Passed", $"Pass - Media paths OK (Est. MOS: {num2:F2} - {value2})");
+			Log("Pass: SIP signalling and Google STUN both answered.");
+			UpdateProgress("RTP Jitter/Loss Check", "Passed", "Pass - SIP and Google STUN answered");
 			return true;
 		}
 		string text = "";
 		if (!pathA.pass)
 		{
-			text += "SIP 5060 failure; ";
+			text += "SIP 5060 did not answer; ";
 		}
 		if (!tuple.Item6)
 		{
-			text += "Google STUN 19302 failure; ";
+			text += "Google STUN 19302 did not answer; ";
 		}
-		Log("Violation: Media stream checks failed: " + text.TrimEnd(new char[2] { ';', ' ' }), isError: true);
-		string details = $"Fail - Media path issues (Est. MOS: {num2:F2} - {value2})";
-		UpdateProgress("RTP Jitter/Loss Check", "Failed", details);
+		Log("Violation: Reply checks failed: " + text.TrimEnd(new char[2] { ';', ' ' }), isError: true);
+		UpdateProgress("RTP Jitter/Loss Check", "Failed", "Fail - " + text.TrimEnd(new char[2] { ';', ' ' }));
 		return false;
 	}
 

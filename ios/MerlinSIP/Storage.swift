@@ -6,6 +6,8 @@ enum PhoneStorage {
     private static let contactsFile = "contacts.json"
     private static let historyFile = "history.json"
     private static let speakerKey = "merlin.sip.speaker"
+    private static let lineStatusKey = "merlin.sip.lineStatus"
+    private static let pendingPbxKey = "merlin.sip.pendingPbx"
 
     static func loadAccount() -> SipAccount? {
         guard let data = UserDefaults.standard.data(forKey: accountKey) else { return nil }
@@ -25,6 +27,25 @@ enum PhoneStorage {
     static var speakerEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: speakerKey) }
         set { UserDefaults.standard.set(newValue, forKey: speakerKey) }
+    }
+
+    static var lineStatus: LineStatus {
+        get { LineStatus(rawValue: UserDefaults.standard.string(forKey: lineStatusKey) ?? "") ?? .available }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: lineStatusKey) }
+    }
+
+    static var pendingPbxCode: String? {
+        get {
+            let value = UserDefaults.standard.string(forKey: pendingPbxKey) ?? ""
+            return value.isEmpty ? nil : value
+        }
+        set {
+            if let newValue, !newValue.isEmpty {
+                UserDefaults.standard.set(newValue, forKey: pendingPbxKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: pendingPbxKey)
+            }
+        }
     }
 
     static func loadContacts() -> [Contact] {

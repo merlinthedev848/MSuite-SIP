@@ -12,25 +12,59 @@ struct DialPadView: View {
     ]
 
     var body: some View {
-        VStack(spacing: 22) {
-            destination
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 18), count: 3), spacing: 14) {
-                ForEach(keys, id: \.0) { key in
-                    dialKey(key.0, letters: key.1)
+        ScrollView {
+            VStack(spacing: 16) {
+                destination
+                features
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 18), count: 3), spacing: 14) {
+                    ForEach(keys, id: \.0) { key in
+                        dialKey(key.0, letters: key.1)
+                    }
                 }
+                .padding(.horizontal, 28)
+                Button {
+                    phone.call(phone.destination)
+                } label: {
+                    Label("Call", systemImage: "phone.fill")
+                }
+                .buttonStyle(GoldButtonStyle(enabled: phone.registered && !phone.destination.isEmpty))
+                .disabled(!phone.registered || phone.destination.isEmpty)
+                .padding(.horizontal, 28)
             }
-            .padding(.horizontal, 28)
-            Button {
-                phone.call(phone.destination)
-            } label: {
-                Label("Call", systemImage: "phone.fill")
-            }
-            .buttonStyle(GoldButtonStyle(enabled: phone.registered && !phone.destination.isEmpty))
-            .disabled(!phone.registered || phone.destination.isEmpty)
-            .padding(.horizontal, 28)
-            Spacer(minLength: 0)
+            .padding(.top, 18)
+            .padding(.bottom, 12)
         }
-        .padding(.top, 18)
+    }
+
+    private var features: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                feature("Voicemail", action: phone.callVoicemail)
+                feature("Pickup", action: phone.groupPickup)
+                feature("Redial", action: phone.redial)
+            }
+            HStack(spacing: 8) {
+                feature("Intercom", action: phone.callIntercom)
+                feature("Forward", action: phone.forwardAll)
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private func feature(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Theme.ink)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Theme.cardBorder, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private var destination: some View {

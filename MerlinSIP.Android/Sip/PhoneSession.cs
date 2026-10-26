@@ -29,6 +29,9 @@ public sealed class PhoneSession
     public bool OnHold { get; private set; }
     public int Revision { get; private set; }
     public bool UiVisible { get; set; }
+    public string Notice { get; private set; } = "";
+    public string CallQuality { get; private set; } = "Not measured";
+    public string? StagedNumber { get; private set; }
 
     public bool HasLiveCall => Phase is PhonePhase.Outgoing or PhonePhase.Incoming or PhonePhase.InCall;
 
@@ -79,9 +82,49 @@ public sealed class PhoneSession
                 OnHold = false;
             }
 
+            if (enteredCall)
+            {
+                CallQuality = "Not measured";
+            }
+
             Changed?.Invoke();
         });
     }
+
+    public void SetNotice(string notice)
+    {
+        Post(() =>
+        {
+            Notice = notice;
+            Changed?.Invoke();
+        });
+    }
+
+    public void SetCallQuality(string quality)
+    {
+        Post(() =>
+        {
+            var next = string.IsNullOrWhiteSpace(quality) ? "Not measured" : quality;
+            if (CallQuality == next)
+            {
+                return;
+            }
+
+            CallQuality = next;
+            Changed?.Invoke();
+        });
+    }
+
+    public void StageNumber(string number)
+    {
+        Post(() =>
+        {
+            StagedNumber = number;
+            Changed?.Invoke();
+        });
+    }
+
+    public void ConsumeStagedNumber() => StagedNumber = null;
 
     public void SetCallFlags(bool? muted = null, bool? speaker = null, bool? hold = null)
     {

@@ -172,9 +172,11 @@ public partial class MainWindow : Window
         var line = Engine.Snapshot(id);
         title.Text = line.Title;
         title.Foreground = line.IsLive ? Avalonia.Media.Brushes.Black : Avalonia.Media.Brushes.Gray;
-        var extra = line.Phase == "InCall" && _host.Store.Config.ShowCallStatistics && line.PacketsReceived > 0
-            ? $"{line.Codec}  ·  jitter {line.JitterMs:0} ms  ·  loss {line.LossPercent:0.0}%"
-            : line.Codec;
+        var extra = line.Phase == "InCall" && _host.Store.Config.ShowCallStatistics
+            ? line.QualityMeasured
+                ? $"{line.Codec}  ·  {line.QualityText}  ·  jitter {line.JitterMs:0.0} ms  ·  latency {line.LatencyMs:0} ms  ·  loss {line.LossPercent:0.0}%"
+                : "Not measured"
+            : "";
         if (line.Video && line.IsLive)
         {
             extra = "Video  ·  " + extra;
@@ -252,15 +254,8 @@ public partial class MainWindow : Window
         DirectoryList.ItemsSource = DirectoryRows(query);
         DirectoryEmpty.IsVisible = DirectoryList.ItemCount == 0;
         ContactList.ItemsSource = _host.Store.Contacts
-            .Where(item => Matches(query, item.Name, item.Number, item.Company))
-            .Select(item => new RowItem
-            {
-                Key = item.Id,
-                Title = string.IsNullOrWhiteSpace(item.Name) ? item.Number : item.Name,
-                Subtitle = string.Join(" · ", new[] { item.Number, item.Company }.Where(part => !string.IsNullOrWhiteSpace(part))),
-                Trailing = item.IsFavorite ? "Favorite" : "",
-                Kind = item.Presence
-            })
+            .Where(item => Matches(query, item.Name, item.Number, item.Company, item.PresenceLabel))
+            .Select(item => ContactRow(item, dialKey: false))
             .ToList();
         HistoryList.ItemsSource = FilteredHistory(query).Select(HistoryRow).ToList();
         ThreadList.ItemsSource = _host.Store.Messages
@@ -276,21 +271,8 @@ public partial class MainWindow : Window
 
     private IEnumerable<RowItem> DirectoryRows(string query) => _directory switch
     {
-        "contacts" => _host.Store.Contacts.Where(item => Matches(query, item.Name, item.Number)).Select(item => new RowItem
-        {
-            Key = item.Number,
-            Kind = "contact",
-            Title = string.IsNullOrWhiteSpace(item.Name) ? item.Number : item.Name,
-            Subtitle = item.Number + (string.IsNullOrWhiteSpace(item.Presence) ? "" : " · " + item.Presence),
-            Trailing = item.IsFavorite ? "★" : ""
-        }),
-        "favorites" => _host.Store.Contacts.Where(item => item.IsFavorite && Matches(query, item.Name, item.Number)).Select(item => new RowItem
-        {
-            Key = item.Number,
-            Kind = "contact",
-            Title = item.Name,
-            Subtitle = item.Number
-        }),
+        "contacts" => _host.Store.Contacts.Where(item => Matches(query, item.Name, item.Number, item.PresenceLabel)).Select(item => ContactRow(item, dialKey: true)),
+        "favorites" => _host.Store.Contacts.Where(item => item.IsFavorite && Matches(query, item.Name, item.Number, item.PresenceLabel)).Select(item => ContactRow(item, dialKey: true)),
         _ => FilteredHistory(query).Select(HistoryRow)
     };
 
@@ -302,6 +284,23 @@ public partial class MainWindow : Window
             "Missed" => item.Result == "Missed",
             _ => true
         });
+
+    private static RowItem ContactRow(DeskContact item, bool dialKey) => new()
+    {
+        Key = dialKey ? item.BlfDialNumber : item.Id,
+        Kind = item.PresenceLabel,
+        Title = string.IsNullOrWhiteSpace(item.Name) ? item.Number : item.Name,
+        Subtitle = string.Join(" · ", new[]
+        {
+            item.Number,
+            item.Company,
+            item.Presence == "Ringing" ? "Ringing · pick up" : item.PresenceLabel
+        }.Where(part => !string.IsNullOrWhiteSpace(part))),
+        Trailing = item.IsFavorite ? "★" : "",
+        Lamp = item.LampColor,
+        Flash = item.LampFlashes,
+        ShowLamp = true
+    };
 
     private static RowItem HistoryRow(DeskCall item) => new()
     {
@@ -494,7 +493,7 @@ public partial class MainWindow : Window
     }
 
     private void AutoAnswer_Click(object? sender, RoutedEventArgs e) => Engine.SetAutoAnswer(!Engine.AutoAnswer);
-    private void Dnd_Click(object? sender, RoutedEventArgs e) => Engine.SetDoNotDisturb(!Engine.DoNotDisturb);
+    private async void Dnd_Click(object? sender, RoutedEventArgs e) => await Engine.SetDoNotDisturbAsync(!Engine.DoNotDisturb);
 
     private void Presence_Click(object? sender, RoutedEventArgs e)
     {
@@ -502,7 +501,7 @@ public partial class MainWindow : Window
         foreach (var status in new[] { "Available", "Busy", "Away", "DND", "Offline" })
         {
             var item = new MenuItem { Header = status };
-            item.Click += (_, _) => Engine.SetPresence(status);
+            item.Click += async (_, _) => await Engine.SetPresenceAsync(status);
             menu.Items.Add(item);
         }
 
@@ -512,9 +511,13 @@ public partial class MainWindow : Window
 
     private void Dial_Click(object? sender, RoutedEventArgs e) => DialCurrent(false);
     private void Video_Click(object? sender, RoutedEventArgs e) => DialCurrent(true);
-    private void Voicemail_Click(object? sender, RoutedEventArgs e) => Engine.Dial(1, _host.Store.Config.VoicemailNumber);
-    private void Pickup_Click(object? sender, RoutedEventArgs e) => Engine.Dial(1, _host.Store.Config.PickupCode + DestinationBox.Text);
-    private void Queue_Click(object? sender, RoutedEventArgs e) => Engine.Dial(1, _host.Store.Config.QueueCode);
+    private void Voicemail_Click(object? sender, RoutedEventArgs e) => Engine.DialVoicemail();
+    private void Pickup_Click(object? sender, RoutedEventArgs e) => Engine.DialGroupPickup();
+    private void Park_Click(object? sender, RoutedEventArgs e) => Engine.Park();
+    private void Intercom_Click(object? sender, RoutedEventArgs e) => Engine.DialIntercom(DestinationBox.Text);
+    private void Forward_Click(object? sender, RoutedEventArgs e) => Engine.DialForwardAll(DestinationBox.Text);
+    private void Redial_Click(object? sender, RoutedEventArgs e) => Engine.DialRedial();
+    private void Queue_Click(object? sender, RoutedEventArgs e) => Engine.Dial(1, string.IsNullOrWhiteSpace(_host.Store.Config.QueueCode) ? "*62" : _host.Store.Config.QueueCode.Trim());
     private void Backspace_Click(object? sender, RoutedEventArgs e)
     {
         var text = DestinationBox.Text ?? "";
@@ -560,7 +563,8 @@ public partial class MainWindow : Window
         var contact = SelectedContact();
         if (contact != null)
         {
-            Engine.Dial(1, contact.Number);
+            DestinationBox.Text = contact.BlfDialNumber;
+            Engine.Dial(1, contact.BlfDialNumber);
         }
     }
 

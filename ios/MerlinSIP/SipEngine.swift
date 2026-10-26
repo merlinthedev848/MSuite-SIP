@@ -128,6 +128,27 @@ final class SipEngine {
     private var sessionVersion = 1
     private var speakerEnabled = false
     private var registerExpires = 3600
+    private var lineStatus = "Available"
+    private var presenceNeedsPublish = true
+    private var presenceGeneration = 0
+    private var rejectIncoming = false
+    private var watchedExtensions: [String] = []
+    private var blfChannels: [String: BlfChannels] = [:]
+    private var subscriptionExtensions: [String: String] = [:]
+    private var subscribeCSeq = 1
+    private var publishCallId = ""
+    private var publishTag = ""
+    private var publishCSeq = 1
+    private var publishEtag = ""
+    private var notifyCallId = ""
+    private var notifyTag = ""
+    private var notifyCSeq = 1
+    private var optionsCSeq = 1
+    private var latencyMs = 0.0
+    private var latencyMeasured = false
+    private var measurementToken = 0
+    private var qualityItem: DispatchWorkItem?
+    private var latencyItem: DispatchWorkItem?
 
     func start(account: SipAccount, password: String) {
         let host = account.domain
@@ -213,16 +234,40 @@ final class SipEngine {
     func sendDtmf(_ digits: String) {
         queue.async { [weak self] in
             guard let self, let call = self.call, call.connectedAt != nil else { return }
-            for character in digits {
-                let event: UInt8?
-                switch character {
-                case "0"..."9": event = UInt8(character.asciiValue! - 48)
-                case "*": event = 10
-                case "#": event = 11
-                default: event = nil
-                }
-                if let event { self.rtp?.sendDtmf(event: event) }
+            let events = DeskPhone.dtmfEvents(digits)
+            guard !events.isEmpty else { return }
+            if self.rtp?.sendDtmfSequence(events) != true {
+                self.emit(.notice("The call audio is not ready to send \(digits)."))
             }
+        }
+    }
+
+    func publishLineStatus(_ status: String) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            let trimmed = status.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            self.lineStatus = trimmed
+            self.presenceGeneration += 1
+            self.presenceNeedsPublish = true
+            guard self.registered else { return }
+            self.sendPresence()
+            self.sendDialogNote()
+        }
+    }
+
+    func setRejectIncoming(_ reject: Bool) {
+        queue.async { [weak self] in
+            self?.rejectIncoming = reject
+        }
+    }
+
+    func setWatchedExtensions(_ numbers: [String]) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.watchedExtensions = numbers
+            guard self.registered else { return }
+            self.subscribeWatched()
         }
     }
 
@@ -275,6 +320,13 @@ final class SipEngine {
         keepaliveItem?.cancel()
         retryItem?.cancel()
         okItem?.cancel()
+        stopQualityWatch()
+        let watched = Array(blfChannels.keys)
+        blfChannels.removeAll()
+        subscriptionExtensions.removeAll()
+        for extensionNumber in watched {
+            emit(.blf(extensionNumber, "Offline"))
+        }
         if let call, !call.finished {
             sendBye(call)
             finish(call, result: "Ended", direction: call.role == .incoming ? .inbound : .outbound)
@@ -309,7 +361,7 @@ final class SipEngine {
             extra: [
                 ("Contact", contactHeader(expires: expires)),
                 ("Expires", "\(expires)"),
-                ("Allow", "INVITE, ACK, CANCEL, BYE, OPTIONS, REGISTER, INFO")
+                ("Allow", "INVITE, ACK, CANCEL, BYE, OPTIONS, REGISTER, SUBSCRIBE, NOTIFY, PUBLISH, INFO")
             ],
             body: "",
             auth: nil,
@@ -332,6 +384,11 @@ final class SipEngine {
             let refresh = max(30, min(lifetime / 2, 600))
             emit(.registration(ok: true, message: "Registered and listening for calls."))
             scheduleRefresh(after: TimeInterval(refresh))
+            if presenceNeedsPublish || DeskPhone.isBusyOrDnd(lineStatus) {
+                sendPresence()
+                sendDialogNote()
+            }
+            subscribeWatched()
         case 423:
             let minimum = packet.value("Min-Expires").flatMap(Int.init) ?? 3600
             beginRegister(expires: minimum)
@@ -409,6 +466,7 @@ final class SipEngine {
             emitFailed(uuid: uuid, number: number, name: number, direction: .outbound, result: "Failed")
             return
         }
+        resetCallMeasurement()
         let target = number.trimmingCharacters(in: .whitespacesAndNewlines)
         let uri = SipText.requestURI(target: target, domain: account.domain)
         let user = SipText.sipUser(from: uri)
@@ -498,6 +556,7 @@ final class SipEngine {
             dialog.connectedAt = Date()
             sendAck(dialog, sameTransaction: false)
             emit(callState(dialog, phase: .connected))
+            startQualityWatch()
             return
         }
         sendAck(dialog, sameTransaction: true)
@@ -565,9 +624,10 @@ final class SipEngine {
         }
         respond(200, "OK", to: request, tag: dialog.localTag, extra: [
             ("Contact", contactHeader(expires: nil)),
-            ("Allow", "INVITE, ACK, CANCEL, BYE, OPTIONS, REGISTER, INFO")
+            ("Allow", "INVITE, ACK, CANCEL, BYE, OPTIONS, REGISTER, SUBSCRIBE, NOTIFY, PUBLISH, INFO")
         ], body: answer)
         emit(callState(dialog, phase: .connected))
+        startQualityWatch()
     }
 
     private func hangupOnQueue() {
@@ -767,9 +827,12 @@ final class SipEngine {
                 finish(call, result: "Missed", direction: .missed)
             }
         case "OPTIONS":
-            respond(200, "OK", to: packet, tag: nil, extra: [("Allow", "INVITE, ACK, CANCEL, BYE, OPTIONS, REGISTER, INFO")])
+            respond(200, "OK", to: packet, tag: nil, extra: [("Allow", "INVITE, ACK, CANCEL, BYE, OPTIONS, REGISTER, SUBSCRIBE, NOTIFY, PUBLISH, INFO")])
         case "INFO":
             respond(200, "OK", to: packet, tag: nil)
+        case "NOTIFY":
+            respond(200, "OK", to: packet, tag: SipText.tag())
+            handleBlfNotify(packet)
         default:
             respond(405, "Method Not Allowed", to: packet, tag: nil)
         }
@@ -788,10 +851,11 @@ final class SipEngine {
             respond(480, "Temporarily Unavailable", to: packet, tag: nil)
             return
         }
-        if call != nil || !registered {
-            respond(486, "Busy Here", to: packet, tag: nil)
+        if call != nil || !registered || rejectIncoming {
+            respond(486, "Busy Here", to: packet, tag: rejectIncoming ? SipText.tag() : nil)
             return
         }
+        resetCallMeasurement()
         guard packet.body.contains("m=audio"), SipText.audio(in: packet.body) != nil else {
             respond(488, "Not Acceptable Here", to: packet, tag: SipText.tag())
             return
@@ -876,6 +940,18 @@ final class SipEngine {
             if item.method == "INVITE" && call.connectedAt == nil && call.role == .outgoing {
                 call.inviteCSeq = cseq
             }
+        } else if item.method == "PUBLISH" {
+            publishCSeq += 1
+            cseq = publishCSeq
+        } else if item.method == "NOTIFY" {
+            notifyCSeq += 1
+            cseq = notifyCSeq
+        } else if item.method == "SUBSCRIBE" {
+            subscribeCSeq += 1
+            cseq = subscribeCSeq
+        } else if item.method == "OPTIONS" {
+            optionsCSeq += 1
+            cseq = optionsCSeq
         } else {
             cseq = item.cseq + 1
         }
@@ -920,7 +996,7 @@ final class SipEngine {
             headers.append((proxyAuth ? "Proxy-Authorization" : "Authorization", auth))
         }
         headers.append(("User-Agent", SipText.userAgent))
-        if !body.isEmpty {
+        if !body.isEmpty && !headers.contains(where: { $0.0.caseInsensitiveCompare("Content-Type") == .orderedSame }) {
             headers.append(("Content-Type", "application/sdp"))
         }
         let message = SipText.render(start: "\(method) \(uri) SIP/2.0", headers: headers, body: body)
@@ -1106,6 +1182,8 @@ final class SipEngine {
             pending[key] = nil
         }
         let duration = dialog.connectedAt.map { Date().timeIntervalSince($0) } ?? 0
+        let quality = currentQualityLabel()
+        stopQualityWatch()
         let record = CallRecord(
             id: UUID(),
             number: dialog.number,
@@ -1113,7 +1191,8 @@ final class SipEngine {
             direction: direction,
             startedAt: dialog.startedAt,
             duration: duration,
-            result: result
+            result: result,
+            quality: quality
         )
         if call === dialog {
             call = nil
@@ -1187,5 +1266,344 @@ final class SipEngine {
     private func emit(_ event: SipEvent) {
         let callback = onEvent
         DispatchQueue.main.async { callback?(event) }
+    }
+
+    private func resetCallMeasurement() {
+        measurementToken += 1
+        latencyMs = 0
+        latencyMeasured = false
+        stopQualityWatch()
+        emit(.quality("Not measured"))
+    }
+
+    private func stopQualityWatch() {
+        qualityItem?.cancel()
+        qualityItem = nil
+        latencyItem?.cancel()
+        latencyItem = nil
+    }
+
+    private func startQualityWatch() {
+        scheduleQualityTick()
+        probeLatency()
+        scheduleLatencyProbe()
+    }
+
+    private func scheduleQualityTick() {
+        qualityItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, self.call?.connectedAt != nil else { return }
+            self.emitQuality()
+            self.scheduleQualityTick()
+        }
+        qualityItem = item
+        queue.asyncAfter(deadline: .now() + 1, execute: item)
+    }
+
+    private func scheduleLatencyProbe() {
+        latencyItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, self.call?.connectedAt != nil else { return }
+            self.probeLatency()
+            self.scheduleLatencyProbe()
+        }
+        latencyItem = item
+        queue.asyncAfter(deadline: .now() + 20, execute: item)
+    }
+
+    private func probeLatency() {
+        guard let account, registered, call?.connectedAt != nil else { return }
+        let token = measurementToken
+        let started = Date()
+        let cseq = optionsCSeq
+        optionsCSeq += 1
+        let host = advertisedIP.isEmpty ? account.domain : advertisedIP
+        transmit(
+            method: "OPTIONS",
+            uri: "sip:\(account.domain)",
+            callId: SipText.callId(host: host),
+            cseq: cseq,
+            branch: SipText.branch(),
+            from: fromHeader(tag: SipText.tag()),
+            to: "<sip:\(account.domain)>",
+            routes: [],
+            extra: [
+                ("Contact", contactHeader(expires: nil)),
+                ("Accept", "application/sdp")
+            ],
+            body: "",
+            auth: nil,
+            proxyAuth: false,
+            alreadyRetried: false,
+            retransmit: true,
+            onProvisional: nil,
+            onFinal: { [weak self] packet in
+                guard let self, token == self.measurementToken, self.call?.connectedAt != nil else { return }
+                guard (200..<300).contains(packet.statusCode) else { return }
+                let elapsed = Date().timeIntervalSince(started) * 1000
+                guard elapsed > 0 else { return }
+                self.latencyMs = elapsed
+                self.latencyMeasured = true
+                self.emitQuality()
+            }
+        )
+    }
+
+    private func currentQualityLabel() -> String {
+        let stats = rtp?.measurement() ?? (receivedPackets: 0, jitterMs: 0.0, lossPercent: 0.0)
+        return DeskPhone.qualityLabel(
+            receivedPackets: stats.receivedPackets,
+            latencyMeasured: latencyMeasured,
+            latencyMs: latencyMs,
+            jitterMs: stats.jitterMs,
+            lossPercent: stats.lossPercent
+        )
+    }
+
+    private func emitQuality() {
+        emit(.quality(currentQualityLabel()))
+    }
+
+    private func sendPresence(allowEtagRetry: Bool = true) {
+        guard registered, let account else { return }
+        if publishCallId.isEmpty {
+            publishCallId = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+            publishTag = SipText.tag()
+        }
+        let status = lineStatus
+        let generation = presenceGeneration
+        let offline = status.caseInsensitiveCompare("Offline") == .orderedSame || status.caseInsensitiveCompare("Appear Offline") == .orderedSame
+        let expires = offline ? 0 : 3600
+        let cseq = publishCSeq
+        publishCSeq += 1
+        var extra: [(String, String)] = [
+            ("Contact", contactHeader(expires: nil)),
+            ("Event", "presence"),
+            ("Expires", "\(expires)"),
+            ("Content-Type", "application/pidf+xml")
+        ]
+        if !publishEtag.isEmpty {
+            extra.append(("SIP-If-Match", publishEtag))
+        }
+        let uri = "sip:\(account.extensionNumber)@\(account.domain)"
+        transmit(
+            method: "PUBLISH",
+            uri: uri,
+            callId: publishCallId,
+            cseq: cseq,
+            branch: SipText.branch(),
+            from: fromHeader(tag: publishTag),
+            to: "<\(uri)>",
+            routes: [],
+            extra: extra,
+            body: presenceDocument(status, offline: offline),
+            auth: nil,
+            proxyAuth: false,
+            alreadyRetried: false,
+            retransmit: true,
+            onProvisional: nil,
+            onFinal: { [weak self] packet in
+                guard let self else { return }
+                if (200..<300).contains(packet.statusCode) {
+                    if let etag = packet.value("SIP-ETag")?.trimmingCharacters(in: .whitespacesAndNewlines), !etag.isEmpty {
+                        self.publishEtag = etag
+                    }
+                    if offline { self.publishEtag = "" }
+                    if generation == self.presenceGeneration {
+                        self.presenceNeedsPublish = false
+                    }
+                } else if packet.statusCode == 412, allowEtagRetry {
+                    self.publishEtag = ""
+                    self.sendPresence(allowEtagRetry: false)
+                }
+            }
+        )
+    }
+
+    private func sendDialogNote() {
+        guard registered, let account else { return }
+        if notifyCallId.isEmpty {
+            notifyCallId = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+            notifyTag = SipText.tag()
+        }
+        let offHook = DeskPhone.isBusyOrDnd(lineStatus)
+        let cseq = notifyCSeq
+        notifyCSeq += 1
+        let uri = "sip:\(account.extensionNumber)@\(account.domain)"
+        let subscriptionState = offHook ? "active;expires=3600" : "terminated;reason=noresource"
+        transmit(
+            method: "NOTIFY",
+            uri: uri,
+            callId: notifyCallId,
+            cseq: cseq,
+            branch: SipText.branch(),
+            from: fromHeader(tag: notifyTag),
+            to: "<\(uri)>",
+            routes: [],
+            extra: [
+                ("Contact", contactHeader(expires: nil)),
+                ("Event", "dialog"),
+                ("Subscription-State", subscriptionState),
+                ("Content-Type", "application/dialog-info+xml")
+            ],
+            body: dialogDocument(offHook: offHook),
+            auth: nil,
+            proxyAuth: false,
+            alreadyRetried: false,
+            retransmit: true,
+            onProvisional: nil,
+            onFinal: { _ in }
+        )
+    }
+
+    private func presenceDocument(_ status: String, offline: Bool) -> String {
+        guard let account else { return "" }
+        let note = xml(DeskPhone.presenceNote(status))
+        let ext = xml(account.extensionNumber)
+        let domain = xml(account.domain)
+        let basic = offline ? "closed" : "open"
+        let activity: String
+        switch status.lowercased() {
+        case "away", "appear away":
+            activity = "      <rpid:away/>"
+        case "dnd", "do not disturb":
+            activity = "      <rpid:do-not-disturb/>\r\n      <rpid:on-the-phone/>"
+        case "busy", "busyhere":
+            activity = "      <rpid:busy/>\r\n      <rpid:on-the-phone/>"
+        case "available":
+            activity = "      <rpid:available/>"
+        default:
+            activity = ""
+        }
+        var lines = [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+            "<presence xmlns=\"urn:ietf:params:xml:ns:pidf\"",
+            "          xmlns:dm=\"urn:ietf:params:xml:ns:pidf:data-model\"",
+            "          xmlns:rpid=\"urn:ietf:params:xml:ns:pidf:rpid\"",
+            "          entity=\"sip:\(ext)@\(domain)\">",
+            "  <tuple id=\"\(ext)\">",
+            "    <status>",
+            "      <basic>\(basic)</basic>",
+            "    </status>",
+            "    <note>\(note)</note>",
+            "  </tuple>"
+        ]
+        if !activity.isEmpty {
+            lines.append("  <dm:person id=\"p_\(ext)\">")
+            lines.append("    <rpid:activities>")
+            lines.append(activity)
+            lines.append("    </rpid:activities>")
+            lines.append("    <dm:note>\(note)</dm:note>")
+            lines.append("  </dm:person>")
+        }
+        lines.append("</presence>")
+        return lines.joined(separator: "\r\n") + "\r\n"
+    }
+
+    private func dialogDocument(offHook: Bool) -> String {
+        guard let account else { return "" }
+        let ext = xml(account.extensionNumber)
+        let domain = xml(account.domain)
+        let state = offHook ? "confirmed" : "terminated"
+        let note = xml(offHook ? DeskPhone.busyHere : DeskPhone.availableNote)
+        return [
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+            "<dialog-info xmlns=\"urn:ietf:params:xml:ns:dialog-info\" version=\"1\" state=\"full\"",
+            "             entity=\"sip:\(ext)@\(domain)\">",
+            "  <dialog id=\"\(ext)_offhook\" direction=\"recipient\">",
+            "    <state>\(state)</state>",
+            "    <notes>\(note)</notes>",
+            "  </dialog>",
+            "</dialog-info>"
+        ].joined(separator: "\r\n") + "\r\n"
+    }
+
+    private func xml(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
+    private func subscribeWatched() {
+        guard registered, account != nil else { return }
+        var seen = Set<String>()
+        var targets: [String] = []
+        for number in watchedExtensions {
+            let normalized = DeskPhone.normalize(number)
+            guard !normalized.isEmpty, normalized.count <= 10 else { continue }
+            guard seen.insert(normalized.lowercased()).inserted else { continue }
+            targets.append(normalized)
+        }
+        for extensionNumber in targets {
+            subscribe(extensionNumber, event: "dialog", accept: "application/dialog-info+xml")
+            subscribe(extensionNumber, event: "presence", accept: "application/pidf+xml")
+        }
+    }
+
+    private func subscribe(_ extensionNumber: String, event: String, accept: String) {
+        guard let account else { return }
+        let target = extensionNumber.contains("@") ? extensionNumber : "\(extensionNumber)@\(account.domain)"
+        let callId = SipText.callId(host: advertisedIP.isEmpty ? account.domain : advertisedIP)
+        subscriptionExtensions[callId.lowercased()] = DeskPhone.normalize(extensionNumber)
+        let cseq = subscribeCSeq
+        subscribeCSeq += 1
+        transmit(
+            method: "SUBSCRIBE",
+            uri: "sip:\(target)",
+            callId: callId,
+            cseq: cseq,
+            branch: SipText.branch(),
+            from: fromHeader(tag: SipText.tag()),
+            to: "<sip:\(target)>",
+            routes: [],
+            extra: [
+                ("Contact", contactHeader(expires: nil)),
+                ("Event", event),
+                ("Accept", accept),
+                ("Expires", "3600")
+            ],
+            body: "",
+            auth: nil,
+            proxyAuth: false,
+            alreadyRetried: false,
+            retransmit: true,
+            onProvisional: nil,
+            onFinal: { _ in }
+        )
+    }
+
+    private func handleBlfNotify(_ packet: SipPacket) {
+        let headerEvent = packet.value("Event")?.split(separator: ";").first.map {
+            String($0).trimmingCharacters(in: .whitespacesAndNewlines)
+        } ?? ""
+        let eventName: String
+        if packet.body.range(of: "dialog-info", options: .caseInsensitive) != nil {
+            eventName = "dialog"
+        } else if packet.body.range(of: "pidf", options: .caseInsensitive) != nil || headerEvent.caseInsensitiveCompare("presence") == .orderedSame {
+            eventName = "presence"
+        } else {
+            eventName = headerEvent
+        }
+        var extensionNumber = subscriptionExtensions[packet.callId.lowercased()] ?? ""
+        if extensionNumber.isEmpty {
+            extensionNumber = BlfParser.extensionNumber(in: packet.body)
+        }
+        if extensionNumber.isEmpty {
+            let fromExtension = DeskPhone.normalize(packet.value("From") ?? "")
+            if fromExtension.caseInsensitiveCompare("asterisk") != .orderedSame && fromExtension.caseInsensitiveCompare("pbx") != .orderedSame {
+                extensionNumber = fromExtension
+            }
+        }
+        if extensionNumber.isEmpty {
+            extensionNumber = DeskPhone.normalize(packet.value("To") ?? "")
+        }
+        let presence = BlfParser.state(in: packet.body)
+        let key = DeskPhone.normalize(extensionNumber)
+        guard !key.isEmpty, !presence.isEmpty else { return }
+        let next = (blfChannels[key] ?? BlfChannels()).applying(presence, eventName: eventName)
+        blfChannels[key] = next
+        emit(.blf(key, next.resolve()))
     }
 }

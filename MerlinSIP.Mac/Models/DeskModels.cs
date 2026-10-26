@@ -1,8 +1,10 @@
+using System.Text.Json.Serialization;
+
 namespace MerlinSip.Mac;
 
 public static class AppVersion
 {
-    public const string Current = "1.3.8";
+    public const string Current = "1.3.9.1";
     public const string ProductId = "merlin-sip";
     public const string FixedServer = "pbx.chriskendall.media";
     public const int FixedPort = 5060;
@@ -89,7 +91,35 @@ public sealed class DeskContact
     public string Company { get; set; } = "";
     public string Notes { get; set; } = "";
     public bool IsFavorite { get; set; }
-    public string Presence { get; set; } = "";
+
+    [JsonIgnore]
+    public string Presence { get; set; } = "Offline";
+
+    [JsonIgnore]
+    public string PresenceLabel => Presence switch
+    {
+        "Available" => "Available",
+        "Ringing" => "Ringing",
+        "Busy" => "Busy",
+        "DND" or "Do Not Disturb" => "DND",
+        "Away" or "Appear Away" => "Away",
+        _ => "Offline"
+    };
+
+    [JsonIgnore]
+    public string LampColor => Presence switch
+    {
+        "Available" or "Away" or "Appear Away" => "#10B981",
+        "DND" or "Do Not Disturb" => "#DC2626",
+        "Busy" or "Ringing" => "#EF4444",
+        _ => "#94A3B8"
+    };
+
+    [JsonIgnore]
+    public bool LampFlashes => Presence == "Ringing";
+
+    [JsonIgnore]
+    public string BlfDialNumber => Presence == "Ringing" ? DeskPhone.DirectedPickupFor(Number) : Number;
 }
 
 public sealed class DeskCall
@@ -135,7 +165,11 @@ public sealed class LineSnapshot
     public long PacketsLost { get; init; }
     public double JitterMs { get; init; }
     public double LossPercent { get; init; }
+    public double LatencyMs { get; init; }
     public double Mos { get; init; }
+    public int SignalBars { get; init; }
+    public bool QualityMeasured { get; init; }
+    public string QualityText { get; init; } = "Not measured";
     public string RecordingPath { get; init; } = "";
 
     public bool IsLive => Phase is "Outgoing" or "Incoming" or "InCall";
@@ -172,6 +206,9 @@ public sealed class RowItem
     public string Subtitle { get; init; } = "";
     public string Trailing { get; init; } = "";
     public string Kind { get; init; } = "";
+    public string Lamp { get; init; } = "#94A3B8";
+    public bool Flash { get; init; }
+    public bool ShowLamp { get; init; }
 }
 
 public sealed record AudioDevice(string Id, string Name);

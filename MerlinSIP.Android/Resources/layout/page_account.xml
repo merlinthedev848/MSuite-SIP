@@ -26,6 +26,16 @@
             android:textColor="@color/muted"
             android:textSize="13sp" />
 
+        <TextView
+            android:id="@+id/version_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="Version 1.3.9.1"
+            android:textColor="@color/ink"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
         <TextView style="@style/FieldLabel" android:text="Display name" />
         <EditText
             android:id="@+id/display_name"

@@ -32,8 +32,10 @@ public sealed class AndroidAudioEndPoint : IAudioEndPoint
     private bool _encodedSeen;
     private int _captureRate = SampleRate;
     private int _playbackRate = SampleRate;
+    private int _receivedPackets;
 
     public bool Muted { get; set; }
+    public int ReceivedPackets => _receivedPackets;
 
     public event EncodedSampleDelegate? OnAudioSourceEncodedSample;
     public event Action<EncodedAudioFrame>? OnAudioSourceEncodedFrameReady;
@@ -185,6 +187,11 @@ public sealed class AndroidAudioEndPoint : IAudioEndPoint
 
     public void GotAudioRtp(IPEndPoint remoteEndPoint, uint ssrc, uint seqnum, uint timestamp, int payloadId, bool marker, byte[] payload)
     {
+        if (payload.Length > 0)
+        {
+            Interlocked.Increment(ref _receivedPackets);
+        }
+
         if (_encodedSeen || payload.Length == 0 || _formats.SelectedFormat.IsEmpty())
         {
             return;
@@ -196,6 +203,11 @@ public sealed class AndroidAudioEndPoint : IAudioEndPoint
     public void GotEncodedMediaFrame(EncodedAudioFrame encodedMediaFrame)
     {
         _encodedSeen = true;
+        if (encodedMediaFrame.EncodedAudio.Length > 0)
+        {
+            Interlocked.Increment(ref _receivedPackets);
+        }
+
         if (encodedMediaFrame.EncodedAudio.Length == 0 || encodedMediaFrame.AudioFormat.IsEmpty())
         {
             return;

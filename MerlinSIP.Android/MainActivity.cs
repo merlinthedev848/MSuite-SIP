@@ -63,6 +63,14 @@ public class MainActivity : Activity
     private TextView? _navRecents;
     private TextView? _navContacts;
     private TextView? _navAccount;
+    private TextView? _qualityText;
+    private TextView? _featureNotice;
+    private Button? _presenceAvailable;
+    private Button? _presenceBusy;
+    private Button? _presenceDnd;
+    private ContactAdapter? _contactsAdapter;
+    private readonly Handler _lampHandler = new(Looper.MainLooper!);
+    private bool _lampLit = true;
     private View[] _pages = Array.Empty<View>();
 
     protected override void OnCreate(Bundle? savedInstanceState)
@@ -117,10 +125,13 @@ public class MainActivity : Activity
         _contactList!.EmptyView = _contactEmpty;
         _contactList.ItemClick += (_, args) =>
         {
-            if (args.Position >= 0 && args.Position < PhoneData.Contacts.Count)
+            if (args.Position < 0 || args.Position >= PhoneData.Contacts.Count)
             {
-                DialNumber(PhoneData.Contacts[args.Position].Number);
+                return;
             }
+
+            var contact = PhoneData.Contacts[args.Position];
+            DialNumber(BlfState.DialNumber(contact.Number, BlfBook.Presence(contact.Number)));
         };
         _contactList.ItemLongClick += (_, args) =>
         {
@@ -138,6 +149,7 @@ public class MainActivity : Activity
                     PhoneData.Contacts.RemoveAll(item => item.Id == contact.Id);
                     PhoneData.SaveContacts();
                     PhoneSession.Current.TouchLists();
+                    PhoneRuntime.RefreshBlf();
                 })!
                 .SetNegativeButton("Cancel", (_, _) => { })!
                 .Show();
@@ -170,6 +182,33 @@ public class MainActivity : Activity
         _muteButton!.Click += (_, _) => PhoneRuntime.SetMuted(!PhoneSession.Current.Muted);
         _holdButton!.Click += (_, _) => PhoneRuntime.SetHold(!PhoneSession.Current.OnHold);
         _speakerButton!.Click += (_, _) => PhoneRuntime.SetSpeaker(!PhoneSession.Current.SpeakerOn);
+        _qualityText = keypad.FindViewById<TextView>(Resource.Id.quality_text);
+        _featureNotice = keypad.FindViewById<TextView>(Resource.Id.feature_notice);
+        _presenceAvailable = keypad.FindViewById<Button>(Resource.Id.presence_available);
+        _presenceBusy = keypad.FindViewById<Button>(Resource.Id.presence_busy);
+        _presenceDnd = keypad.FindViewById<Button>(Resource.Id.presence_dnd);
+        _presenceAvailable!.Click += (_, _) =>
+        {
+            if (PhoneData.SelectedPresence == "DND")
+            {
+                RequestPhonePermissions();
+            }
+
+            PhoneRuntime.SetPresence("Available");
+        };
+        _presenceBusy!.Click += (_, _) => PhoneRuntime.SetPresence("Busy");
+        _presenceDnd!.Click += (_, _) =>
+        {
+            RequestPhonePermissions();
+            PhoneRuntime.SetPresence("DND");
+        };
+        keypad.FindViewById<Button>(Resource.Id.feature_voicemail)!.Click += (_, _) => RunCallFeature(PhoneRuntime.Voicemail);
+        keypad.FindViewById<Button>(Resource.Id.feature_pickup)!.Click += (_, _) => RunCallFeature(PhoneRuntime.GroupPickup);
+        keypad.FindViewById<Button>(Resource.Id.feature_redial)!.Click += (_, _) => RunCallFeature(PhoneRuntime.Redial);
+        keypad.FindViewById<Button>(Resource.Id.feature_intercom)!.Click += (_, _) => RunCallFeature(() => PhoneRuntime.Intercom(_dialed));
+        keypad.FindViewById<Button>(Resource.Id.feature_forward)!.Click += (_, _) => RunCallFeature(() => PhoneRuntime.ForwardAll(_dialed));
+        keypad.FindViewById<Button>(Resource.Id.feature_park)!.Click += (_, _) => PhoneRuntime.Park();
+        keypad.FindViewById<Button>(Resource.Id.feature_record)!.Click += (_, _) => PhoneRuntime.Record();
         FindViewById<Button>(Resource.Id.call_bar_end)!.Click += (_, _) => PhoneRuntime.Hangup();
         FindViewById<Button>(Resource.Id.incoming_answer)!.Click += (_, _) => PhoneRuntime.Answer();
         FindViewById<Button>(Resource.Id.incoming_decline)!.Click += (_, _) => PhoneRuntime.Decline();
@@ -187,7 +226,44 @@ public class MainActivity : Activity
         PhoneRuntime.EnsureStarted(this);
         StartPhoneService();
         PhoneSession.Current.Changed += OnSessionChanged;
+        _contactsAdapter = new ContactAdapter(this, () => _lampLit);
+        _contactList.Adapter = _contactsAdapter;
+        _lampHandler.PostDelayed(PulseLamps, 500);
         Render();
+    }
+
+    private void PulseLamps()
+    {
+        if (IsDestroyed)
+        {
+            return;
+        }
+
+        var ringing = PhoneData.Contacts.Any(contact => BlfBook.Presence(contact.Number) == "Ringing");
+        if (ringing)
+        {
+            _lampLit = !_lampLit;
+            _contactsAdapter?.NotifyDataSetChanged();
+        }
+        else if (!_lampLit)
+        {
+            _lampLit = true;
+            _contactsAdapter?.NotifyDataSetChanged();
+        }
+
+        _lampHandler.PostDelayed(PulseLamps, 500);
+    }
+
+    private void RunCallFeature(Action action)
+    {
+        if (CheckSelfPermission(Android.Manifest.Permission.RecordAudio) != Permission.Granted)
+        {
+            RequestPhonePermissions();
+            Toast.MakeText(this, "Allow the microphone to place a call.", ToastLength.Long)?.Show();
+            return;
+        }
+
+        action();
     }
 
     protected override void OnResume()
@@ -205,6 +281,7 @@ public class MainActivity : Activity
 
     protected override void OnDestroy()
     {
+        _lampHandler.RemoveCallbacksAndMessages(null);
         PhoneSession.Current.Changed -= OnSessionChanged;
         base.OnDestroy();
     }
@@ -396,6 +473,7 @@ public class MainActivity : Activity
                 PhoneData.Contacts.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
                 PhoneData.SaveContacts();
                 PhoneSession.Current.TouchLists();
+                PhoneRuntime.RefreshBlf();
             })!
             .SetNegativeButton("Cancel", (_, _) => { })!
             .Show();
@@ -457,6 +535,26 @@ public class MainActivity : Activity
         StyleToggle(_muteButton, session.Muted, "Mute");
         StyleToggle(_holdButton, session.OnHold, "Hold");
         StyleToggle(_speakerButton, session.SpeakerOn, "Speaker");
+        if (_qualityText != null)
+        {
+            _qualityText.Text = string.IsNullOrWhiteSpace(session.CallQuality) ? "Not measured" : session.CallQuality;
+        }
+
+        if (_featureNotice != null)
+        {
+            _featureNotice.Text = session.Notice;
+        }
+
+        if (!string.IsNullOrEmpty(session.StagedNumber))
+        {
+            _dialed = session.StagedNumber;
+            session.ConsumeStagedNumber();
+            RenderNumber();
+        }
+
+        StylePresence(_presenceAvailable, PhoneData.SelectedPresence == "Available");
+        StylePresence(_presenceBusy, PhoneData.SelectedPresence == "Busy");
+        StylePresence(_presenceDnd, PhoneData.SelectedPresence == "DND");
         _accountStatus!.Text = session.Detail;
         _accountStatus.SetTextColor(Color.ParseColor(session.Phase == PhonePhase.Offline && session.Detail.Contains("fail", StringComparison.OrdinalIgnoreCase) ? "#B91C1C" : "#5D6B7C"));
 
@@ -467,13 +565,24 @@ public class MainActivity : Activity
             {
                 var when = item.At.ToLocalTime().ToString("d MMM, HH:mm");
                 var length = item.Seconds > 0 ? " · " + TimeSpan.FromSeconds(item.Seconds).ToString(@"m\:ss") : "";
-                return (item.Number, $"{item.Direction} · {item.Result} · {when}{length}");
+                return (item.Number, $"{item.Direction} · {item.Result} · {when}{length}", "");
             }).ToArray());
-            _contactList!.Adapter = new RowAdapter(this, PhoneData.Contacts.Select(item => (item.Name, item.Number)).ToArray());
+            _contactsAdapter?.NotifyDataSetChanged();
         }
     }
 
     private void RenderNumber() => _numberText!.Text = _dialed;
+
+    private static void StylePresence(Button? button, bool selected)
+    {
+        if (button == null)
+        {
+            return;
+        }
+
+        button.SetBackgroundResource(selected ? Resource.Drawable.bg_amber : Resource.Drawable.bg_outline);
+        button.SetTextColor(Color.ParseColor("#111317"));
+    }
 
     private static void StyleToggle(Button? button, bool on, string label)
     {
@@ -523,19 +632,19 @@ public class MainActivity : Activity
         return leadingPlus ? "+" + cleaned : cleaned;
     }
 
-    private sealed class RowAdapter : BaseAdapter<(string Title, string Detail)>
+    private sealed class RowAdapter : BaseAdapter<(string Title, string Detail, string Lamp)>
     {
         private readonly Activity _activity;
-        private readonly (string Title, string Detail)[] _rows;
+        private readonly (string Title, string Detail, string Lamp)[] _rows;
 
-        public RowAdapter(Activity activity, (string Title, string Detail)[] rows)
+        public RowAdapter(Activity activity, (string Title, string Detail, string Lamp)[] rows)
         {
             _activity = activity;
             _rows = rows;
         }
 
         public override int Count => _rows.Length;
-        public override (string Title, string Detail) this[int position] => _rows[position];
+        public override (string Title, string Detail, string Lamp) this[int position] => _rows[position];
         public override long GetItemId(int position) => position;
 
         public override View GetView(int position, View? convertView, ViewGroup? parent)
@@ -543,6 +652,54 @@ public class MainActivity : Activity
             var view = convertView ?? _activity.LayoutInflater.Inflate(Resource.Layout.item_row, parent, false)!;
             view.FindViewById<TextView>(Resource.Id.row_title)!.Text = _rows[position].Title;
             view.FindViewById<TextView>(Resource.Id.row_detail)!.Text = _rows[position].Detail;
+            var lamp = view.FindViewById<View>(Resource.Id.row_lamp);
+            if (lamp != null)
+            {
+                lamp.Visibility = ViewStates.Gone;
+            }
+
+            return view;
+        }
+    }
+
+    private sealed class ContactAdapter : BaseAdapter
+    {
+        private readonly Activity _activity;
+        private readonly Func<bool> _lampLit;
+
+        public ContactAdapter(Activity activity, Func<bool> lampLit)
+        {
+            _activity = activity;
+            _lampLit = lampLit;
+        }
+
+        public override int Count => PhoneData.Contacts.Count;
+        public override Java.Lang.Object? GetItem(int position) => null;
+        public override long GetItemId(int position) => position;
+
+        public override View GetView(int position, View? convertView, ViewGroup? parent)
+        {
+            var view = convertView ?? _activity.LayoutInflater.Inflate(Resource.Layout.item_row, parent, false)!;
+            var contact = PhoneData.Contacts[position];
+            var presence = BlfBook.Presence(contact.Number);
+            var detail = contact.Number + " · " + BlfState.Label(presence);
+            if (presence == "Ringing")
+            {
+                detail += " · tap to pick up";
+            }
+
+            view.FindViewById<TextView>(Resource.Id.row_title)!.Text = contact.Name;
+            view.FindViewById<TextView>(Resource.Id.row_detail)!.Text = detail;
+            var lamp = view.FindViewById<View>(Resource.Id.row_lamp);
+            if (lamp != null)
+            {
+                lamp.Visibility = ViewStates.Visible;
+                var dot = new GradientDrawable();
+                dot.SetShape(ShapeType.Oval);
+                dot.SetColor(Color.ParseColor(BlfState.LampColor(presence, _lampLit())));
+                lamp.Background = dot;
+            }
+
             return view;
         }
     }

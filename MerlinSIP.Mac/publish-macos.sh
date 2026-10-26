@@ -18,5 +18,10 @@ if [ -f "$ICON" ]; then
   cp "$ICON" "$APP/Contents/Resources/AppIcon.png"
 fi
 chmod +x "$APP/Contents/MacOS/MerlinSIP"
+VERSION="$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' MerlinSIP.Mac/MerlinSIP.Mac.csproj | head -n 1)"
+DMG="artifacts/macos/MerlinSIP-${VERSION}-${RID}.dmg"
+rm -f "$DMG"
+hdiutil create -volname "Merlin SIP" -srcfolder "$APP" -ov -format UDZO "$DMG"
 echo "Built $APP"
+echo "Built $DMG"
 echo "First launch: open \"$APP\""

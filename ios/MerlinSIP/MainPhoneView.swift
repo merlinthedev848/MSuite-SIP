@@ -14,6 +14,7 @@ struct MainPhoneView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            presenceBar
             tabBar
             Group {
                 switch tab {
@@ -25,9 +26,7 @@ struct MainPhoneView: View {
                         phone.destination = number
                     }
                 case .contacts:
-                    ContactsView { number in
-                        phone.call(number)
-                    }
+                    ContactsView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -68,6 +67,44 @@ struct MainPhoneView: View {
         .padding(.vertical, 4)
         .background(phone.registered ? Theme.successBg : Theme.dangerBg)
         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+    }
+
+    private var presenceBar: some View {
+        HStack(spacing: 8) {
+            presenceButton(.available, title: "Available")
+            presenceButton(.busy, title: "Busy")
+            presenceButton(.dnd, title: "DND")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color.white)
+    }
+
+    private func presenceButton(_ status: LineStatus, title: String) -> some View {
+        let selected = phone.lineStatus == status
+        return Button {
+            phone.selectLineStatus(status)
+        } label: {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(selected ? Theme.ink : Theme.muted)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(selected ? fill(status) : Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(selected ? fill(status) : Theme.cardBorder, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func fill(_ status: LineStatus) -> Color {
+        switch status {
+        case .available: return Theme.successBg
+        case .busy: return Color(hex: 0xFEE2E2)
+        case .dnd: return Color(hex: 0xFEE2E2)
+        }
     }
 
     private var tabBar: some View {

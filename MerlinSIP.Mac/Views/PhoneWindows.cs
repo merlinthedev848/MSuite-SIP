@@ -1,6 +1,8 @@
 using Avalonia.Controls;
+using Avalonia.Data.Converters;
 using Avalonia.Layout;
 using Avalonia.Media;
+using System.Globalization;
 
 namespace MerlinSip.Mac;
 
@@ -147,24 +149,32 @@ public sealed class QualityWindow : Window
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         string Row(string label, string value) => label + "    " + value;
+        var measured = line.QualityMeasured;
+        var lines = new List<string>
+        {
+            Row("Line", line.Id.ToString()),
+            Row("Party", line.RemoteName + "  " + line.Remote),
+            Row("State", line.Phase + (line.Held ? " (hold)" : "")),
+            Row("Duration", line.Clock),
+            Row("Call quality", measured ? line.QualityText : "Not measured")
+        };
+        if (measured)
+        {
+            lines.Add(Row("Codec", string.IsNullOrWhiteSpace(line.Codec) ? "Not measured" : line.Codec));
+            lines.Add(Row("Loss", line.LossPercent.ToString("0.0") + "%"));
+            lines.Add(Row("Jitter", line.JitterMs.ToString("0.0") + " ms"));
+            lines.Add(Row("Latency", line.LatencyMs.ToString("0") + " ms"));
+            lines.Add(Row("MOS", line.Mos > 0 ? line.Mos.ToString("0.00") : "Not measured"));
+            lines.Add(Row("Signal", line.SignalBars > 0 ? line.SignalBars + "/5" : "Not measured"));
+        }
+
+        lines.Add(Row("Sent", line.PacketsSent.ToString()));
+        lines.Add(Row("Received", line.PacketsReceived.ToString()));
+        lines.Add(Row("Recording", string.IsNullOrWhiteSpace(line.RecordingPath) ? "Off" : line.RecordingPath));
         var body = new TextBlock
         {
             FontFamily = new FontFamily("Consolas, Menlo, monospace"),
-            Text = string.Join("\n",
-            [
-                Row("Line", line.Id.ToString()),
-                Row("Party", line.RemoteName + "  " + line.Remote),
-                Row("State", line.Phase + (line.Held ? " (hold)" : "")),
-                Row("Duration", line.Clock),
-                Row("Codec", string.IsNullOrWhiteSpace(line.Codec) ? "Negotiating" : line.Codec),
-                Row("Sent", line.PacketsSent.ToString()),
-                Row("Received", line.PacketsReceived.ToString()),
-                Row("Lost", line.PacketsLost.ToString()),
-                Row("Loss", line.LossPercent.ToString("0.0") + "%"),
-                Row("Jitter", line.JitterMs.ToString("0.0") + " ms"),
-                Row("MOS", line.Mos > 0 ? line.Mos.ToString("0.00") : "n/a"),
-                Row("Recording", string.IsNullOrWhiteSpace(line.RecordingPath) ? "Off" : line.RecordingPath)
-            ])
+            Text = string.Join("\n", lines)
         };
         var close = new Button { Content = "Close", HorizontalAlignment = HorizontalAlignment.Left };
         close.Click += (_, _) => Close();
@@ -232,4 +242,20 @@ public sealed class VideoCallWindow : Window
         _title.Text = string.IsNullOrWhiteSpace(line.RemoteName) ? line.Remote : line.RemoteName;
         _clock.Text = line.Phase + "  ·  " + line.Clock + (line.Muted ? "  ·  Muted" : "");
     }
+}
+
+public sealed class HexBrushConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is string text && Color.TryParse(text, out var color))
+        {
+            return new SolidColorBrush(color);
+        }
+
+        return Brushes.Gray;
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
 }

@@ -33,23 +33,33 @@ public sealed class MacAudioEndPoint : IAudioEndPoint
     public long PacketsReceived { get; private set; }
     public long PacketsLost { get; private set; }
     public double JitterMs { get; private set; }
+    public double LatencyMs { get; private set; }
+    private bool _latencyMeasured;
 
     public double LossPercent => PacketsReceived + PacketsLost == 0
         ? 0
         : PacketsLost * 100.0 / (PacketsReceived + PacketsLost);
 
-    public double Mos
+    public bool QualityMeasured => PacketsReceived > 0 && _latencyMeasured && LatencyMs > 0;
+
+    public double Mos => QualityMeasured ? CallQuality.Mos(LatencyMs, JitterMs, LossPercent) : 0;
+
+    public int SignalBars => QualityMeasured ? CallQuality.Bars(LossPercent, JitterMs) : 0;
+
+    public string QualityText => QualityMeasured ? CallQuality.Label(SignalBars) : "Not measured";
+
+    public string Codec => QualityMeasured && !_formats.SelectedFormat.IsEmpty()
+        ? _formats.SelectedFormat.Codec.ToString()
+        : "";
+
+    public void SetMeasuredLatency(double latencyMs)
     {
-        get
+        if (latencyMs > 0)
         {
-            var r = 93.2 - (LossPercent * 2.5) - (JitterMs / 8.0);
-            r = Math.Clamp(r, 0, 100);
-            var mos = 1 + (0.035 * r) + (r * (r - 60) * (100 - r) * 0.000007);
-            return Math.Clamp(mos, 1, 4.5);
+            LatencyMs = latencyMs;
+            _latencyMeasured = true;
         }
     }
-
-    public string Codec => _formats.SelectedFormat.IsEmpty() ? "" : _formats.SelectedFormat.Codec.ToString();
 
     public event EncodedSampleDelegate? OnAudioSourceEncodedSample;
     public event Action<EncodedAudioFrame>? OnAudioSourceEncodedFrameReady;

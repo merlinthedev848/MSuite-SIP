@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ContactsView: View {
     @EnvironmentObject private var phone: PhoneModel
-    var onCall: (String) -> Void
     @State private var query = ""
     @State private var adding = false
     @State private var name = ""
@@ -42,9 +41,15 @@ struct ContactsView: View {
                 List {
                     ForEach(rows) { contact in
                         Button {
-                            onCall(contact.number)
+                            phone.callContact(contact)
                         } label: {
-                            PhoneRow(title: contact.name, subtitle: "Extension \(contact.number)", tint: Theme.amber, icon: "phone.fill")
+                            PhoneRow(
+                                title: contact.name,
+                                subtitle: contact.callSubtitle,
+                                tint: contact.presence == "Ringing" ? Theme.danger : Theme.amber,
+                                icon: contact.presence == "Ringing" ? "phone.arrow.down.left" : "phone.fill",
+                                presence: contact.presence
+                            )
                         }
                         .buttonStyle(.plain)
                         .listRowInsets(EdgeInsets(top: 3, leading: 0, bottom: 3, trailing: 0))

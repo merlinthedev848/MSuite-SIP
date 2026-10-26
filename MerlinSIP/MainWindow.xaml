@@ -726,7 +726,7 @@
                                TextAlignment="Center"
                                TextWrapping="Wrap" />
                     <TextBlock x:Name="AppVersionText"
-                               Text="v1.3.9"
+                               Text="v1.3.9.1"
                                Foreground="#64748B"
                                FontSize="9"
                                FontWeight="Medium"
@@ -2580,33 +2580,36 @@
                                                     </ProgressBar.Resources>
                                                 </ProgressBar>
                                             </Grid>
-                                            <Grid Margin="0,0,0,2">
+                                            <TextBlock Text="Speaker" />
+                                            <Grid Margin="0,0,0,8">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="112" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="Speaker" VerticalAlignment="Center" />
-                                                <Button Grid.Column="1" x:Name="TestSpeakerButton" Content="Test speaker" Style="{StaticResource SoftButton}" Height="24" Padding="8,0" Margin="8,0,0,0" Click="TestSpeakerButton_Click" ToolTip="Play a test sound through the speaker" />
+                                                <ComboBox x:Name="AudioOutputComboBox" Margin="0" VerticalAlignment="Center" AutomationProperties.Name="Audio Output Speaker" />
+                                                <Button Grid.Column="2" x:Name="TestSpeakerButton" Content="Test speaker" Style="{StaticResource QuietCallButton}" Height="30" Padding="8,0" VerticalAlignment="Center" Click="TestSpeakerButton_Click" ToolTip="Play a test sound through the speaker" />
                                             </Grid>
-                                            <ComboBox x:Name="AudioOutputComboBox" AutomationProperties.Name="Audio Output Speaker" />
-                                            <Grid Margin="0,0,0,2">
+                                            <TextBlock Text="Incoming ring device" />
+                                            <Grid Margin="0,0,0,8">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="112" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="Incoming ring device" VerticalAlignment="Center" />
-                                                <Button Grid.Column="1" x:Name="TestSecondaryRingerButton" Content="Test ring" Style="{StaticResource SoftButton}" Height="24" Padding="8,0" Margin="8,0,0,0" Click="TestSecondaryRingerButton_Click" ToolTip="Play the ring on the secondary speaker" />
+                                                <ComboBox x:Name="SecondaryRingerComboBox" Margin="0" VerticalAlignment="Center" DisplayMemberPath="Name" AutomationProperties.Name="Secondary Ringer Speaker" />
+                                                <Button Grid.Column="2" x:Name="TestSecondaryRingerButton" Content="Test ring" Style="{StaticResource QuietCallButton}" Height="30" Padding="8,0" VerticalAlignment="Center" Click="TestSecondaryRingerButton_Click" ToolTip="Play the ring on the secondary speaker" />
                                             </Grid>
-                                            <ComboBox x:Name="SecondaryRingerComboBox" DisplayMemberPath="Name" AutomationProperties.Name="Secondary Ringer Speaker" />
-                                            <Grid Margin="0,0,0,2">
+                                            <TextBlock Text="Ringtone" />
+                                            <Grid Margin="0,0,0,8">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="8" />
+                                                    <ColumnDefinition Width="112" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="Ringtone" VerticalAlignment="Center" />
-                                                <Button Grid.Column="1" x:Name="TestToneButton" Content="Preview" Style="{StaticResource SoftButton}" Height="24" Padding="8,0" Margin="8,0,0,0" Click="TestToneButton_Click" AutomationProperties.Name="Preview Ringtone Tone" />
+                                                <ComboBox x:Name="RingtoneComboBox" Margin="0" VerticalAlignment="Center" DisplayMemberPath="Name" AutomationProperties.Name="Ringtone Choice" />
+                                                <Button Grid.Column="2" x:Name="TestToneButton" Content="Preview" Style="{StaticResource QuietCallButton}" Height="30" Padding="8,0" VerticalAlignment="Center" Click="TestToneButton_Click" AutomationProperties.Name="Preview Ringtone Tone" />
                                             </Grid>
-                                            <ComboBox x:Name="RingtoneComboBox" DisplayMemberPath="Name" Margin="0,0,0,8" AutomationProperties.Name="Ringtone Choice" />
                                             <Grid Margin="0,2,0,4">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="92" />
@@ -2821,7 +2824,7 @@
                                                     <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0" Text="Version" Foreground="#64748B" Margin="0,0,0,8" />
-                                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AboutVersionText" Text="1.3.9" Foreground="#0F172A" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AboutVersionText" Text="1.3.9.1" Foreground="#0F172A" FontWeight="SemiBold" Margin="0,0,0,8" />
                                                 <TextBlock Grid.Row="1" Text="Product" Foreground="#64748B" Margin="0,0,0,8" />
                                                 <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ProductIdText" Text="merlin-sip" Foreground="#0F172A" Margin="0,0,0,8" />
                                                 <TextBlock Grid.Row="2" Text="Licensed to" Foreground="#64748B" Margin="0,0,0,8" />

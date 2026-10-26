@@ -76,7 +76,7 @@ struct SettingsView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Version 1.0.0")
+            Text(versionLabel)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Theme.muted)
         }
@@ -87,6 +87,14 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(Theme.cardBorder, lineWidth: 1)
         )
+    }
+
+    private var versionLabel: String {
+        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+        let marketing = short.isEmpty || short.contains("$") ? "1.3.9.1" : short
+        let current = build.isEmpty || build.contains("$") ? marketing : build
+        return marketing == current ? "Version \(marketing)" : "Version \(marketing) (\(current))"
     }
 
     private func row(_ label: String, _ value: String) -> some View {

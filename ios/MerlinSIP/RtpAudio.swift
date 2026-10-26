@@ -18,6 +18,14 @@ final class RtpAudio {
     private var pendingFrames: [UInt16: [Int16]] = [:]
     private var nextSequence: UInt16?
     private var primed = false
+    private var receivedPackets = 0
+    private var expectedPackets = 0
+    private var jitter = 0.0
+    private var lastTransit: Int64 = 0
+    private var haveTransit = false
+    private var lastSequence: UInt16 = 0
+    private var haveSequence = false
+    private let dtmfQueue = DispatchQueue(label: "media.chriskendall.MerlinSIP.dtmf")
 
     private var stunCompletion: ((String, UInt16) -> Void)?
     private var stunTransaction = Data()
@@ -118,46 +126,80 @@ final class RtpAudio {
     }
 
     func sendDtmf(event: UInt8) {
-        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
-            guard let self else { return }
-            self.lock.lock()
-            let host = self.remoteHost
-            let port = self.remotePort
-            let payload = self.dtmfPayload
-            let start = self.timestamp
-            self.suppressMic = true
-            self.lock.unlock()
-            guard let host, port > 0 else {
-                self.lock.lock()
-                self.suppressMic = false
-                self.lock.unlock()
-                return
+        sendDtmfSequence([event])
+    }
+
+    @discardableResult
+    func sendDtmfSequence(_ events: [UInt8]) -> Bool {
+        lock.lock()
+        let ready = remoteHost != nil && remotePort > 0
+        lock.unlock()
+        guard ready, !events.isEmpty else { return false }
+        dtmfQueue.async { [weak self] in
+            for (index, event) in events.enumerated() {
+                self?.writeDtmf(event)
+                if index + 1 < events.count {
+                    usleep(180_000)
+                }
             }
-            var duration: UInt16 = 0
-            for index in 0..<8 {
-                duration = duration &+ 160
-                let ended = index >= 5
-                var body = Data(count: 4)
-                body[0] = event
-                body[1] = (ended ? 0x80 : 0x00) | 10
-                body[2] = UInt8(duration >> 8)
-                body[3] = UInt8(duration & 0xFF)
-                self.sendRTP(
-                    payload: body,
-                    payloadType: payload,
-                    timestampStep: 0,
-                    marker: index == 0,
-                    fixedTimestamp: start,
-                    host: host,
-                    port: port
-                )
-                usleep(20_000)
-            }
-            self.lock.lock()
-            self.timestamp = start &+ UInt32(duration)
-            self.suppressMic = false
-            self.lock.unlock()
         }
+        return true
+    }
+
+    func measurement() -> (receivedPackets: Int, jitterMs: Double, lossPercent: Double) {
+        lock.lock()
+        let received = receivedPackets
+        let expected = expectedPackets
+        let jitterUnits = jitter
+        lock.unlock()
+        let loss: Double
+        if expected > 0 {
+            loss = min(100, max(0, Double(expected - received) * 100 / Double(expected)))
+        } else {
+            loss = 0
+        }
+        let jitterMs = (jitterUnits / 8 * 10).rounded() / 10
+        return (received, jitterMs, (loss * 100).rounded() / 100)
+    }
+
+    private func writeDtmf(_ event: UInt8) {
+        lock.lock()
+        let host = remoteHost
+        let port = remotePort
+        let payload = dtmfPayload
+        let start = timestamp
+        suppressMic = true
+        lock.unlock()
+        guard let host, port > 0 else {
+            lock.lock()
+            suppressMic = false
+            lock.unlock()
+            return
+        }
+        var duration: UInt16 = 0
+        for index in 0..<8 {
+            duration = duration &+ 160
+            let ended = index >= 5
+            var body = Data(count: 4)
+            body[0] = event
+            body[1] = (ended ? 0x80 : 0x00) | 10
+            body[2] = UInt8(duration >> 8)
+            body[3] = UInt8(duration & 0xFF)
+            sendRTP(
+                payload: body,
+                payloadType: payload,
+                timestampStep: 0,
+                marker: index == 0,
+                fixedTimestamp: start,
+                host: host,
+                port: port
+            )
+            usleep(20_000)
+        }
+        lock.lock()
+        timestamp = start &+ UInt32(duration)
+        suppressMic = false
+        lock.unlock()
     }
 
     private func beginStun(server: String, fallback: (String, UInt16), completion: @escaping (String, UInt16) -> Void) {
@@ -212,6 +254,7 @@ final class RtpAudio {
         guard data.count >= 12, (data[0] & 0xC0) == 0x80 else { return }
         let payloadType = Int(data[1] & 0x7F)
         let sequence = UInt16(data[2]) << 8 | UInt16(data[3])
+        let rtpTimestamp = UInt32(data[4]) << 24 | UInt32(data[5]) << 16 | UInt32(data[6]) << 8 | UInt32(data[7])
         lock.lock()
         remoteHost = host
         remotePort = port
@@ -230,6 +273,7 @@ final class RtpAudio {
             return
         }
         guard samples.count >= 80 else { return }
+        noteAudioPacket(sequence: sequence, rtpTimestamp: rtpTimestamp)
         lock.lock()
         pendingFrames[sequence] = Array(samples.prefix(160))
         if pendingFrames.count > 24, let oldest = pendingFrames.keys.min(by: { sequenceBefore($0, $1) }) {
@@ -395,6 +439,33 @@ final class RtpAudio {
             nextSequence = expected &+ 1
         }
         return silence
+    }
+
+    private func noteAudioPacket(sequence: UInt16, rtpTimestamp: UInt32) {
+        let arrival = Int64(ProcessInfo.processInfo.systemUptime * 8000)
+        let transit = arrival - Int64(rtpTimestamp)
+        lock.lock()
+        if haveSequence {
+            let gap = sequence &- lastSequence
+            if gap > 0 && gap < 100 {
+                expectedPackets += Int(gap)
+            } else {
+                expectedPackets += 1
+            }
+        } else {
+            expectedPackets += 1
+            haveSequence = true
+        }
+        lastSequence = sequence
+        receivedPackets += 1
+        if receivedPackets > 1 && haveTransit {
+            var delta = transit - lastTransit
+            if delta < 0 { delta = -delta }
+            jitter += (Double(delta) - jitter) / 16
+        }
+        lastTransit = transit
+        haveTransit = true
+        lock.unlock()
     }
 
     private func sequenceBefore(_ lhs: UInt16, _ rhs: UInt16) -> Bool {

@@ -36,6 +36,15 @@
                 android:textColor="@color/muted"
                 android:textSize="13sp" />
 
+            <TextView
+                android:id="@+id/quality_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Not measured"
+                android:textColor="@color/muted"
+                android:textSize="13sp" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -147,6 +156,94 @@
                 android:textColor="@color/amber_text"
                 android:textSize="16sp"
                 android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/feature_notice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textColor="@color/muted"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/presence_available"
+                    style="@style/FeatureButton"
+                    android:layout_marginEnd="6dp"
+                    android:text="Available" />
+
+                <Button
+                    android:id="@+id/presence_busy"
+                    style="@style/FeatureButton"
+                    android:layout_marginEnd="6dp"
+                    android:text="Busy" />
+
+                <Button
+                    android:id="@+id/presence_dnd"
+                    style="@style/FeatureButton"
+                    android:text="DND" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/feature_voicemail"
+                    style="@style/FeatureButton"
+                    android:layout_marginEnd="6dp"
+                    android:text="Voicemail" />
+
+                <Button
+                    android:id="@+id/feature_pickup"
+                    style="@style/FeatureButton"
+                    android:layout_marginEnd="6dp"
+                    android:text="Pickup" />
+
+                <Button
+                    android:id="@+id/feature_redial"
+                    style="@style/FeatureButton"
+                    android:text="Redial" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/feature_intercom"
+                    style="@style/FeatureButton"
+                    android:layout_marginEnd="6dp"
+                    android:text="Intercom" />
+
+                <Button
+                    android:id="@+id/feature_forward"
+                    style="@style/FeatureButton"
+                    android:layout_marginEnd="6dp"
+                    android:text="Forward" />
+
+                <Button
+                    android:id="@+id/feature_park"
+                    style="@style/FeatureButton"
+                    android:text="Park" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/feature_record"
+                style="@style/FeatureButton"
+                android:layout_width="match_parent"
+                android:layout_marginTop="6dp"
+                android:layout_weight="0"
+                android:text="Record" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

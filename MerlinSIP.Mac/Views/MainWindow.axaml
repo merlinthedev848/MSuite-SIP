@@ -1,12 +1,16 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="MerlinSip.Mac.MainWindow"
+        xmlns:local="using:MerlinSip.Mac"
         Title="Merlin SIP"
         Width="1280"
         Height="820"
         MinWidth="1080"
         MinHeight="680"
         WindowStartupLocation="CenterScreen">
+  <Window.Resources>
+    <local:HexBrushConverter x:Key="HexBrush" />
+  </Window.Resources>
   <Grid RowDefinitions="64,Auto,*">
     <Border Background="#111317" Padding="16,0">
       <Grid ColumnDefinitions="220,*,Auto">
@@ -102,11 +106,17 @@
                 <Grid ColumnDefinitions="*,*,*" Margin="0,8,0,0">
                   <Button Classes="primary" Content="Dial" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Dial_Click" />
                   <Button Grid.Column="1" Content="Video" Margin="8,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Video_Click" />
-                  <Button Grid.Column="2" Content="Voicemail" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Voicemail_Click" />
+                  <Button Grid.Column="2" Content="Voicemail" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Voicemail_Click" ToolTip.Tip="Check voicemail (*2)" />
                 </Grid>
-                <Grid ColumnDefinitions="*,*" Margin="0,8,0,0">
-                  <Button Content="Pickup" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Pickup_Click" />
-                  <Button Grid.Column="1" Content="Queue" Margin="8,0,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Queue_Click" />
+                <Grid ColumnDefinitions="*,*,*" Margin="0,8,0,0">
+                  <Button Content="Pickup" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Pickup_Click" ToolTip.Tip="Pick up a ringing call in your group (*4)" />
+                  <Button Grid.Column="1" Content="Park" Margin="8,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Park_Click" ToolTip.Tip="During a call, park it on the PBX (*6)" />
+                  <Button Grid.Column="2" Content="Redial" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Redial_Click" ToolTip.Tip="Call the last outbound number" />
+                </Grid>
+                <Grid ColumnDefinitions="*,*,*" Margin="0,8,0,0">
+                  <Button Content="Intercom" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Intercom_Click" ToolTip.Tip="Intercom the extension in the box (*5)" />
+                  <Button Grid.Column="1" Content="Forward" Margin="8,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Forward_Click" ToolTip.Tip="Forward all calls. An empty box forwards to voicemail (*71). A number forwards there." />
+                  <Button Grid.Column="2" Content="Queue" Margin="8,0,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Queue_Click" ToolTip.Tip="Queue login (*62)" />
                 </Grid>
               </StackPanel>
             </Border>
@@ -122,12 +132,16 @@
               <ListBox x:Name="DirectoryList" DoubleTapped="Directory_Open">
                 <ListBox.ItemTemplate>
                   <DataTemplate>
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,4">
-                      <StackPanel>
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4">
+                      <Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center"
+                               IsVisible="{Binding ShowLamp}"
+                               Fill="{Binding Lamp, Converter={StaticResource HexBrush}}"
+                               Classes.flash="{Binding Flash}" />
+                      <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding Subtitle}" Foreground="#64748B" FontSize="12" />
                       </StackPanel>
-                      <TextBlock Grid.Column="1" Text="{Binding Trailing}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="2" Text="{Binding Trailing}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center" />
                     </Grid>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -150,13 +164,16 @@
           <ListBox x:Name="ContactList" DoubleTapped="Contact_Dial">
             <ListBox.ItemTemplate>
               <DataTemplate>
-                <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,4">
-                  <StackPanel>
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,4">
+                  <Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center"
+                           Fill="{Binding Lamp, Converter={StaticResource HexBrush}}"
+                           Classes.flash="{Binding Flash}" />
+                  <StackPanel Grid.Column="1">
                     <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding Subtitle}" Foreground="#64748B" FontSize="12" />
                   </StackPanel>
-                  <TextBlock Grid.Column="1" Text="{Binding Trailing}" Margin="12,0" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="2" Text="{Binding Kind}" Foreground="#64748B" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="{Binding Trailing}" Margin="12,0" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="3" Text="{Binding Kind}" Foreground="#64748B" VerticalAlignment="Center" />
                 </Grid>
               </DataTemplate>
             </ListBox.ItemTemplate>
@@ -329,7 +346,7 @@
               </StackPanel>
               <StackPanel x:Name="AboutPage" Spacing="8" IsVisible="False">
                 <TextBlock Text="About" FontSize="20" FontWeight="Bold" />
-                <TextBlock Text="Merlin SIP 1.3.8 for macOS" FontWeight="SemiBold" />
+                <TextBlock Text="Merlin SIP 1.3.9 for macOS" FontWeight="SemiBold" />
                 <TextBlock TextWrapping="Wrap" Text="CK Media Services. The Mac app is the desktop softphone: two lines, registration, contacts, history, messages, transfers, conference, recording, voicemail, and call quality. Audio uses Core Audio." />
                 <TextBlock x:Name="AboutLicense" TextWrapping="Wrap" Classes="muted" />
                 <TextBlock x:Name="AboutData" TextWrapping="Wrap" Classes="muted" />

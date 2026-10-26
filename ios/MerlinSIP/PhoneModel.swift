@@ -15,8 +15,12 @@ final class PhoneModel: ObservableObject {
     @Published var liveCall: LiveCallState?
     @Published var incoming: IncomingState?
     @Published var speaker = false
+    @Published var lineStatus: LineStatus = PhoneStorage.lineStatus
+    @Published var callQuality = "Not measured"
+    @Published var featureNotice = ""
 
     private let engine = SipEngine()
+    private var pendingPbxCode = PhoneStorage.pendingPbxCode
     private let bridge = CallKitBridge()
     private var callKitIds = Set<UUID>()
     private var localEnds = Set<UUID>()
@@ -32,6 +36,9 @@ final class PhoneModel: ObservableObject {
             signedIn = !password.isEmpty
         }
         wire()
+        engine.publishLineStatus(lineStatus.rawValue)
+        engine.setRejectIncoming(lineStatus == .dnd)
+        watchContacts()
         if signedIn {
             engine.setSpeaker(speaker)
             engine.start(account: account, password: password)
@@ -49,6 +56,7 @@ final class PhoneModel: ObservableObject {
         registered = false
         status = "Registering..."
         engine.setSpeaker(speaker)
+        watchContacts()
         engine.start(account: parsed, password: password)
         requestMicrophone()
     }
@@ -59,6 +67,8 @@ final class PhoneModel: ObservableObject {
         registered = false
         liveCall = nil
         incoming = nil
+        callQuality = "Not measured"
+        featureNotice = ""
         status = "Signed out."
     }
 
@@ -66,6 +76,12 @@ final class PhoneModel: ObservableObject {
         signOut()
         KeychainStore.clear()
         PhoneStorage.clearAccount()
+        lineStatus = .available
+        PhoneStorage.lineStatus = .available
+        pendingPbxCode = nil
+        PhoneStorage.pendingPbxCode = nil
+        engine.publishLineStatus(LineStatus.available.rawValue)
+        engine.setRejectIncoming(false)
         password = ""
         portText = "5060"
         account = SipAccount(server: "", port: 5060, extensionNumber: "", username: "", displayName: "")
@@ -83,7 +99,7 @@ final class PhoneModel: ObservableObject {
         engine.start(account: account, password: password)
     }
 
-    func call(_ number: String) {
+    func call(_ number: String, displayName: String? = nil) {
         let target = number.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !target.isEmpty else { return }
         guard registered else {
@@ -92,7 +108,8 @@ final class PhoneModel: ObservableObject {
         }
         guard liveCall == nil, incoming == nil else { return }
         let uuid = UUID()
-        let name = contactName(for: target) ?? target
+        let named = displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = (named?.isEmpty == false ? named! : nil) ?? contactName(for: target) ?? target
         AVAudioApplication.requestRecordPermission { [weak self] granted in
             Task { @MainActor in
                 guard let self else { return }
@@ -157,6 +174,118 @@ final class PhoneModel: ObservableObject {
         engine.sendDtmf(digits)
     }
 
+    func selectLineStatus(_ status: LineStatus) {
+        let previous = lineStatus
+        lineStatus = status
+        PhoneStorage.lineStatus = status
+        engine.publishLineStatus(status.rawValue)
+        engine.setRejectIncoming(status == .dnd)
+        if status == .dnd {
+            self.status = "Do not disturb is on."
+            if previous != .dnd {
+                queuePbxCode(DeskPhone.dndOn)
+            }
+            if incoming != nil && liveCall == nil {
+                hangup()
+            }
+            return
+        }
+        if previous == .dnd {
+            self.status = "Do not disturb is off."
+            if pendingPbxCode == DeskPhone.dndOn {
+                pendingPbxCode = nil
+                PhoneStorage.pendingPbxCode = nil
+            } else {
+                queuePbxCode(DeskPhone.dndOff)
+            }
+            return
+        }
+        self.status = status == .busy ? "Presence set to Busy." : "Presence set to Available."
+    }
+
+    func callVoicemail() {
+        guard lineIdle else {
+            status = "Voicemail is used when the phone is idle."
+            return
+        }
+        destination = DeskPhone.voicemail
+        call(DeskPhone.voicemail)
+    }
+
+    func groupPickup() {
+        guard lineIdle else {
+            status = "Group pickup is used when the phone is idle."
+            return
+        }
+        destination = DeskPhone.groupPickup
+        call(DeskPhone.groupPickup)
+    }
+
+    func callIntercom() {
+        guard lineIdle else {
+            status = "Intercom is used when the phone is idle."
+            return
+        }
+        let extensionNumber = DeskPhone.digits(destination)
+        guard !extensionNumber.isEmpty else {
+            status = "Enter an extension, then press Intercom."
+            return
+        }
+        let target = DeskPhone.intercomTo(extensionNumber)
+        destination = target
+        call(target)
+    }
+
+    func forwardAll() {
+        guard lineIdle else {
+            status = "Call forward is set when the phone is idle."
+            return
+        }
+        let target = DeskPhone.forwardAll(to: destination)
+        destination = target
+        call(target)
+    }
+
+    func redial() {
+        guard let number = history.first(where: { $0.direction == .outbound && !$0.number.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })?.number else {
+            status = "There is no number to redial."
+            return
+        }
+        guard lineIdle else {
+            status = "Redial is used when the phone is idle."
+            return
+        }
+        destination = number
+        call(number)
+    }
+
+    func parkCall() {
+        guard liveCall?.connectedAt != nil else {
+            featureNotice = "Park is used during a call. The PBX announces the parking slot."
+            status = featureNotice
+            return
+        }
+        engine.sendDtmf(DeskPhone.park)
+        featureNotice = "Park code *6 sent. Listen for the parking slot, then dial that slot from another phone."
+        status = featureNotice
+    }
+
+    func recordCall() {
+        guard liveCall?.connectedAt != nil else {
+            featureNotice = "One-touch record is sent during a connected call."
+            status = featureNotice
+            return
+        }
+        engine.sendDtmf(DeskPhone.oneTouchRecord)
+        featureNotice = "Sent *1 to the PBX."
+        status = featureNotice
+    }
+
+    func callContact(_ contact: Contact) {
+        destination = contact.blfDialNumber
+        call(contact.blfDialNumber, displayName: contact.name)
+    }
+
     func addContact(name: String, number: String) {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedNumber = number.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -168,11 +297,13 @@ final class PhoneModel: ObservableObject {
         }
         contacts.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         PhoneStorage.saveContacts(contacts)
+        watchContacts()
     }
 
     func deleteContact(_ contact: Contact) {
         contacts.removeAll { $0.id == contact.id }
         PhoneStorage.saveContacts(contacts)
+        watchContacts()
     }
 
     func clearHistory() {
@@ -227,6 +358,10 @@ final class PhoneModel: ObservableObject {
         case .registration(let ok, let message):
             registered = ok
             status = message
+            if ok {
+                watchContacts()
+                dialPendingPbxCode()
+            }
         case .incoming(let call):
             let named = IncomingState(id: call.id, number: call.number, name: contactName(for: call.number) ?? call.name)
             incoming = named
@@ -262,7 +397,11 @@ final class PhoneModel: ObservableObject {
             }
             history.insert(record, at: 0)
             PhoneStorage.saveHistory(history)
-            if liveCall?.id == id { liveCall = nil }
+            if liveCall?.id == id {
+                liveCall = nil
+                featureNotice = ""
+                callQuality = record.quality
+            }
             if incoming?.id == id { incoming = nil }
             if localEnds.remove(id) != nil {
                 callKitIds.remove(id)
@@ -275,11 +414,55 @@ final class PhoneModel: ObservableObject {
                 }
                 bridge.reportEnded(id, kind: kind)
             }
+            dialPendingPbxCode()
         case .incomingCleared(let id):
             if incoming?.id == id { incoming = nil }
+            dialPendingPbxCode()
         case .notice(let message):
             status = message
+            if liveCall != nil { featureNotice = message }
+        case .blf(let number, let presence):
+            applyPresence(number, presence)
+        case .quality(let label):
+            callQuality = label
         }
+    }
+
+    private var lineIdle: Bool {
+        liveCall == nil && incoming == nil
+    }
+
+    private func queuePbxCode(_ code: String) {
+        pendingPbxCode = code
+        PhoneStorage.pendingPbxCode = code
+        dialPendingPbxCode()
+    }
+
+    private func dialPendingPbxCode() {
+        guard registered, lineIdle, let code = pendingPbxCode else { return }
+        pendingPbxCode = nil
+        PhoneStorage.pendingPbxCode = nil
+        call(code)
+    }
+
+    private func watchContacts() {
+        var numbers = contacts.map(\.number)
+        if !account.extensionNumber.isEmpty {
+            numbers.append(account.extensionNumber)
+        }
+        engine.setWatchedExtensions(numbers)
+    }
+
+    private func applyPresence(_ number: String, _ presence: String) {
+        let key = DeskPhone.normalize(number)
+        guard !key.isEmpty else { return }
+        var updated = contacts
+        var changed = false
+        for index in updated.indices where DeskPhone.normalize(updated[index].number) == key && updated[index].presence != presence {
+            updated[index].presence = presence
+            changed = true
+        }
+        if changed { contacts = updated }
     }
 
     private func named(_ state: LiveCallState) -> LiveCallState {

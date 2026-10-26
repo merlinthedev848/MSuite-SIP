@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -26,10 +27,23 @@ public sealed class MacSipEngine : IDisposable
     private bool _started;
     private bool _conferencePending;
     private int _cseq = 1;
+    private readonly SemaphoreSlim _publishLock = new(1, 1);
+    private readonly Dictionary<string, BlfChannels> _blf = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _subscriptionTargets = new(StringComparer.OrdinalIgnoreCase);
+    private string _publishedPresence = "";
+    private string _publishCallId = "";
+    private string _publishTag = "";
+    private string _publishEtag = "";
+    private int _publishCseq = 1;
+    private string _notifyCallId = "";
+    private string _notifyTag = "";
+    private int _notifyCseq = 1;
+    private double _measuredLatencyMs;
 
     public MacSipEngine(DeskStore store)
     {
         _store = store;
+        _publishedPresence = store.Config.Presence;
         _line1 = new CallSlot(1);
         _line2 = new CallSlot(2);
     }
@@ -104,8 +118,9 @@ public sealed class MacSipEngine : IDisposable
         SetStatus("Offline", "Signed out.");
     }
 
-    public void SetPresence(string presence)
+    public Task SetPresenceAsync(string presence)
     {
+        var wasDnd = DoNotDisturb;
         _store.Config.Presence = presence;
         _store.Config.DoNotDisturb = presence == "DND";
         _store.SaveConfig();
@@ -113,17 +128,20 @@ public sealed class MacSipEngine : IDisposable
         if (presence == "Offline")
         {
             Unregister();
-            return;
+            return Task.CompletedTask;
         }
 
         if (!IsRegistered)
         {
             OpenRegistration();
         }
+
+        return ApplyPresenceAsync(presence, wasDnd);
     }
 
-    public void SetDoNotDisturb(bool enabled)
+    public Task SetDoNotDisturbAsync(bool enabled)
     {
+        var wasDnd = DoNotDisturb;
         _store.Config.DoNotDisturb = enabled;
         if (enabled)
         {
@@ -136,6 +154,12 @@ public sealed class MacSipEngine : IDisposable
 
         _store.SaveConfig();
         Touch();
+        if (!IsRegistered && _store.Config.Presence != "Offline")
+        {
+            OpenRegistration();
+        }
+
+        return ApplyPresenceAsync(_store.Config.Presence, wasDnd);
     }
 
     public void SetAutoAnswer(bool enabled)
@@ -255,14 +279,102 @@ public sealed class MacSipEngine : IDisposable
             var path = Path.Combine(_store.RecordingsPath, $"call-{DateTime.Now:yyyyMMdd-HHmmss}-line{lineId}.wav");
             _hub.StartRecording(path);
             line.RecordingPath = path;
-            SendFeatureCode(_store.Config.RecordingCode, line);
         }
-        else if (_line1.Recording == false && _line2.Recording == false)
+        else if (!AnyRecording())
         {
             _hub.StopRecording();
         }
 
+        var recordCode = string.IsNullOrWhiteSpace(_store.Config.RecordingCode)
+            ? DeskPhone.OneTouchRecord
+            : _store.Config.RecordingCode.Trim();
+        _ = SendRecordCodeAsync(line, recordCode, line.Recording);
         Touch();
+    }
+
+    public void DialVoicemail()
+    {
+        if (!RequireIdle("Voicemail is used when the phone is idle."))
+        {
+            return;
+        }
+
+        var code = string.IsNullOrWhiteSpace(_store.Config.VoicemailNumber)
+            ? DeskPhone.Voicemail
+            : _store.Config.VoicemailNumber.Trim();
+        Dial(1, code);
+    }
+
+    public void DialGroupPickup()
+    {
+        if (_line1.Phase == "InCall" || _line2.Phase == "InCall")
+        {
+            Banner = "Group pickup is used when the phone is idle.";
+            Touch();
+            return;
+        }
+
+        var code = string.IsNullOrWhiteSpace(_store.Config.PickupCode)
+            ? DeskPhone.GroupPickup
+            : _store.Config.PickupCode.Trim();
+        Dial(1, code);
+    }
+
+    public void DialIntercom(string? destination)
+    {
+        if (!RequireIdle("Intercom is used when the phone is idle."))
+        {
+            return;
+        }
+
+        var extension = DeskPhone.Digits(destination);
+        if (extension.Length == 0)
+        {
+            Banner = "Enter an extension, then press Intercom.";
+            Touch();
+            return;
+        }
+
+        Dial(1, DeskPhone.IntercomTo(extension));
+    }
+
+    public void DialForwardAll(string? destination)
+    {
+        if (!RequireIdle("Call forward is set when the phone is idle."))
+        {
+            return;
+        }
+
+        Dial(1, DeskPhone.ForwardAllTo(destination));
+    }
+
+    public void DialRedial()
+    {
+        var last = _store.History.FirstOrDefault(call =>
+            call.Direction.Equals("Out", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(call.Number));
+        if (last == null)
+        {
+            Banner = "There is no number to redial.";
+            Touch();
+            return;
+        }
+
+        Dial(1, last.Number);
+    }
+
+    public void Park()
+    {
+        var line = new[] { _line1, _line2 }.FirstOrDefault(item => item.Phase == "InCall" && !item.Held)
+            ?? new[] { _line1, _line2 }.FirstOrDefault(item => item.Phase == "InCall");
+        if (line == null)
+        {
+            Banner = "Park is used during a call. The PBX announces the parking slot.";
+            Touch();
+            return;
+        }
+
+        _ = ParkAsync(line);
     }
 
     public void SetConference(bool enabled)
@@ -375,9 +487,24 @@ public sealed class MacSipEngine : IDisposable
         var config = _store.Config;
         var target = SIPURI.ParseSIPURI(RegistrarUri(config));
         var request = SIPRequest.GetRequest(SIPMethodsEnum.OPTIONS, target);
+        var watch = Stopwatch.StartNew();
         var code = await SendNonInviteAsync(request);
+        watch.Stop();
         var text = code == 0 ? "OPTIONS timed out." : $"OPTIONS returned {code}.";
-        if (code is < 200 or >= 300)
+        if (code is >= 200 and < 300)
+        {
+            var latency = watch.Elapsed.TotalMilliseconds;
+            if (latency > 0)
+            {
+                NoteLatency(latency);
+            }
+
+            if (BlfState.IsBusyOrDnd(_publishedPresence))
+            {
+                _ = PublishPresenceAsync(_publishedPresence);
+            }
+        }
+        else
         {
             DeskLog.Write(text);
         }
@@ -403,10 +530,14 @@ public sealed class MacSipEngine : IDisposable
             Codec = audio?.Codec ?? "",
             PacketsSent = audio?.PacketsSent ?? 0,
             PacketsReceived = audio?.PacketsReceived ?? 0,
-            PacketsLost = audio?.PacketsLost ?? 0,
-            JitterMs = audio?.JitterMs ?? 0,
-            LossPercent = audio?.LossPercent ?? 0,
+            PacketsLost = audio?.QualityMeasured == true ? audio.PacketsLost : 0,
+            JitterMs = audio?.QualityMeasured == true ? audio.JitterMs : 0,
+            LossPercent = audio?.QualityMeasured == true ? audio.LossPercent : 0,
+            LatencyMs = audio?.QualityMeasured == true ? audio.LatencyMs : 0,
             Mos = audio?.Mos ?? 0,
+            SignalBars = audio?.SignalBars ?? 0,
+            QualityMeasured = audio?.QualityMeasured == true,
+            QualityText = audio?.QualityText ?? "Not measured",
             RecordingPath = line.RecordingPath
         };
     }
@@ -431,6 +562,7 @@ public sealed class MacSipEngine : IDisposable
         Begin(line, number, "Out", video);
         line.Phase = "Outgoing";
         SetStatus("Calling", "Calling " + number);
+        _ = PublishPresenceAsync("Busy");
         try
         {
             var media = CreateMedia(line);
@@ -568,6 +700,7 @@ public sealed class MacSipEngine : IDisposable
                 SetStatus("Registered", "Ready on extension " + config.Extension);
                 Banner = "";
                 ScheduleHousekeeping();
+                _ = PublishSelectedPresenceAsync();
             };
             _registration.RegistrationFailed += (_, response, message) => FailRegistration(response, message);
             _registration.RegistrationTemporaryFailure += (_, response, message) => FailRegistration(response, message);
@@ -796,26 +929,74 @@ public sealed class MacSipEngine : IDisposable
             return;
         }
 
-        if (!body.Contains("<basic>", StringComparison.OrdinalIgnoreCase))
+        ApplyBlfNotify(request, body);
+    }
+
+    private void ApplyBlfNotify(SIPRequest request, string body)
+    {
+        var presence = BlfState.ParsePresenceState(body);
+        if (string.IsNullOrWhiteSpace(presence))
         {
             return;
         }
 
-        var presence = body.Contains("<basic>open</basic>", StringComparison.OrdinalIgnoreCase) ? "Available" : "Busy";
-        if (body.Contains("dnd", StringComparison.OrdinalIgnoreCase))
+        var callId = request.Header.CallId ?? "";
+        string extension = "";
+        if (!string.IsNullOrWhiteSpace(callId) && _subscriptionTargets.TryGetValue(callId, out var subscribed))
         {
-            presence = "DND";
-        }
-        else if (body.Contains("away", StringComparison.OrdinalIgnoreCase))
-        {
-            presence = "Away";
+            extension = subscribed;
         }
 
-        var user = request.Header.From?.FromURI?.User ?? "";
-        var contact = _store.Contacts.FirstOrDefault(item => string.Equals(item.Number, user, StringComparison.OrdinalIgnoreCase));
-        if (contact != null && contact.Presence != presence)
+        if (string.IsNullOrWhiteSpace(extension))
         {
-            contact.Presence = presence;
+            extension = BlfState.ExtractPresenceExtension(body);
+        }
+
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            var fromUser = request.Header.From?.FromURI?.User ?? "";
+            var fromExt = BlfState.NormalizeExtension(fromUser);
+            if (!fromExt.Equals("asterisk", StringComparison.OrdinalIgnoreCase) &&
+                !fromExt.Equals("pbx", StringComparison.OrdinalIgnoreCase))
+            {
+                extension = fromExt;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            extension = BlfState.NormalizeExtension(request.Header.To?.ToURI?.User ?? "");
+        }
+
+        var key = BlfState.NormalizeExtension(extension);
+        if (key.Length == 0)
+        {
+            return;
+        }
+
+        var eventName = (request.Header.Event ?? "").Split(';')[0].Trim();
+        _blf.TryGetValue(key, out var channels);
+        channels = BlfChannels.Apply(channels, presence, eventName);
+        _blf[key] = channels;
+        var resolved = channels.Resolve();
+        var changed = false;
+        foreach (var contact in _store.Contacts)
+        {
+            if (!string.Equals(BlfState.NormalizeExtension(contact.Number), key, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (contact.Presence != resolved)
+            {
+                contact.Presence = resolved;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            DeskLog.Write($"BLF {key} {resolved} event={eventName}");
             ListRevision++;
             Touch();
         }
@@ -831,6 +1012,10 @@ public sealed class MacSipEngine : IDisposable
             (format.Codec == AudioCodecsEnum.PCMA && codecs.Contains("PCMA")));
         audio.Muted = line.Muted;
         audio.ConferenceMix = ConferenceActive;
+        if (_measuredLatencyMs > 0)
+        {
+            audio.SetMeasuredLatency(_measuredLatencyMs);
+        }
         var session = new VoIPMediaSession(new MediaEndPoints
         {
             AudioSource = audio,
@@ -859,6 +1044,8 @@ public sealed class MacSipEngine : IDisposable
         }, null, 1000, 1000);
         _hub.FocusLine = line.Id;
         SetStatus("In call", line.Name + " · " + line.Number);
+        _ = PublishPresenceAsync("Busy");
+        _ = SendOptionsAsync();
         if (_conferencePending && _line1.Phase == "InCall" && _line2.Phase == "InCall")
         {
             _conferencePending = false;
@@ -904,6 +1091,7 @@ public sealed class MacSipEngine : IDisposable
             }
 
             Touch();
+            RestorePresenceIfIdle();
             return;
         }
 
@@ -911,6 +1099,7 @@ public sealed class MacSipEngine : IDisposable
         line.Clock?.Dispose();
         line.Clock = null;
         var audio = line.Audio;
+        var measured = audio?.QualityMeasured == true;
         _store.AddHistory(new DeskCall
         {
             Direction = line.Direction,
@@ -918,10 +1107,10 @@ public sealed class MacSipEngine : IDisposable
             Number = line.Number,
             Result = result,
             Seconds = result == "Answered" ? line.Seconds : 0,
-            Codec = audio?.Codec ?? "",
-            MosScore = audio?.Mos ?? 0,
-            PacketLossPercent = audio?.LossPercent ?? 0,
-            JitterMs = audio?.JitterMs ?? 0
+            Codec = measured ? audio!.Codec : "",
+            MosScore = measured ? Math.Round(audio!.Mos, 1) : 0,
+            PacketLossPercent = measured ? Math.Round(audio!.LossPercent, 2) : 0,
+            JitterMs = measured ? Math.Round(audio!.JitterMs, 1) : 0
         });
         CloseMedia(line);
         line.Phase = "Idle";
@@ -943,6 +1132,7 @@ public sealed class MacSipEngine : IDisposable
 
         ListRevision++;
         Touch();
+        RestorePresenceIfIdle();
     }
 
     private void CloseMedia(CallSlot line)
@@ -1013,69 +1203,383 @@ public sealed class MacSipEngine : IDisposable
         _subscribe = new Timer(_ => SendSubscriptions(), null, TimeSpan.FromSeconds(3), TimeSpan.FromMinutes(50));
     }
 
-    private void SendSubscriptions()
+    private void SendSubscriptions() => _ = SendSubscriptionsAsync();
+
+    private async Task SendSubscriptionsAsync()
     {
-        if (!IsRegistered)
+        if (!IsRegistered || _transport == null)
         {
             return;
         }
 
-        SendSubscribe("message-summary", _store.Config.Extension.Trim());
-        foreach (var contact in _store.Contacts.Where(item => item.Number.Length is > 0 and <= 8).Take(30))
-        {
-            SendSubscribe("presence", contact.Number);
-        }
-    }
-
-    private void SendSubscribe(string eventName, string user)
-    {
         try
         {
-            var config = _store.Config;
-            var target = SIPURI.ParseSIPURI($"sip:{user}@{config.ResolvedDomain}");
-            var from = SIPURI.ParseSIPURI($"sip:{config.Extension.Trim()}@{config.ResolvedDomain}");
-            var request = SIPRequest.GetRequest(SIPMethodsEnum.SUBSCRIBE, target);
-            request.Header.From = new SIPFromHeader(config.DisplayName, from, Guid.NewGuid().ToString("N")[..8]);
-            request.Header.To = new SIPToHeader(null, target, null);
-            request.Header.Event = eventName;
-            request.Header.Expires = 3600;
-            request.Header.CSeq = _cseq++;
-            request.Header.Accept = eventName == "message-summary"
-                ? "application/simple-message-summary"
-                : "application/pidf+xml";
-            var transaction = new SIPNonInviteTransaction(_transport, request, null);
-            transaction.SendRequest();
+            var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var own = BlfState.NormalizeExtension(_store.Config.Extension);
+            if (own.Length is > 0 and <= 10)
+            {
+                targets.Add(own);
+            }
+
+            foreach (var contact in _store.Contacts)
+            {
+                var extension = BlfState.NormalizeExtension(contact.Number);
+                if (extension.Length is > 0 and <= 10)
+                {
+                    targets.Add(extension);
+                }
+            }
+
+            await SendSubscribeAsync("message-summary", _store.Config.Extension.Trim());
+            foreach (var extension in targets)
+            {
+                await SendSubscribeAsync("dialog", extension);
+                await SendSubscribeAsync("presence", extension);
+            }
         }
         catch (Exception ex)
         {
-            DeskLog.Write($"SUBSCRIBE {eventName} failed: {ex.Message}");
+            DeskLog.Write("BLF subscribe failed: " + ex.Message);
+        }
+    }
+
+    private async Task SendSubscribeAsync(string eventName, string user)
+    {
+        if (_transport == null || string.IsNullOrWhiteSpace(user))
+        {
+            return;
+        }
+
+        var config = _store.Config;
+        var target = SIPURI.ParseSIPURI($"sip:{user}@{config.ResolvedDomain}");
+        var from = SIPURI.ParseSIPURI($"sip:{config.Extension.Trim()}@{config.ResolvedDomain}");
+        var request = SIPRequest.GetRequest(SIPMethodsEnum.SUBSCRIBE, target);
+        request.Header.From = new SIPFromHeader(config.DisplayName, from, Guid.NewGuid().ToString("N")[..8]);
+        request.Header.To = new SIPToHeader(null, target, null);
+        request.Header.Event = eventName;
+        request.Header.Expires = 3600;
+        request.Header.CSeq = _cseq++;
+        request.Header.Accept = eventName switch
+        {
+            "message-summary" => "application/simple-message-summary",
+            "dialog" => "application/dialog-info+xml",
+            _ => "application/pidf+xml"
+        };
+        if (!string.IsNullOrWhiteSpace(request.Header.CallId))
+        {
+            _subscriptionTargets[request.Header.CallId] = user;
+        }
+
+        var response = await SendAuthenticatedAsync(request);
+        var code = response == null ? 0 : (int)response.Status;
+        if (code is < 200 or >= 300)
+        {
+            DeskLog.Write($"SUBSCRIBE {eventName} {user} failed code={code}");
         }
     }
 
     private async Task<int> SendNonInviteAsync(SIPRequest request)
     {
-        var done = new TaskCompletionSource<int>();
+        var response = await SendRawAsync(request);
+        return response == null ? 0 : (int)response.Status;
+    }
+
+    private async Task<SIPResponse?> SendAuthenticatedAsync(SIPRequest request)
+    {
+        var response = await SendRawAsync(request);
+        if (response?.Status is SIPResponseStatusCodesEnum.Unauthorised or SIPResponseStatusCodesEnum.ProxyAuthenticationRequired)
+        {
+            var config = _store.Config;
+            var challenges = response.Header.AuthenticationHeaders;
+            if (challenges is { Count: > 0 })
+            {
+                var authed = request.DuplicateAndAuthenticate(challenges, config.AuthUsername, config.Password);
+                CopySigningHeaders(request, authed);
+                response = await SendRawAsync(authed);
+            }
+        }
+
+        return response;
+    }
+
+    private static void CopySigningHeaders(SIPRequest source, SIPRequest destination)
+    {
+        if (string.IsNullOrWhiteSpace(destination.Header.Event))
+        {
+            destination.Header.Event = source.Header.Event;
+        }
+
+        if (string.IsNullOrWhiteSpace(destination.Header.ContentType))
+        {
+            destination.Header.ContentType = source.Header.ContentType;
+        }
+
+        if (string.IsNullOrWhiteSpace(destination.Header.Accept))
+        {
+            destination.Header.Accept = source.Header.Accept;
+        }
+
+        destination.Body ??= source.Body;
+        destination.Header.UnknownHeaders ??= [];
+        foreach (var header in source.Header.UnknownHeaders ?? [])
+        {
+            if (!destination.Header.UnknownHeaders.Contains(header))
+            {
+                destination.Header.UnknownHeaders.Add(header);
+            }
+        }
+    }
+
+    private async Task<SIPResponse?> SendRawAsync(SIPRequest request)
+    {
+        if (_transport == null)
+        {
+            return null;
+        }
+
+        var done = new TaskCompletionSource<SIPResponse?>();
         var transaction = new SIPNonInviteTransaction(_transport, request, null);
         transaction.NonInviteTransactionFinalResponseReceived += (_, _, _, response) =>
         {
-            done.TrySetResult((int)response.Status);
+            done.TrySetResult(response);
             return Task.FromResult(SocketError.Success);
         };
-        transaction.NonInviteTransactionFailed += (_, _) => done.TrySetResult(0);
+        transaction.NonInviteTransactionFailed += (_, _) => done.TrySetResult(null);
         transaction.SendRequest();
         var finished = await Task.WhenAny(done.Task, Task.Delay(8000));
-        return finished == done.Task ? await done.Task : 0;
+        return finished == done.Task ? await done.Task : null;
     }
 
-    private void SendFeatureCode(string code, CallSlot line)
+    private bool RequireIdle(string message)
     {
-        if (string.IsNullOrWhiteSpace(code) || line.Agent == null)
+        if (!AnyLive())
+        {
+            return true;
+        }
+
+        Banner = message;
+        Touch();
+        return false;
+    }
+
+    private async Task ApplyPresenceAsync(string status, bool wasDnd)
+    {
+        Banner = status == "DND"
+            ? "Do not disturb is on."
+            : wasDnd && status == "Available"
+                ? "Do not disturb is off."
+                : $"Presence set to {status}.";
+        Touch();
+        await PublishPresenceAsync(status);
+        if (wasDnd == (status == "DND") || AnyLive() || !IsRegistered)
         {
             return;
         }
 
-        _hub.PlayDigits(code);
-        foreach (var digit in code)
+        Dial(1, status == "DND" ? DeskPhone.DndOn : DeskPhone.DndOff);
+    }
+
+    private void RestorePresenceIfIdle()
+    {
+        if (!AnyLive())
+        {
+            _ = PublishPresenceAsync(_store.Config.Presence);
+        }
+    }
+
+    private Task PublishSelectedPresenceAsync()
+    {
+        var status = string.IsNullOrWhiteSpace(_publishedPresence) ? _store.Config.Presence : _publishedPresence;
+        return string.IsNullOrWhiteSpace(status) || status.Equals("Offline", StringComparison.OrdinalIgnoreCase)
+            ? Task.CompletedTask
+            : PublishPresenceAsync(status);
+    }
+
+    private async Task PublishPresenceAsync(string status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return;
+        }
+
+        await _publishLock.WaitAsync();
+        try
+        {
+            _publishedPresence = status;
+            if (!IsRegistered || _transport == null || status.Equals("Offline", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var extension = _store.Config.Extension.Trim();
+            var domain = _store.Config.ResolvedDomain;
+            if (extension.Length == 0 || domain.Length == 0)
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(_publishCallId))
+            {
+                _publishCallId = Guid.NewGuid().ToString("N");
+                _publishTag = Guid.NewGuid().ToString("N")[..12];
+            }
+
+            var note = BlfState.PresenceNote(status);
+            var body = BlfState.BuildPresenceXml(extension, domain, status);
+            var expires = BlfState.PresenceExpires(status);
+            var response = await SendPublishAsync(extension, body, expires);
+            if (response != null && (int)response.Status == 412)
+            {
+                _publishEtag = "";
+                response = await SendPublishAsync(extension, body, expires);
+            }
+
+            var code = response == null ? 0 : (int)response.Status;
+            if (code is >= 200 and < 300)
+            {
+                var etag = HeaderValue(response!, "SIP-ETag");
+                if (!string.IsNullOrWhiteSpace(etag))
+                {
+                    _publishEtag = etag.Trim();
+                }
+
+                if (expires == 0)
+                {
+                    _publishEtag = "";
+                }
+
+                DeskLog.Write($"BLF publish presence status={status} note={note} code={code}");
+            }
+            else
+            {
+                DeskLog.Write($"BLF publish presence failed status={status} note={note} code={code}");
+            }
+
+            if (BlfState.IsBusyOrDnd(status))
+            {
+                await SendDialogNotifyAsync(extension, true);
+            }
+            else if (status.Equals("Available", StringComparison.OrdinalIgnoreCase))
+            {
+                await SendDialogNotifyAsync(extension, false);
+            }
+        }
+        catch (Exception ex)
+        {
+            DeskLog.Write("Publish presence failed: " + ex.Message);
+        }
+        finally
+        {
+            _publishLock.Release();
+        }
+    }
+
+    private async Task<SIPResponse?> SendPublishAsync(string extension, string body, int expires)
+    {
+        var config = _store.Config;
+        var target = SIPURI.ParseSIPURI($"sip:{extension}@{config.ResolvedDomain}");
+        var from = SIPURI.ParseSIPURI($"sip:{extension}@{config.ResolvedDomain}");
+        var request = SIPRequest.GetRequest(SIPMethodsEnum.PUBLISH, target, new SIPToHeader(null, target, null), new SIPFromHeader(config.DisplayName, from, _publishTag));
+        request.Header.CallId = _publishCallId;
+        request.Header.CSeq = _publishCseq++;
+        request.Header.Event = "presence";
+        request.Header.Expires = expires;
+        request.Header.ContentType = "application/pidf+xml";
+        request.Body = body;
+        if (!string.IsNullOrEmpty(_publishEtag))
+        {
+            request.Header.UnknownHeaders ??= [];
+            request.Header.UnknownHeaders.Add("SIP-If-Match: " + _publishEtag);
+        }
+
+        return await SendAuthenticatedAsync(request);
+    }
+
+    private async Task SendDialogNotifyAsync(string extension, bool offHook)
+    {
+        var config = _store.Config;
+        if (string.IsNullOrEmpty(_notifyCallId))
+        {
+            _notifyCallId = Guid.NewGuid().ToString("N");
+            _notifyTag = Guid.NewGuid().ToString("N")[..12];
+        }
+
+        var target = SIPURI.ParseSIPURI($"sip:{extension}@{config.ResolvedDomain}");
+        var from = SIPURI.ParseSIPURI($"sip:{extension}@{config.ResolvedDomain}");
+        var request = SIPRequest.GetRequest(SIPMethodsEnum.NOTIFY, target, new SIPToHeader(null, target, null), new SIPFromHeader(config.DisplayName, from, _notifyTag));
+        request.Header.CallId = _notifyCallId;
+        request.Header.CSeq = _notifyCseq++;
+        request.Header.Event = "dialog";
+        request.Header.ContentType = "application/dialog-info+xml";
+        request.Header.UnknownHeaders ??= [];
+        request.Header.UnknownHeaders.Add(offHook
+            ? "Subscription-State: active;expires=3600"
+            : "Subscription-State: terminated;reason=noresource");
+        request.Body = BlfState.BuildDialogXml(extension, config.ResolvedDomain, offHook);
+        var response = await SendAuthenticatedAsync(request);
+        var note = offHook ? DeskPhone.BusyHereStatus : "Phone is on the hook and available";
+        DeskLog.Write($"SEND NOTIFY off-hook={offHook} note={note} code={(response == null ? 0 : (int)response.Status)}");
+    }
+
+    private static string HeaderValue(SIPResponse response, string name)
+    {
+        foreach (var line in response.Header.UnknownHeaders ?? [])
+        {
+            if (line.StartsWith(name + ":", StringComparison.OrdinalIgnoreCase))
+            {
+                return line[(name.Length + 1)..].Trim();
+            }
+        }
+
+        return "";
+    }
+
+    private void NoteLatency(double milliseconds)
+    {
+        if (milliseconds <= 0)
+        {
+            return;
+        }
+
+        _measuredLatencyMs = milliseconds;
+        _line1.Audio?.SetMeasuredLatency(milliseconds);
+        _line2.Audio?.SetMeasuredLatency(milliseconds);
+        Touch();
+    }
+
+    private async Task ParkAsync(CallSlot line)
+    {
+        var sent = await SendDtmfAsync(line, DeskPhone.Park);
+        Banner = sent
+            ? "Park code *6 sent. Listen for the parking slot, then dial that slot from another phone."
+            : "Park code could not be sent.";
+        Touch();
+    }
+
+    private async Task SendRecordCodeAsync(CallSlot line, string code, bool started)
+    {
+        var sent = await SendDtmfAsync(line, code);
+        Banner = started
+            ? sent ? $"Recording locally and sent {code} to the PBX." : "Recording locally."
+            : sent ? $"Local recording stopped. Sent {code} to the PBX." : "Local recording stopped.";
+        Touch();
+    }
+
+    private async Task<bool> SendDtmfAsync(CallSlot line, string code)
+    {
+        if (line.Agent == null || line.Phase != "InCall")
+        {
+            return false;
+        }
+
+        var digits = DeskPhone.DtmfDigits(code);
+        if (digits.Count == 0)
+        {
+            return false;
+        }
+
+        _hub.PlayDigits(new string(digits.ToArray()));
+        foreach (var digit in digits)
         {
             var tone = digit switch
             {
@@ -1084,11 +1588,16 @@ public sealed class MacSipEngine : IDisposable
                 '#' => (byte)11,
                 _ => byte.MaxValue
             };
-            if (tone != byte.MaxValue)
+            if (tone == byte.MaxValue)
             {
-                _ = line.Agent.SendDtmf(tone);
+                continue;
             }
+
+            await line.Agent.SendDtmf(tone);
+            await Task.Delay(160);
         }
+
+        return true;
     }
 
     private void TearDown()

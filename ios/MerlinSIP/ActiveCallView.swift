@@ -28,12 +28,31 @@ struct ActiveCallView: View {
                         .font(.system(size: 15))
                         .foregroundStyle(Theme.slate)
                         .padding(.top, 8)
+                    Text(phone.callQuality)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.slate)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 6)
+                    if !phone.featureNotice.isEmpty {
+                        Text(phone.featureNotice)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.goldTop)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 6)
+                    }
                     if keypad {
                         dtmfPad
                             .padding(.top, 22)
                     } else {
                         controls(call)
-                            .padding(.top, 36)
+                            .padding(.top, 28)
+                        if call.connectedAt != nil {
+                            HStack(spacing: 22) {
+                                actionButton(title: "Park", system: "parkingsign", active: false, action: phone.parkCall)
+                                actionButton(title: "Record", system: "record.circle", active: false, action: phone.recordCall)
+                            }
+                            .padding(.top, 18)
+                        }
                     }
                     Button {
                         keypad.toggle()
