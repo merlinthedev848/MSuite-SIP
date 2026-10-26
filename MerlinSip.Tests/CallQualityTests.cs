@@ -91,28 +91,39 @@ public class CallQualityAndRingtoneTests
     [Fact]
     public void MainWindow_InitializesWithoutXamlParseException()
     {
+        Exception? caughtEx = null;
         var thread = new System.Threading.Thread(() =>
         {
-            var config = new MerlinSip.Models.AppStartupConfig(
-                "pbx.example.com", 5060, "pbx.example.com", "101", "user101", "pass",
-                "LIC", "Licensed",
-                new MerlinSip.Models.MediaDeviceInfo("in", "In"),
-                new MerlinSip.Models.MediaDeviceInfo("out", "Out"));
-            Exception? caughtEx = null;
             try
             {
+                if (System.Windows.Application.Current == null)
+                {
+                    var app = new MerlinSip.App
+                    {
+                        ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown
+                    };
+                    app.InitializeComponent();
+                }
+
+                var config = new MerlinSip.Models.AppStartupConfig(
+                    "pbx.example.com", 5060, "pbx.example.com", "101", "user101", "pass",
+                    "LIC", "Licensed",
+                    new MerlinSip.Models.MediaDeviceInfo("in", "In"),
+                    new MerlinSip.Models.MediaDeviceInfo("out", "Out"));
                 var window = new MerlinSip.MainWindow(config);
-                Assert.NotNull(window);
+                if (window == null)
+                {
+                    caughtEx = new InvalidOperationException("MainWindow was not created.");
+                }
             }
             catch (Exception ex)
             {
                 caughtEx = ex;
             }
-
-            Assert.Null(caughtEx);
         });
         thread.SetApartmentState(System.Threading.ApartmentState.STA);
         thread.Start();
         thread.Join();
+        Assert.True(caughtEx == null, caughtEx?.ToString());
     }
 }

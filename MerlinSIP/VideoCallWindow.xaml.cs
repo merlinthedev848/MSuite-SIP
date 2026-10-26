@@ -75,6 +75,12 @@ public partial class VideoCallWindow : Window
 
     private void OnCameraFrame(int width, int height, byte[] pixels)
     {
+        if (Volatile.Read(ref _closing) != 0)
+        {
+            _camera.ReleaseFrameSlot();
+            return;
+        }
+
         if (!Dispatcher.CheckAccess())
         {
             Dispatcher.BeginInvoke(() => OnCameraFrame(width, height, pixels));
@@ -83,7 +89,7 @@ public partial class VideoCallWindow : Window
 
         try
         {
-            if (_isCameraMuted)
+            if (Volatile.Read(ref _closing) != 0 || !IsLoaded || _isCameraMuted)
             {
                 return;
             }
@@ -243,12 +249,17 @@ public partial class VideoCallWindow : Window
 
     private async void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        if (Interlocked.Exchange(ref _closing, 1) != 0)
+        if (Volatile.Read(ref _closing) == 2)
         {
             return;
         }
 
         e.Cancel = true;
+        if (Interlocked.CompareExchange(ref _closing, 1, 0) != 0)
+        {
+            return;
+        }
+
         _durationTimer.Stop();
         _camera.FrameReady -= OnCameraFrame;
         _camera.Failed -= OnCameraFailed;
@@ -267,6 +278,16 @@ public partial class VideoCallWindow : Window
         {
         }
 
-        Close();
+        Interlocked.Exchange(ref _closing, 2);
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            try
+            {
+                Close();
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        });
     }
 }

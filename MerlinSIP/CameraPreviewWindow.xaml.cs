@@ -14,7 +14,7 @@ public partial class CameraPreviewWindow : Window
     private readonly DispatcherTimer _watchdog = new() { Interval = TimeSpan.FromSeconds(6) };
     private CameraPreviewSession? _session;
     private WriteableBitmap? _bitmap;
-    private int _closing;
+    private int _closeState;
 
     public event Action<ImageSource>? PreviewUpdated;
     public event Action<string>? PreviewFailed;
@@ -49,6 +49,12 @@ public partial class CameraPreviewWindow : Window
 
     private void OnFrameReady(int width, int height, byte[] pixels)
     {
+        if (Volatile.Read(ref _closeState) != 0)
+        {
+            _session?.ReleaseFrameSlot();
+            return;
+        }
+
         if (!Dispatcher.CheckAccess())
         {
             Dispatcher.BeginInvoke(() => OnFrameReady(width, height, pixels));
@@ -57,6 +63,11 @@ public partial class CameraPreviewWindow : Window
 
         try
         {
+            if (Volatile.Read(ref _closeState) != 0 || !IsLoaded)
+            {
+                return;
+            }
+
             if (_bitmap is null || _bitmap.PixelWidth != width || _bitmap.PixelHeight != height)
             {
                 _bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
@@ -66,7 +77,11 @@ public partial class CameraPreviewWindow : Window
             _bitmap.WritePixels(new Int32Rect(0, 0, width, height), pixels, width * 4, 0);
             StatusText.Visibility = Visibility.Collapsed;
             _watchdog.Stop();
-            Topmost = false;
+            if (Topmost)
+            {
+                Topmost = false;
+            }
+
             PreviewUpdated?.Invoke(_bitmap);
         }
         finally
@@ -77,14 +92,28 @@ public partial class CameraPreviewWindow : Window
 
     private void OnFailed(string message)
     {
+        if (Volatile.Read(ref _closeState) != 0)
+        {
+            return;
+        }
+
         if (!Dispatcher.CheckAccess())
         {
             Dispatcher.BeginInvoke(() => OnFailed(message));
             return;
         }
 
+        if (Volatile.Read(ref _closeState) != 0 || !IsLoaded)
+        {
+            return;
+        }
+
         _watchdog.Stop();
-        Topmost = false;
+        if (Topmost)
+        {
+            Topmost = false;
+        }
+
         if (PreviewImage.Source is null)
         {
             StatusText.Text = message;
@@ -101,12 +130,17 @@ public partial class CameraPreviewWindow : Window
 
     private async void Window_Closing(object? sender, CancelEventArgs e)
     {
-        if (Interlocked.Exchange(ref _closing, 1) != 0)
+        if (Volatile.Read(ref _closeState) == 2)
         {
             return;
         }
 
         e.Cancel = true;
+        if (Interlocked.CompareExchange(ref _closeState, 1, 0) != 0)
+        {
+            return;
+        }
+
         _watchdog.Stop();
         var session = _session;
         _session = null;
@@ -123,6 +157,16 @@ public partial class CameraPreviewWindow : Window
             }
         }
 
-        Close();
+        Interlocked.Exchange(ref _closeState, 2);
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            try
+            {
+                Close();
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        });
     }
 }
