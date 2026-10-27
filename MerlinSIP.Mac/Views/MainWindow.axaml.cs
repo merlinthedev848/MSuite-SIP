@@ -10,6 +10,7 @@ namespace MerlinSip.Mac;
 
 public partial class MainWindow : Window
 {
+    public MainWindow() : this(new AppHost()) { }
     private readonly AppHost _host;
     private readonly DispatcherTimer _clock;
     private int _seenRevision = -1;

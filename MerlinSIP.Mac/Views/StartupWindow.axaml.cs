@@ -5,6 +5,7 @@ namespace MerlinSip.Mac;
 
 public partial class StartupWindow : Window
 {
+    public StartupWindow() : this(new AppHost()) { }
     private readonly AppHost _host;
 
     public StartupWindow(AppHost host)

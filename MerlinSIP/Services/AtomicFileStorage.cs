@@ -82,14 +82,7 @@ public static class AtomicFileStorage
         {
             try
             {
-                if (File.Exists(destinationPath))
-                {
-                    File.Replace(sourceTemp, destinationPath, destinationPath + ".bak", ignoreMetadataErrors: true);
-                }
-                else
-                {
-                    File.Move(sourceTemp, destinationPath);
-                }
+                File.Move(sourceTemp, destinationPath, overwrite: true);
                 return;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
