@@ -1,8 +1,8 @@
 {
-    "Version":  "1.3.9.2",
-    "DownloadUrl":  "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.9.2-x64-faststart.msi",
-    "Sha256":  "737694EF23C71E1A6E05B4D93459EC29A9AAEA27EFFD31400154B729C23C4C41",
-    "FileSizeBytes":  76911222,
+    "Version":  "1.3.9.3",
+    "DownloadUrl":  "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.9.3-x64-faststart.msi",
+    "Sha256":  "F5BD01F61B5C80DFB7BF06DCC7E5A8D932BD0D87758F1E8B220BA818451394AF",
+    "FileSizeBytes":  80614006,
     "ReleaseDate":  "2026-10-27",
-    "Notes":  "Release 1.3.9.2: Comprehensive Chat subsystem overhaul. Fully compatible with handler reverse-proxied over port 443 via Nginx with zero open custom ports required. Enforces exact snake_case Socket.IO event schema for flawless SQLite message persistence, adds live server status badge and conversation search, fixes delivery acknowledgment to prevent input locking, and modernizes chat bubbles with distinct inbound/outbound styling."
+    "Notes":  "Release 1.3.9.3: WhatsApp-speed real-time messaging, optimistic 0ms UI send with automatic Return/Enter key send (Shift+Enter for newline), room join deduplication, integrated voice call and video call buttons directly from the chat header, and Socket.IO ACK resolution optimization."
 }

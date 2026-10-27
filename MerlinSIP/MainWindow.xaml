@@ -729,7 +729,7 @@
                                TextAlignment="Center"
                                TextWrapping="Wrap" />
                     <TextBlock x:Name="AppVersionText"
-                               Text="v1.3.9.2"
+                               Text="v1.3.9.3"
                                Foreground="#64748B"
                                FontSize="9"
                                FontWeight="Medium"
@@ -2135,18 +2135,47 @@
                                 
                                 <!-- Thread Header -->
                                 <DockPanel Margin="0,0,0,14">
-                                    <Button DockPanel.Dock="Right"
-                                            x:Name="ClearChatThreadButton"
-                                            Content="Clear chat"
-                                            Style="{StaticResource SoftButton}"
-                                            Background="#FEE2E2"
-                                            Foreground="#DC2626"
-                                            Width="88"
-                                            Height="32"
-                                            FontSize="12"
-                                            FontWeight="Medium"
-                                            Padding="8,0"
-                                            Click="ClearChatThreadButton_Click" />
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button x:Name="ChatCallButton"
+                                                ToolTip="Start Voice Call with contact"
+                                                Style="{StaticResource SoftButton}"
+                                                Background="#EFF6FF"
+                                                Foreground="#2563EB"
+                                                Height="32"
+                                                Padding="10,0"
+                                                Margin="0,0,6,0"
+                                                Click="ChatCallButton_Click">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE717;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Call" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button x:Name="ChatVideoCallButton"
+                                                ToolTip="Start Video Call with contact"
+                                                Style="{StaticResource SoftButton}"
+                                                Background="#F5F3FF"
+                                                Foreground="#7C3AED"
+                                                Height="32"
+                                                Padding="10,0"
+                                                Margin="0,0,8,0"
+                                                Click="ChatVideoCallButton_Click">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Video" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button x:Name="ClearChatThreadButton"
+                                                Content="Clear chat"
+                                                Style="{StaticResource SoftButton}"
+                                                Background="#FEE2E2"
+                                                Foreground="#DC2626"
+                                                Width="88"
+                                                Height="32"
+                                                FontSize="12"
+                                                FontWeight="Medium"
+                                                Padding="8,0"
+                                                Click="ClearChatThreadButton_Click" />
+                                    </StackPanel>
                                     <StackPanel>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <TextBlock x:Name="ChatThreadTitleText" Text="Choose a conversation" FontSize="20" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
@@ -2232,7 +2261,7 @@
                                                  FontSize="13"
                                                  VerticalContentAlignment="Center"
                                                  PreviewKeyDown="MessageBodyTextBox_PreviewKeyDown"
-                                                 ToolTip="Enter sends message. Ctrl+Enter starts a new line. (Drag &amp; drop files supported)"
+                                                 ToolTip="Press Enter to send. Shift+Enter to start a new line. (Drag &amp; drop files supported)"
                                                  AllowDrop="True"
                                                  Drop="Chat_Drop"
                                                  PreviewDragOver="Chat_PreviewDragOver" />
@@ -2945,7 +2974,7 @@
                                                     <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0" Text="Version" Foreground="#64748B" Margin="0,0,0,8" />
-                                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AboutVersionText" Text="1.3.9.2" Foreground="#0F172A" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="AboutVersionText" Text="1.3.9.3" Foreground="#0F172A" FontWeight="SemiBold" Margin="0,0,0,8" />
                                                 <TextBlock Grid.Row="1" Text="Product" Foreground="#64748B" Margin="0,0,0,8" />
                                                 <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ProductIdText" Text="merlin-sip" Foreground="#0F172A" Margin="0,0,0,8" />
                                                 <TextBlock Grid.Row="2" Text="Licensed to" Foreground="#64748B" Margin="0,0,0,8" />

@@ -4554,11 +4554,6 @@ del ""%~f0""
 
     private async Task SendCurrentMessageAsync()
     {
-        if (!SendMessageButton.IsEnabled)
-        {
-            return;
-        }
-
         var destination = NormalizeDialDestination(MessageToTextBox.Text);
         var message = MessageBodyTextBox.Text.Trim();
 
@@ -4574,23 +4569,34 @@ del ""%~f0""
             return;
         }
 
-        SendMessageButton.IsEnabled = false;
+        // Instant clear and retain focus for fast messaging
+        MessageBodyTextBox.Text = string.Empty;
+        MessageBodyTextBox.Focus();
+
+        var contact = _contactStore.FindByNumber(_contacts, destination);
+        var name = contact?.Name ?? destination;
+        if (!string.Equals(_selectedChatNumber, destination, StringComparison.OrdinalIgnoreCase))
+        {
+            _selectedChatNumber = destination;
+            ChatThreadTitleText.Text = name;
+            ChatThreadSubtitleText.Text = contact is null || string.IsNullOrWhiteSpace(contact.Company)
+                ? destination
+                : $"{destination}  {contact.Company}";
+        }
+
+        var entry = await AddChatMessage("Outbound", name, destination, message, "Sent");
+
         try
         {
-            var contact = _contactStore.FindByNumber(_contacts, destination);
-            var name = contact?.Name ?? destination;
-            if (!string.Equals(_selectedChatNumber, destination, StringComparison.OrdinalIgnoreCase))
-            {
-                _selectedChatNumber = destination;
-                ChatThreadTitleText.Text = name;
-                ChatThreadSubtitleText.Text = contact is null || string.IsNullOrWhiteSpace(contact.Company)
-                    ? destination
-                    : $"{destination}  {contact.Company}";
-            }
-
             await EnsureChatConnectedAsync();
             if (!_chatService.IsConnected)
             {
+                var idx = _chatMessages.IndexOf(entry);
+                if (idx >= 0)
+                {
+                    _chatMessages[idx] = entry with { Result = "Offline" };
+                    RefreshChatThread();
+                }
                 ShowChatNotice("Chat server is offline.");
                 return;
             }
@@ -4599,18 +4605,37 @@ del ""%~f0""
             var sent = await _chatService.SendMessageAsync(destination, _config.Extension, message);
             if (!sent.Accepted)
             {
+                var idx = _chatMessages.IndexOf(entry);
+                if (idx >= 0)
+                {
+                    _chatMessages[idx] = entry with { Result = "Failed" };
+                    RefreshChatThread();
+                }
                 ShowChatNotice(sent.Detail);
                 return;
             }
 
-            await AddChatMessage("Outbound", name, destination, message, sent.Delivered ? "Delivered" : "Sent");
+            if (sent.Delivered)
+            {
+                var idx = _chatMessages.IndexOf(entry);
+                if (idx >= 0)
+                {
+                    _chatMessages[idx] = entry with { Result = "Delivered" };
+                    RefreshChatThread();
+                }
+            }
+
             ShowChatNotice(sent.Detail);
-            MessageBodyTextBox.Text = string.Empty;
-            MessageBodyTextBox.Focus();
         }
-        finally
+        catch (Exception ex)
         {
-            SendMessageButton.IsEnabled = true;
+            var idx = _chatMessages.IndexOf(entry);
+            if (idx >= 0)
+            {
+                _chatMessages[idx] = entry with { Result = "Failed" };
+                RefreshChatThread();
+            }
+            ShowChatNotice($"Send error: {ex.Message}");
         }
     }
 
@@ -4621,7 +4646,9 @@ del ""%~f0""
             return;
         }
 
-        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        // Shift+Enter or Ctrl+Enter moves down a line
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift ||
+            (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
             var box = MessageBodyTextBox;
             var index = box.SelectionStart;
@@ -4632,12 +4659,12 @@ del ""%~f0""
             return;
         }
 
+        // Plain Return/Enter sends automatically
+        e.Handled = true;
         if (!e.IsRepeat)
         {
             _ = SendCurrentMessageAsync();
         }
-
-        e.Handled = true;
     }
 
     private void ShowChatNotice(string message)
@@ -4747,7 +4774,12 @@ del ""%~f0""
     private void RefreshChatThread()
     {
         _chatThreadMessages.Clear();
-        if (string.IsNullOrWhiteSpace(_selectedChatNumber))
+        bool hasSelection = !string.IsNullOrWhiteSpace(_selectedChatNumber);
+        if (ChatCallButton != null) ChatCallButton.IsEnabled = hasSelection;
+        if (ChatVideoCallButton != null) ChatVideoCallButton.IsEnabled = hasSelection;
+        if (ClearChatThreadButton != null) ClearChatThreadButton.IsEnabled = hasSelection;
+
+        if (!hasSelection)
         {
             ChatThreadTitleText.Text = "Choose a conversation";
             ChatThreadSubtitleText.Text = "";
@@ -4759,6 +4791,14 @@ del ""%~f0""
             .OrderBy(message => ParseChatTimestamp(message.SentAt)))
         {
             _chatThreadMessages.Add(message);
+        }
+
+        if (_chatThreadMessages.Count > 0)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                try { ChatMessagesListView.ScrollIntoView(_chatThreadMessages[^1]); } catch { }
+            }, System.Windows.Threading.DispatcherPriority.Background);
         }
     }
 
@@ -4794,6 +4834,60 @@ del ""%~f0""
         await _chatMessageStore.SaveAsync(_chatMessages);
         RefreshChatThread();
         FooterStatusText.Text = $"Conversation with {displayName} cleared.";
+    }
+
+    private async void ChatCallButton_Click(object sender, RoutedEventArgs e)
+    {
+        var destination = NormalizeDialDestination(_selectedChatNumber);
+        if (string.IsNullOrWhiteSpace(destination))
+        {
+            destination = NormalizeDialDestination(MessageToTextBox.Text);
+        }
+
+        if (string.IsNullOrWhiteSpace(destination))
+        {
+            ShowChatNotice("Choose a conversation to call.");
+            return;
+        }
+
+        var contact = _contactStore.FindByNumber(_contacts, destination);
+        if (contact != null)
+        {
+            CallContact(contact);
+        }
+        else
+        {
+            DestinationTextBox.Text = destination;
+            MainTabs.SelectedItem = PhoneTab;
+            await StartOutboundCallAsync(destination, isVideo: false);
+        }
+    }
+
+    private async void ChatVideoCallButton_Click(object sender, RoutedEventArgs e)
+    {
+        var destination = NormalizeDialDestination(_selectedChatNumber);
+        if (string.IsNullOrWhiteSpace(destination))
+        {
+            destination = NormalizeDialDestination(MessageToTextBox.Text);
+        }
+
+        if (string.IsNullOrWhiteSpace(destination))
+        {
+            ShowChatNotice("Choose a conversation for video call.");
+            return;
+        }
+
+        var contact = _contactStore.FindByNumber(_contacts, destination);
+        if (contact != null)
+        {
+            VideoCallContact(contact);
+        }
+        else
+        {
+            DestinationTextBox.Text = destination;
+            MainTabs.SelectedItem = PhoneTab;
+            await StartOutboundCallAsync(destination, isVideo: true);
+        }
     }
 
     private async Task HandleIncomingChatMessageAsync(ChatMessagePayload? payload)
@@ -4891,7 +4985,7 @@ del ""%~f0""
         return NormalizeDialDestination(message.Number).Equals(destination, StringComparison.OrdinalIgnoreCase);
     }
 
-    private async Task AddChatMessage(string direction, string name, string number, string message, string result)
+    private async Task<ChatMessageEntry> AddChatMessage(string direction, string name, string number, string message, string result)
     {
         var entry = new ChatMessageEntry
         {
@@ -4909,6 +5003,7 @@ del ""%~f0""
         {
             RefreshChatThread();
         }
+        return entry;
     }
 
     private static DateTimeOffset ParseChatTimestamp(string value)

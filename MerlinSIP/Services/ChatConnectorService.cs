@@ -17,6 +17,7 @@ public class ChatConnectorService : IDisposable
     private readonly string _token = "UClDFZpFu1gj7I8oGmKVsOvzGTqSFwq3jpcgLoC2ApmkyZTjpq1ftIZmJ5EMoshE";
     private readonly HttpClient _httpClient;
     private readonly SemaphoreSlim _connectLock = new(1, 1);
+    private readonly HashSet<string> _joinedRooms = new(StringComparer.OrdinalIgnoreCase);
     private TaskCompletionSource<bool>? _delivery;
     private string? _awaitingConversation;
     private string? _awaitingContent;
@@ -83,6 +84,7 @@ public class ChatConnectorService : IDisposable
 
         client.OnDisconnected += (_, reason) =>
         {
+            _joinedRooms.Clear();
             DebugLog.Write($"ChatConnectorService disconnected: {reason}");
             OnConnectionStateChanged?.Invoke(false, "Disconnected");
         };
@@ -140,17 +142,20 @@ public class ChatConnectorService : IDisposable
     public async Task JoinConversationAsync(string conversationId)
     {
         if (string.IsNullOrWhiteSpace(conversationId)) return;
+        var cleanId = conversationId.Trim();
+        if (_joinedRooms.Contains(cleanId)) return;
 
         if (_socketClient is not { Connected: true })
         {
-            DebugLog.Write($"ChatConnector join skipped, not connected: {conversationId}");
+            DebugLog.Write($"ChatConnector join skipped, not connected: {cleanId}");
             return;
         }
 
         try
         {
-            await _socketClient.EmitAsync("join_conversation", new object[] { conversationId });
-            DebugLog.Write($"ChatConnector joined conversation: {conversationId}");
+            await _socketClient.EmitAsync("join_conversation", new object[] { cleanId });
+            _joinedRooms.Add(cleanId);
+            DebugLog.Write($"ChatConnector joined conversation: {cleanId}");
         }
         catch (Exception ex)
         {
@@ -261,30 +266,53 @@ public class ChatConnectorService : IDisposable
 
     private static bool TryReadMessage(dynamic response, out ChatMessagePayload? payload, out string raw)
     {
-        raw = response.ToString() ?? string.Empty;
-        payload = ChatMessagePayload.TryParse(raw);
-        if (payload is not null)
+        payload = null;
+        raw = string.Empty;
+
+        try
         {
-            return true;
+            var element = response.GetValue<JsonElement>(0);
+            raw = element.GetRawText();
+            payload = ChatMessagePayload.TryParse(raw);
+            if (payload is not null)
+            {
+                return true;
+            }
         }
+        catch { }
 
         try
         {
             var text = response.GetValue<string>(0);
             raw = text ?? raw;
             payload = ChatMessagePayload.TryParse(text);
+            if (payload is not null)
+            {
+                return true;
+            }
         }
-        catch
+        catch { }
+
+        try
         {
-            try
+            raw = response.ToString() ?? string.Empty;
+            payload = ChatMessagePayload.TryParse(raw);
+            if (payload is not null)
             {
-                payload = response.GetValue<ChatMessagePayload>(0);
-            }
-            catch
-            {
-                payload = ChatMessagePayload.TryParse(raw.Trim().TrimStart('[').TrimEnd(']'));
+                return true;
             }
         }
+        catch { }
+
+        try
+        {
+            payload = response.GetValue<ChatMessagePayload>(0);
+            if (payload is not null)
+            {
+                return true;
+            }
+        }
+        catch { }
 
         return payload is not null &&
                (!string.IsNullOrWhiteSpace(payload.Content) ||

@@ -18,3 +18,4 @@ installer/*.generated.wxs
 *.msi
 *.suo
 *.user
+artifacts/
