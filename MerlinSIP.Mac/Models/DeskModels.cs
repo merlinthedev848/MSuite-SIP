@@ -4,7 +4,7 @@ namespace MerlinSip.Mac;
 
 public static class AppVersion
 {
-    public const string Current = "1.3.9.1";
+    public const string Current = "1.3.9.2";
     public const string ProductId = "merlin-sip";
     public const string FixedServer = "pbx.chriskendall.media";
     public const int FixedPort = 5060;

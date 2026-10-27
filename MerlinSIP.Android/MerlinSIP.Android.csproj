@@ -9,7 +9,7 @@
     <AssemblyName>MerlinSIP</AssemblyName>
     <ApplicationId>uk.co.ckmediaservices.merlinsip</ApplicationId>
     <ApplicationVersion>1391</ApplicationVersion>
-    <ApplicationDisplayVersion>1.3.9.1</ApplicationDisplayVersion>
+    <ApplicationDisplayVersion>1.3.9.2</ApplicationDisplayVersion>
     <ApplicationTitle>Merlin SIP</ApplicationTitle>
     <AndroidManifest>AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>

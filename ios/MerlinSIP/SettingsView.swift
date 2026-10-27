@@ -92,7 +92,7 @@ struct SettingsView: View {
     private var versionLabel: String {
         let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
-        let marketing = short.isEmpty || short.contains("$") ? "1.3.9.1" : short
+        let marketing = short.isEmpty || short.contains("$") ? "1.3.9.2" : short
         let current = build.isEmpty || build.contains("$") ? marketing : build
         return marketing == current ? "Version \(marketing)" : "Version \(marketing) (\(current))"
     }
