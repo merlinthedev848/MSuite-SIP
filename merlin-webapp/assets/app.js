@@ -459,11 +459,11 @@
       const uri = SIP.UserAgent.makeURI('sip:' + extension + '@' + sipDomain);
       if (!uri) throw new Error('Invalid SIP URI');
 
-      const userAgent = new SIP.UserAgent({
+      const isMd5 = typeof password === 'string' && /^[0-9a-fA-F]{32}$/.test(password.trim());
+      const uaOptions = {
         uri,
         displayName: displayName || ('Extension ' + extension),
         authorizationUsername: authUsername || extension,
-        authorizationPassword: password,
         transportOptions: { server: sipServer },
         delegate: {
           onInvite: handleIncomingInvite
@@ -479,7 +479,15 @@
           }
         },
         userAgentString: 'MerlinSIP-Web/1.3.2 (Enterprise WebRTC Softphone)'
-      });
+      };
+
+      if (isMd5) {
+        uaOptions.ha1 = password.trim().toLowerCase();
+      } else {
+        uaOptions.authorizationPassword = password;
+      }
+
+      const userAgent = new SIP.UserAgent(uaOptions);
 
       state.userAgent = userAgent;
       await userAgent.start();

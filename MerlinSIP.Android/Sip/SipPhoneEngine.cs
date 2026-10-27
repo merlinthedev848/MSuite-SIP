@@ -232,21 +232,39 @@ public sealed partial class SipPhoneEngine
             var registrar = account.Port > 0 && account.Port != 5060
                 ? $"{account.Server}:{account.Port}"
                 : account.Server;
-            _registration = new SIPRegistrationUserAgent(
-                _transport,
-                null,
-                aor,
-                account.AuthUsername,
-                account.Password,
-                null,
-                registrar,
-                null,
-                180,
-                null,
-                15,
-                20,
-                3,
-                false);
+            var pwd = account.Password?.Trim() ?? "";
+            var isMd5 = pwd.Length == 32 && pwd.All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
+            _registration = isMd5
+                ? new SIPRegistrationUserAgent(
+                    _transport,
+                    null,
+                    aor,
+                    new SIPSorcery.SIP.GetHA1DigestDelegate((username, realm, algo) => pwd.ToLowerInvariant()),
+                    account.AuthUsername,
+                    null,
+                    registrar,
+                    null,
+                    180,
+                    null,
+                    15,
+                    20,
+                    3,
+                    false)
+                : new SIPRegistrationUserAgent(
+                    _transport,
+                    null,
+                    aor,
+                    account.AuthUsername,
+                    account.Password,
+                    null,
+                    registrar,
+                    null,
+                    180,
+                    null,
+                    15,
+                    20,
+                    3,
+                    false);
             _registration.RegistrationSuccessful += (_, _) =>
             {
                 PhoneSession.Current.SetStatus(PhonePhase.Registered, "Registered", "Ready on extension " + account.Extension);

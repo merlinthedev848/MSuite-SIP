@@ -100,9 +100,9 @@ foreach ($urlTemplates as $template) {
         $decoded = json_decode((string) $response, true);
         if (is_array($decoded) && (!empty($decoded['success']) || !empty($decoded['sip']) || !empty($decoded['extension']))) {
             $sip = $decoded['sip'] ?? $decoded;
-            $ext = (string) ($sip['extension'] ?? $sip['ext'] ?? $sip['user'] ?? '');
-            $auth = (string) ($sip['auth_name'] ?? $sip['username'] ?? $sip['authUsername'] ?? $ext);
-            $pwd = (string) ($sip['sip_password'] ?? $sip['password'] ?? $sip['secret'] ?? '');
+            $ext = trim((string) ($sip['extension'] ?? $sip['ext'] ?? $sip['user'] ?? ''));
+            $auth = trim((string) ($sip['auth_name'] ?? $sip['username'] ?? $sip['authUsername'] ?? $ext));
+            $pwd = trim((string) ($sip['sip_password'] ?? $sip['password'] ?? $sip['secret'] ?? ''));
             $server = (string) ($sip['server_wss'] ?? $sip['websocket_url'] ?? $sip['sipServer'] ?? '');
             $domain = (string) ($sip['domain'] ?? $sip['sipDomain'] ?? '');
             $display = (string) ($sip['display_name'] ?? $sip['displayName'] ?? ('Ext ' . $ext));

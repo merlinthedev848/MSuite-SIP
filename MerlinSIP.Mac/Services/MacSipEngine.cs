@@ -677,24 +677,45 @@ public sealed class MacSipEngine : IDisposable
             Wire(_line2);
 
             var aor = SIPURI.ParseSIPURI(AccountUri(config));
-            _registration = new SIPRegistrationUserAgent(
-                _transport,
-                null,
-                aor,
-                config.AuthUsername,
-                config.Password,
-                null,
-                RegistrarHost(config),
-                null,
-                Math.Clamp(config.RegistrationExpiry, 120, 7200),
-                null,
-                15,
-                20,
-                3,
-                false)
-            {
-                UserDisplayName = config.DisplayName
-            };
+            var pwd = config.Password?.Trim() ?? "";
+            var isMd5 = pwd.Length == 32 && pwd.All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
+            _registration = isMd5
+                ? new SIPRegistrationUserAgent(
+                    _transport,
+                    null,
+                    aor,
+                    new SIPSorcery.SIP.GetHA1DigestDelegate((username, realm, algo) => pwd.ToLowerInvariant()),
+                    config.AuthUsername,
+                    null,
+                    RegistrarHost(config),
+                    null,
+                    Math.Clamp(config.RegistrationExpiry, 120, 7200),
+                    null,
+                    15,
+                    20,
+                    3,
+                    false)
+                {
+                    UserDisplayName = config.DisplayName
+                }
+                : new SIPRegistrationUserAgent(
+                    _transport,
+                    null,
+                    aor,
+                    config.AuthUsername,
+                    config.Password,
+                    null,
+                    RegistrarHost(config),
+                    null,
+                    Math.Clamp(config.RegistrationExpiry, 120, 7200),
+                    null,
+                    15,
+                    20,
+                    3,
+                    false)
+                {
+                    UserDisplayName = config.DisplayName
+                };
             _registration.RegistrationSuccessful += (_, _) =>
             {
                 SetStatus("Registered", "Ready on extension " + config.Extension);
@@ -1293,7 +1314,11 @@ public sealed class MacSipEngine : IDisposable
             var challenges = response.Header.AuthenticationHeaders;
             if (challenges is { Count: > 0 })
             {
-                var authed = request.DuplicateAndAuthenticate(challenges, config.AuthUsername, config.Password);
+                var pwd = config.Password?.Trim() ?? "";
+                var isMd5 = pwd.Length == 32 && pwd.All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
+                var authed = isMd5
+                    ? request.DuplicateAndAuthenticate(challenges, config.AuthUsername, new SIPSorcery.SIP.GetHA1DigestDelegate((username, realm, algo) => pwd.ToLowerInvariant()))
+                    : request.DuplicateAndAuthenticate(challenges, config.AuthUsername, config.Password);
                 CopySigningHeaders(request, authed);
                 response = await SendRawAsync(authed);
             }

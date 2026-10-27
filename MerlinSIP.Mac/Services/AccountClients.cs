@@ -190,14 +190,18 @@ public sealed class ProvisionClient
                     continue;
                 }
 
-                if (string.IsNullOrWhiteSpace(payload.Sip.Extension) ||
-                    string.IsNullOrWhiteSpace(payload.Sip.AuthName) ||
-                    string.IsNullOrWhiteSpace(payload.Sip.SipPassword))
+                var ext = payload.Sip.EffectiveExtension;
+                var auth = payload.Sip.EffectiveAuthName;
+                var pwd = payload.Sip.EffectivePassword;
+
+                if (string.IsNullOrWhiteSpace(ext) ||
+                    string.IsNullOrWhiteSpace(auth) ||
+                    string.IsNullOrWhiteSpace(pwd))
                 {
                     return (false, "", "", "", "The provisioning code did not return complete account details.");
                 }
 
-                return (true, payload.Sip.Extension.Trim(), payload.Sip.AuthName.Trim(), payload.Sip.SipPassword, "");
+                return (true, ext, auth, pwd, "");
             }
             catch (Exception ex)
             {
@@ -216,7 +220,15 @@ public sealed class ProvisionClient
         [property: JsonPropertyName("error")] string? Error);
 
     private sealed record ProvisionedSip(
-        [property: JsonPropertyName("extension")] string Extension,
-        [property: JsonPropertyName("auth_name")] string AuthName,
-        [property: JsonPropertyName("sip_password")] string SipPassword);
+        [property: JsonPropertyName("extension")] string? Extension,
+        [property: JsonPropertyName("auth_name")] string? AuthName,
+        [property: JsonPropertyName("sip_password")] string? SipPassword,
+        [property: JsonPropertyName("password")] string? Password = null,
+        [property: JsonPropertyName("secret")] string? Secret = null,
+        [property: JsonPropertyName("username")] string? Username = null)
+    {
+        public string EffectiveExtension => !string.IsNullOrWhiteSpace(Extension) ? Extension.Trim() : (Username?.Trim() ?? string.Empty);
+        public string EffectiveAuthName => !string.IsNullOrWhiteSpace(AuthName) ? AuthName.Trim() : (!string.IsNullOrWhiteSpace(Username) ? Username.Trim() : EffectiveExtension);
+        public string EffectivePassword => !string.IsNullOrWhiteSpace(SipPassword) ? SipPassword.Trim() : (!string.IsNullOrWhiteSpace(Password) ? Password.Trim() : (Secret?.Trim() ?? string.Empty));
+    }
 }

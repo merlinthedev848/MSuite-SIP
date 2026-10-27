@@ -27,17 +27,35 @@ public sealed class SipsorceryCompatibilityService
             var server = $"sip:{config.Server}:{config.Port};transport=tcp";
             var completion = new TaskCompletionSource<SipsorceryProbeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            registrationAgent = new SIPRegistrationUserAgent(
-                transport,
-                config.Username,
-                config.Password,
-                server,
-                120,
-                5,
-                1,
-                1,
-                true,
-                true);
+            var pwd = config.Password?.Trim() ?? "";
+            var isMd5 = SipRegistrationService.IsMd5Hash(pwd);
+            registrationAgent = isMd5
+                ? new SIPRegistrationUserAgent(
+                    transport,
+                    null,
+                    SIPURI.ParseSIPURI($"sip:{config.Username}@{config.Server}"),
+                    new GetHA1DigestDelegate((username, realm, algo) => pwd.ToLowerInvariant()),
+                    config.Username,
+                    null,
+                    $"{config.Server}:{config.Port}",
+                    null,
+                    120,
+                    null,
+                    5,
+                    1,
+                    1,
+                    true)
+                : new SIPRegistrationUserAgent(
+                    transport,
+                    config.Username,
+                    config.Password,
+                    server,
+                    120,
+                    5,
+                    1,
+                    1,
+                    true,
+                    true);
 
             registrationAgent.RegistrationSuccessful += (uri, response) =>
             {

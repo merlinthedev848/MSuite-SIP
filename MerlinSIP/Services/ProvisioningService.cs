@@ -102,20 +102,27 @@ public sealed class ProvisioningService
                             return ProvisioningResult.Fail(ToCustomerMessage(payload?.Error, response.StatusCode));
                         }
 
-                        if (string.IsNullOrWhiteSpace(payload.Sip.Extension) ||
-                            string.IsNullOrWhiteSpace(payload.Sip.AuthName) ||
-                            string.IsNullOrWhiteSpace(payload.Sip.SipPassword))
+                        var ext = payload.Sip.EffectiveExtension;
+                        var auth = payload.Sip.EffectiveAuthName;
+                        var pwd = payload.Sip.EffectivePassword;
+
+                        if (string.IsNullOrWhiteSpace(ext) ||
+                            string.IsNullOrWhiteSpace(auth) ||
+                            string.IsNullOrWhiteSpace(pwd))
                         {
                             return ProvisioningResult.Fail("The provisioning code did not return complete account details.");
                         }
+
+                        var isMd5 = SipRegistrationService.IsMd5Hash(pwd);
+                        DebugLog.Write($"PROVISION loaded ext={ext} auth={auth} isMd5Password={isMd5}");
 
                         var config = new AppStartupConfig(
                             AppStartupConfig.FixedSipServer,
                             AppStartupConfig.FixedSipPort,
                             AppStartupConfig.FixedSipServer,
-                            payload.Sip.Extension.Trim(),
-                            payload.Sip.AuthName.Trim(),
-                            payload.Sip.SipPassword,
+                            ext,
+                            auth,
+                            pwd,
                             licenseKey,
                             licenseStatus,
                             audioInput,
@@ -160,9 +167,17 @@ public sealed class ProvisioningService
         [property: JsonPropertyName("error")] string? Error);
 
     private sealed record ProvisionedSipDetails(
-        [property: JsonPropertyName("extension")] string Extension,
-        [property: JsonPropertyName("auth_name")] string AuthName,
-        [property: JsonPropertyName("sip_password")] string SipPassword);
+        [property: JsonPropertyName("extension")] string? Extension,
+        [property: JsonPropertyName("auth_name")] string? AuthName,
+        [property: JsonPropertyName("sip_password")] string? SipPassword,
+        [property: JsonPropertyName("password")] string? Password = null,
+        [property: JsonPropertyName("secret")] string? Secret = null,
+        [property: JsonPropertyName("username")] string? Username = null)
+    {
+        public string EffectiveExtension => !string.IsNullOrWhiteSpace(Extension) ? Extension.Trim() : (Username?.Trim() ?? string.Empty);
+        public string EffectiveAuthName => !string.IsNullOrWhiteSpace(AuthName) ? AuthName.Trim() : (!string.IsNullOrWhiteSpace(Username) ? Username.Trim() : EffectiveExtension);
+        public string EffectivePassword => !string.IsNullOrWhiteSpace(SipPassword) ? SipPassword.Trim() : (!string.IsNullOrWhiteSpace(Password) ? Password.Trim() : (Secret?.Trim() ?? string.Empty));
+    }
 }
 
 public sealed record ProvisioningResult(bool Success, AppStartupConfig? Config, string Message)

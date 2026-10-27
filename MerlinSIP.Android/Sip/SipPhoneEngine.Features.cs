@@ -492,7 +492,11 @@ public sealed partial class SipPhoneEngine
             return response;
         }
 
-        var authenticated = request.DuplicateAndAuthenticate(challenges, account.AuthUsername, account.Password);
+                var pwd = account.Password?.Trim() ?? "";
+        var isMd5 = pwd.Length == 32 && pwd.All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
+        var authenticated = isMd5
+            ? request.DuplicateAndAuthenticate(challenges, account.AuthUsername, new SIPSorcery.SIP.GetHA1DigestDelegate((username, realm, algo) => pwd.ToLowerInvariant()))
+            : request.DuplicateAndAuthenticate(challenges, account.AuthUsername, account.Password);
         return await SendOnceAsync(authenticated);
     }
 

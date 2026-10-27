@@ -33,6 +33,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     private readonly SemaphoreSlim _registrationLock = new(1, 1);
     private bool _listenerStarted;
     private bool _registered;
+    private bool? _passwordIsHa1;
     private int _inviteCseq = 1;
     private int _registerCseq = 1;
     private int _messageCseq = 1;
@@ -755,6 +756,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         DisposeClient();
 
         _config = config;
+        _passwordIsHa1 = null;
         _domain = string.IsNullOrWhiteSpace(config.Domain) ? config.Server : config.Domain;
         _localAddress = GetLocalAddress(config.Server);
         if (config.UsesTcpSignalling || config.UsesTlsSignalling)
@@ -2068,6 +2070,32 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 : await SendAndReceiveDirectAsync(second, cancellationToken);
             DebugLog.Write($"AUTH REGISTER RESPONSE code={secondResponse.Code} reason={secondResponse.Reason}");
             UpdateLocalEndpointFromResponse(secondResponse);
+
+            if (secondResponse.Code is 401 or 407 && _passwordIsHa1 is null && IsMd5Hash(_config?.Password))
+            {
+                DebugLog.Write("AUTH REGISTER: Pre-calculated HA1 attempt returned 401/407, retrying with plaintext hash");
+                var retryChallengeHeader = secondResponse.Headers.TryGetValue("www-authenticate", out var retryWww)
+                    ? retryWww
+                    : secondResponse.Headers.GetValueOrDefault("proxy-authenticate", "");
+                if (string.IsNullOrWhiteSpace(retryChallengeHeader)) retryChallengeHeader = challengeHeader;
+
+                var retryAuth = BuildDigestAuthorization("REGISTER", $"sip:{_domain}", retryChallengeHeader, forcePlaintext: true);
+                var retryRegister = BuildRegister(callId, _registerCseq++, retryAuth, secondResponse.Code == 407);
+                secondResponse = _listenerStarted
+                    ? await SendAndWaitFromListenerAsync(retryRegister, cancellationToken)
+                    : await SendAndReceiveDirectAsync(retryRegister, cancellationToken);
+                DebugLog.Write($"AUTH REGISTER RETRY RESPONSE code={secondResponse.Code} reason={secondResponse.Reason}");
+                UpdateLocalEndpointFromResponse(secondResponse);
+
+                if (secondResponse.Code == 200)
+                {
+                    _passwordIsHa1 = false;
+                }
+            }
+            else if (secondResponse.Code == 200 && IsMd5Hash(_config?.Password))
+            {
+                _passwordIsHa1 = true;
+            }
 
             _registered = secondResponse.Code == 200;
             republishBusyHere = _registered;
@@ -3559,7 +3587,27 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         DebugLog.Write($"SEND RESPONSE code={code} reason={reason} callId={callId} bytes={payload.Length}");
     }
 
-    private string BuildDigestAuthorization(string method, string uri, string challengeHeader)
+    public static bool IsMd5Hash(string? value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Trim().Length == 32 &&
+        value.Trim().All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
+
+    internal string ResolveHa1(string realm, bool forcePlaintext = false)
+    {
+        var password = _config?.Password?.Trim() ?? string.Empty;
+        var username = _config?.Username?.Trim() ?? string.Empty;
+
+        if (!forcePlaintext && (_passwordIsHa1 == true || (_passwordIsHa1 is null && IsMd5Hash(password))))
+        {
+            DebugLog.Write($"DIGEST AUTH: Using pre-calculated MD5 HA1 hash for user={username} realm={realm}");
+            return password.ToLowerInvariant();
+        }
+
+        DebugLog.Write($"DIGEST AUTH: Calculating HA1 from plaintext password for user={username} realm={realm}");
+        return Md5($"{username}:{realm}:{password}");
+    }
+
+    private string BuildDigestAuthorization(string method, string uri, string challengeHeader, bool forcePlaintext = false)
     {
         var challenge = ParseChallenge(challengeHeader);
         var realm = challenge.GetValueOrDefault("realm", _domain);
@@ -3567,7 +3615,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         var qop = challenge.GetValueOrDefault("qop", "").Split(',').Select(value => value.Trim()).Contains("auth") ? "auth" : "";
         var nc = "00000001";
         var cnonce = Guid.NewGuid().ToString("N")[..16];
-        var ha1 = Md5($"{_config!.Username}:{realm}:{_config.Password}");
+        var ha1 = ResolveHa1(realm, forcePlaintext);
         var ha2 = Md5($"{method}:{uri}");
         var response = string.IsNullOrWhiteSpace(qop)
             ? Md5($"{ha1}:{nonce}:{ha2}")
@@ -3575,7 +3623,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
         var fields = new List<string>
         {
-            $"username=\"{_config.Username}\"",
+            $"username=\"{_config?.Username ?? ""}\"",
             $"realm=\"{realm}\"",
             $"nonce=\"{nonce}\"",
             $"uri=\"{uri}\"",
