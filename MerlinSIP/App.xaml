@@ -36,18 +36,38 @@
 
         <Style TargetType="Window">
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, sans-serif" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
         </Style>
 
         <Style TargetType="Control">
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, sans-serif" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
         </Style>
 
         <Style TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, sans-serif" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
         </Style>
 
         <Style TargetType="Button">
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, sans-serif" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Foreground" Value="{StaticResource InkBrush}" />

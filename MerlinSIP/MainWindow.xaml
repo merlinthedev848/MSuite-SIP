@@ -60,6 +60,11 @@
         </Style>
 
         <Style x:Key="DialButton" TargetType="Button">
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
             <Setter Property="Height" Value="58" />
             <Setter Property="Margin" Value="5" />
             <Setter Property="FontSize" Value="21" />
@@ -83,9 +88,6 @@
                                 BorderBrush="#E2E8F0"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="8">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="8" ShadowDepth="1.5" Opacity="0.06" Color="#1E293B" />
-                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -98,11 +100,6 @@
                                         <TranslateTransform Y="1" />
                                     </Setter.Value>
                                 </Setter>
-                                <Setter TargetName="Chrome" Property="Effect">
-                                    <Setter.Value>
-                                        <DropShadowEffect BlurRadius="3" ShadowDepth="0.5" Opacity="0.03" Color="#1E293B" />
-                                    </Setter.Value>
-                                </Setter>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -111,6 +108,11 @@
         </Style>
 
         <Style x:Key="KeypadButton" TargetType="Button">
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
             <Setter Property="Height" Value="NaN" />
             <Setter Property="MinHeight" Value="36" />
             <Setter Property="MaxHeight" Value="58" />
@@ -134,9 +136,6 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="10">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.04" Color="#0F172A" />
-                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -159,6 +158,11 @@
         </Style>
 
         <Style x:Key="SegmentedTabButton" TargetType="Button">
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
             <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="18,0" />
             <Setter Property="FontSize" Value="12.5" />
@@ -185,6 +189,11 @@
         </Style>
 
                 <Style x:Key="LineActionButton" TargetType="Button">
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
             <Setter Property="Height" Value="32" />
             <Setter Property="MinHeight" Value="30" />
             <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
@@ -206,9 +215,6 @@
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="6"
                                 Padding="{TemplateBinding Padding}">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.04" Color="#0F172A" />
-                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                               TextElement.FontFamily="{TemplateBinding FontFamily}"
                                               TextElement.FontSize="{TemplateBinding FontSize}"
@@ -246,9 +252,6 @@
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="6"
                                 Padding="{TemplateBinding Padding}">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="5" ShadowDepth="1" Opacity="0.16" Color="#B91C1C" />
-                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                               TextElement.FontFamily="{TemplateBinding FontFamily}"
                                               TextElement.FontSize="{TemplateBinding FontSize}"
@@ -283,9 +286,6 @@
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="6"
                                 Padding="{TemplateBinding Padding}">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="5" ShadowDepth="1" Opacity="0.16" Color="#047857" />
-                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -310,6 +310,11 @@
         </Style>
 
         <Style x:Key="QuietCallButton" TargetType="Button">
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
             <Setter Property="Height" Value="44" />
             <Setter Property="Padding" Value="12,0" />
             <Setter Property="FontSize" Value="13" />
@@ -333,9 +338,6 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="10">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.04" Color="#0F172A" />
-                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                               TextElement.Foreground="{TemplateBinding Foreground}"
                                               TextElement.FontWeight="{TemplateBinding FontWeight}"
@@ -363,6 +365,11 @@
         </Style>
 
         <Style x:Key="PrimaryCallButton" TargetType="Button" BasedOn="{StaticResource QuietCallButton}">
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
             <Setter Property="Background" Value="#FBBF24" />
             <Setter Property="BorderBrush" Value="#F5C518" />
             <Setter Property="Foreground" Value="#111827" />
@@ -374,9 +381,6 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="10">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="6" ShadowDepth="1" Opacity="0.08" Color="#92400E" />
-                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                               TextElement.Foreground="{TemplateBinding Foreground}"
                                               TextElement.FontWeight="{TemplateBinding FontWeight}"
@@ -410,6 +414,11 @@
         </Style>
 
                 <Style x:Key="MerlinBetaNavButton" TargetType="Button">
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
             <Setter Property="Width" Value="66" />
             <Setter Property="Height" Value="52" />
             <Setter Property="Margin" Value="0,0,0,6" />
@@ -439,6 +448,11 @@
         </Style>
 
         <Style x:Key="SettingsTabButton" TargetType="Button">
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
             <Setter Property="Height" Value="38" />
             <Setter Property="FontSize" Value="12.5" />
             <Setter Property="FontWeight" Value="SemiBold" />
