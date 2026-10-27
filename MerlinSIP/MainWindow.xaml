@@ -2124,6 +2124,7 @@
                             <ColumnDefinition Width="0.85*" />
                         </Grid.ColumnDefinitions>
 
+                        <!-- Active Conversation Pane -->
                         <Border Grid.Column="0" Style="{StaticResource Surface}" Margin="0,0,20,0">
                             <Grid>
                                 <Grid.RowDefinitions>
@@ -2131,72 +2132,116 @@
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <DockPanel Margin="0,0,0,16">
+                                
+                                <!-- Thread Header -->
+                                <DockPanel Margin="0,0,0,14">
                                     <Button DockPanel.Dock="Right"
+                                            x:Name="ClearChatThreadButton"
                                             Content="Clear chat"
                                             Style="{StaticResource SoftButton}"
-                                            Background="{StaticResource DangerBrush}"
-                                            Foreground="White"
-                                            Width="92"
-                                            Height="34"
+                                            Background="#FEE2E2"
+                                            Foreground="#DC2626"
+                                            Width="88"
+                                            Height="32"
                                             FontSize="12"
+                                            FontWeight="Medium"
                                             Padding="8,0"
                                             Click="ClearChatThreadButton_Click" />
                                     <StackPanel>
-                                        <TextBlock x:Name="ChatThreadTitleText" Text="Choose a conversation" FontSize="28" FontWeight="SemiBold" Foreground="#111827" />
-                                        <TextBlock x:Name="ChatThreadSubtitleText" Text="" Foreground="#64748B" />
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock x:Name="ChatThreadTitleText" Text="Choose a conversation" FontSize="20" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
+                                            <Border x:Name="ChatServerStatusBadge" Background="#F1F5F9" CornerRadius="10" Padding="8,3" Margin="10,0,0,0" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Ellipse x:Name="ChatServerStatusDot" Width="7" Height="7" Fill="#94A3B8" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                                    <TextBlock x:Name="ChatServerStatusText" Text="Chat Connecting..." FontSize="11" FontWeight="Medium" Foreground="#64748B" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock x:Name="ChatThreadSubtitleText" Text="" Foreground="#64748B" FontSize="12" Margin="0,2,0,0" />
                                     </StackPanel>
                                 </DockPanel>
-                                <ListBox x:Name="ChatMessagesListView" Grid.Row="1" BorderThickness="0" Background="Transparent" AllowDrop="True" Drop="Chat_Drop" PreviewDragOver="Chat_PreviewDragOver">
+
+                                <!-- Messages List View -->
+                                <ListBox x:Name="ChatMessagesListView" Grid.Row="1" BorderThickness="0" Background="Transparent" AllowDrop="True" Drop="Chat_Drop" PreviewDragOver="Chat_PreviewDragOver" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            <Setter Property="Padding" Value="0" />
+                                            <Setter Property="Margin" Value="0,0,0,8" />
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <ContentPresenter />
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="#F8FBFE" BorderBrush="#EAF1F8" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,8">
+                                            <Border HorizontalAlignment="{Binding BubbleAlignment}"
+                                                    MaxWidth="480"
+                                                    Background="{Binding BubbleBackground}"
+                                                    BorderBrush="{Binding BubbleBorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="10"
+                                                    Padding="12,10"
+                                                    Margin="4,0"
+                                                    SnapsToDevicePixels="True">
                                                 <Grid>
                                                     <Grid.RowDefinitions>
                                                         <RowDefinition Height="Auto" />
                                                         <RowDefinition Height="Auto" />
                                                     </Grid.RowDefinitions>
-                                                    <DockPanel>
-                                                        <Border DockPanel.Dock="Right" Background="#F8FBFE" CornerRadius="7" Padding="8,5">
-                                                            <TextBlock Text="{Binding Result}" Foreground="#2750A7" FontWeight="SemiBold" FontSize="12" />
+                                                    <DockPanel LastChildFill="True">
+                                                        <Border DockPanel.Dock="Right" Background="{Binding ResultBadgeBackground}" CornerRadius="6" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Result}" Foreground="{Binding ResultBadgeForeground}" FontWeight="SemiBold" FontSize="11" />
                                                         </Border>
-                                                        <StackPanel>
-                                                            <TextBlock Text="{Binding Name}" Foreground="#111827" FontWeight="SemiBold" />
-                                                            <TextBlock Text="{Binding SentAt}" Foreground="#64748B" FontSize="12" />
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Name}" Foreground="{Binding SenderForeground}" FontWeight="SemiBold" FontSize="12.5" VerticalAlignment="Center" />
+                                                            <TextBlock Text="•" Foreground="#94A3B8" Margin="6,0" FontSize="11" VerticalAlignment="Center" />
+                                                            <TextBlock Text="{Binding FormattedTime}" Foreground="#64748B" FontSize="11" VerticalAlignment="Center" />
                                                         </StackPanel>
                                                     </DockPanel>
-                                                    <TextBlock Grid.Row="1" Text="{Binding Message}" Foreground="#334155" TextWrapping="Wrap" Margin="0,10,0,0" />
+                                                    <TextBlock Grid.Row="1" Text="{Binding Message}" Foreground="#1E293B" FontSize="13" LineHeight="18" TextWrapping="Wrap" Margin="0,6,0,0" TextOptions.TextHintingMode="Auto" />
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
-                                <Border Grid.Row="2" Background="#F8FBFE" BorderBrush="#D7E1EC" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,14,0,0" AllowDrop="True" Drop="Chat_Drop" PreviewDragOver="Chat_PreviewDragOver">
+
+                                <!-- Message Compose Bar -->
+                                <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="8,6" Margin="0,12,0,0" AllowDrop="True" Drop="Chat_Drop" PreviewDragOver="Chat_PreviewDragOver">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="80" />
                                         </Grid.ColumnDefinitions>
                                         <TextBox x:Name="MessageBodyTextBox"
                                                  AcceptsReturn="True"
                                                  TextWrapping="Wrap"
-                                                 MinHeight="46"
-                                                 MaxHeight="98"
+                                                 MinHeight="40"
+                                                 MaxHeight="90"
                                                  BorderThickness="0"
                                                  Background="Transparent"
+                                                 Foreground="#0F172A"
+                                                 FontSize="13"
                                                  VerticalContentAlignment="Center"
                                                  PreviewKeyDown="MessageBodyTextBox_PreviewKeyDown"
-                                                 ToolTip="Enter sends the message. Ctrl+Enter starts a new line."
+                                                 ToolTip="Enter sends message. Ctrl+Enter starts a new line. (Drag &amp; drop files supported)"
                                                  AllowDrop="True"
                                                  Drop="Chat_Drop"
                                                  PreviewDragOver="Chat_PreviewDragOver" />
                                         <Button Grid.Column="1"
                                                 x:Name="AttachFileButton"
                                                 Style="{StaticResource SoftButton}"
-                                                Width="38"
-                                                Height="38"
-                                                Margin="6,0,6,0"
+                                                Width="36"
+                                                Height="36"
+                                                Margin="4,0,6,0"
                                                 Click="AttachFileButton_Click"
                                                 ToolTip="Attach and send file/image (Drag &amp; drop supported)">
                                             <TextBlock Text="&#xE723;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="16" Foreground="#475569" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -2207,37 +2252,98 @@
                                                 Style="{StaticResource SoftButton}"
                                                 Background="{StaticResource PrimaryBrush}"
                                                 Foreground="White"
-                                                Height="38"
+                                                Height="36"
                                                 Margin="0"
+                                                FontWeight="SemiBold"
+                                                FontSize="12.5"
                                                 Click="SendMessageButton_Click" />
                                     </Grid>
                                 </Border>
                             </Grid>
                         </Border>
 
+                        <!-- Conversations List Pane -->
                         <Border Grid.Column="1" Style="{StaticResource Surface}">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
-                                <StackPanel Margin="0,0,0,16">
-                                    <TextBlock Text="Conversations" FontSize="24" FontWeight="SemiBold" Foreground="#111827" />
+                                <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                                    <TextBlock Text="Conversations" FontSize="20" FontWeight="SemiBold" Foreground="#111827" />
                                 </StackPanel>
                                 <TextBox x:Name="MessageToTextBox" Visibility="Collapsed" />
-                                <ListBox x:Name="ChatContactsListView" Grid.Row="1" BorderThickness="0" Background="Transparent" SelectionChanged="ChatContactsListView_SelectionChanged" MouseDoubleClick="ChatContactsListView_MouseDoubleClick">
+                                <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="6,4" Margin="0,0,0,10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" Margin="2,0,6,0" />
+                                        <TextBox x:Name="ChatContactsFilterTextBox"
+                                                 Grid.Column="1"
+                                                 BorderThickness="0"
+                                                 Background="Transparent"
+                                                 FontSize="12"
+                                                 Foreground="#1E293B"
+                                                 VerticalContentAlignment="Center"
+                                                 TextChanged="ChatContactsFilterTextBox_TextChanged" />
+                                        <TextBlock Grid.Column="1"
+                                                   x:Name="ChatContactsFilterPlaceholder"
+                                                   Text="Search conversations..."
+                                                   Foreground="#94A3B8"
+                                                   FontSize="12"
+                                                   IsHitTestVisible="False"
+                                                   VerticalAlignment="Center"
+                                                   Visibility="Visible" />
+                                    </Grid>
+                                </Border>
+                                <ListBox x:Name="ChatContactsListView" Grid.Row="2" BorderThickness="0" Background="Transparent" SelectionChanged="ChatContactsListView_SelectionChanged" MouseDoubleClick="ChatContactsListView_MouseDoubleClick">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            <Setter Property="Padding" Value="0" />
+                                            <Setter Property="Margin" Value="0,0,0,4" />
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="BorderThickness" Value="0" />
+                                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <Border x:Name="ItemBorder" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="10,8" SnapsToDevicePixels="True">
+                                                            <ContentPresenter />
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="ItemBorder" Property="Background" Value="#F1F5F9" />
+                                                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#CBD5E1" />
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF" />
+                                                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#93C5FD" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <Grid Background="#F8FBFE" Margin="0,0,0,1">
+                                            <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="135" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding Name}" Foreground="#111827" FontWeight="SemiBold" Margin="10,8" TextTrimming="CharacterEllipsis" />
-                                                <Border Grid.Column="1" Background="{Binding PresenceBackground}" Visibility="{Binding PresenceVisibility}" CornerRadius="6" Padding="6,3" Margin="8" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Ellipse Style="{StaticResource BlfLamp}" Margin="0,0,5,0" />
-                                                        <TextBlock Text="{Binding Number}" Foreground="{Binding PresenceForeground}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}" Foreground="#0F172A" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding Number}" Foreground="#64748B" FontSize="11.5" TextTrimming="CharacterEllipsis" Margin="0,1,0,0" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Background="{Binding PresenceBackground}" Visibility="{Binding PresenceVisibility}" CornerRadius="10" Padding="8,3" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Ellipse Style="{StaticResource BlfLamp}" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding PresenceLabel}" Foreground="{Binding PresenceForeground}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
                                                     </StackPanel>
                                                 </Border>
                                             </Grid>

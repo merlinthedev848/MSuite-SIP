@@ -48,6 +48,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<ContactEntry> _filteredDirectoryContacts = [];
     private readonly ObservableCollection<ContactEntry> _filteredDirectoryFavorites = [];
     private readonly ObservableCollection<ContactEntry> _filteredPhonebookContacts = [];
+    private readonly ObservableCollection<ContactEntry> _filteredChatContacts = [];
     private readonly ObservableCollection<CallHistoryEntry> _filteredRecentCalls = [];
     private readonly ObservableCollection<CallHistoryEntry> _filteredCallHistory = [];
     private readonly DispatcherTimer _callTimer = new() { Interval = TimeSpan.FromSeconds(1) };
@@ -205,7 +206,7 @@ public partial class MainWindow : Window
         DialContactsListView.ItemsSource = _filteredDirectoryContacts;
         DialFavoritesListView.ItemsSource = _filteredDirectoryFavorites;
         PhonebookContactsListView.ItemsSource = _filteredPhonebookContacts;
-        ChatContactsListView.ItemsSource = _contacts;
+        ChatContactsListView.ItemsSource = _filteredChatContacts;
         RecentCallsListView.ItemsSource = _filteredRecentCalls;
         CallHistoryListView.ItemsSource = _filteredCallHistory;
         ChatMessagesListView.ItemsSource = _chatThreadMessages;
@@ -215,6 +216,7 @@ public partial class MainWindow : Window
             Dispatcher.InvokeAsync(async () =>
             {
                 SetHandlerServerStatus(connected, 0, msg);
+                UpdateChatServerStatus(connected);
                 if (connected)
                 {
                     await JoinChatRoomsAsync();
@@ -309,6 +311,8 @@ public partial class MainWindow : Window
         await LoadContactsAsync();
         await LoadCallHistoryAsync();
         await LoadChatMessagesAsync();
+        FilterChatContacts();
+        UpdateChatServerStatus(_chatService.IsConnected);
         await Dispatcher.InvokeAsync(LoadDeviceSelectors, DispatcherPriority.Background);
         WindowsStartupService.EnableLaunchOnWindowsStartup();
         _licenseWatchdog.Start();
@@ -1966,6 +1970,7 @@ public partial class MainWindow : Window
         ReplaceCollection(_filteredDirectoryFavorites, result.FilteredFavorites);
         ReplaceCollection(_filteredRecentCalls, result.FilteredCalls);
         ReplaceCollection(_filteredCallHistory, result.FilteredCalls);
+        FilterChatContacts();
         
         ApplyGlobalSearchNavigation();
     }
@@ -4508,22 +4513,16 @@ del ""%~f0""
         var fileInfo = new FileInfo(filePath);
         var fileMessage = string.IsNullOrWhiteSpace(upload.Url) ? fileName : upload.Url;
         var sent = await _chatService.SendMessageAsync(_selectedChatNumber, _config.Extension, fileMessage, "file", fileName, fileInfo.Length);
-        if (sent.Delivered)
+        if (sent.Accepted)
         {
-            await AddChatMessage("Outbound", name, _selectedChatNumber, $"Sent file: {fileName}", "Delivered");
-            NoticeText.Text = $"File {fileName} delivered.";
-            FooterStatusText.Text = $"File delivered: {fileName}";
-        }
-        else if (sent.Accepted)
-        {
-            await AddChatMessage("Outbound", name, _selectedChatNumber, $"Sent file: {fileName}", "Not delivered");
-            NoticeText.Text = $"File uploaded. {sent.Detail}";
-            FooterStatusText.Text = sent.Detail;
+            await AddChatMessage("Outbound", name, _selectedChatNumber, $"Sent file: {fileName}", sent.Delivered ? "Delivered" : "Sent");
+            NoticeText.Text = $"File {fileName} sent.";
+            FooterStatusText.Text = $"File sent: {fileName}";
         }
         else
         {
             await AddChatMessage("Outbound", name, _selectedChatNumber, $"Uploaded file: {fileName}", "Uploaded");
-            NoticeText.Text = $"File uploaded, but the handler did not add it to the conversation. {sent.Detail}";
+            NoticeText.Text = $"File uploaded, but could not be sent. {sent.Detail}";
             FooterStatusText.Text = sent.Detail;
         }
     }
@@ -4604,13 +4603,10 @@ del ""%~f0""
                 return;
             }
 
-            await AddChatMessage("Outbound", name, destination, message, sent.Delivered ? "Delivered" : "Not delivered");
+            await AddChatMessage("Outbound", name, destination, message, sent.Delivered ? "Delivered" : "Sent");
             ShowChatNotice(sent.Detail);
-            if (sent.Delivered)
-            {
-                MessageBodyTextBox.Text = string.Empty;
-                MessageBodyTextBox.Focus();
-            }
+            MessageBodyTextBox.Text = string.Empty;
+            MessageBodyTextBox.Focus();
         }
         finally
         {
@@ -4649,6 +4645,49 @@ del ""%~f0""
         FooterStatusText.Text = message;
         NoticeText.Text = message;
         NoticeText.Visibility = Visibility.Visible;
+    }
+
+    private void ChatContactsFilterTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (ChatContactsFilterPlaceholder != null)
+        {
+            ChatContactsFilterPlaceholder.Visibility = string.IsNullOrWhiteSpace(ChatContactsFilterTextBox.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+        FilterChatContacts();
+    }
+
+    private void FilterChatContacts()
+    {
+        var filter = ChatContactsFilterTextBox?.Text?.Trim() ?? "";
+        var matching = string.IsNullOrWhiteSpace(filter)
+            ? _contacts.ToList()
+            : _contacts.Where(c =>
+                (!string.IsNullOrWhiteSpace(c.Name) && c.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.Number) && c.Number.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(c.Company) && c.Company.Contains(filter, StringComparison.OrdinalIgnoreCase))).ToList();
+
+        ReplaceCollection(_filteredChatContacts, matching);
+    }
+
+    private void UpdateChatServerStatus(bool connected)
+    {
+        if (ChatServerStatusDot == null || ChatServerStatusText == null || ChatServerStatusBadge == null) return;
+        if (connected)
+        {
+            ChatServerStatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#10B981")!;
+            ChatServerStatusText.Text = "Chat Online";
+            ChatServerStatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#059669")!;
+            ChatServerStatusBadge.Background = (WpfBrush)new BrushConverter().ConvertFromString("#ECFDF5")!;
+        }
+        else
+        {
+            ChatServerStatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
+            ChatServerStatusText.Text = "Chat Offline";
+            ChatServerStatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#64748B")!;
+            ChatServerStatusBadge.Background = (WpfBrush)new BrushConverter().ConvertFromString("#F1F5F9")!;
+        }
     }
 
     private void ChatContactsListView_MouseDoubleClick(object sender, MouseButtonEventArgs e)

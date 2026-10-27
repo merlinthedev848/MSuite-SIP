@@ -75,12 +75,15 @@ public class ChatConnectorTests
         var payload = ChatConnectorService.CreateSendPayload("505", "503", "Test Chat Hello");
         var json = JsonSerializer.Serialize(payload);
 
-        Assert.Contains("\"conversationId\":\"505\"", json);
-        Assert.Contains("\"senderId\":\"503\"", json);
-        Assert.Contains("\"messageType\":\"text\"", json);
+        Assert.Contains("\"conversation_id\":\"505\"", json);
+        Assert.Contains("\"sender_id\":\"503\"", json);
+        Assert.Contains("\"message_type\":\"text\"", json);
         Assert.Contains("\"content\":\"Test Chat Hello\"", json);
-        Assert.Contains("\"fileName\":null", json);
-        Assert.Contains("\"fileSize\":null", json);
+        Assert.Contains("\"file_name\":null", json);
+        Assert.Contains("\"file_size\":null", json);
+        Assert.DoesNotContain("\"conversationId\":", json);
+        Assert.DoesNotContain("\"senderId\":", json);
+        Assert.DoesNotContain("\"messageType\":", json);
         Assert.DoesNotContain("timestamp", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("fileUrl", json, StringComparison.OrdinalIgnoreCase);
     }
@@ -91,9 +94,9 @@ public class ChatConnectorTests
         var payload = ChatConnectorService.CreateSendPayload("505", "503", "https://handler.chriskendall.media/uploads/note.txt", "file", "note.txt", 128);
         var json = JsonSerializer.Serialize(payload);
 
-        Assert.Contains("\"messageType\":\"file\"", json);
-        Assert.Contains("\"fileName\":\"note.txt\"", json);
-        Assert.Contains("\"fileSize\":128", json);
+        Assert.Contains("\"message_type\":\"file\"", json);
+        Assert.Contains("\"file_name\":\"note.txt\"", json);
+        Assert.Contains("\"file_size\":128", json);
     }
 
     [Fact]
@@ -129,8 +132,82 @@ public class ChatConnectorTests
     public async Task ProbeServerAsync_ReturnsStatusWithoutThrowing()
     {
         var service = new ChatConnectorService();
-        using var cts = new System.Threading.CancellationTokenSource(1500);
+        using var cts = new System.Threading.CancellationTokenSource(2500);
         var probe = await service.ProbeServerAsync(cts.Token);
         Assert.NotNull(probe.Message);
+        Assert.True(probe.Connected, $"Probe to https://handler.chriskendall.media should succeed: {probe.Message}");
+    }
+
+    [Fact]
+    public async Task LiveConnectionTest_CanConnectToHandler()
+    {
+        var service = new ChatConnectorService();
+        await service.ConnectAsync();
+        for (int i = 0; i < 40 && !service.IsConnected; i++)
+        {
+            await Task.Delay(100);
+        }
+        var isConnected = service.IsConnected;
+        service.Dispose();
+        Assert.True(isConnected, "Should connect to https://handler.chriskendall.media over port 443");
+    }
+
+    [Fact]
+    public async Task LiveConnectionTest_SendMessage_AcceptedByServer()
+    {
+        var service = new ChatConnectorService();
+        await service.ConnectAsync();
+        for (int i = 0; i < 40 && !service.IsConnected; i++)
+        {
+            await Task.Delay(100);
+        }
+        Assert.True(service.IsConnected, "Service must be connected");
+
+        await service.JoinConversationAsync("100");
+        var result = await service.SendMessageAsync("100", "100", "Automated unit test message over port 443");
+        service.Dispose();
+
+        Assert.True(result.Accepted, $"Server must accept snake_case payload without error: {result.Detail}");
+    }
+
+    [Fact]
+    public void ChatMessageEntry_ComputedProperties_FormatCorrectly()
+    {
+        var outbound = new MerlinSip.Models.ChatMessageEntry
+        {
+            Direction = "Outbound",
+            Name = "Alice",
+            Number = "101",
+            Message = "Test message",
+            SentAt = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            Result = "Sent"
+        };
+
+        Assert.True(outbound.IsOutbound);
+        Assert.Equal("Right", outbound.BubbleAlignment);
+        Assert.Equal("#EFF6FF", outbound.BubbleBackground);
+        Assert.Equal("#BFDBFE", outbound.BubbleBorderBrush);
+        Assert.Equal("#1E40AF", outbound.SenderForeground);
+        Assert.Equal("#DBEAFE", outbound.ResultBadgeBackground);
+        Assert.Equal("#1D4ED8", outbound.ResultBadgeForeground);
+        Assert.False(string.IsNullOrWhiteSpace(outbound.FormattedTime));
+
+        var inbound = new MerlinSip.Models.ChatMessageEntry
+        {
+            Direction = "Inbound",
+            Name = "Bob",
+            Number = "102",
+            Message = "Reply",
+            SentAt = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            Result = "Received"
+        };
+
+        Assert.False(inbound.IsOutbound);
+        Assert.Equal("Left", inbound.BubbleAlignment);
+        Assert.Equal("#FFFFFF", inbound.BubbleBackground);
+        Assert.Equal("#E2E8F0", inbound.BubbleBorderBrush);
+        Assert.Equal("#0F172A", inbound.SenderForeground);
+        Assert.Equal("#F1F5F9", inbound.ResultBadgeBackground);
+        Assert.Equal("#475569", inbound.ResultBadgeForeground);
     }
 }

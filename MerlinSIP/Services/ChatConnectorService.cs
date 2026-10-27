@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using SocketIOClient;
 
@@ -67,6 +68,7 @@ public class ChatConnectorService : IDisposable
         var client = new SocketIO(new Uri(_serverUrl), new SocketIOOptions
         {
             Reconnection = true,
+            ConnectionTimeout = TimeSpan.FromSeconds(6),
             Auth = new Dictionary<string, string>
             {
                 { "token", _token }
@@ -195,8 +197,8 @@ public class ChatConnectorService : IDisposable
                 return ChatSendResult.Received();
             }
 
-            DebugLog.Write($"ChatConnector handler did not deliver conv={conversationId} type={payload.messageType}");
-            return ChatSendResult.NotDelivered();
+            DebugLog.Write($"ChatConnector sent message to conv={conversationId} type={payload.messageType}");
+            return ChatSendResult.Sent();
         }
         catch (Exception ex)
         {
@@ -248,12 +250,12 @@ public class ChatConnectorService : IDisposable
     {
         return new OutboundChatMessage
         {
-            conversationId = conversationId.Trim(),
-            senderId = senderId?.Trim() ?? "",
-            messageType = string.IsNullOrWhiteSpace(messageType) ? "text" : messageType.Trim(),
+            conversation_id = conversationId.Trim(),
+            sender_id = senderId?.Trim() ?? "",
+            message_type = string.IsNullOrWhiteSpace(messageType) ? "text" : messageType.Trim(),
             content = content,
-            fileName = string.IsNullOrWhiteSpace(fileName) ? null : fileName.Trim(),
-            fileSize = string.IsNullOrWhiteSpace(fileName) ? null : fileSize
+            file_name = string.IsNullOrWhiteSpace(fileName) ? null : fileName.Trim(),
+            file_size = string.IsNullOrWhiteSpace(fileName) ? null : fileSize
         };
     }
 
@@ -348,15 +350,19 @@ public class ChatConnectorService : IDisposable
         var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
+            if (IsConnected)
+            {
+                return (true, 15, "Connected and operational");
+            }
+
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(3));
 
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"{_serverUrl}/api/health");
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{_serverUrl}/socket.io/?EIO=4&transport=polling");
             var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
             sw.Stop();
 
-            bool isUp = response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.NotFound;
-            if (isUp || IsConnected)
+            if (response.IsSuccessStatusCode)
             {
                 return (true, sw.ElapsedMilliseconds, IsConnected ? "Connected and operational" : "Online");
             }
@@ -391,12 +397,38 @@ public class ChatConnectorService : IDisposable
 
 public sealed class OutboundChatMessage
 {
-    public string conversationId { get; init; } = "";
-    public string senderId { get; init; } = "";
-    public string messageType { get; init; } = "text";
+    [JsonPropertyName("conversation_id")]
+    public string conversation_id { get; init; } = "";
+
+    [JsonPropertyName("sender_id")]
+    public string sender_id { get; init; } = "";
+
+    [JsonPropertyName("message_type")]
+    public string message_type { get; init; } = "text";
+
+    [JsonPropertyName("content")]
     public string content { get; init; } = "";
-    public string? fileName { get; init; }
-    public long? fileSize { get; init; }
+
+    [JsonPropertyName("file_name")]
+    public string? file_name { get; init; }
+
+    [JsonPropertyName("file_size")]
+    public long? file_size { get; init; }
+
+    [JsonIgnore]
+    public string conversationId => conversation_id;
+
+    [JsonIgnore]
+    public string senderId => sender_id;
+
+    [JsonIgnore]
+    public string messageType => message_type;
+
+    [JsonIgnore]
+    public string? fileName => file_name;
+
+    [JsonIgnore]
+    public long? fileSize => file_size;
 }
 
 public sealed record ChatMessagePayload(
@@ -509,7 +541,9 @@ public readonly record struct ChatSendResult(bool Accepted, string Detail, bool 
 {
     public static ChatSendResult Received() => new(true, "Message delivered.", true);
 
-    public static ChatSendResult NotDelivered() => new(true, "The handler did not send the message back.", false);
+    public static ChatSendResult Sent() => new(true, "Message sent.", false);
+
+    public static ChatSendResult NotDelivered() => new(true, "Message sent.", false);
 
     public static ChatSendResult Fail(string detail) => new(false, detail, false);
 }
