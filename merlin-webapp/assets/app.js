@@ -1210,7 +1210,7 @@
         setNotice('neutral', 'Validating provisioning PIN code...');
         const res = await postJson(api.provision, { code });
         if (res.config) {
-          state.settings = { ...state.settings, ...res.config };
+          state.settings = { ...state.settings, ...res.config, isProvisioned: true };
           if (res.config.password) {
             localStorage.setItem('merlin_sip_password', res.config.password);
             state.settings.password = res.config.password;
@@ -1789,8 +1789,14 @@
     if ($('cfgSipServer')) $('cfgSipServer').value = s.sipServer || '';
     if ($('cfgSipDomain')) $('cfgSipDomain').value = s.sipDomain || '';
     if ($('cfgExtension')) $('cfgExtension').value = s.extension || '';
-    if ($('cfgAuthUser')) $('cfgAuthUser').value = s.authUsername || '';
-    if ($('cfgPassword')) $('cfgPassword').value = s.password || '';
+    if ($('cfgAuthUser')) {
+      $('cfgAuthUser').value = s.isProvisioned ? '••••••••' : (s.authUsername || '');
+      $('cfgAuthUser').disabled = Boolean(s.isProvisioned);
+    }
+    if ($('cfgPassword')) {
+      $('cfgPassword').value = s.isProvisioned ? '••••••••••••' : (s.password || '');
+      $('cfgPassword').disabled = Boolean(s.isProvisioned);
+    }
     if ($('cfgDisplayName')) $('cfgDisplayName').value = s.displayName || 'Merlin SIP Web';
     if ($('cfgDndMode')) $('cfgDndMode').value = s.dndMode || 'off';
     if ($('cfgDeclineAction')) $('cfgDeclineAction').value = s.declineAction || 'busy';
@@ -1807,8 +1813,8 @@
     const server = $('cfgSipServer')?.value.trim();
     const domain = $('cfgSipDomain')?.value.trim();
     const ext = $('cfgExtension')?.value.trim();
-    const user = $('cfgAuthUser')?.value.trim();
-    const pwd = $('cfgPassword')?.value.trim();
+    const user = state.settings.isProvisioned ? state.settings.authUsername : $('cfgAuthUser')?.value.trim();
+    const pwd = state.settings.isProvisioned ? state.settings.password : $('cfgPassword')?.value.trim();
     const name = $('cfgDisplayName')?.value.trim();
     const dnd = $('cfgDndMode')?.value || 'off';
     const decline = $('cfgDeclineAction')?.value || 'busy';

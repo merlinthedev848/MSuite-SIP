@@ -73,8 +73,20 @@ public partial class MainWindow : Window
         DomainBox.Text = config.Domain;
         AccountPortBox.Text = config.Port.ToString();
         ExtensionBox.Text = config.Extension;
-        UsernameBox.Text = config.Username;
-        PasswordBox.Text = config.Password;
+        if (config.IsProvisioned)
+        {
+            UsernameBox.Text = "••••••••";
+            UsernameBox.IsEnabled = false;
+            PasswordBox.Text = "••••••••••••";
+            PasswordBox.IsEnabled = false;
+        }
+        else
+        {
+            UsernameBox.Text = config.Username;
+            UsernameBox.IsEnabled = true;
+            PasswordBox.Text = config.Password;
+            PasswordBox.IsEnabled = true;
+        }
         SelectCombo(TransportBox, config.Transport);
         ExpiryBox.Text = config.RegistrationExpiry.ToString();
         LocalPortBox.Text = config.LocalSipPort.ToString();
@@ -723,8 +735,8 @@ public partial class MainWindow : Window
         config.Domain = DomainBox.Text?.Trim() ?? "";
         config.Port = int.TryParse(AccountPortBox.Text, out var port) ? port : 5060;
         config.Extension = ExtensionBox.Text?.Trim() ?? "";
-        config.Username = UsernameBox.Text?.Trim() ?? "";
-        config.Password = PasswordBox.Text ?? "";
+        config.Username = config.IsProvisioned ? config.Username : (UsernameBox.Text?.Trim() ?? "");
+        config.Password = config.IsProvisioned ? config.Password : (PasswordBox.Text ?? "");
         config.Transport = ComboText(TransportBox);
         config.RegistrationExpiry = int.TryParse(ExpiryBox.Text, out var expiry) ? expiry : 3600;
         config.LocalSipPort = int.TryParse(LocalPortBox.Text, out var local) ? local : 0;

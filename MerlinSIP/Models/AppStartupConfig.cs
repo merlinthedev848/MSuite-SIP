@@ -51,7 +51,8 @@ public sealed record AppStartupConfig(
     bool IgnoreSslErrors = false,
     MediaDeviceInfo? SecondaryRingerOutput = null,
     bool AutoAnswerEnabled = false,
-    MediaDeviceInfo? VideoSource = null)
+    MediaDeviceInfo? VideoSource = null,
+    bool IsProvisioned = false)
 {
     public const string FixedSipServer = "pbx.chriskendall.media";
     public const int FixedSipPort = 5060;

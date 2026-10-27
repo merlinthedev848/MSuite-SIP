@@ -127,7 +127,7 @@ public sealed class ProvisioningService
                             licenseStatus,
                             audioInput,
                             audioOutput,
-                            LicenseLocalKey: licenseLocalKey).WithFixedSipEndpoint();
+                            LicenseLocalKey: licenseLocalKey, IsProvisioned: true).WithFixedSipEndpoint();
 
                         return ProvisioningResult.Ok(config);
                     }

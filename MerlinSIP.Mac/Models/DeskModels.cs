@@ -48,6 +48,7 @@ public sealed class DeskConfig
     public string PreferredCodecs { get; set; } = "PCMU,PCMA";
     public string StunServer { get; set; } = "stun.l.google.com:19302";
     public bool SetupComplete { get; set; }
+    public bool IsProvisioned { get; set; }
 
     public bool AllowsCustomServer =>
         LicenseKey.StartsWith("PR", StringComparison.OrdinalIgnoreCase) ||

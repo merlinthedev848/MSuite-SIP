@@ -2483,6 +2483,12 @@
                                         <Border Grid.Column="0" Style="{StaticResource SettingsCard}" Margin="0">
                                             <StackPanel>
                                                 <TextBlock Text="Sign-in" Foreground="#0F172A" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                                <Border x:Name="ProvisionedCredentialsBadge" Visibility="Collapsed" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,0,0,8">
+                                                    <StackPanel>
+                                                        <TextBlock Text="🔒 Managed by Setup PIN" FontWeight="SemiBold" Foreground="#1D4ED8" FontSize="11" />
+                                                        <TextBlock Text="Credentials are configured securely and hidden." Foreground="#3B82F6" FontSize="10" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                </Border>
                                                 <StackPanel x:Name="PrivatePbxSettingsPanel" Visibility="Collapsed">
                                                     <TextBlock Text="PBX server" />
                                                     <TextBox x:Name="PrivatePbxSettingsTextBox" AutomationProperties.Name="Private PBX Server" />
@@ -2501,6 +2507,7 @@
                                                     <TextBox Grid.Column="0" x:Name="PasswordTextBox" Visibility="Collapsed" TextChanged="PasswordTextBox_TextChanged" Margin="0,0,4,0" AutomationProperties.Name="SIP Password Plaintext" />
                                                     <Button Grid.Column="1" x:Name="TogglePasswordButton" Content="👁" Style="{StaticResource SoftButton}" Height="30" Width="32" Padding="0" Click="TogglePasswordVisibility_Click" ToolTip="Reveal / Hide Password" AutomationProperties.Name="Toggle Password Visibility" />
                                                 </Grid>
+                                                <Button x:Name="SwitchToManualConfigButton" Visibility="Collapsed" Content="Switch to manual credentials" Style="{StaticResource SoftButton}" Margin="0,8,0,0" Height="26" FontSize="11" Click="SwitchToManualConfigButton_Click" ToolTip="Clear provisioned credentials and enter SIP settings manually" />
                                             </StackPanel>
                                         </Border>
                                         <Border Grid.Column="2" Style="{StaticResource SettingsCard}" Margin="0">

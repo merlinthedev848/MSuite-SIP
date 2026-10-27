@@ -78,6 +78,7 @@ public partial class StartupWindow : Window
             config.Domain = AppVersion.FixedServer;
             config.Port = AppVersion.FixedPort;
             config.Transport = "UDP";
+            config.IsProvisioned = true;
         }
 
         config.ApplyFixedEndpoint();

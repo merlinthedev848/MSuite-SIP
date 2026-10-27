@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -1239,9 +1239,33 @@ public partial class MainWindow : Window
     {
         _config = _config.WithFixedSipEndpoint();
         ExtensionTextBox.Text = _config.Extension;
-        UsernameTextBox.Text = _config.Username;
-        PasswordBox.Password = _config.Password;
-        PasswordTextBox.Text = _config.Password;
+        if (_config.IsProvisioned)
+        {
+            UsernameTextBox.Text = "••••••••";
+            UsernameTextBox.IsReadOnly = true;
+            UsernameTextBox.IsEnabled = false;
+            PasswordBox.Password = "••••••••••••";
+            PasswordBox.IsEnabled = false;
+            PasswordTextBox.Text = "••••••••••••";
+            PasswordTextBox.Visibility = Visibility.Collapsed;
+            PasswordBox.Visibility = Visibility.Visible;
+            TogglePasswordButton.Visibility = Visibility.Collapsed;
+            ProvisionedCredentialsBadge.Visibility = Visibility.Visible;
+            SwitchToManualConfigButton.Visibility = Visibility.Visible;
+            _passwordRevealed = false;
+        }
+        else
+        {
+            UsernameTextBox.Text = _config.Username;
+            UsernameTextBox.IsReadOnly = false;
+            UsernameTextBox.IsEnabled = true;
+            PasswordBox.Password = _config.Password;
+            PasswordBox.IsEnabled = true;
+            PasswordTextBox.Text = _config.Password;
+            TogglePasswordButton.Visibility = Visibility.Visible;
+            ProvisionedCredentialsBadge.Visibility = Visibility.Collapsed;
+            SwitchToManualConfigButton.Visibility = Visibility.Collapsed;
+        }
         var isBuyout = _config.AllowsCustomSipEndpoint;
         PrivatePbxSettingsPanel.Visibility = isBuyout ? Visibility.Visible : Visibility.Collapsed;
         PrivatePbxSettingsTextBox.IsEnabled = isBuyout;
@@ -3105,8 +3129,8 @@ public partial class MainWindow : Window
             Port = AppStartupConfig.FixedSipPort,
             Domain = IPAddress.TryParse(server, out _) ? AppStartupConfig.FixedSipServer : server,
             Extension = ExtensionTextBox.Text.Trim(),
-            Username = UsernameTextBox.Text.Trim(),
-            Password = _passwordRevealed ? PasswordTextBox.Text : PasswordBox.Password,
+                Username = _config.IsProvisioned ? _config.Username : UsernameTextBox.Text.Trim(),
+                Password = _config.IsProvisioned ? _config.Password : (_passwordRevealed ? PasswordTextBox.Text : PasswordBox.Password),
             AudioInput = mediaConfig.AudioInput,
             AudioOutput = mediaConfig.AudioOutput,
             Ringtone = mediaConfig.Ringtone,
@@ -3154,6 +3178,7 @@ public partial class MainWindow : Window
 
     private void TogglePasswordVisibility_Click(object sender, RoutedEventArgs e)
     {
+        if (_config.IsProvisioned) return;
         _passwordRevealed = !_passwordRevealed;
         if (_passwordRevealed)
         {
@@ -3172,6 +3197,19 @@ public partial class MainWindow : Window
             TogglePasswordButton.Content = "👁";
             PasswordBox.Focus();
         }
+    }
+
+    private async void SwitchToManualConfigButton_Click(object sender, RoutedEventArgs e)
+    {
+        _config = _config with
+        {
+            IsProvisioned = false,
+            Username = string.Empty,
+            Password = string.Empty
+        };
+        ApplyStartupConfig();
+        await _cacheService.SaveSettingsAsync(_config.WithFixedSipEndpoint());
+        FooterStatusText.Text = "Switched to manual credentials.";
     }
 
     private void PasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
@@ -3779,8 +3817,8 @@ public partial class MainWindow : Window
                 Port = AppStartupConfig.FixedSipPort,
                 Domain = IPAddress.TryParse(server, out _) ? AppStartupConfig.FixedSipServer : server,
                 Extension = ExtensionTextBox.Text.Trim(),
-                Username = UsernameTextBox.Text.Trim(),
-                Password = _passwordRevealed ? PasswordTextBox.Text : PasswordBox.Password,
+                Username = _config.IsProvisioned ? _config.Username : UsernameTextBox.Text.Trim(),
+                Password = _config.IsProvisioned ? _config.Password : (_passwordRevealed ? PasswordTextBox.Text : PasswordBox.Password),
                 AudioInput = audioInput,
                 AudioOutput = audioOutput,
                 SecondaryRingerOutput = SecondaryRingerComboBox.SelectedItem as MediaDeviceInfo ?? _config.SecondaryRingerOutput,

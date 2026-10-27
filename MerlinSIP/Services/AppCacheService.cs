@@ -126,7 +126,7 @@ public sealed class AppCacheService
             settings.IgnoreSslErrors ?? false,
             settings.SecondaryRingerOutput,
             settings.AutoAnswerEnabled ?? false,
-            settings.VideoSource).WithFixedSipEndpoint();
+            settings.VideoSource, settings.IsProvisioned ?? false).WithFixedSipEndpoint();
     }
 
     public async Task SaveSettingsAsync(AppStartupConfig config)
@@ -191,7 +191,8 @@ public sealed class AppCacheService
             config.IgnoreSslErrors,
             config.SecondaryRingerOutput,
             config.VoicemailNumber,
-            config.AutoAnswerEnabled);
+            config.AutoAnswerEnabled,
+            config.IsProvisioned);
 
         try
         {
@@ -400,5 +401,6 @@ public sealed class AppCacheService
         bool? IgnoreSslErrors = null,
         MediaDeviceInfo? SecondaryRingerOutput = null,
         string? VoicemailNumber = null,
-        bool? AutoAnswerEnabled = null);
+        bool? AutoAnswerEnabled = null,
+        bool? IsProvisioned = null);
 }
