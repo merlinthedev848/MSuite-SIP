@@ -64,7 +64,7 @@
             <Setter Property="UseLayoutRounding" Value="True" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Auto" />
             <Setter Property="Height" Value="58" />
             <Setter Property="Margin" Value="5" />
             <Setter Property="FontSize" Value="21" />
@@ -112,7 +112,7 @@
             <Setter Property="UseLayoutRounding" Value="True" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Auto" />
             <Setter Property="Height" Value="NaN" />
             <Setter Property="MinHeight" Value="36" />
             <Setter Property="MaxHeight" Value="58" />
@@ -162,7 +162,7 @@
             <Setter Property="UseLayoutRounding" Value="True" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Auto" />
             <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="18,0" />
             <Setter Property="FontSize" Value="12.5" />
@@ -193,7 +193,7 @@
             <Setter Property="UseLayoutRounding" Value="True" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Auto" />
             <Setter Property="Height" Value="32" />
             <Setter Property="MinHeight" Value="30" />
             <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
@@ -314,9 +314,9 @@
             <Setter Property="UseLayoutRounding" Value="True" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
-            <Setter Property="Height" Value="44" />
-            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Auto" />
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Padding" Value="10,0" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="#0F172A" />
@@ -324,12 +324,6 @@
             <Setter Property="BorderBrush" Value="#E2E8F0" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
-            <Setter Property="RenderTransform">
-                <Setter.Value>
-                    <TranslateTransform Y="0" />
-                </Setter.Value>
-            </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -337,7 +331,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="10">
+                                CornerRadius="8">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                               TextElement.Foreground="{TemplateBinding Foreground}"
                                               TextElement.FontWeight="{TemplateBinding FontWeight}"
@@ -345,15 +339,12 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#F8FAFC" />
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="#CBD5E1" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="RenderTransform">
-                                    <Setter.Value>
-                                        <TranslateTransform Y="1" />
-                                    </Setter.Value>
-                                </Setter>
-                                <Setter TargetName="Chrome" Property="Opacity" Value="0.92" />
+                                <Setter TargetName="Chrome" Property="Background" Value="#F1F5F9" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#94A3B8" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45" />
@@ -369,10 +360,11 @@
             <Setter Property="UseLayoutRounding" Value="True" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Auto" />
             <Setter Property="Background" Value="#FBBF24" />
-            <Setter Property="BorderBrush" Value="#F5C518" />
-            <Setter Property="Foreground" Value="#111827" />
+            <Setter Property="BorderBrush" Value="#F59E0B" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -380,7 +372,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="10">
+                                CornerRadius="8">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                               TextElement.Foreground="{TemplateBinding Foreground}"
                                               TextElement.FontWeight="{TemplateBinding FontWeight}"
@@ -389,14 +381,11 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="#F59E0B" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#D97706" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="RenderTransform">
-                                    <Setter.Value>
-                                        <TranslateTransform Y="1" />
-                                    </Setter.Value>
-                                </Setter>
                                 <Setter TargetName="Chrome" Property="Background" Value="#D97706" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#B45309" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45" />
@@ -418,7 +407,7 @@
             <Setter Property="UseLayoutRounding" Value="True" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Auto" />
             <Setter Property="Width" Value="66" />
             <Setter Property="Height" Value="52" />
             <Setter Property="Margin" Value="0,0,0,6" />
@@ -452,7 +441,7 @@
             <Setter Property="UseLayoutRounding" Value="True" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Auto" />
             <Setter Property="Height" Value="38" />
             <Setter Property="FontSize" Value="12.5" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -1414,8 +1403,8 @@
                                 <Grid Grid.Row="6" Margin="3,0,3,8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="108" />
-                                        <ColumnDefinition Width="148" />
+                                        <ColumnDefinition Width="106" />
+                                        <ColumnDefinition Width="120" />
                                     </Grid.ColumnDefinitions>
                                     <Button x:Name="DialButton" Content="Dial" Style="{StaticResource PrimaryCallButton}" Click="DialButton_Click" Margin="0,0,6,0" HorizontalAlignment="Stretch" AutomationProperties.Name="Dial" />
                                     <Button Grid.Column="1" x:Name="VideoDialButton" Style="{StaticResource QuietCallButton}" Click="VideoDialButton_Click" Margin="0,0,6,0" ToolTip="Start a video call" AutomationProperties.Name="Video Dial">
@@ -1424,14 +1413,12 @@
                                             <TextBlock Text="Video" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
-                                    <Button Grid.Column="2" x:Name="VoicemailButton" Style="{StaticResource QuietCallButton}" Click="VoicemailButton_Click" ToolTip="Check voicemail (*2)" AutomationProperties.Name="Voicemail">
+                                    <Button Grid.Column="2" x:Name="VoicemailButton" Style="{StaticResource QuietCallButton}" Click="VoicemailButton_Click" ToolTip="Voicemail" AutomationProperties.Name="Voicemail">
                                         <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <Grid Margin="0,0,6,0" VerticalAlignment="Center">
                                                     <TextBlock Text="&#xE715;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                                    <Border x:Name="VoicemailBadge" Visibility="Collapsed" Background="#EF4444" Width="10" Height="10" CornerRadius="5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8,-5,-6,0" ToolTip="New voicemail waiting">
-                                                        <TextBlock x:Name="VoicemailBadgeText" Text="!" Foreground="White" FontSize="7" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0" />
-                                                    </Border>
+                                                    <Border x:Name="VoicemailBadge" Visibility="Collapsed" Background="#EF4444" BorderBrush="#FFFFFF" BorderThickness="1.5" Width="9" Height="9" CornerRadius="4.5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6,-3,-4,0" SnapsToDevicePixels="True" ToolTip="New voicemail waiting" />
                                                 </Grid>
                                                 <TextBlock x:Name="VoicemailButtonText" Text="Voicemail" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                             </StackPanel>

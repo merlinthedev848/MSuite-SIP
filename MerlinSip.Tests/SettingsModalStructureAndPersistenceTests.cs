@@ -205,4 +205,19 @@ public class SettingsModalStructureAndPersistenceTests
         Assert.Contains("MouseDoubleClick=\"CallHistoryListView_MouseDoubleClick\"", content);
         Assert.Contains("Click=\"CallbackHistoryButton_Click\"", content);
     }
+
+    [Fact]
+    public void VoicemailButton_HasNoHardcodedFeatureCodeInTooltip_AndHintingModeIsAuto()
+    {
+        var xamlPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "MerlinSIP", "MainWindow.xaml"));
+        var content = File.ReadAllText(xamlPath);
+
+        // VoicemailButton tooltip must NOT hardcode (*2) or Click to dial
+        Assert.DoesNotContain("ToolTip=\"Check voicemail (*2)\"", content);
+        Assert.DoesNotContain("ToolTip=\"Call Voicemail (*2)\"", content);
+
+        // Fixed hinting mode must not be present (causes pixelation)
+        Assert.DoesNotContain("TextOptions.TextHintingMode\" Value=\"Fixed\"", content);
+        Assert.Contains("TextOptions.TextHintingMode\" Value=\"Auto\"", content);
+    }
 }

@@ -2824,23 +2824,19 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             _hasVoicemailWaiting = e.HasMessages && (e.NewMessages > 0 || e.OldMessages > 0);
+            VoicemailButtonText.Text = "Voicemail";
             if (_hasVoicemailWaiting)
             {
                 var count = e.NewMessages > 0 ? e.NewMessages : e.OldMessages;
-                VoicemailButtonText.Text = $"Voicemail ({count})";
                 VoicemailBadge.Visibility = Visibility.Visible;
-                VoicemailButton.ToolTip = $"{count} voicemail message(s) waiting. Click to dial {_config.VoicemailNumber}.";
+                VoicemailButton.ToolTip = count > 1 ? $"{count} voicemail messages waiting" : "New voicemail waiting";
                 StartVoicemailFlashing();
             }
             else
             {
                 StopVoicemailFlashing();
-                VoicemailButtonText.Text = "Voicemail";
                 VoicemailBadge.Visibility = Visibility.Collapsed;
-                VoicemailButton.ClearValue(WpfButton.BackgroundProperty);
-                VoicemailButton.ClearValue(WpfButton.ForegroundProperty);
-                VoicemailButton.ClearValue(WpfButton.BorderBrushProperty);
-                VoicemailButton.ToolTip = $"Call Voicemail ({_config.VoicemailNumber})";
+                VoicemailButton.ToolTip = "Voicemail";
             }
         });
     }
@@ -2858,28 +2854,12 @@ public partial class MainWindow : Window
                     return;
                 }
                 _voicemailFlashToggle = !_voicemailFlashToggle;
-                if (_voicemailFlashToggle)
-                {
-                    VoicemailButton.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(254, 226, 226));
-                    VoicemailButton.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(185, 28, 28));
-                    VoicemailButton.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
-                    VoicemailBadge.Opacity = 1.0;
-                }
-                else
-                {
-                    VoicemailButton.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(254, 243, 199));
-                    VoicemailButton.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(180, 83, 9));
-                    VoicemailButton.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(245, 158, 11));
-                    VoicemailBadge.Opacity = 0.4;
-                }
+                VoicemailBadge.Opacity = _voicemailFlashToggle ? 1.0 : 0.25;
             };
         }
         if (!_voicemailFlashTimer.IsEnabled)
         {
             _voicemailFlashToggle = true;
-            VoicemailButton.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(254, 226, 226));
-            VoicemailButton.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(185, 28, 28));
-            VoicemailButton.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
             VoicemailBadge.Opacity = 1.0;
             _voicemailFlashTimer.Start();
         }
@@ -2890,6 +2870,7 @@ public partial class MainWindow : Window
         _voicemailFlashTimer?.Stop();
         _voicemailFlashToggle = false;
         VoicemailBadge.Opacity = 1.0;
+        VoicemailBadge.Visibility = Visibility.Collapsed;
         VoicemailButton.ClearValue(WpfButton.BackgroundProperty);
         VoicemailButton.ClearValue(WpfButton.ForegroundProperty);
         VoicemailButton.ClearValue(WpfButton.BorderBrushProperty);
