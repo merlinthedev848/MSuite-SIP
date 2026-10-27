@@ -1,7 +1,7 @@
 {
     "Version":  "1.3.9.1",
     "DownloadUrl":  "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.9.1-x64-faststart.msi",
-    "Sha256":  "B17D764E26093D4B17C45ADE1E68E5916269378B2B9F19DE87A719BDADC79BA2",
+    "Sha256":  "D00621A36054043D2B47386ADB72604BE91AD4CE813024391F5B0AECE7816937",
     "FileSizeBytes":  76911222,
     "ReleaseDate":  "2026-10-27",
     "Notes":  "Release 1.3.9.1: The speaker, ring, and ringtone test buttons sit beside their lists. The network check reports SIP and STUN replies without inventing a call-quality score, and one late probe no longer fails the run. Busy lamps, feature codes, and measured call quality stay as they were in 1.3.9. Installing an update keeps the saved licence, extension, server, and contacts."

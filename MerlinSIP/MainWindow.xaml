@@ -1411,10 +1411,17 @@
                                         </StackPanel>
                                     </Button>
                                     <Button Grid.Column="2" x:Name="VoicemailButton" Style="{StaticResource QuietCallButton}" Click="VoicemailButton_Click" ToolTip="Check voicemail (*2)" AutomationProperties.Name="Voicemail">
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="&#xE715;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#475569" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                            <TextBlock x:Name="VoicemailButtonText" Text="Voicemail" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                        </StackPanel>
+                                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Grid Margin="0,0,6,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="&#xE715;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                    <Border x:Name="VoicemailBadge" Visibility="Collapsed" Background="#EF4444" Width="10" Height="10" CornerRadius="5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8,-5,-6,0" ToolTip="New voicemail waiting">
+                                                        <TextBlock x:Name="VoicemailBadgeText" Text="!" Foreground="White" FontSize="7" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0" />
+                                                    </Border>
+                                                </Grid>
+                                                <TextBlock x:Name="VoicemailButtonText" Text="Voicemail" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Grid>
                                     </Button>
                                     <Button x:Name="HangupButton" Visibility="Collapsed" Width="0" Height="0" />
                                 </Grid>
