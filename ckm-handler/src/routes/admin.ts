@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
-import systemDb from '../database/systemDb';
+import systemDb, { hashPassword, verifyPassword } from '../database/systemDb';
 import vaultDb from '../database/vaultDb';
 import { ADMIN_USER, ADMIN_PASS, UPLOADS_DIR, PORT, SERVER_DOMAIN } from '../config';
 import { generateRouterConfig, RouterConfigParams } from '../templates/routerTemplates';
@@ -31,37 +31,314 @@ const logoUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB max logo size
 });
 
-// Simple Admin Authentication Middleware (Supports Header, Bearer, and Query Token for Downloads)
+export interface AuthenticatedAdmin {
+  id: number;
+  username: string;
+  displayName: string;
+  role: string;
+  permissions: string[];
+}
+
+// Session-Backed & Basic Auth Admin Middleware
 export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
   const queryToken = req.query.token as string | undefined;
-  const authHeader = req.headers.authorization || (queryToken ? `Basic ${queryToken}` : undefined);
+  const authHeader = req.headers.authorization || (queryToken ? `Bearer ${queryToken}` : undefined);
   if (!authHeader) {
     res.setHeader('WWW-Authenticate', 'Basic realm="CKM Handler Admin"');
     return res.status(401).json({ ok: false, error: 'Authentication required' });
   }
 
-  const match = authHeader.match(/^Basic\s+(.*)$/i);
-  if (!match) {
-    return res.status(401).json({ ok: false, error: 'Invalid authentication format' });
+  // 1. Check Bearer / Session Token
+  const bearerMatch = authHeader.match(/^Bearer\s+(.*)$/i);
+  if (bearerMatch) {
+    const token = bearerMatch[1].trim();
+    const session = systemDb.prepare(`
+      SELECT s.token, s.expires_at, u.id, u.username, u.display_name, u.role, u.permissions, u.is_active
+      FROM admin_sessions s
+      JOIN admin_users u ON s.user_id = u.id
+      WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP AND u.is_active = 1
+    `).get(token) as any;
+
+    if (session) {
+      let perms: string[] = [];
+      try { perms = JSON.parse(session.permissions || '[]'); } catch {}
+      (req as any).adminUser = {
+        id: session.id,
+        username: session.username,
+        displayName: session.display_name,
+        role: session.role,
+        permissions: perms
+      } as AuthenticatedAdmin;
+      return next();
+    }
   }
 
-  const credentials = Buffer.from(match[1], 'base64').toString('utf-8');
-  const [user, pass] = credentials.split(':');
+  // 2. Check HTTP Basic Authentication
+  const basicMatch = authHeader.match(/^Basic\s+(.*)$/i);
+  if (basicMatch) {
+    try {
+      const credentials = Buffer.from(basicMatch[1], 'base64').toString('utf-8');
+      const [user, pass] = credentials.split(':');
+      if (user && pass) {
+        // Query database for admin user
+        const uRow = systemDb.prepare('SELECT * FROM admin_users WHERE username = ? AND is_active = 1').get(user) as any;
+        if (uRow && verifyPassword(pass, uRow.password_hash, uRow.salt)) {
+          let perms: string[] = [];
+          try { perms = JSON.parse(uRow.permissions || '[]'); } catch {}
+          (req as any).adminUser = {
+            id: uRow.id,
+            username: uRow.username,
+            displayName: uRow.display_name,
+            role: uRow.role,
+            permissions: perms
+          } as AuthenticatedAdmin;
+          return next();
+        }
 
-  const userBuf = Buffer.from(user || '');
-  const adminUserBuf = Buffer.from(ADMIN_USER);
-  const passBuf = Buffer.from(pass || '');
-  const adminPassBuf = Buffer.from(ADMIN_PASS);
-
-  const userMatch = userBuf.length === adminUserBuf.length && crypto.timingSafeEqual(userBuf, adminUserBuf);
-  const passMatch = passBuf.length === adminPassBuf.length && crypto.timingSafeEqual(passBuf, adminPassBuf);
-
-  if (userMatch && passMatch) {
-    return next();
+        // Environment fallback for root bootstrap credentials
+        const userBuf = Buffer.from(user);
+        const adminUserBuf = Buffer.from(ADMIN_USER);
+        const passBuf = Buffer.from(pass);
+        const adminPassBuf = Buffer.from(ADMIN_PASS);
+        if (userBuf.length === adminUserBuf.length && passBuf.length === adminPassBuf.length &&
+            crypto.timingSafeEqual(userBuf, adminUserBuf) && crypto.timingSafeEqual(passBuf, adminPassBuf)) {
+          (req as any).adminUser = {
+            id: 0,
+            username: ADMIN_USER,
+            displayName: 'Root Administrator',
+            role: 'superadmin',
+            permissions: ['*']
+          } as AuthenticatedAdmin;
+          return next();
+        }
+      }
+    } catch {}
   }
 
-  return res.status(403).json({ ok: false, error: 'Invalid admin credentials' });
+  return res.status(401).json({ ok: false, error: 'Invalid or expired credentials' });
 };
+
+// RBAC Granular Permission Guard Middleware
+export const requirePermission = (permission: string) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as any).adminUser as AuthenticatedAdmin | undefined;
+    if (!user) {
+      return res.status(401).json({ ok: false, error: 'Authentication required' });
+    }
+    if (user.role === 'superadmin' || (user.permissions && (user.permissions.includes('*') || user.permissions.includes(permission)))) {
+      return next();
+    }
+    return res.status(403).json({ ok: false, error: `Forbidden: Missing required permission [${permission}].` });
+  };
+};
+
+// Brute-force rate limiter for admin login
+const loginFailedAttempts = new Map<string, { count: number; resetAt: number }>();
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, attempt] of loginFailedAttempts.entries()) {
+    if (now >= attempt.resetAt) loginFailedAttempts.delete(ip);
+  }
+}, 5 * 60 * 1000).unref();
+
+// ----------------------------------------------------------------------------
+// Authentication Endpoints (Login, Logout, Current User)
+// ----------------------------------------------------------------------------
+router.post('/api/admin/login', (req: Request, res: Response) => {
+  const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+  const now = Date.now();
+  const attempt = loginFailedAttempts.get(clientIp);
+
+  if (attempt && now < attempt.resetAt && attempt.count >= 5) {
+    const waitSec = Math.ceil((attempt.resetAt - now) / 1000);
+    return res.status(429).json({
+      ok: false,
+      error: `Too many failed login attempts. Please wait ${waitSec} seconds before retrying.`
+    });
+  }
+
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ ok: false, error: 'Username and password are required.' });
+  }
+
+  const cleanUser = String(username).trim();
+  let matchedUser: any = systemDb.prepare('SELECT * FROM admin_users WHERE username = ? AND is_active = 1').get(cleanUser);
+
+  let isValid = false;
+  if (matchedUser && verifyPassword(password, matchedUser.password_hash, matchedUser.salt)) {
+    isValid = true;
+  } else if (!matchedUser && cleanUser === ADMIN_USER && password === ADMIN_PASS) {
+    // Seed and match root user if logging in with env credentials
+    const { hash, salt } = hashPassword(ADMIN_PASS);
+    systemDb.prepare(`
+      INSERT OR IGNORE INTO admin_users (username, password_hash, salt, display_name, role, permissions, is_active)
+      VALUES (?, ?, ?, 'System Administrator', 'superadmin', '["*"]', 1)
+    `).run(ADMIN_USER, hash, salt);
+    matchedUser = systemDb.prepare('SELECT * FROM admin_users WHERE username = ?').get(cleanUser);
+    isValid = true;
+  }
+
+  if (!isValid) {
+    const cur = loginFailedAttempts.get(clientIp) || { count: 0, resetAt: now + 5 * 60 * 1000 };
+    cur.count++;
+    loginFailedAttempts.set(clientIp, cur);
+    return res.status(401).json({ ok: false, error: 'Invalid username or password.' });
+  }
+
+  // Clear rate limiter on success
+  loginFailedAttempts.delete(clientIp);
+
+  // Generate secure 32-byte session token with 30-day expiry
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+
+  systemDb.prepare(`
+    INSERT INTO admin_sessions (token, user_id, expires_at)
+    VALUES (?, ?, ?)
+  `).run(token, matchedUser.id, expiresAt);
+
+  systemDb.prepare('UPDATE admin_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?').run(matchedUser.id);
+
+  let perms: string[] = [];
+  try { perms = JSON.parse(matchedUser.permissions || '[]'); } catch {}
+
+  return res.json({
+    ok: true,
+    token,
+    user: {
+      id: matchedUser.id,
+      username: matchedUser.username,
+      displayName: matchedUser.display_name,
+      role: matchedUser.role,
+      permissions: perms
+    }
+  });
+});
+
+router.get('/api/admin/me', adminAuth, (req: Request, res: Response) => {
+  const user = (req as any).adminUser;
+  return res.json({ ok: true, user });
+});
+
+router.post('/api/admin/logout', adminAuth, (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization || '';
+  const match = authHeader.match(/^Bearer\s+(.*)$/i);
+  if (match) {
+    const token = match[1].trim();
+    systemDb.prepare('DELETE FROM admin_sessions WHERE token = ?').run(token);
+  }
+  return res.json({ ok: true, message: 'Logged out successfully.' });
+});
+
+// ----------------------------------------------------------------------------
+// Admin Users & Permissions Management (RBAC)
+// ----------------------------------------------------------------------------
+router.get('/api/admin/users', adminAuth, requirePermission('manage_users'), (req: Request, res: Response) => {
+  const users = systemDb.prepare(`
+    SELECT id, username, display_name, role, permissions, is_active, last_login_at, created_at
+    FROM admin_users
+    ORDER BY id ASC
+  `).all().map((u: any) => {
+    let perms = [];
+    try { perms = JSON.parse(u.permissions || '[]'); } catch {}
+    return { ...u, permissions: perms };
+  });
+
+  return res.json({ ok: true, users });
+});
+
+router.post('/api/admin/users', adminAuth, requirePermission('manage_users'), (req: Request, res: Response) => {
+  const { username, password, displayName, role, permissions } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ ok: false, error: 'Username and password are required.' });
+  }
+
+  const cleanUser = String(username).trim().toLowerCase();
+  if (cleanUser.length < 3) {
+    return res.status(400).json({ ok: false, error: 'Username must be at least 3 characters.' });
+  }
+
+  const existing = systemDb.prepare('SELECT id FROM admin_users WHERE LOWER(username) = ?').get(cleanUser);
+  if (existing) {
+    return res.status(400).json({ ok: false, error: `Username [${cleanUser}] is already in use.` });
+  }
+
+  const { hash, salt } = hashPassword(password);
+  const userRole = ['superadmin', 'technician', 'support', 'custom'].includes(role) ? role : 'technician';
+  const permsJson = JSON.stringify(Array.isArray(permissions) ? permissions : (userRole === 'superadmin' ? ['*'] : ['manage_extensions', 'manage_handsets']));
+
+  systemDb.prepare(`
+    INSERT INTO admin_users (username, password_hash, salt, display_name, role, permissions, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, 1)
+  `).run(cleanUser, hash, salt, displayName || cleanUser, userRole, permsJson);
+
+  return res.json({ ok: true, message: `Admin user [${cleanUser}] created successfully.` });
+});
+
+router.put('/api/admin/users/:id', adminAuth, requirePermission('manage_users'), (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  const targetUser = systemDb.prepare('SELECT * FROM admin_users WHERE id = ?').get(id) as any;
+  if (!targetUser) {
+    return res.status(404).json({ ok: false, error: 'User not found.' });
+  }
+
+  const { displayName, role, permissions, isActive, password } = req.body;
+
+  // Prevent demoting the last active superadmin
+  if (targetUser.role === 'superadmin' && (role && role !== 'superadmin' || isActive === 0)) {
+    const superCount = (systemDb.prepare("SELECT COUNT(*) as count FROM admin_users WHERE role = 'superadmin' AND is_active = 1 AND id != ?").get(id) as any).count;
+    if (superCount === 0) {
+      return res.status(400).json({ ok: false, error: 'Cannot demote or disable the only active Superadmin account.' });
+    }
+  }
+
+  const newName = displayName !== undefined ? String(displayName).trim() : targetUser.display_name;
+  const newRole = role !== undefined ? role : targetUser.role;
+  const newActive = isActive !== undefined ? (isActive ? 1 : 0) : targetUser.is_active;
+  const newPerms = permissions !== undefined ? JSON.stringify(permissions) : targetUser.permissions;
+
+  systemDb.prepare(`
+    UPDATE admin_users
+    SET display_name = ?, role = ?, permissions = ?, is_active = ?
+    WHERE id = ?
+  `).run(newName, newRole, newPerms, newActive, id);
+
+  if (password && String(password).trim().length > 0) {
+    const { hash, salt } = hashPassword(String(password).trim());
+    systemDb.prepare('UPDATE admin_users SET password_hash = ?, salt = ? WHERE id = ?').run(hash, salt, id);
+    // Invalidate sessions on password change
+    systemDb.prepare('DELETE FROM admin_sessions WHERE user_id = ?').run(id);
+  }
+
+  return res.json({ ok: true, message: `User [${targetUser.username}] updated successfully.` });
+});
+
+router.delete('/api/admin/users/:id', adminAuth, requirePermission('manage_users'), (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  const curUser = (req as any).adminUser as AuthenticatedAdmin;
+
+  if (curUser && curUser.id === id) {
+    return res.status(400).json({ ok: false, error: 'You cannot delete your own active administrator account.' });
+  }
+
+  const targetUser = systemDb.prepare('SELECT * FROM admin_users WHERE id = ?').get(id) as any;
+  if (!targetUser) {
+    return res.status(404).json({ ok: false, error: 'User not found.' });
+  }
+
+  if (targetUser.role === 'superadmin') {
+    const superCount = (systemDb.prepare("SELECT COUNT(*) as count FROM admin_users WHERE role = 'superadmin' AND is_active = 1 AND id != ?").get(id) as any).count;
+    if (superCount === 0) {
+      return res.status(400).json({ ok: false, error: 'Cannot delete the only remaining Superadmin account.' });
+    }
+  }
+
+  systemDb.prepare('DELETE FROM admin_sessions WHERE user_id = ?').run(id);
+  systemDb.prepare('DELETE FROM admin_users WHERE id = ?').run(id);
+
+  return res.json({ ok: true, message: `Admin user [${targetUser.username}] deleted.` });
+});
 
 // 1. Dashboard Overview Stats & Component Health
 router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
@@ -214,7 +491,7 @@ router.get('/api/admin/extensions', adminAuth, (req: Request, res: Response) => 
   return res.json({ ok: true, extensions: rows });
 });
 
-router.post('/api/admin/extensions', adminAuth, (req: Request, res: Response) => {
+router.post('/api/admin/extensions', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
   const { extension, username, password, displayName } = req.body;
   if (!extension || !password) {
     return res.status(400).json({ ok: false, error: 'Extension and password are required.' });
@@ -236,14 +513,14 @@ router.post('/api/admin/extensions', adminAuth, (req: Request, res: Response) =>
   return res.json({ ok: true, message: `Extension ${cleanExt} saved successfully.` });
 });
 
-router.delete('/api/admin/extensions/:ext', adminAuth, (req: Request, res: Response) => {
+router.delete('/api/admin/extensions/:ext', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
   const ext = req.params.ext;
   systemDb.prepare('DELETE FROM extensions WHERE extension = ?').run(ext);
   return res.json({ ok: true, message: `Extension ${ext} removed.` });
 });
 
 // 3. Generate 8-Digit Softphone PIN
-router.post('/api/admin/pins', adminAuth, (req: Request, res: Response) => {
+router.post('/api/admin/pins', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
   const { extension, expiryHours } = req.body;
   if (!extension) {
     return res.status(400).json({ ok: false, error: 'Extension is required to generate a PIN.' });
@@ -273,7 +550,7 @@ router.post('/api/admin/pins', adminAuth, (req: Request, res: Response) => {
 });
 
 // 3b. Quick Pull & Provision Extension
-router.post('/api/admin/extensions/quick-provision', adminAuth, async (req: Request, res: Response) => {
+router.post('/api/admin/extensions/quick-provision', adminAuth, requirePermission('manage_extensions'), async (req: Request, res: Response) => {
   const { extension, displayName, sipPassword, expiryHours, queryPbx, amiConfig } = req.body;
   if (!extension) {
     return res.status(400).json({ ok: false, error: 'Extension number is required.' });
@@ -362,7 +639,7 @@ router.get('/api/admin/handsets', adminAuth, (req: Request, res: Response) => {
   return res.json({ ok: true, handsets: rows });
 });
 
-router.post('/api/admin/handsets', adminAuth, (req: Request, res: Response) => {
+router.post('/api/admin/handsets', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
   const { macAddress, brand, model, extension, lineLabel, blfKeys } = req.body;
   if (!macAddress || !extension) {
     return res.status(400).json({ ok: false, error: 'MAC address and extension are required.' });
@@ -390,7 +667,7 @@ router.post('/api/admin/handsets', adminAuth, (req: Request, res: Response) => {
   return res.json({ ok: true, message: `Handset MAC [${cleanMac}] bound to extension ${extension}.` });
 });
 
-router.delete('/api/admin/handsets/:mac', adminAuth, (req: Request, res: Response) => {
+router.delete('/api/admin/handsets/:mac', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
   const cleanMac = req.params.mac.toLowerCase().replace(/[^0-9a-f]/g, '');
   systemDb.prepare("DELETE FROM physical_handsets WHERE LOWER(REPLACE(mac_address, ':', '')) = ?").run(cleanMac);
   return res.json({ ok: true, message: `Handset MAC [${cleanMac}] removed.` });
@@ -402,7 +679,7 @@ router.get('/api/admin/config', adminAuth, (req: Request, res: Response) => {
   return res.json({ ok: true, config });
 });
 
-router.post('/api/admin/config', adminAuth, (req: Request, res: Response) => {
+router.post('/api/admin/config', adminAuth, requirePermission('manage_pbx'), (req: Request, res: Response) => {
   const { pbxServer, pbxPort, pbxTransport, dataHandlerUrl } = req.body;
   if (!pbxServer) {
     return res.status(400).json({ ok: false, error: 'PBX server domain or IP is required.' });
@@ -422,7 +699,7 @@ router.post('/api/admin/config', adminAuth, (req: Request, res: Response) => {
   return res.json({ ok: true, message: 'Server configuration updated. Connected softphones will sync within 10 minutes.' });
 });
 
-router.post('/api/admin/config/regenerate-api-key', adminAuth, (req: Request, res: Response) => {
+router.post('/api/admin/config/regenerate-api-key', adminAuth, requirePermission('manage_pbx'), (req: Request, res: Response) => {
   const newKey = `ckm_live_${crypto.randomBytes(16).toString('hex')}`;
   systemDb.prepare('UPDATE server_config SET api_key = ? WHERE id = 1').run(newKey);
   return res.json({ ok: true, apiKey: newKey, message: 'New API key generated.' });
@@ -434,7 +711,7 @@ router.get('/api/admin/routers', adminAuth, (req: Request, res: Response) => {
   return res.json({ ok: true, routers: rows });
 });
 
-router.post('/api/admin/routers', adminAuth, (req: Request, res: Response) => {
+router.post('/api/admin/routers', adminAuth, requirePermission('manage_routers'), (req: Request, res: Response) => {
   const { siteName, brand, model, macAddress, lanSubnet, voiceVlanId, voiceSubnet, disableSipAlg, enableQos, notes } = req.body;
   if (!siteName || !brand) {
     return res.status(400).json({ ok: false, error: 'Site name and router brand are required.' });
@@ -459,7 +736,7 @@ router.post('/api/admin/routers', adminAuth, (req: Request, res: Response) => {
   return res.json({ ok: true, id: result.lastInsertRowid, message: `Router for site '${siteName}' created successfully.` });
 });
 
-router.delete('/api/admin/routers/:id', adminAuth, (req: Request, res: Response) => {
+router.delete('/api/admin/routers/:id', adminAuth, requirePermission('manage_routers'), (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   systemDb.prepare('DELETE FROM routers WHERE id = ?').run(id);
   return res.json({ ok: true, message: 'Router profile removed.' });
@@ -496,7 +773,7 @@ router.get('/api/admin/routers/:id/script', adminAuth, (req: Request, res: Respo
 });
 
 // 7. Asterisk AMI / FreePBX Extension Auto-Sync
-router.post('/api/admin/pbx/sync', adminAuth, async (req: Request, res: Response) => {
+router.post('/api/admin/pbx/sync', adminAuth, requirePermission('manage_pbx'), async (req: Request, res: Response) => {
   const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
   const { amiHost, amiPort, amiUser, amiSecret } = req.body;
 
@@ -529,7 +806,7 @@ router.get('/api/admin/branding', adminAuth, (req: Request, res: Response) => {
   });
 });
 
-router.post('/api/admin/branding', adminAuth, (req: Request, res: Response) => {
+router.post('/api/admin/branding', adminAuth, requirePermission('manage_branding'), (req: Request, res: Response) => {
   const { brandName, primaryColor, accentColor, logoUrl } = req.body;
 
   systemDb.prepare(`
@@ -549,7 +826,7 @@ router.post('/api/admin/branding', adminAuth, (req: Request, res: Response) => {
   });
 });
 
-router.post('/api/admin/branding/logo', adminAuth, logoUpload.single('logo'), (req: Request, res: Response) => {
+router.post('/api/admin/branding/logo', adminAuth, requirePermission('manage_branding'), logoUpload.single('logo'), (req: Request, res: Response) => {
   if (!req.file) {
     return res.status(400).json({ ok: false, error: 'No logo image file was provided.' });
   }

@@ -1,23 +1,40 @@
 document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
-  // 1. Authentication & Session Management
+  // 1. Authentication & Session Management (Session Tokens + RBAC)
   // --------------------------------------------------------------------------
   const modalLogin = document.getElementById('modalLogin');
   const formLogin = document.getElementById('formLogin');
   const loginError = document.getElementById('loginError');
 
+  let currentUser = null;
+
   function getAuthToken() {
     return sessionStorage.getItem('ckm_admin_token') || localStorage.getItem('ckm_admin_token') || '';
   }
 
-  function setAuthToken(token, persist = true) {
+  function getStoredUser() {
+    try {
+      const u = sessionStorage.getItem('ckm_admin_user') || localStorage.getItem('ckm_admin_user');
+      return u ? JSON.parse(u) : null;
+    } catch { return null; }
+  }
+
+  function setAuthSession(token, user, persist = true) {
     if (token) {
       sessionStorage.setItem('ckm_admin_token', token);
-      if (persist) localStorage.setItem('ckm_admin_token', token);
+      if (user) sessionStorage.setItem('ckm_admin_user', JSON.stringify(user));
+      if (persist) {
+        localStorage.setItem('ckm_admin_token', token);
+        if (user) localStorage.setItem('ckm_admin_user', JSON.stringify(user));
+      }
     } else {
       sessionStorage.removeItem('ckm_admin_token');
+      sessionStorage.removeItem('ckm_admin_user');
       localStorage.removeItem('ckm_admin_token');
+      localStorage.removeItem('ckm_admin_user');
     }
+    currentUser = user || null;
+    applyUserPermissions();
   }
 
   function showLogin() {
@@ -29,37 +46,83 @@ document.addEventListener('DOMContentLoaded', () => {
     if (loginError) loginError.classList.add('hidden');
   }
 
+  // Granular Permission Checker
+  window.hasPerm = (perm) => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'superadmin') return true;
+    const p = currentUser.permissions || [];
+    return p.includes('*') || p.includes(perm);
+  };
+
+  function applyUserPermissions() {
+    const roleBadge = document.getElementById('userRoleBadge');
+    if (currentUser) {
+      if (roleBadge) {
+        roleBadge.textContent = `👤 ${currentUser.displayName || currentUser.username} (${(currentUser.role || 'user').toUpperCase()})`;
+        roleBadge.className = currentUser.role === 'superadmin' ? 'badge badge-primary' : 'badge badge-secondary';
+      }
+
+      // Hide or show Users tab based on manage_users permission
+      const usersNav = document.getElementById('navBtnUsers');
+      if (usersNav) {
+        usersNav.style.display = hasPerm('manage_users') ? 'flex' : 'none';
+      }
+    } else {
+      if (roleBadge) roleBadge.textContent = '👤 Not Authenticated';
+    }
+  }
+
+  // Handle Login Submission
   formLogin?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const u = document.getElementById('loginUsername').value.trim();
     const p = document.getElementById('loginPassword').value;
     if (!u || !p) return;
 
-    const token = btoa(`${u}:${p}`);
-    const res = await fetch('/api/admin/overview', {
-      headers: { 'Authorization': `Basic ${token}` }
-    });
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      });
 
-    if (res.ok) {
-      setAuthToken(token, true);
-      hideLogin();
-      loadOverview();
-    } else {
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setAuthSession(data.token, data.user, true);
+        hideLogin();
+        loadOverview();
+      } else {
+        if (loginError) {
+          loginError.textContent = data.error || 'Invalid credentials.';
+          loginError.classList.remove('hidden');
+        }
+      }
+    } catch (err) {
       if (loginError) {
-        loginError.textContent = 'Invalid administrator credentials. Access denied.';
+        loginError.textContent = 'Connection error contacting server.';
         loginError.classList.remove('hidden');
       }
     }
   });
 
-  document.getElementById('btnLogout')?.addEventListener('click', () => {
+  // Handle Logout
+  document.getElementById('btnLogout')?.addEventListener('click', async () => {
     if (confirm('Log out of CKM Handler Admin Portal?')) {
-      setAuthToken('', false);
+      const token = getAuthToken();
+      if (token) {
+        try {
+          await fetch('/api/admin/logout', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        } catch {}
+      }
+      setAuthSession('', null, false);
       showLogin();
     }
   });
 
-  // Global authenticated fetch helper
+  // Global Authenticated Fetch Helper
   async function fetchJson(url, options = {}) {
     const token = getAuthToken();
     if (!token) {
@@ -69,16 +132,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     options.headers = options.headers || {};
     if (options.headers instanceof Headers) {
-      options.headers.set('Authorization', `Basic ${token}`);
+      options.headers.set('Authorization', `Bearer ${token}`);
     } else {
-      options.headers['Authorization'] = `Basic ${token}`;
+      options.headers['Authorization'] = `Bearer ${token}`;
     }
 
     try {
       const res = await fetch(url, options);
-      if (res.status === 401 || res.status === 403) {
-        setAuthToken('', false);
+      if (res.status === 401) {
+        setAuthSession('', null, false);
         showLogin();
+        return null;
+      }
+      if (res.status === 403) {
+        const json = await res.json().catch(() => ({}));
+        alert(`Access Denied: ${json.error || 'You do not have permission for this action.'}`);
         return null;
       }
       return await res.json();
@@ -102,7 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
     routers: 'VoIP Router & Network Gateway Profiles',
     branding: 'Softphone Custom Branding, Logo & Colors',
     config: 'PBX Integration & Gateway Settings',
-    gdpr: 'GDPR Compliance & Data Retention Vault'
+    gdpr: 'GDPR Compliance & Data Retention Vault',
+    users: 'Administrator Users & Role Permissions (RBAC)'
   };
 
   navBtns.forEach(btn => {
@@ -133,10 +202,11 @@ document.addEventListener('DOMContentLoaded', () => {
     else if (tab === 'branding') loadBranding();
     else if (tab === 'config') loadConfig();
     else if (tab === 'gdpr') loadGdprPolicy();
+    else if (tab === 'users') loadUsers();
   }
 
   // --------------------------------------------------------------------------
-  // 3. Modal Management (Open, Close, Click Outside)
+  // 3. Modal Management (Open, Close, Outside Click)
   // --------------------------------------------------------------------------
   window.openModal = (id) => {
     const el = document.getElementById(id);
@@ -231,6 +301,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     cachedExtensions = data.extensions;
+    const canManage = hasPerm('manage_extensions');
+
     tbody.innerHTML = data.extensions.map(ext => `
       <tr>
         <td><strong>${ext.extension}</strong></td>
@@ -240,8 +312,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${ext.bound_handsets} handset(s)</td>
         <td><span class="badge ${ext.is_active ? 'badge-primary' : 'badge-secondary'}">${ext.is_active ? 'Active' : 'Disabled'}</span></td>
         <td>
-          <button class="btn btn-sm btn-secondary" onclick="generatePin('${ext.extension}')">Generate PIN</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteExtension('${ext.extension}')">Delete</button>
+          ${canManage ? `
+            <button class="btn btn-sm btn-secondary" onclick="generatePin('${ext.extension}')">Generate PIN</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteExtension('${ext.extension}')">Delete</button>
+          ` : '<span class="muted">Read Only</span>'}
         </td>
       </tr>
     `).join('');
@@ -265,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (res && res.ok) loadExtensions();
   };
 
-  // + New Extension Modal & Form
+  // + New Extension Modal
   document.getElementById('btnOpenAddExtModal')?.addEventListener('click', () => {
     document.getElementById('formAddExt')?.reset();
     openModal('modalAddExt');
@@ -297,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Asterisk AMI Sync Modal & Form
+  // Asterisk AMI Sync Modal
   document.getElementById('btnSyncPbx')?.addEventListener('click', () => {
     document.getElementById('formSyncPbx')?.reset();
     document.getElementById('amiSyncOutput')?.classList.add('hidden');
@@ -402,6 +476,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const canManage = hasPerm('manage_handsets');
+
     tbody.innerHTML = data.handsets.map(h => `
       <tr>
         <td><code>${h.mac_address.toUpperCase()}</code></td>
@@ -410,7 +486,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${h.line_label || 'Default'}</td>
         <td>${h.last_provisioned_at ? new Date(h.last_provisioned_at).toLocaleString() : '<span class="muted">Never fetched</span>'}</td>
         <td>
-          <button class="btn btn-sm btn-danger" onclick="deleteHandset('${h.mac_address}')">Remove</button>
+          ${canManage ? `
+            <button class="btn btn-sm btn-danger" onclick="deleteHandset('${h.mac_address}')">Remove</button>
+          ` : '<span class="muted">Read Only</span>'}
         </td>
       </tr>
     `).join('');
@@ -466,6 +544,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const canManage = hasPerm('manage_routers');
+
     tbody.innerHTML = data.routers.map(r => `
       <tr>
         <td><strong>${r.site_name}</strong></td>
@@ -477,7 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>
           <button class="btn btn-sm btn-primary" onclick="downloadRouterScript(${r.id}, '${r.site_name.replace(/'/g, "\\'")}', '${r.brand}')">Download Script</button>
           <button class="btn btn-sm btn-secondary" onclick="copyRouterUrl(${r.id})">Copy Boot URL</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteRouter(${r.id})">Delete</button>
+          ${canManage ? `<button class="btn btn-sm btn-danger" onclick="deleteRouter(${r.id})">Delete</button>` : ''}
         </td>
       </tr>
     `).join('');
@@ -487,7 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const token = getAuthToken();
     try {
       const res = await fetch(`/api/admin/routers/${id}/script?token=${encodeURIComponent(token)}`, {
-        headers: { 'Authorization': `Basic ${token}` }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to download script');
       const blob = await res.blob();
@@ -632,7 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch('/api/admin/branding/logo', {
         method: 'POST',
-        headers: { 'Authorization': `Basic ${token}` },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
       const data = await res.json();
@@ -727,7 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btnRegenApiKey')?.addEventListener('click', async () => {
     if (!confirm('Regenerate server API key? Any existing billing/CRM integration using the old key will need to be updated.')) return;
-    const res = await fetchJson('/api/admin/api-key/regenerate', { method: 'POST' });
+    const res = await fetchJson('/api/admin/config/regenerate-api-key', { method: 'POST' });
     if (res && res.ok) {
       document.getElementById('cfgApiKey').value = res.apiKey;
       updateCurlExample(document.getElementById('cfgDataHandlerUrl').value, res.apiKey);
@@ -788,13 +868,177 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 11. Initial Application Boot
+  // 11. TAB 8: Administrator Users & RBAC Permissions
   // --------------------------------------------------------------------------
+  let cachedUsers = [];
+
+  async function loadUsers() {
+    const data = await fetchJson('/api/admin/users');
+    const tbody = document.getElementById('userTableBody');
+    if (!data || !data.ok || !data.users.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center">No admin accounts found.</td></tr>';
+      cachedUsers = [];
+      return;
+    }
+
+    cachedUsers = data.users;
+    tbody.innerHTML = data.users.map(u => {
+      const isSuper = u.role === 'superadmin';
+      const perms = isSuper ? ['Full Superadmin Access'] : (u.permissions || []);
+      const permPills = perms.map(p => `<span class="tag" style="margin: 2px 2px 2px 0;">${p}</span>`).join('');
+      const isSelf = currentUser && currentUser.id === u.id;
+
+      return `
+        <tr>
+          <td><strong>${u.username}</strong> ${isSelf ? '<span class="badge badge-secondary" style="font-size:10px;">YOU</span>' : ''}</td>
+          <td>${u.display_name}</td>
+          <td><span class="badge ${isSuper ? 'badge-primary' : 'badge-secondary'}">${u.role.toUpperCase()}</span></td>
+          <td style="max-width: 280px;">${permPills}</td>
+          <td><span class="badge ${u.is_active ? 'badge-primary' : 'badge-secondary'}">${u.is_active ? 'Active' : 'Disabled'}</span></td>
+          <td>${u.last_login_at ? new Date(u.last_login_at).toLocaleString() : '<span class="muted">Never logged in</span>'}</td>
+          <td>
+            <button class="btn btn-sm btn-secondary" onclick="editUser(${u.id})">Edit</button>
+            ${!isSelf ? `<button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id}, '${u.username}')">Delete</button>` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // Role Preset Change Listener (Check/Uncheck Permissions automatically)
+  document.getElementById('userRole')?.addEventListener('change', (e) => {
+    const role = e.target.value;
+    const checks = document.querySelectorAll('.perm-check');
+    if (role === 'superadmin') {
+      checks.forEach(c => c.checked = true);
+    } else if (role === 'technician') {
+      checks.forEach(c => {
+        c.checked = ['manage_extensions', 'manage_handsets', 'manage_routers'].includes(c.value);
+      });
+    } else if (role === 'support') {
+      checks.forEach(c => c.checked = false);
+    }
+  });
+
+  // Open Create User Modal
+  document.getElementById('btnOpenAddUserModal')?.addEventListener('click', () => {
+    document.getElementById('formAddUser')?.reset();
+    document.getElementById('editUserId').value = '';
+    document.getElementById('modalUserTitle').textContent = '+ Create Administrator Account';
+    document.getElementById('userUsername').disabled = false;
+    document.getElementById('userPassword').required = true;
+    document.getElementById('userPasswordLabel').textContent = 'Password *';
+    document.getElementById('userPasswordHelp').textContent = 'Enter a secure password for this user.';
+    document.getElementById('activeStatusGroup').style.display = 'none';
+
+    // Trigger role preset defaults
+    document.getElementById('userRole').value = 'technician';
+    document.getElementById('userRole').dispatchEvent(new Event('change'));
+
+    openModal('modalAddUser');
+  });
+
+  // Open Edit User Modal
+  window.editUser = (id) => {
+    const u = cachedUsers.find(x => x.id === id);
+    if (!u) return;
+
+    document.getElementById('editUserId').value = u.id;
+    document.getElementById('modalUserTitle').textContent = `Edit Administrator: ${u.username}`;
+    document.getElementById('userUsername').value = u.username;
+    document.getElementById('userUsername').disabled = true;
+    document.getElementById('userDisplayName').value = u.display_name;
+    document.getElementById('userPassword').value = '';
+    document.getElementById('userPassword').required = false;
+    document.getElementById('userPasswordLabel').textContent = 'New Password (Optional)';
+    document.getElementById('userPasswordHelp').textContent = 'Leave blank to preserve current password.';
+    document.getElementById('userRole').value = u.role;
+    document.getElementById('userIsActive').checked = !!u.is_active;
+    document.getElementById('activeStatusGroup').style.display = 'block';
+
+    const checks = document.querySelectorAll('.perm-check');
+    const userPerms = u.permissions || [];
+    checks.forEach(c => {
+      c.checked = u.role === 'superadmin' || userPerms.includes('*') || userPerms.includes(c.value);
+    });
+
+    openModal('modalAddUser');
+  };
+
+  // Submit Add / Edit User Form
+  document.getElementById('formAddUser')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const editId = document.getElementById('editUserId').value;
+    const u = document.getElementById('userUsername').value.trim();
+    const dName = document.getElementById('userDisplayName').value.trim();
+    const pass = document.getElementById('userPassword').value;
+    const role = document.getElementById('userRole').value;
+    const isActive = document.getElementById('userIsActive').checked;
+
+    const perms = [];
+    document.querySelectorAll('.perm-check:checked').forEach(c => perms.push(c.value));
+
+    const payload = {
+      username: u,
+      displayName: dName,
+      role,
+      permissions: role === 'superadmin' ? ['*'] : perms,
+      isActive
+    };
+    if (pass) payload.password = pass;
+
+    const url = editId ? `/api/admin/users/${editId}` : '/api/admin/users';
+    const method = editId ? 'PUT' : 'POST';
+
+    const res = await fetchJson(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res && res.ok) {
+      closeModal('modalAddUser');
+      loadUsers();
+      // If we updated ourselves, refresh current user state
+      if (editId && currentUser && currentUser.id === parseInt(editId, 10)) {
+        loadMe();
+      }
+    } else if (res) {
+      alert(`Error: ${res.error || 'Failed to save user account'}`);
+    }
+  });
+
+  // Delete User
+  window.deleteUser = async (id, username) => {
+    if (!confirm(`Are you sure you want to delete administrator account [${username}]? This cannot be undone.`)) return;
+    const res = await fetchJson(`/api/admin/users/${id}`, { method: 'DELETE' });
+    if (res && res.ok) {
+      loadUsers();
+    } else if (res) {
+      alert(`Delete failed: ${res.error}`);
+    }
+  };
+
+  // --------------------------------------------------------------------------
+  // 12. Initial Application Boot & Telemetry Loop
+  // --------------------------------------------------------------------------
+  async function loadMe() {
+    const data = await fetchJson('/api/admin/me');
+    if (data && data.ok && data.user) {
+      currentUser = data.user;
+      sessionStorage.setItem('ckm_admin_user', JSON.stringify(data.user));
+      applyUserPermissions();
+    }
+  }
+
   const initialToken = getAuthToken();
   if (!initialToken) {
     showLogin();
   } else {
     hideLogin();
+    currentUser = getStoredUser();
+    applyUserPermissions();
+    loadMe();
     loadOverview();
   }
 

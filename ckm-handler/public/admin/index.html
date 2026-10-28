@@ -39,6 +39,9 @@
         <button class="nav-btn" data-tab="gdpr">
           <span class="icon">🔒</span> GDPR & Retention Vault
         </button>
+        <button class="nav-btn" data-tab="users" id="navBtnUsers">
+          <span class="icon">👥</span> Admin Users & RBAC
+        </button>
       </nav>
       <div class="sidebar-footer">
         <div class="status-indicator">
@@ -52,6 +55,7 @@
       <header class="topbar">
         <div class="topbar-title" id="pageTitle">System Overview</div>
         <div class="topbar-actions">
+          <span class="badge badge-secondary" id="userRoleBadge">👤 Loading...</span>
           <span class="badge badge-primary" id="pbxBadge">PBX: Connecting...</span>
           <span class="badge badge-secondary" id="licenseBadge">License: Active</span>
           <button class="btn btn-sm" id="btnRefresh">🔄 Refresh</button>
@@ -423,6 +427,35 @@
           </div>
         </div>
       </section>
+
+      <!-- TAB 8: ADMIN USERS & PERMISSIONS -->
+      <section class="tab-pane" id="pane-users">
+        <div class="toolbar">
+          <div>
+            <div class="toolbar-title">Administrator Users & Role Permissions (RBAC)</div>
+            <p class="muted" style="font-size: 13px;">Manage administrator accounts, assign preset security roles, and enforce granular access control.</p>
+          </div>
+          <button class="btn btn-primary" id="btnOpenAddUserModal">+ New Admin User</button>
+        </div>
+        <div class="card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Display Name</th>
+                <th>Role</th>
+                <th>Assigned Permissions</th>
+                <th>Status</th>
+                <th>Last Login</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody">
+              <tr><td colspan="7" class="text-center">Loading admin accounts...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -687,6 +720,83 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit Admin User Modal -->
+  <div id="modalAddUser" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalUserTitle">+ Create Administrator Account</h3>
+        <button class="modal-close" onclick="closeModal('modalAddUser')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formAddUser">
+          <input type="hidden" id="editUserId" value="">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Username *</label>
+              <input type="text" id="userUsername" required placeholder="e.g. jsmith" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label>Display Name *</label>
+              <input type="text" id="userDisplayName" required placeholder="e.g. John Smith">
+            </div>
+          </div>
+          <div class="form-group">
+            <label id="userPasswordLabel">Password *</label>
+            <input type="password" id="userPassword" placeholder="••••••••••••" autocomplete="new-password">
+            <small id="userPasswordHelp">Enter a secure password for this user.</small>
+          </div>
+          <div class="form-group">
+            <label>Security Role Preset *</label>
+            <select id="userRole">
+              <option value="superadmin">Superadmin (Unrestricted Full Access)</option>
+              <option value="technician" selected>Technician (Extensions, Handsets, Routers)</option>
+              <option value="support">Support / Read-Only (Auditing & Telemetry)</option>
+              <option value="custom">Custom Permissions Matrix</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="permsContainer">
+            <label>Granular Permissions Matrix</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" class="perm-check" value="manage_extensions" checked> Extensions & PINs
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" class="perm-check" value="manage_handsets" checked> Physical Deskphones
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" class="perm-check" value="manage_routers" checked> VoIP Routers & Gateways
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" class="perm-check" value="manage_branding"> Theme, Logo & Colors
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" class="perm-check" value="manage_pbx"> PBX & Integration APIs
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" class="perm-check" value="manage_gdpr"> GDPR Vault & Erasure
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" class="perm-check" value="manage_users"> Admin Accounts & RBAC
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group" id="activeStatusGroup" style="display: none;">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
+              <input type="checkbox" id="userIsActive" checked> Account Active (Allow login)
+            </label>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modalAddUser')">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btnSaveUser">Save Account</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

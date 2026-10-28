@@ -3,11 +3,12 @@ import fs from 'fs';
 import crypto from 'crypto';
 import vaultDb from '../database/vaultDb';
 import { decryptVaultText } from '../database/cryptoVault';
+import { adminAuth, requirePermission } from './admin';
 
 const router = Router();
 
 // 1. Right to Erasure / Right to be Forgotten (GDPR Article 17)
-router.delete('/api/v1/gdpr/user/:extension', (req: Request, res: Response) => {
+router.delete('/api/v1/gdpr/user/:extension', adminAuth, requirePermission('manage_gdpr'), (req: Request, res: Response) => {
   const extension = String(req.params.extension).trim();
   const executedBy = String(req.headers['x-admin-user'] || 'system-admin');
 
@@ -116,7 +117,7 @@ router.get(['/api/v1/gdpr/policy', '/api/admin/gdpr/policy'], (req: Request, res
   return res.json({ ok: true, policy });
 });
 
-router.post(['/api/v1/gdpr/policy', '/api/admin/gdpr/policy'], (req: Request, res: Response) => {
+router.post(['/api/v1/gdpr/policy', '/api/admin/gdpr/policy'], adminAuth, requirePermission('manage_gdpr'), (req: Request, res: Response) => {
   const { chatDays, mediaDays, autoPrune } = req.body;
   vaultDb.prepare(`
     UPDATE gdpr_retention_policy 

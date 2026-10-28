@@ -1,9 +1,30 @@
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import crypto from 'crypto';
-import { SYSTEM_DB_PATH, DEFAULT_PBX_SERVER, DEFAULT_PBX_PORT, DEFAULT_PBX_TRANSPORT, SERVER_DOMAIN, LICENSE_KEY } from '../config';
+import { SYSTEM_DB_PATH, DEFAULT_PBX_SERVER, DEFAULT_PBX_PORT, DEFAULT_PBX_TRANSPORT, SERVER_DOMAIN, LICENSE_KEY, ADMIN_USER, ADMIN_PASS } from '../config';
 
 const systemDb = new Database(SYSTEM_DB_PATH);
+
+// ==============================================================================
+// Cryptographic Password Hashing & Timing-Safe Verification
+// ==============================================================================
+export function hashPassword(password: string, salt?: string): { hash: string; salt: string } {
+  const generatedSalt = salt || crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, generatedSalt, 100000, 64, 'sha512').toString('hex');
+  return { hash, salt: generatedSalt };
+}
+
+export function verifyPassword(password: string, hash: string, salt: string): boolean {
+  try {
+    const checkHash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+    const hashBuf = Buffer.from(hash, 'hex');
+    const checkBuf = Buffer.from(checkHash, 'hex');
+    if (hashBuf.length !== checkBuf.length) return false;
+    return crypto.timingSafeEqual(hashBuf, checkBuf);
+  } catch {
+    return false;
+  }
+}
 
 // ==============================================================================
 // High-Speed Engine & Security Tuning
@@ -105,9 +126,32 @@ systemDb.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS admin_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'technician',
+    permissions TEXT NOT NULL DEFAULT '[]',
+    is_active INTEGER DEFAULT 1,
+    last_login_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS admin_sessions (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES admin_users (id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_pins_extension ON softphone_pins (extension);
   CREATE INDEX IF NOT EXISTS idx_handsets_extension ON physical_handsets (extension);
   CREATE INDEX IF NOT EXISTS idx_routers_mac ON routers (mac_address);
+  CREATE INDEX IF NOT EXISTS idx_admin_users_username ON admin_users (username);
+  CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON admin_sessions (token);
 `);
 
 // Seed default server config if missing
@@ -143,6 +187,20 @@ const cfgRow = systemDb.prepare('SELECT api_key FROM server_config WHERE id = 1'
 if (!cfgRow?.api_key) {
   const newKey = `ckm_live_${crypto.randomBytes(16).toString('hex')}`;
   systemDb.prepare('UPDATE server_config SET api_key = ? WHERE id = 1').run(newKey);
+}
+
+// Seed default superadmin if admin_users is empty
+const adminUserCount = (systemDb.prepare('SELECT COUNT(*) as count FROM admin_users').get() as any).count;
+if (adminUserCount === 0) {
+  const initialUser = (ADMIN_USER || 'admin').trim();
+  const initialPass = ADMIN_PASS || 'ChangeMeImmediately123!';
+  const { hash, salt } = hashPassword(initialPass);
+  const allPermissions = JSON.stringify(['*']);
+
+  systemDb.prepare(`
+    INSERT INTO admin_users (username, password_hash, salt, display_name, role, permissions, is_active)
+    VALUES (?, ?, ?, ?, 'superadmin', ?, 1)
+  `).run(initialUser, hash, salt, 'System Administrator', allPermissions);
 }
 
 export default systemDb;
