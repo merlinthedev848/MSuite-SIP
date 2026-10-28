@@ -198,29 +198,66 @@ export const ROUTER_CATALOG: DeviceBrandMeta[] = [
     ]
   },
   {
-    id: 'ubiquiti',
-    name: 'Ubiquiti EdgeRouter (EdgeOS .sh)',
-    configExt: '.sh',
-    vendorDocUrl: 'https://ui.com/download/edgemax',
+    id: 'tplink',
+    name: 'TP-Link (Omada SDN & Archer/VR Series)',
+    configExt: '.txt',
+    vendorDocUrl: 'https://www.tp-link.com/support/download/',
     models: [
-      { id: 'er-x', name: 'Ubiquiti EdgeRouter X (ER-X / SFP)', series: 'EdgeRouter', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7', firmwareUrl: 'https://ui.com/download/edgemax', firmwareFilename: 'ER-e50.v2.0.9-hotfix.7.tar' },
-      { id: 'er-4', name: 'Ubiquiti EdgeRouter 4 (ER-4)', series: 'EdgeRouter', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7', firmwareUrl: 'https://ui.com/download/edgemax', firmwareFilename: 'ER-e300.v2.0.9-hotfix.7.tar' },
-      { id: 'er-6p', name: 'Ubiquiti EdgeRouter 6P (ER-6P PoE)', series: 'EdgeRouter', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7', firmwareUrl: 'https://ui.com/download/edgemax', firmwareFilename: 'ER-e300.v2.0.9-hotfix.7.tar' },
-      { id: 'er-12', name: 'Ubiquiti EdgeRouter 12 (ER-12 10-Port)', series: 'EdgeRouter', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7', firmwareUrl: 'https://ui.com/download/edgemax', firmwareFilename: 'ER-e300.v2.0.9-hotfix.7.tar' },
-      { id: 'er-8-xg', name: 'Ubiquiti EdgeRouter Infinity (ER-8-XG 10G)', series: 'EdgeRouter Carrier', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7', firmwareUrl: 'https://ui.com/download/edgemax', firmwareFilename: 'ER-e1000.v2.0.9-hotfix.7.tar' }
+      { id: 'er605', name: 'TP-Link Omada ER605 (TL-R605 Gigabit VPN)', series: 'Omada Gigabit', firmwareVersion: 'Firmware v2.2.4', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'ER605v2_un_2.2.4.bin', firmwareNotes: 'Omada SDN Gateway with hardware SIP ALG bypass & Option 66' },
+      { id: 'er7206', name: 'TP-Link Omada ER7206 (TL-ER7206 SFP Gigabit)', series: 'Omada Enterprise', firmwareVersion: 'Firmware v1.4.1', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'ER7206v1_un_1.4.1.bin' },
+      { id: 'er707-m2', name: 'TP-Link Omada ER707-M2 (Multi-Gigabit 2.5G)', series: 'Omada Multi-Gig', firmwareVersion: 'Firmware v1.2.2', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'ER707-M2v1_un_1.2.2.bin' },
+      { id: 'er8411', name: 'TP-Link Omada ER8411 (Enterprise 10G SFP+)', series: 'Omada 10G', firmwareVersion: 'Firmware v1.2.0', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'ER8411v1_un_1.2.0.bin' },
+      { id: 'vr2100v', name: 'TP-Link Archer VR2100v (Super VDSL VoIP Gateway)', series: 'Archer VoIP Series', firmwareVersion: 'Firmware v1.1.0', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'Archer_VR2100vv1.bin' },
+      { id: 'vx220-g2v', name: 'TP-Link VX220-G2v (Wi-Fi 6 VDSL VoIP Router)', series: 'ISP VoIP Series', firmwareVersion: 'Firmware v2.0.0', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'VX220-G2vv2.bin' }
     ]
   },
   {
-    id: 'unifi',
-    name: 'Ubiquiti UniFi Gateway (UDM / UXG / Cloud Gateway)',
+    id: 'technicolor',
+    name: 'Technicolor / Thomson (Homeware & OpenWrt)',
     configExt: '.sh',
-    vendorDocUrl: 'https://ui.com/download/unifi',
+    vendorDocUrl: 'https://www.technicolor.com/',
     models: [
-      { id: 'udm-pro', name: 'UniFi Dream Machine Pro (UDM-Pro)', series: 'UniFi Gateway', firmwareVersion: 'UniFi OS v3.2.12', firmwareUrl: 'https://ui.com/download/unifi', firmwareFilename: 'alaska-3.2.12.bin' },
-      { id: 'udm-se', name: 'UniFi Dream Machine Special Edition (UDM-SE)', series: 'UniFi Gateway', firmwareVersion: 'UniFi OS v3.2.12', firmwareUrl: 'https://ui.com/download/unifi', firmwareFilename: 'alaska-3.2.12.bin' },
-      { id: 'uxg-pro', name: 'UniFi Next-Generation Gateway Pro (UXG-Pro)', series: 'UniFi Gateway', firmwareVersion: 'UniFi OS v3.2.12', firmwareUrl: 'https://ui.com/download/unifi', firmwareFilename: 'uxg-pro-3.2.12.bin' },
-      { id: 'uxg-lite', name: 'UniFi Next-Generation Gateway Lite (UXG-Lite)', series: 'UniFi Gateway', firmwareVersion: 'UniFi OS v3.2.12', firmwareUrl: 'https://ui.com/download/unifi', firmwareFilename: 'uxg-lite-3.2.12.bin' },
-      { id: 'ucg-ultra', name: 'UniFi Cloud Gateway Ultra (UCG-Ultra)', series: 'UniFi Gateway', firmwareVersion: 'UniFi OS v3.2.12', firmwareUrl: 'https://ui.com/download/unifi', firmwareFilename: 'ucg-ultra-3.2.12.bin' }
+      { id: 'dga4130', name: 'Technicolor DGA4130 (VDSL2 35b / EVDSL Gateway)', series: 'DGA Series', firmwareVersion: 'Homeware 18.2 / OpenWrt', firmwareUrl: 'https://github.com/luci-subsystem', firmwareFilename: 'AGTEF_1.1.0_CLOSED.rbi', firmwareNotes: 'Broadcom BCM63138. Direct UCI firewall SIP ALG kill and dnsmasq Option 66' },
+      { id: 'dga4132', name: 'Technicolor DGA4132 / Tim Hub (VDSL2 & SFP FTTH)', series: 'DGA Series', firmwareVersion: 'Homeware 18.2 / OpenWrt', firmwareUrl: 'https://github.com/luci-subsystem', firmwareFilename: 'DGA4132_2.2.1_CLOSED.rbi' },
+      { id: 'tg588v2', name: 'Technicolor TG588v v2 (VDSL2 / ADSL2+ Gateway)', series: 'TG Series', firmwareVersion: 'Homeware 17.2', firmwareUrl: 'https://www.technicolor.com/', firmwareFilename: 'TG588v2_17.2.rbi' },
+      { id: 'tg589vac', name: 'Technicolor TG589vac v2 (Dual-Band AC VDSL Gateway)', series: 'TG Series', firmwareVersion: 'Homeware 17.2', firmwareUrl: 'https://www.technicolor.com/', firmwareFilename: 'TG589vac_17.2.rbi' },
+      { id: 'tg789vac', name: 'Technicolor TG789vac v2 (Gigabit Ethernet WAN/VDSL)', series: 'TG Series', firmwareVersion: 'Homeware 17.2', firmwareUrl: 'https://www.technicolor.com/', firmwareFilename: 'TG789vac_17.2.rbi' },
+      { id: 'dga0122', name: 'Technicolor DGA0122 (Wi-Fi 5 Gigabit VoIP Gateway)', series: 'DGA Series', firmwareVersion: 'Homeware 18.3', firmwareUrl: 'https://www.technicolor.com/', firmwareFilename: 'DGA0122_18.3.rbi' },
+      { id: 'cga4233', name: 'Technicolor CGA4233 (DOCSIS 3.1 & Gigabit VoIP Gateway)', series: 'CGA Series', firmwareVersion: 'Homeware 19.4', firmwareUrl: 'https://www.technicolor.com/', firmwareFilename: 'CGA4233_19.4.bin' }
+    ]
+  },
+  {
+    id: 'cisco',
+    name: 'Cisco (IOS ISR, RV-Series & Catalyst)',
+    configExt: '.cfg',
+    vendorDocUrl: 'https://software.cisco.com/',
+    models: [
+      { id: 'isr-1100', name: 'Cisco ISR 1100 (1100-4P / 1100-8P)', series: 'ISR 1000', firmwareVersion: 'Cisco IOS XE 17.9.5', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'c1100-universalk9.17.09.05.SPA.bin', firmwareNotes: 'Enterprise branch router with MQC QoS and SIP inspection control' },
+      { id: 'isr-4321', name: 'Cisco ISR 4321 (Modular Enterprise Router)', series: 'ISR 4000', firmwareVersion: 'Cisco IOS XE 17.9.5', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'isr4300-universalk9.17.09.05.SPA.bin' },
+      { id: 'isr-4331', name: 'Cisco ISR 4331 (Voice Gateway Ready)', series: 'ISR 4000', firmwareVersion: 'Cisco IOS XE 17.9.5', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'isr4300-universalk9.17.09.05.SPA.bin' },
+      { id: 'isr-4451', name: 'Cisco ISR 4451-X (High-Performance Branch)', series: 'ISR 4000', firmwareVersion: 'Cisco IOS XE 17.9.5', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'isr4400-universalk9.17.09.05.SPA.bin' },
+      { id: 'rv340', name: 'Cisco Small Business RV340 / RV340W (Dual-WAN VPN)', series: 'RV Series', firmwareVersion: 'Firmware 1.0.03.30', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'RV34X-v1.0.03.30.img' },
+      { id: 'rv260', name: 'Cisco Small Business RV260 / RV260W (VPN Router)', series: 'RV Series', firmwareVersion: 'Firmware 1.0.01.12', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'RV260-v1.0.01.12.img' },
+      { id: 'c8200', name: 'Cisco Catalyst 8200 Edge Platform', series: 'Catalyst 8000', firmwareVersion: 'Cisco IOS XE 17.12.3', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'c8200-universalk9.17.12.03.SPA.bin' },
+      { id: 'c8300', name: 'Cisco Catalyst 8300 Edge Platform', series: 'Catalyst 8000', firmwareVersion: 'Cisco IOS XE 17.12.3', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'c8300-universalk9.17.12.03.SPA.bin' }
+    ]
+  },
+  {
+    id: 'draytek',
+    name: 'DrayTek Vigor Series',
+    configExt: '.txt',
+    vendorDocUrl: 'https://www.draytek.com/support/latest-firmwares/',
+    models: [
+      { id: 'vigor-2860', name: 'DrayTek Vigor 2860 / 2860n / 2860ac', series: 'Vigor 2860 Series', firmwareVersion: 'Firmware 3.9.2', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2860_392.all', firmwareNotes: 'DrayOS with native hardware SIP ALG kill (sys sip_alg 0) and BWM QoS' },
+      { id: 'vigor-2862', name: 'DrayTek Vigor 2862 / 2862Lac (VDSL / LTE)', series: 'Vigor 2860 Series', firmwareVersion: 'Firmware 3.9.7', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2862_397.all' },
+      { id: 'vigor-2865', name: 'DrayTek Vigor 2865 / 2865ac (VDSL / GbE)', series: 'Vigor 2860 Series', firmwareVersion: 'Firmware 4.4.5', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2865_445.all' },
+      { id: 'vigor-2866', name: 'DrayTek Vigor 2866 / 2866Lac (G.Fast / LTE)', series: 'Vigor 2860 Series', firmwareVersion: 'Firmware 4.4.5', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2866_445.all' },
+      { id: 'vigor-2925', name: 'DrayTek Vigor 2925 / 2925n (Dual-WAN GbE)', series: 'Vigor 2920 Series', firmwareVersion: 'Firmware 3.9.2', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2925_392.all' },
+      { id: 'vigor-2926', name: 'DrayTek Vigor 2926 / 2926ac (Dual-WAN GbE)', series: 'Vigor 2920 Series', firmwareVersion: 'Firmware 3.9.7', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2926_397.all' },
+      { id: 'vigor-2927', name: 'DrayTek Vigor 2927 / 2927ac (Dual-WAN GbE)', series: 'Vigor 2920 Series', firmwareVersion: 'Firmware 4.4.5', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2927_445.all' },
+      { id: 'vigor-2960', name: 'DrayTek Vigor 2960 (High-Throughput Dual-WAN)', series: 'Vigor High-Speed', firmwareVersion: 'Firmware 1.5.1.4', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2960_1514.all' },
+      { id: 'vigor-2962', name: 'DrayTek Vigor 2962 (2.5G Multi-WAN)', series: 'Vigor High-Speed', firmwareVersion: 'Firmware 4.4.5', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2962_445.all' },
+      { id: 'vigor-3910', name: 'DrayTek Vigor 3910 (10G Multi-WAN Enterprise)', series: 'Vigor Enterprise', firmwareVersion: 'Firmware 4.4.5', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v3910_445.all' }
     ]
   },
   {
@@ -251,20 +288,6 @@ export const ROUTER_CATALOG: DeviceBrandMeta[] = [
     ]
   },
   {
-    id: 'cisco',
-    name: 'Cisco IOS & ISR Gateway (.cfg)',
-    configExt: '.cfg',
-    vendorDocUrl: 'https://software.cisco.com/',
-    models: [
-      { id: 'isr-1100', name: 'Cisco ISR 1100 (1100-4P / 1100-8P)', series: 'ISR 1000', firmwareVersion: 'Cisco IOS XE 17.9.5', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'c1100-universalk9.17.09.05.SPA.bin' },
-      { id: 'isr-4321', name: 'Cisco ISR 4321 (Modular Enterprise Router)', series: 'ISR 4000', firmwareVersion: 'Cisco IOS XE 17.9.5', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'isr4300-universalk9.17.09.05.SPA.bin' },
-      { id: 'isr-4331', name: 'Cisco ISR 4331 (Voice Gateway Ready)', series: 'ISR 4000', firmwareVersion: 'Cisco IOS XE 17.9.5', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'isr4300-universalk9.17.09.05.SPA.bin' },
-      { id: 'isr-4451', name: 'Cisco ISR 4451-X (High-Performance Branch)', series: 'ISR 4000', firmwareVersion: 'Cisco IOS XE 17.9.5', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'isr4400-universalk9.17.09.05.SPA.bin' },
-      { id: 'c8200', name: 'Cisco Catalyst 8200 Edge Platform', series: 'Catalyst 8000', firmwareVersion: 'Cisco IOS XE 17.12.3', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'c8200-universalk9.17.12.03.SPA.bin' },
-      { id: 'c8300', name: 'Cisco Catalyst 8300 Edge Platform', series: 'Catalyst 8000', firmwareVersion: 'Cisco IOS XE 17.12.3', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'c8300-universalk9.17.12.03.SPA.bin' }
-    ]
-  },
-  {
     id: 'switch',
     name: 'Cisco Catalyst Switch (Voice VLAN .cfg)',
     configExt: '.cfg',
@@ -288,19 +311,6 @@ export const ROUTER_CATALOG: DeviceBrandMeta[] = [
       { id: 'mx85', name: 'Cisco Meraki MX85 (Gigabit Mid-Market)', series: 'Meraki Enterprise', firmwareVersion: 'Meraki MX 18.211', firmwareUrl: 'https://documentation.meraki.com/MX', firmwareFilename: 'Cloud Firmware Managed' },
       { id: 'mx95', name: 'Cisco Meraki MX95 (Multi-Gigabit 10G)', series: 'Meraki Enterprise', firmwareVersion: 'Meraki MX 18.211', firmwareUrl: 'https://documentation.meraki.com/MX', firmwareFilename: 'Cloud Firmware Managed' },
       { id: 'mx105', name: 'Cisco Meraki MX105 (High-Throughput Campus)', series: 'Meraki Campus', firmwareVersion: 'Meraki MX 18.211', firmwareUrl: 'https://documentation.meraki.com/MX', firmwareFilename: 'Cloud Firmware Managed' }
-    ]
-  },
-  {
-    id: 'draytek',
-    name: 'DrayTek Vigor Series',
-    configExt: '.txt',
-    vendorDocUrl: 'https://www.draytek.com/support/latest-firmwares/',
-    models: [
-      { id: 'vigor-2865', name: 'DrayTek Vigor 2865 / 2865ac (VDSL / GbE)', series: 'Vigor 2860 Series', firmwareVersion: 'Firmware 4.4.5', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2865_445.all' },
-      { id: 'vigor-2866', name: 'DrayTek Vigor 2866 / 2866Lac (G.Fast / LTE)', series: 'Vigor 2860 Series', firmwareVersion: 'Firmware 4.4.5', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2866_445.all' },
-      { id: 'vigor-2927', name: 'DrayTek Vigor 2927 / 2927ac (Dual-WAN GbE)', series: 'Vigor 2920 Series', firmwareVersion: 'Firmware 4.4.5', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2927_445.all' },
-      { id: 'vigor-2962', name: 'DrayTek Vigor 2962 (2.5G Multi-WAN)', series: 'Vigor High-Speed', firmwareVersion: 'Firmware 4.4.5', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v2962_445.all' },
-      { id: 'vigor-3910', name: 'DrayTek Vigor 3910 (10G Multi-WAN Enterprise)', series: 'Vigor Enterprise', firmwareVersion: 'Firmware 4.4.5', firmwareUrl: 'https://www.draytek.com/support/latest-firmwares/', firmwareFilename: 'v3910_445.all' }
     ]
   },
   {

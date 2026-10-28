@@ -774,14 +774,73 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'MikroTik RouterOS (v6/v7 .rsc)',
         configExt: '.rsc',
         models: [
-          { id: 'hex', name: 'MikroTik hEX (RB750Gr3 / RB760iGS)', firmwareVersion: 'RouterOS v7.16.1' },
-          { id: 'rb3011', name: 'MikroTik RB3011UiAS-RM (10-Port GbE)', firmwareVersion: 'RouterOS v7.16.1' },
-          { id: 'rb4011', name: 'MikroTik RB4011iGS+ (10G SFP+)', firmwareVersion: 'RouterOS v7.16.1' },
-          { id: 'rb5009', name: 'MikroTik RB5009UG+S+IN (Heavy Duty 2.5G)', firmwareVersion: 'RouterOS v7.16.1' },
-          { id: 'ccr2004', name: 'MikroTik CCR2004-16G-2S+ Cloud Core', firmwareVersion: 'RouterOS v7.16.1' },
-          { id: 'ccr2116', name: 'MikroTik CCR2116-12G-4S+ Carrier', firmwareVersion: 'RouterOS v7.16.1' },
-          { id: 'hap-ax3', name: 'MikroTik hAP ax3 / ax2 Wi-Fi 6', firmwareVersion: 'RouterOS v7.16.1' },
-          { id: 'chr', name: 'MikroTik Cloud Hosted Router (CHR x86 VM)', firmwareVersion: 'RouterOS v7.16.1' }
+          { id: 'hex', name: 'MikroTik hEX (RB750Gr3 / RB760iGS)', firmwareVersion: 'RouterOS v7.16.1', firmwareFilename: 'routeros-7.16.1-mmips.npk' },
+          { id: 'rb3011', name: 'MikroTik RB3011UiAS-RM (10-Port GbE)', firmwareVersion: 'RouterOS v7.16.1', firmwareFilename: 'routeros-7.16.1-arm.npk' },
+          { id: 'rb4011', name: 'MikroTik RB4011iGS+ (10G SFP+)', firmwareVersion: 'RouterOS v7.16.1', firmwareFilename: 'routeros-7.16.1-arm.npk' },
+          { id: 'rb5009', name: 'MikroTik RB5009UG+S+IN (Heavy Duty 2.5G)', firmwareVersion: 'RouterOS v7.16.1', firmwareFilename: 'routeros-7.16.1-arm64.npk' },
+          { id: 'ccr2004', name: 'MikroTik CCR2004-16G-2S+ Cloud Core', firmwareVersion: 'RouterOS v7.16.1', firmwareFilename: 'routeros-7.16.1-arm64.npk' },
+          { id: 'ccr2116', name: 'MikroTik CCR2116-12G-4S+ Carrier', firmwareVersion: 'RouterOS v7.16.1', firmwareFilename: 'routeros-7.16.1-arm64.npk' },
+          { id: 'hap-ax3', name: 'MikroTik hAP ax3 / ax2 Wi-Fi 6', firmwareVersion: 'RouterOS v7.16.1', firmwareFilename: 'routeros-7.16.1-arm64.npk' },
+          { id: 'chr', name: 'MikroTik Cloud Hosted Router (CHR x86 VM)', firmwareVersion: 'RouterOS v7.16.1', firmwareFilename: 'chr-7.16.1.img' }
+        ]
+      },
+      {
+        id: 'tplink',
+        name: 'TP-Link (Omada SDN & Archer/VR Series)',
+        configExt: '.txt',
+        models: [
+          { id: 'er605', name: 'TP-Link Omada ER605 (TL-R605 Gigabit VPN)', firmwareVersion: 'Firmware v2.2.4', firmwareFilename: 'ER605v2_un_2.2.4.bin' },
+          { id: 'er7206', name: 'TP-Link Omada ER7206 (TL-ER7206 SFP Gigabit)', firmwareVersion: 'Firmware v1.4.1', firmwareFilename: 'ER7206v1_un_1.4.1.bin' },
+          { id: 'er707-m2', name: 'TP-Link Omada ER707-M2 (Multi-Gigabit 2.5G)', firmwareVersion: 'Firmware v1.2.2', firmwareFilename: 'ER707-M2v1_un_1.2.2.bin' },
+          { id: 'er8411', name: 'TP-Link Omada ER8411 (Enterprise 10G SFP+)', firmwareVersion: 'Firmware v1.2.0', firmwareFilename: 'ER8411v1_un_1.2.0.bin' },
+          { id: 'vr2100v', name: 'TP-Link Archer VR2100v (Super VDSL VoIP Gateway)', firmwareVersion: 'Firmware v1.1.0', firmwareFilename: 'Archer_VR2100vv1.bin' },
+          { id: 'vx220-g2v', name: 'TP-Link VX220-G2v (Wi-Fi 6 VDSL VoIP Router)', firmwareVersion: 'Firmware v2.0.0', firmwareFilename: 'VX220-G2vv2.bin' }
+        ]
+      },
+      {
+        id: 'technicolor',
+        name: 'Technicolor / Thomson (Homeware & OpenWrt)',
+        configExt: '.sh',
+        models: [
+          { id: 'dga4130', name: 'Technicolor DGA4130 (VDSL2 35b / EVDSL Gateway)', firmwareVersion: 'Homeware 18.2 / OpenWrt', firmwareFilename: 'AGTEF_1.1.0_CLOSED.rbi' },
+          { id: 'dga4132', name: 'Technicolor DGA4132 / Tim Hub (VDSL2 & SFP FTTH)', firmwareVersion: 'Homeware 18.2 / OpenWrt', firmwareFilename: 'DGA4132_2.2.1_CLOSED.rbi' },
+          { id: 'tg588v2', name: 'Technicolor TG588v v2 (VDSL2 / ADSL2+ Gateway)', firmwareVersion: 'Homeware 17.2', firmwareFilename: 'TG588v2_17.2.rbi' },
+          { id: 'tg589vac', name: 'Technicolor TG589vac v2 (Dual-Band AC VDSL Gateway)', firmwareVersion: 'Homeware 17.2', firmwareFilename: 'TG589vac_17.2.rbi' },
+          { id: 'tg789vac', name: 'Technicolor TG789vac v2 (Gigabit Ethernet WAN/VDSL)', firmwareVersion: 'Homeware 17.2', firmwareFilename: 'TG789vac_17.2.rbi' },
+          { id: 'cga4233', name: 'Technicolor CGA4233 (DOCSIS 3.1 Gigabit Cable)', firmwareVersion: 'Homeware 19.3', firmwareFilename: 'CGA4233_19.3.bin' },
+          { id: 'dga0122', name: 'Technicolor DGA0122 (Wi-Fi VDSL Gateway)', firmwareVersion: 'Homeware 18.1', firmwareFilename: 'DGA0122_18.1.rbi' }
+        ]
+      },
+      {
+        id: 'cisco',
+        name: 'Cisco IOS & ISR Gateway (.cfg)',
+        configExt: '.cfg',
+        models: [
+          { id: 'isr-1100', name: 'Cisco ISR 1100 (1100-4P / 1100-8P)', firmwareVersion: 'Cisco IOS XE 17.9.5', firmwareFilename: 'isr1100-universalk9.17.09.05.SPA.bin' },
+          { id: 'isr-4321', name: 'Cisco ISR 4321 Modular Router', firmwareVersion: 'Cisco IOS XE 17.9.5', firmwareFilename: 'isr4300-universalk9.17.09.05.SPA.bin' },
+          { id: 'isr-4331', name: 'Cisco ISR 4331 Voice Gateway', firmwareVersion: 'Cisco IOS XE 17.9.5', firmwareFilename: 'isr4300-universalk9.17.09.05.SPA.bin' },
+          { id: 'isr-4451', name: 'Cisco ISR 4451-X High-Performance', firmwareVersion: 'Cisco IOS XE 17.9.5', firmwareFilename: 'isr4400-universalk9.17.09.05.SPA.bin' },
+          { id: 'rv340', name: 'Cisco Small Business RV340 / RV340W (Dual-WAN VPN)', firmwareVersion: 'Firmware 1.0.03.30', firmwareFilename: 'RV34X-v1.0.03.30.img' },
+          { id: 'rv260', name: 'Cisco Small Business RV260 / RV260W (VPN Router)', firmwareVersion: 'Firmware 1.0.01.12', firmwareFilename: 'RV260-v1.0.01.12.img' },
+          { id: 'c8200', name: 'Cisco Catalyst 8200 Edge Platform', firmwareVersion: 'Cisco IOS XE 17.12.3', firmwareFilename: 'c8200-universalk9.17.12.03.SPA.bin' },
+          { id: 'c8300', name: 'Cisco Catalyst 8300 Edge Platform', firmwareVersion: 'Cisco IOS XE 17.12.3', firmwareFilename: 'c8300-universalk9.17.12.03.SPA.bin' }
+        ]
+      },
+      {
+        id: 'draytek',
+        name: 'DrayTek Vigor Series',
+        configExt: '.txt',
+        models: [
+          { id: 'vigor-2860', name: 'DrayTek Vigor 2860 / 2860n / 2860ac', firmwareVersion: 'Firmware 3.9.2', firmwareFilename: 'v2860_392.all' },
+          { id: 'vigor-2862', name: 'DrayTek Vigor 2862 / 2862Lac (VDSL / LTE)', firmwareVersion: 'Firmware 3.9.7', firmwareFilename: 'v2862_397.all' },
+          { id: 'vigor-2865', name: 'DrayTek Vigor 2865 / 2865ac (VDSL / GbE)', firmwareVersion: 'Firmware 4.4.5', firmwareFilename: 'v2865_445.all' },
+          { id: 'vigor-2866', name: 'DrayTek Vigor 2866 / 2866Lac (G.Fast / LTE)', firmwareVersion: 'Firmware 4.4.5', firmwareFilename: 'v2866_445.all' },
+          { id: 'vigor-2925', name: 'DrayTek Vigor 2925 / 2925n (Dual-WAN GbE)', firmwareVersion: 'Firmware 3.9.2', firmwareFilename: 'v2925_392.all' },
+          { id: 'vigor-2926', name: 'DrayTek Vigor 2926 / 2926ac (Dual-WAN GbE)', firmwareVersion: 'Firmware 3.9.7', firmwareFilename: 'v2926_397.all' },
+          { id: 'vigor-2927', name: 'DrayTek Vigor 2927 / 2927ac (Dual-WAN GbE)', firmwareVersion: 'Firmware 4.4.5', firmwareFilename: 'v2927_445.all' },
+          { id: 'vigor-2960', name: 'DrayTek Vigor 2960 (High-Throughput Dual-WAN)', firmwareVersion: 'Firmware 1.5.1.4', firmwareFilename: 'v2960_1514.all' },
+          { id: 'vigor-2962', name: 'DrayTek Vigor 2962 (2.5G Multi-WAN)', firmwareVersion: 'Firmware 4.4.5', firmwareFilename: 'v2962_445.all' },
+          { id: 'vigor-3910', name: 'DrayTek Vigor 3910 (10G Multi-WAN Enterprise)', firmwareVersion: 'Firmware 4.4.5', firmwareFilename: 'v3910_445.all' }
         ]
       },
       {
@@ -834,19 +893,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
       },
       {
-        id: 'cisco',
-        name: 'Cisco IOS & ISR Gateway (.cfg)',
-        configExt: '.cfg',
-        models: [
-          { id: 'isr-1100', name: 'Cisco ISR 1100 (1100-4P / 1100-8P)', firmwareVersion: 'Cisco IOS XE 17.9.5' },
-          { id: 'isr-4321', name: 'Cisco ISR 4321 Modular Router', firmwareVersion: 'Cisco IOS XE 17.9.5' },
-          { id: 'isr-4331', name: 'Cisco ISR 4331 Voice Gateway', firmwareVersion: 'Cisco IOS XE 17.9.5' },
-          { id: 'isr-4451', name: 'Cisco ISR 4451-X High-Performance', firmwareVersion: 'Cisco IOS XE 17.9.5' },
-          { id: 'c8200', name: 'Cisco Catalyst 8200 Edge Platform', firmwareVersion: 'Cisco IOS XE 17.12.3' },
-          { id: 'c8300', name: 'Cisco Catalyst 8300 Edge Platform', firmwareVersion: 'Cisco IOS XE 17.12.3' }
-        ]
-      },
-      {
         id: 'switch',
         name: 'Cisco Catalyst Switch (Voice VLAN .cfg)',
         configExt: '.cfg',
@@ -868,18 +914,6 @@ document.addEventListener('DOMContentLoaded', () => {
           { id: 'mx85', name: 'Cisco Meraki MX85 Gigabit Mid-Market', firmwareVersion: 'Meraki MX 18.211' },
           { id: 'mx95', name: 'Cisco Meraki MX95 Multi-Gigabit 10G', firmwareVersion: 'Meraki MX 18.211' },
           { id: 'mx105', name: 'Cisco Meraki MX105 Campus', firmwareVersion: 'Meraki MX 18.211' }
-        ]
-      },
-      {
-        id: 'draytek',
-        name: 'DrayTek Vigor Series',
-        configExt: '.txt',
-        models: [
-          { id: 'vigor-2865', name: 'DrayTek Vigor 2865 / 2865ac', firmwareVersion: 'Firmware 4.4.5' },
-          { id: 'vigor-2866', name: 'DrayTek Vigor 2866 / 2866Lac G.Fast', firmwareVersion: 'Firmware 4.4.5' },
-          { id: 'vigor-2927', name: 'DrayTek Vigor 2927 Dual-WAN GbE', firmwareVersion: 'Firmware 4.4.5' },
-          { id: 'vigor-2962', name: 'DrayTek Vigor 2962 2.5G Multi-WAN', firmwareVersion: 'Firmware 4.4.5' },
-          { id: 'vigor-3910', name: 'DrayTek Vigor 3910 10G Multi-WAN', firmwareVersion: 'Firmware 4.4.5' }
         ]
       },
       {
@@ -917,17 +951,6 @@ document.addEventListener('DOMContentLoaded', () => {
           { id: 'xgs-116', name: 'Sophos XGS 116 GbE & SFP', firmwareVersion: 'SFOS v20.0 MR2' },
           { id: 'xgs-126', name: 'Sophos XGS 126 Multi-Port', firmwareVersion: 'SFOS v20.0 MR2' },
           { id: 'xgs-136', name: 'Sophos XGS 136 Dual SFP+ 2.5G', firmwareVersion: 'SFOS v20.0 MR2' }
-        ]
-      },
-      {
-        id: 'omada',
-        name: 'TP-Link Omada SDN Gateway',
-        configExt: '.txt',
-        models: [
-          { id: 'er605', name: 'TP-Link Omada ER605 Gigabit VPN', firmwareVersion: 'Firmware v2.2.4' },
-          { id: 'er7206', name: 'TP-Link Omada ER7206 SFP Gigabit', firmwareVersion: 'Firmware v1.4.1' },
-          { id: 'er707-m2', name: 'TP-Link Omada ER707-M2 Multi-Gig 2.5G', firmwareVersion: 'Firmware v1.2.2' },
-          { id: 'er8411', name: 'TP-Link Omada ER8411 Enterprise 10G', firmwareVersion: 'Firmware v1.2.0' }
         ]
       },
       {

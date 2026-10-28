@@ -785,16 +785,15 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
   if (type === 'router') {
     const brandMeta = ROUTER_CATALOG.find(r => r.id === (brand || '').toLowerCase());
     const modelMeta = brandMeta?.models.find(m => m.id === model) || brandMeta?.models[0];
-    const script = generateRouterConfig(brand || 'mikrotik', {
+    const gen = generateRouterConfig(brand || 'mikrotik', {
       siteName: 'Standard Branch Deployment',
       brand: brand || 'mikrotik',
       model: model || 'hex',
-      vlanId: parseInt(vlan || '20', 10),
+      voiceVlanId: parseInt(vlan || '20', 10),
       voiceSubnet: subnet || '10.20.0.1/24',
-      disableAlg: alg !== false,
+      disableSipAlg: alg !== false,
       enableQos: qos !== false,
       pbxServer: serverCfg.pbx_server,
-      pbxPort: serverCfg.pbx_port,
       dataHandlerUrl: serverCfg.data_handler_url
     });
     return res.json({
@@ -809,7 +808,7 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
         filename: modelMeta.firmwareFilename,
         notes: modelMeta.firmwareNotes || 'Standard tested vendor release'
       } : null,
-      content: script
+      content: gen.content
     });
   } else {
     // Handset
