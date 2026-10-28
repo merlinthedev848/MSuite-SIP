@@ -303,11 +303,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!data || !data.ok) return;
 
     const s = data.stats;
-    document.getElementById('statExt').textContent = s.extensions;
-    document.getElementById('statHandsets').textContent = s.handsets;
-    document.getElementById('statPins').textContent = s.unclaimedPins;
-    document.getElementById('statMessages').textContent = s.messages;
-    document.getElementById('statStorage').textContent = `${s.storageMb} MB`;
+    if (document.getElementById('statExt')) document.getElementById('statExt').textContent = s.extensions ?? 0;
+    if (document.getElementById('statHandsets')) document.getElementById('statHandsets').textContent = s.handsets ?? 0;
+    if (document.getElementById('statPins')) document.getElementById('statPins').textContent = s.unclaimedPins ?? 0;
+    if (document.getElementById('statRouters')) document.getElementById('statRouters').textContent = s.routers ?? 0;
+    if (document.getElementById('statFirmware')) document.getElementById('statFirmware').textContent = s.firmwareCount ?? 0;
+    if (document.getElementById('statMessages')) document.getElementById('statMessages').textContent = s.messages ?? 0;
+    if (document.getElementById('statStorage')) document.getElementById('statStorage').textContent = `${s.storageMb ?? 0} MB`;
 
     document.getElementById('pbxBadge').textContent = `PBX: ${s.pbxServer}`;
     document.getElementById('licenseBadge').textContent = `License: ${s.licenseKey || 'Active'}`;
@@ -2210,6 +2212,17 @@ document.addEventListener('DOMContentLoaded', () => {
       loadOverview();
     } else if (res) {
       window.showToast(`Purge failed: ${res.error || 'Check extension'}`, 'error');
+    }
+  });
+
+  document.getElementById('btnPurgeVaultTestRecords')?.addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to purge all stored messages and vault media files? This will reset all message and file counts to 0.')) return;
+    const res = await fetchJson('/api/admin/vault/purge', { method: 'POST' });
+    if (res && res.ok) {
+      window.showToast('All vault messages and files successfully purged to 0.', 'success');
+      loadOverview();
+    } else {
+      window.showToast(res?.message || 'Purge failed', 'error');
     }
   });
 

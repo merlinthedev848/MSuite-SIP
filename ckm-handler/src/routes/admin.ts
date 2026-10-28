@@ -507,6 +507,7 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
   const handsetCount = (systemDb.prepare('SELECT COUNT(*) as count FROM physical_handsets').get() as any).count;
   const pinCount = (systemDb.prepare('SELECT COUNT(*) as count FROM softphone_pins WHERE claimed = 0').get() as any).count;
   const routerCount = (systemDb.prepare('SELECT COUNT(*) as count FROM routers').get() as any).count;
+  const firmwareCount = (systemDb.prepare("SELECT COUNT(*) as count FROM firmware_binaries WHERE status = 'DOWNLOADED'").get() as any).count;
   const sysPages = systemDb.pragma('page_count', { simple: true });
   const tSys = performance.now() - tSys0;
 
@@ -519,94 +520,93 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
   const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
   const socketStats = getSocketStats();
 
-  // Calculate vault storage size instantly from DB index (0.02ms RAM query)
   const storageRow = vaultDb.prepare('SELECT COALESCE(SUM(file_size), 0) as totalBytes FROM media_vault_files').get() as any;
   const totalBytes = storageRow?.totalBytes || 0;
 
   const mem = process.memoryUsage();
   const memMb = (mem.rss / (1024 * 1024)).toFixed(1);
 
-  // Live Component Health Matrix
+  // Live Component Health Matrix (Real operational telemetry only)
   const components = [
     {
       id: 'api',
-      name: 'Express API & HTTP Gateway',
+      name: 'HTTP Application Server',
       status: 'operational',
-      latency: '< 1ms',
-      details: `Port ${PORT} | ${process.version} | RSS: ${memMb} MB`,
+      latency: `${tSys.toFixed(2)}ms`,
+      details: `Node.js ${process.version} · Memory: ${memMb} MB RSS · Port ${PORT}`,
       badge: 'Active'
     },
     {
       id: 'socket',
-      name: 'Real-Time Signaling (Socket.IO)',
+      name: 'WebSocket Signaling Service',
       status: 'operational',
       latency: '< 1ms',
-      details: `${socketStats.connectedClients} Connected Softphones | Room Multiplexing`,
-      badge: 'Connected'
+      details: `${socketStats.connectedClients} active softphone connection(s)`,
+      badge: 'Online'
     },
     {
       id: 'system_db',
       name: 'Operational Database (system.db)',
       status: 'operational',
       latency: `${tSys.toFixed(2)}ms`,
-      details: `WAL Mode | ${sysPages} Pages | Cache: 64MB`,
+      details: `SQLite 3 · WAL Mode · ${sysPages} allocated database page(s)`,
       badge: 'Healthy'
     },
     {
       id: 'vault_db',
-      name: 'GDPR Communications Vault (comms_vault.db)',
+      name: 'Encrypted Vault (comms_vault.db)',
       status: 'operational',
       latency: `${tVault.toFixed(2)}ms`,
-      details: `AES-256-GCM Encrypted | ${msgCount} Messages | ${fileCount} Files`,
+      details: `AES-256-GCM · ${msgCount} encrypted record(s) · ${fileCount} stored file(s)`,
       badge: 'Encrypted'
     },
     {
       id: 'softphone_prov',
-      name: 'Softphone Auto-Provisioning & Sync',
+      name: 'Softphone Provisioning Service',
       status: 'operational',
       latency: '< 1ms',
-      details: `${pinCount} Active PIN(s) | Dynamic 10-Min Sync Active`,
-      badge: 'Ready'
+      details: `${pinCount} pending unclaimed claim code(s)`,
+      badge: 'Active'
     },
     {
       id: 'deskphone_prov',
-      name: 'Physical Deskphone Provisioning Gateway',
+      name: 'Deskphone Auto-Provisioning Service',
       status: 'operational',
       latency: '< 1ms',
-      details: `${handsetCount} Bound Device(s) | Yealink, Fanvil, Grandstream`,
-      badge: 'Ready'
+      details: `${handsetCount} registered hardware MAC address(es)`,
+      badge: 'Active'
     },
     {
       id: 'router_engine',
-      name: 'Network Gateway & Router Engine',
+      name: 'Network Gateway Engine',
       status: 'operational',
       latency: '< 1ms',
-      details: `${routerCount} Profile(s) | MikroTik, Ubiquiti, Cisco DSCP 46`,
+      details: `${routerCount} configured gateway profile(s)`,
+      badge: 'Active'
+    },
+    {
+      id: 'firmware_repo',
+      name: 'Firmware Binary Repository',
+      status: 'operational',
+      latency: '< 1ms',
+      details: `${firmwareCount} firmware image package(s) cached internally`,
       badge: 'Ready'
     },
     {
       id: 'pbx_sip',
-      name: 'Core PBX SIP Gateway',
+      name: 'Asterisk PBX Connectivity',
       status: 'operational',
       latency: '-',
-      details: `${config.pbx_server}:${config.pbx_port} (${config.pbx_transport})`,
+      details: `Target: ${config.pbx_server}:${config.pbx_port} (${config.pbx_transport})`,
       badge: 'Configured'
     },
     {
       id: 'gdpr_daemon',
-      name: 'GDPR Automated Retention Daemon',
+      name: 'Automated Retention Daemon',
       status: policy?.auto_prune_enabled ? 'operational' : 'paused',
       latency: '-',
-      details: `Prune: Chat ${policy?.chat_retention_days || 90}d, Media ${policy?.media_retention_days || 90}d`,
-      badge: policy?.auto_prune_enabled ? 'Active 24h' : 'Disabled'
-    },
-    {
-      id: 'license_guard',
-      name: 'Contractor License Guard',
-      status: licenseState.isActive ? 'operational' : 'degraded',
-      latency: '-',
-      details: licenseState.status,
-      badge: licenseState.isActive ? 'Active' : 'Unlicensed'
+      details: `Prune: Chat ${policy?.chat_retention_days || 90}d · Media ${policy?.media_retention_days || 90}d`,
+      badge: policy?.auto_prune_enabled ? 'Active' : 'Disabled'
     }
   ];
 
@@ -617,6 +617,7 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
       handsets: handsetCount,
       unclaimedPins: pinCount,
       routers: routerCount,
+      firmwareCount: firmwareCount,
       messages: msgCount,
       vaultFiles: fileCount,
       storageMb: (totalBytes / (1024 * 1024)).toFixed(2),
@@ -629,6 +630,13 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
     },
     components
   });
+});
+
+// Purge dummy/test data from communications vault
+router.post('/api/admin/vault/purge', adminAuth, (req: Request, res: Response) => {
+  vaultDb.exec('DELETE FROM messages; DELETE FROM media_vault_files;');
+  logActivity('VAULT_PURGE', 'All messages and media files were purged by administrator.', req.ip);
+  return res.json({ ok: true, message: 'Communications vault purged. Message and file counts reset to 0.' });
 });
 
 // 2. Extensions Management
