@@ -2,6 +2,8 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 
+// Support loading .env from app root regardless of PM2 working directory
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config();
 
 export const PORT = parseInt(process.env.PORT || '3000', 10);

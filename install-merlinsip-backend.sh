@@ -126,7 +126,7 @@ npm install
 npm run build
 
 echo "[*] Step 4: Configuring PM2 auto-restart and systemd daemon..."
-pm2 start dist/server.js --name ckm-handler
+pm2 start dist/server.js --name ckm-handler --cwd "${APP_DIR}"
 pm2 save
 pm2 startup systemd -u "${APP_USER}" --hp "/root" >/dev/null 2>&1 || true
 
@@ -228,8 +228,14 @@ if command -v ufw >/dev/null 2>&1; then
 fi
 
 echo "[*] Step 7: Verifying service health..."
-sleep 2
-HEALTH_STATUS=$(curl -s "http://127.0.0.1:${APP_PORT}/api/health" || echo "FAIL")
+HEALTH_STATUS="FAIL"
+for i in {1..15}; do
+  HEALTH_STATUS=$(curl -s --max-time 2 "http://127.0.0.1:${APP_PORT}/api/health" || echo "FAIL")
+  if [[ "$HEALTH_STATUS" == *"ok"* ]]; then
+    break
+  fi
+  sleep 1
+done
 if [[ "$HEALTH_STATUS" != *"ok"* ]]; then
   echo "[-] Local service health check failed. Check 'pm2 logs ckm-handler'" >&2
   exit 1
