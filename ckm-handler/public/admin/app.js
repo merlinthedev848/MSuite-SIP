@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (res.status === 403) {
         const json = await res.json().catch(() => ({}));
-        alert(`Access Denied: ${json.error || 'You do not have permission for this action.'}`);
+        window.showToast(`Access Denied: ${json.error || 'You do not have permission for this action.'}`, 'error');
         return null;
       }
       return await res.json();
@@ -180,6 +180,31 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Fetch error:', e);
       return null;
     }
+  }
+
+  // Generic 1-Click Clipboard Copy with Feedback
+  window.copyText = (text, msg = 'Copied to clipboard!') => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    window.showToast(msg, 'success');
+  };
+
+  // Subview Segment Switcher (Fleet vs Explorer)
+  function initSubviews() {
+    document.querySelectorAll('.view-segmented-bar').forEach(bar => {
+      const btns = bar.querySelectorAll('.view-segment-btn');
+      btns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetId = btn.dataset.target;
+          const parentPane = btn.closest('.tab-pane');
+          if (!parentPane || !targetId) return;
+          btns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          parentPane.querySelectorAll('.subview-content').forEach(c => c.classList.remove('active'));
+          parentPane.querySelector(`#${targetId}`)?.classList.add('active');
+        });
+      });
+    });
   }
 
   // --------------------------------------------------------------------------
@@ -485,15 +510,20 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify({ extension: ext, expiryHours: 72 })
     });
     if (res && res.ok) {
-      alert(`8-Digit Auto-Provisioning PIN Generated!\n\nExtension: ${ext}\nPIN: ${res.code}\nExpires: ${new Date(res.expiresAt).toLocaleString()}`);
+      window.showToast(`PIN for Ext ${ext}: ${res.code} (Expires in 72h)`, 'success');
       loadExtensions();
+    } else {
+      window.showToast(res?.error || 'Failed to generate PIN', 'error');
     }
   };
 
   window.deleteExtension = async (ext) => {
     if (!confirm(`Are you sure you want to delete Extension ${ext}?`)) return;
     const res = await fetchJson(`/api/admin/extensions/${ext}`, { method: 'DELETE' });
-    if (res && res.ok) loadExtensions();
+    if (res && res.ok) {
+      window.showToast(`Extension ${ext} deleted successfully.`, 'info');
+      loadExtensions();
+    }
   };
 
   // + New Extension Modal
@@ -521,10 +551,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (res && res.ok) {
+      window.showToast(`Extension ${ext} registered successfully!`, 'success');
       closeModal('modalAddExt');
       loadExtensions();
     } else if (res) {
-      alert(`Error: ${res.error || 'Failed to save extension'}`);
+      window.showToast(`Error: ${res.error || 'Failed to save extension'}`, 'error');
     }
   });
 
@@ -606,7 +637,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('qpResultCard').value = res.userWelcomeCard;
       loadExtensions();
     } else if (res) {
-      alert(`Provisioning failed: ${res.error || 'Check parameters'}`);
+      window.showToast(res.error || 'Provisioning failed. Check parameters.', 'error');
     }
   });
 
@@ -1276,6 +1307,10 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadHandsets() {
     const data = await fetchJson('/api/admin/handsets');
     const tbody = document.getElementById('handsetTableBody');
+    const countEl = document.getElementById('handsetCountPill');
+    const total = (data && data.handsets) ? data.handsets.length : 0;
+    if (countEl) countEl.textContent = total;
+
     if (!data || !data.ok || !data.handsets.length) {
       if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center">No physical handsets registered. Click "+ Register Physical Handset" to add one by MAC address.</td></tr>';
       cachedHandsets = [];
@@ -1299,7 +1334,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activeHandsetMac = mac;
     const res = await fetchJson(`/api/admin/handsets/${mac}/preview`);
     if (!res || !res.ok) {
-      alert(res?.error || 'Failed to load handset configuration preview.');
+      window.showToast(res?.error || 'Failed to load handset configuration preview.', 'error');
       return;
     }
 
@@ -1330,6 +1365,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const badge = document.getElementById('editHandsetStatusBadge');
       badge.textContent = 'Standard Brand Default';
       badge.className = 'badge badge-secondary';
+      window.showToast('Reset to manufacturer default template', 'info');
     }
   });
 
@@ -1357,18 +1393,21 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.textContent = 'Save Custom Profile';
 
     if (res && res.ok) {
-      alert('Handset provisioning profile saved successfully! The physical phone will receive this updated configuration on its next boot or re-sync.');
+      window.showToast('Handset provisioning profile saved successfully!', 'success');
       closeModal('modalEditHandsetConfig');
       loadHandsets();
     } else if (res) {
-      alert(res.error || 'Failed to save configuration.');
+      window.showToast(res.error || 'Failed to save configuration.', 'error');
     }
   });
 
   window.deleteHandset = async (mac) => {
     if (!confirm(`Remove handset with MAC [${mac}]?`)) return;
     const res = await fetchJson(`/api/admin/handsets/${mac}`, { method: 'DELETE' });
-    if (res && res.ok) loadHandsets();
+    if (res && res.ok) {
+      window.showToast(`Handset [${mac}] removed.`, 'info');
+      loadHandsets();
+    }
   };
 
   document.getElementById('btnOpenAddHandsetModal')?.addEventListener('click', () => {
@@ -1398,10 +1437,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (res && res.ok) {
+      window.showToast(`Handset ${mac.toUpperCase()} registered successfully!`, 'success');
       closeModal('modalAddHandset');
       loadHandsets();
     } else if (res) {
-      alert(`Error: ${res.error || 'Failed to register handset'}`);
+      window.showToast(`Error: ${res.error || 'Failed to register handset'}`, 'error');
     }
   });
 
@@ -1445,9 +1485,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
   }
 
+  // Instant Live Search for Routers
+  document.getElementById('searchRouter')?.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    if (!query) {
+      renderRoutersTable(cachedRouters);
+      return;
+    }
+    const filtered = cachedRouters.filter(r =>
+      (r.site_name && r.site_name.toLowerCase().includes(query)) ||
+      (r.brand && r.brand.toLowerCase().includes(query)) ||
+      (r.model && r.model.toLowerCase().includes(query)) ||
+      (r.voice_subnet && r.voice_subnet.toLowerCase().includes(query)) ||
+      (r.voice_vlan_id && String(r.voice_vlan_id).includes(query))
+    );
+    renderRoutersTable(filtered);
+  });
+
   async function loadRouters() {
     const data = await fetchJson('/api/admin/routers');
     const tbody = document.getElementById('routerTableBody');
+    const countEl = document.getElementById('routerCountPill');
+    const total = (data && data.routers) ? data.routers.length : 0;
+    if (countEl) countEl.textContent = total;
+
     if (!data || !data.ok || !data.routers.length) {
       if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center">No router profiles generated yet. Click "+ New Router Profile" to create a VoIP-optimized setup.</td></tr>';
       cachedRouters = [];
@@ -1455,7 +1516,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     cachedRouters = data.routers;
-    renderRoutersTable(cachedRouters);
+    const searchVal = document.getElementById('searchRouter')?.value.toLowerCase().trim();
+    if (searchVal) {
+      document.getElementById('searchRouter').dispatchEvent(new Event('input'));
+    } else {
+      renderRoutersTable(cachedRouters);
+    }
   }
 
   // Router Script Editor Modal Handlers
@@ -1467,7 +1533,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activeRouterId = id;
     const res = await fetchJson(`/api/admin/routers/${id}/preview`);
     if (!res || !res.ok) {
-      alert(res?.error || 'Failed to load router configuration script.');
+      window.showToast(res?.error || 'Failed to load router configuration script.', 'error');
       return;
     }
 
@@ -1539,11 +1605,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.textContent = 'Save Custom Script';
 
     if (res && res.ok) {
-      alert('Router deployment script saved successfully! The router will receive this customized script when booting or provisioning.');
+      window.showToast('Router deployment script saved successfully!', 'success');
       closeModal('modalEditRouterScript');
       loadRouters();
     } else if (res) {
-      alert(res.error || 'Failed to save router script.');
+      window.showToast(res.error || 'Failed to save router script.', 'error');
     }
   });
 
@@ -1566,20 +1632,22 @@ document.addEventListener('DOMContentLoaded', () => {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (e) {
-      alert('Failed to download router script. Please ensure you are authenticated.');
+      window.showToast('Failed to download router script. Ensure you are authenticated.', 'error');
     }
   };
 
   window.copyRouterUrl = (id) => {
     const url = `${window.location.origin}/provision/router/${id}.rsc`;
-    navigator.clipboard.writeText(url);
-    alert(`Copied Router Bootstrap Provisioning URL to clipboard:\n\n${url}`);
+    window.copyText(url, 'Copied Router Bootstrap Provisioning URL to clipboard!');
   };
 
   window.deleteRouter = async (id) => {
     if (!confirm('Are you sure you want to remove this router profile?')) return;
     const res = await fetchJson(`/api/admin/routers/${id}`, { method: 'DELETE' });
-    if (res && res.ok) loadRouters();
+    if (res && res.ok) {
+      window.showToast('Router profile removed successfully.', 'success');
+      loadRouters();
+    }
   };
 
   document.getElementById('btnOpenAddRouterModal')?.addEventListener('click', () => {
@@ -1613,10 +1681,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (res && res.ok) {
+      window.showToast('Router profile generated successfully!', 'success');
       closeModal('modalAddRouter');
       loadRouters();
     } else if (res) {
-      alert(`Error: ${res.error || 'Failed to generate router profile'}`);
+      window.showToast(res.error || 'Failed to generate router profile', 'error');
     }
   });
 
@@ -1707,12 +1776,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data && data.ok) {
         document.getElementById('logoUrl').value = data.logoUrl;
         updateLivePreview(null, null, null, data.logoUrl);
-        alert('Logo uploaded successfully and applied to softphone preview!');
+        window.showToast('Logo uploaded successfully and applied to softphone preview!', 'success');
       } else {
-        alert(`Logo upload failed: ${data.error || 'Server rejected file'}`);
+        window.showToast(`Logo upload failed: ${data.error || 'Server rejected file'}`, 'error');
       }
     } catch (err) {
-      alert('Error uploading logo image.');
+      window.showToast('Error uploading logo image.', 'error');
     }
   });
 
@@ -1732,10 +1801,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (res && res.ok) {
-      alert('Custom branding and colors saved successfully! Softphones will pull these on registration & sync.');
+      window.showToast('Custom branding and colors saved successfully!', 'success');
       loadBranding();
     } else if (res) {
-      alert(`Error saving branding: ${res.error}`);
+      window.showToast(`Error saving branding: ${res.error}`, 'error');
     }
   });
 
@@ -1782,15 +1851,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (res && res.ok) {
-      alert('PBX Gateway configuration updated successfully!');
+      window.showToast('PBX Gateway configuration updated successfully!', 'success');
       loadConfig();
     }
   });
 
   document.getElementById('btnCopyApiKey')?.addEventListener('click', () => {
     const key = document.getElementById('cfgApiKey').value;
-    navigator.clipboard.writeText(key);
-    window.showToast('API Key copied to clipboard!', 'success');
+    window.copyText(key, 'API Key copied to clipboard!');
   });
 
   document.getElementById('btnRegenApiKey')?.addEventListener('click', async () => {
@@ -1799,7 +1867,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (res && res.ok) {
       document.getElementById('cfgApiKey').value = res.apiKey;
       updateCurlExample(document.getElementById('cfgDataHandlerUrl').value, res.apiKey);
-      alert('New API Key generated successfully!');
+      window.showToast('New API Key generated successfully!', 'success');
     }
   });
 
@@ -1831,7 +1899,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (res && res.ok) {
-      alert('GDPR Retention Policy saved successfully!');
+      window.showToast('GDPR Retention Policy saved successfully!', 'success');
       loadGdprPolicy();
     }
   });
@@ -1839,7 +1907,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnExecutePurge')?.addEventListener('click', async () => {
     const ext = document.getElementById('purgeExt').value.trim();
     if (!ext) {
-      alert('Please enter an extension number to purge.');
+      window.showToast('Please enter an extension number to purge.', 'error');
       return;
     }
     if (!confirm(`CAUTION: Permanently erase all GDPR communications records and files for Extension ${ext}? This action is irreversible.`)) return;
@@ -1849,9 +1917,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (res && res.ok) {
       resultBox.classList.remove('hidden');
       resultBox.innerHTML = `<strong>Article 17 Erasure Executed!</strong><br>SHA-256 Audit Certificate: <code>${res.certificateHash || 'Generated'}</code>`;
+      window.showToast(`Extension ${ext} records purged under GDPR Article 17`, 'success');
       loadOverview();
     } else if (res) {
-      alert(`Purge failed: ${res.error || 'Check extension'}`);
+      window.showToast(`Purge failed: ${res.error || 'Check extension'}`, 'error');
     }
   });
 
@@ -2017,13 +2086,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (res && res.ok) {
       closeModal('modalAddUser');
+      window.showToast('Administrator account saved successfully!', 'success');
       loadUsers();
       // If we updated ourselves, refresh current user state
       if (editId && currentUser && currentUser.id === parseInt(editId, 10)) {
         loadMe();
       }
     } else if (res) {
-      alert(`Error: ${res.error || 'Failed to save user account'}`);
+      window.showToast(res.error || 'Failed to save user account', 'error');
     }
   });
 
@@ -2032,9 +2102,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!confirm(`Are you sure you want to delete administrator account [${username}]? This cannot be undone.`)) return;
     const res = await fetchJson(`/api/admin/users/${id}`, { method: 'DELETE' });
     if (res && res.ok) {
+      window.showToast(`User ${username} removed successfully.`, 'success');
       loadUsers();
     } else if (res) {
-      alert(`Delete failed: ${res.error}`);
+      window.showToast(res.error || 'Delete failed', 'error');
     }
   };
 
@@ -2253,7 +2324,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Export .log file
   document.getElementById('btnExportShellLogs')?.addEventListener('click', () => {
     if (!shellLogs.length) {
-      alert('No log events to export.');
+      window.showToast('No log events to export.', 'info');
       return;
     }
     const lines = shellLogs.map(l => `[${l.timestamp}] [${l.category}] [${l.level}] [${l.ipAddress}] ${l.deviceIdentifier ? `(${l.deviceIdentifier}) ` : ''}${l.message}`);
@@ -2266,6 +2337,7 @@ document.addEventListener('DOMContentLoaded', () => {
     a.click();
     a.remove();
     window.URL.revokeObjectURL(url);
+    window.showToast('Device connectivity logs exported successfully.', 'success');
   });
 
   // Global Drawer Terminal Controls
@@ -2301,6 +2373,9 @@ document.addEventListener('DOMContentLoaded', () => {
       applyUserPermissions();
     }
   }
+
+  // Initialize segmented subviews (Fleet vs Explorer)
+  initSubviews();
 
   const initialToken = getAuthToken();
   if (!initialToken) {
