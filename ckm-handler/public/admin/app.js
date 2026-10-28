@@ -658,6 +658,21 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
       },
       {
+        id: 'snom',
+        name: 'Snom (XML)',
+        configExt: '.xml',
+        models: [
+          { id: 'D712', name: 'Snom D712 (4-Line Standard)', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD712-10.1.127.10-SIP-r.bin' },
+          { id: 'D717', name: 'Snom D717 Color', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD717-10.1.127.10-SIP-r.bin' },
+          { id: 'D735', name: 'Snom D735 Sensor', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD735-10.1.127.10-SIP-r.bin' },
+          { id: 'D785', name: 'Snom D785 Dual Display', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD785-10.1.127.10-SIP-r.bin' },
+          { id: 'D862', name: 'Snom D862 5" LCD', firmwareVersion: '10.1.141.0', firmwareFilename: 'snomD862-10.1.141.0-SIP-r.bin' },
+          { id: 'D865', name: 'Snom D865 Wi-Fi/BT', firmwareVersion: '10.1.141.0', firmwareFilename: 'snomD865-10.1.141.0-SIP-r.bin' },
+          { id: 'M300', name: 'Snom M300 DECT Base', firmwareVersion: '05.30.0002', firmwareFilename: 'snomM300-05.30.0002.bin' },
+          { id: 'M900', name: 'Snom M900 Multi-Cell DECT', firmwareVersion: '06.10.0001', firmwareFilename: 'snomM900-06.10.0001.bin' }
+        ]
+      },
+      {
         id: 'grandstream',
         name: 'Grandstream (XML)',
         configExt: '.xml',
@@ -678,6 +693,26 @@ document.addEventListener('DOMContentLoaded', () => {
           { id: 'WP810', name: 'Grandstream WP810 Wi-Fi', firmwareVersion: '1.0.11.20', firmwareFilename: 'wp810fw.bin' },
           { id: 'DP750', name: 'Grandstream DP750 DECT', firmwareVersion: '1.0.17.4', firmwareFilename: 'dp750fw.bin' },
           { id: 'DP752', name: 'Grandstream DP752 DECT', firmwareVersion: '1.0.21.9', firmwareFilename: 'dp752fw.bin' }
+        ]
+      },
+      {
+        id: 'poly',
+        name: 'Poly / Polycom (CFG)',
+        configExt: '.cfg',
+        models: [
+          { id: 'VVX-150', name: 'Poly VVX 150', firmwareVersion: '6.4.5.0118', firmwareFilename: '3111-48810-001.sip.ld' },
+          { id: 'VVX-250', name: 'Poly VVX 250 Color', firmwareVersion: '6.4.5.0118', firmwareFilename: '3111-48820-001.sip.ld' },
+          { id: 'VVX-350', name: 'Poly VVX 350 Gigabit', firmwareVersion: '6.4.5.0118', firmwareFilename: '3111-48830-001.sip.ld' },
+          { id: 'VVX-450', name: 'Poly VVX 450 Executive', firmwareVersion: '6.4.5.0118', firmwareFilename: '3111-48840-001.sip.ld' },
+          { id: 'VVX-300', name: 'Poly VVX 300 / 310', firmwareVersion: '5.9.8.5959', firmwareFilename: '3111-46157-001.sip.ld' },
+          { id: 'VVX-400', name: 'Poly VVX 400 / 410', firmwareVersion: '5.9.8.5959', firmwareFilename: '3111-46162-001.sip.ld' },
+          { id: 'VVX-500', name: 'Poly VVX 500 / 501', firmwareVersion: '5.9.8.5959', firmwareFilename: '3111-44500-001.sip.ld' },
+          { id: 'VVX-600', name: 'Poly VVX 600 / 601', firmwareVersion: '5.9.8.5959', firmwareFilename: '3111-44600-001.sip.ld' },
+          { id: 'Edge-E100', name: 'Poly Edge E100', firmwareVersion: '8.1.3.1328', firmwareFilename: 'poly-edge-e100.bin' },
+          { id: 'Edge-E220', name: 'Poly Edge E220', firmwareVersion: '8.1.3.1328', firmwareFilename: 'poly-edge-e220.bin' },
+          { id: 'Edge-E320', name: 'Poly Edge E320', firmwareVersion: '8.1.3.1328', firmwareFilename: 'poly-edge-e320.bin' },
+          { id: 'Edge-E450', name: 'Poly Edge E450 Dual LCD', firmwareVersion: '8.1.3.1328', firmwareFilename: 'poly-edge-e450.bin' },
+          { id: 'Trio-8500', name: 'Poly Trio 8500 Conference', firmwareVersion: '7.2.5.0085', firmwareFilename: '3111-66700-001.sip.ld' }
         ]
       },
       {
@@ -702,28 +737,21 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
       },
       {
-        id: 'poly',
-        name: 'Poly / Polycom (CFG)',
-        configExt: '.cfg',
+        id: 'gigaset',
+        name: 'Gigaset pro (XML)',
+        configExt: '.xml',
         models: [
-          { id: 'VVX-150', name: 'Poly VVX 150', firmwareVersion: '6.4.5.0118', firmwareFilename: '3111-48810-001.sip.ld' },
-          { id: 'VVX-250', name: 'Poly VVX 250 Color', firmwareVersion: '6.4.5.0118', firmwareFilename: '3111-48820-001.sip.ld' },
-          { id: 'VVX-350', name: 'Poly VVX 350 Gigabit', firmwareVersion: '6.4.5.0118', firmwareFilename: '3111-48830-001.sip.ld' },
-          { id: 'VVX-450', name: 'Poly VVX 450 Executive', firmwareVersion: '6.4.5.0118', firmwareFilename: '3111-48840-001.sip.ld' },
-          { id: 'VVX-300', name: 'Poly VVX 300 / 310', firmwareVersion: '5.9.8.5959', firmwareFilename: '3111-46157-001.sip.ld' },
-          { id: 'VVX-400', name: 'Poly VVX 400 / 410', firmwareVersion: '5.9.8.5959', firmwareFilename: '3111-46162-001.sip.ld' },
-          { id: 'VVX-500', name: 'Poly VVX 500 / 501', firmwareVersion: '5.9.8.5959', firmwareFilename: '3111-44500-001.sip.ld' },
-          { id: 'VVX-600', name: 'Poly VVX 600 / 601', firmwareVersion: '5.9.8.5959', firmwareFilename: '3111-44600-001.sip.ld' },
-          { id: 'Edge-E100', name: 'Poly Edge E100', firmwareVersion: '8.1.3.1328', firmwareFilename: 'poly-edge-e100.bin' },
-          { id: 'Edge-E220', name: 'Poly Edge E220', firmwareVersion: '8.1.3.1328', firmwareFilename: 'poly-edge-e220.bin' },
-          { id: 'Edge-E320', name: 'Poly Edge E320', firmwareVersion: '8.1.3.1328', firmwareFilename: 'poly-edge-e320.bin' },
-          { id: 'Edge-E450', name: 'Poly Edge E450 Dual LCD', firmwareVersion: '8.1.3.1328', firmwareFilename: 'poly-edge-e450.bin' },
-          { id: 'Trio-8500', name: 'Poly Trio 8500 Conference', firmwareVersion: '7.2.5.0085', firmwareFilename: '3111-66700-001.sip.ld' }
+          { id: 'Maxwell-2', name: 'Gigaset Maxwell 2', firmwareVersion: '2.24.4', firmwareFilename: 'maxwell2-2.24.4.bin' },
+          { id: 'Maxwell-3', name: 'Gigaset Maxwell 3', firmwareVersion: '2.24.4', firmwareFilename: 'maxwell3-2.24.4.bin' },
+          { id: 'Maxwell-4', name: 'Gigaset Maxwell 4 Touch', firmwareVersion: '2.24.4', firmwareFilename: 'maxwell4-2.24.4.bin' },
+          { id: 'N510', name: 'Gigaset N510 IP Pro DECT', firmwareVersion: '42.259', firmwareFilename: 'n510-42.259.bin' },
+          { id: 'N670', name: 'Gigaset N670 IP Pro DECT', firmwareVersion: '2.53.0', firmwareFilename: 'n670-2.53.0.bin' },
+          { id: 'N870', name: 'Gigaset N870 Enterprise DECT', firmwareVersion: '2.53.0', firmwareFilename: 'n870-2.53.0.bin' }
         ]
       },
       {
         id: 'cisco',
-        name: 'Cisco / Linksys (SPA & MPP)',
+        name: 'Cisco / Linksys (SPA & MPP XML)',
         configExt: '.cfg',
         models: [
           { id: 'SPA504G', name: 'Cisco SPA504G', firmwareVersion: '7.6.2e', firmwareFilename: 'spa50x-30x-7-6-2e.bin' },
@@ -737,34 +765,6 @@ document.addEventListener('DOMContentLoaded', () => {
           { id: 'MPP-8841', name: 'Cisco MPP 8841 Color', firmwareVersion: '14.2.1-0101', firmwareFilename: 'sip88xx.14-2-1-0101-44MPP.loads' },
           { id: 'MPP-8851', name: 'Cisco MPP 8851 Executive', firmwareVersion: '14.2.1-0101', firmwareFilename: 'sip88xx.14-2-1-0101-44MPP.loads' },
           { id: 'MPP-8861', name: 'Cisco MPP 8861 Wi-Fi/BT', firmwareVersion: '14.2.1-0101', firmwareFilename: 'sip88xx.14-2-1-0101-44MPP.loads' }
-        ]
-      },
-      {
-        id: 'snom',
-        name: 'Snom (XML)',
-        configExt: '.xml',
-        models: [
-          { id: 'D712', name: 'Snom D712', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD712-10.1.127.10-SIP-r.bin' },
-          { id: 'D717', name: 'Snom D717 Color', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD717-10.1.127.10-SIP-r.bin' },
-          { id: 'D735', name: 'Snom D735 Sensor', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD735-10.1.127.10-SIP-r.bin' },
-          { id: 'D785', name: 'Snom D785 Dual Display', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD785-10.1.127.10-SIP-r.bin' },
-          { id: 'D862', name: 'Snom D862 5" LCD', firmwareVersion: '10.1.141.0', firmwareFilename: 'snomD862-10.1.141.0-SIP-r.bin' },
-          { id: 'D865', name: 'Snom D865 Wi-Fi/BT', firmwareVersion: '10.1.141.0', firmwareFilename: 'snomD865-10.1.141.0-SIP-r.bin' },
-          { id: 'M300', name: 'Snom M300 DECT Base', firmwareVersion: '05.30.0002', firmwareFilename: 'snomM300-05.30.0002.bin' },
-          { id: 'M900', name: 'Snom M900 Multi-Cell DECT', firmwareVersion: '06.10.0001', firmwareFilename: 'snomM900-06.10.0001.bin' }
-        ]
-      },
-      {
-        id: 'gigaset',
-        name: 'Gigaset pro (XML)',
-        configExt: '.xml',
-        models: [
-          { id: 'Maxwell-2', name: 'Gigaset Maxwell 2', firmwareVersion: '2.24.4', firmwareFilename: 'maxwell2-2.24.4.bin' },
-          { id: 'Maxwell-3', name: 'Gigaset Maxwell 3', firmwareVersion: '2.24.4', firmwareFilename: 'maxwell3-2.24.4.bin' },
-          { id: 'Maxwell-4', name: 'Gigaset Maxwell 4 Touch', firmwareVersion: '2.24.4', firmwareFilename: 'maxwell4-2.24.4.bin' },
-          { id: 'N510', name: 'Gigaset N510 IP Pro DECT', firmwareVersion: '42.259', firmwareFilename: 'n510-42.259.bin' },
-          { id: 'N670', name: 'Gigaset N670 IP Pro DECT', firmwareVersion: '2.53.0', firmwareFilename: 'n670-2.53.0.bin' },
-          { id: 'N870', name: 'Gigaset N870 Enterprise DECT', firmwareVersion: '2.53.0', firmwareFilename: 'n870-2.53.0.bin' }
         ]
       }
     ],

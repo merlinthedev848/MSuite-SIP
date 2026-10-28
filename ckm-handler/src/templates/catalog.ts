@@ -58,6 +58,22 @@ export const HANDSET_CATALOG: DeviceBrandMeta[] = [
     ]
   },
   {
+    id: 'snom',
+    name: 'Snom (XML)',
+    configExt: '.xml',
+    vendorDocUrl: 'https://service.snom.com/',
+    models: [
+      { id: 'D712', name: 'Snom D712 (4-Line Standard)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD712-10.1.127.10-SIP-r.bin' },
+      { id: 'D717', name: 'Snom D717 (Color Screen Gigabit)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD717-10.1.127.10-SIP-r.bin' },
+      { id: 'D735', name: 'Snom D735 (Color Sensor Motion Display)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD735-10.1.127.10-SIP-r.bin' },
+      { id: 'D785', name: 'Snom D785 (Dual Display 24 BLF Keys)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD785-10.1.127.10-SIP-r.bin', firmwareNotes: 'Latest stable release with TLS 1.3 & SRTP default' },
+      { id: 'D862', name: 'Snom D862 (5" LCD Flagship)', series: 'D800 Series', firmwareVersion: '10.1.141.0', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD862-10.1.141.0-SIP-r.bin' },
+      { id: 'D865', name: 'Snom D865 (Flagship Wi-Fi & BT)', series: 'D800 Series', firmwareVersion: '10.1.141.0', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD865-10.1.141.0-SIP-r.bin' },
+      { id: 'M300', name: 'Snom M300 (Single-Cell DECT Base)', series: 'M DECT Series', firmwareVersion: '05.30.0002', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomM300-05.30.0002.bin' },
+      { id: 'M900', name: 'Snom M900 (Multi-Cell DECT Enterprise Base)', series: 'M DECT Series', firmwareVersion: '06.10.0001', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomM900-06.10.0001.bin' }
+    ]
+  },
+  {
     id: 'grandstream',
     name: 'Grandstream (XML)',
     configExt: '.xml',
@@ -81,6 +97,28 @@ export const HANDSET_CATALOG: DeviceBrandMeta[] = [
       { id: 'WP825', name: 'Grandstream WP825 (Ruggedized Wi-Fi Cordless)', series: 'Cordless Wi-Fi', firmwareVersion: '1.0.11.20', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'wp825fw.bin' },
       { id: 'DP750', name: 'Grandstream DP750 / DP720 (DECT Base Station)', series: 'DECT Cordless', firmwareVersion: '1.0.17.4', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'dp750fw.bin' },
       { id: 'DP752', name: 'Grandstream DP752 / DP730 (Long-Range DECT)', series: 'DECT Cordless', firmwareVersion: '1.0.21.9', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'dp752fw.bin' }
+    ]
+  },
+  {
+    id: 'poly',
+    name: 'Poly / Polycom (CFG)',
+    configExt: '.cfg',
+    vendorDocUrl: 'https://support.hp.com/poly',
+    models: [
+      { id: 'VVX-150', name: 'Poly VVX 150 (2-Line Business)', series: 'VVX x50 Series', firmwareVersion: '6.4.5.0118', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-48810-001.sip.ld' },
+      { id: 'VVX-250', name: 'Poly VVX 250 (4-Line Color)', series: 'VVX x50 Series', firmwareVersion: '6.4.5.0118', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-48820-001.sip.ld' },
+      { id: 'VVX-350', name: 'Poly VVX 350 (6-Line Gigabit)', series: 'VVX x50 Series', firmwareVersion: '6.4.5.0118', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-48830-001.sip.ld' },
+      { id: 'VVX-450', name: 'Poly VVX 450 (12-Line Executive)', series: 'VVX x50 Series', firmwareVersion: '6.4.5.0118', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-48840-001.sip.ld', firmwareNotes: 'Latest Poly Voice Software (PVOS) release' },
+      { id: 'VVX-300', name: 'Poly VVX 300 / 310', series: 'VVX Legacy', firmwareVersion: '5.9.8.5959', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-46157-001.sip.ld' },
+      { id: 'VVX-400', name: 'Poly VVX 400 / 410', series: 'VVX Legacy', firmwareVersion: '5.9.8.5959', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-46162-001.sip.ld' },
+      { id: 'VVX-500', name: 'Poly VVX 500 / 501', series: 'VVX Legacy', firmwareVersion: '5.9.8.5959', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-44500-001.sip.ld' },
+      { id: 'VVX-600', name: 'Poly VVX 600 / 601', series: 'VVX Legacy', firmwareVersion: '5.9.8.5959', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-44600-001.sip.ld' },
+      { id: 'Edge-E100', name: 'Poly Edge E100 (2-Line Microban)', series: 'Edge E Series', firmwareVersion: '8.1.3.1328', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: 'poly-edge-e100.bin' },
+      { id: 'Edge-E220', name: 'Poly Edge E220 (4-Line Bluetooth)', series: 'Edge E Series', firmwareVersion: '8.1.3.1328', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: 'poly-edge-e220.bin' },
+      { id: 'Edge-E320', name: 'Poly Edge E320 (8-Line Wi-Fi)', series: 'Edge E Series', firmwareVersion: '8.1.3.1328', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: 'poly-edge-e320.bin' },
+      { id: 'Edge-E450', name: 'Poly Edge E450 (14-Line Dual LCD)', series: 'Edge E Series', firmwareVersion: '8.1.3.1328', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: 'poly-edge-e450.bin' },
+      { id: 'Trio-8500', name: 'Poly Trio 8500 (Conference Smart IP)', series: 'Trio Series', firmwareVersion: '7.2.5.0085', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-66700-001.sip.ld' },
+      { id: 'Trio-8800', name: 'Poly Trio 8800 (Large Room Conference)', series: 'Trio Series', firmwareVersion: '7.2.5.0085', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-65290-001.sip.ld' }
     ]
   },
   {
@@ -108,25 +146,17 @@ export const HANDSET_CATALOG: DeviceBrandMeta[] = [
     ]
   },
   {
-    id: 'poly',
-    name: 'Poly / Polycom (CFG)',
-    configExt: '.cfg',
-    vendorDocUrl: 'https://support.hp.com/poly',
+    id: 'gigaset',
+    name: 'Gigaset pro (XML)',
+    configExt: '.xml',
+    vendorDocUrl: 'https://teamwork.gigaset.com/',
     models: [
-      { id: 'VVX-150', name: 'Poly VVX 150 (2-Line Business)', series: 'VVX x50 Series', firmwareVersion: '6.4.5.0118', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-48810-001.sip.ld' },
-      { id: 'VVX-250', name: 'Poly VVX 250 (4-Line Color)', series: 'VVX x50 Series', firmwareVersion: '6.4.5.0118', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-48820-001.sip.ld' },
-      { id: 'VVX-350', name: 'Poly VVX 350 (6-Line Gigabit)', series: 'VVX x50 Series', firmwareVersion: '6.4.5.0118', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-48830-001.sip.ld' },
-      { id: 'VVX-450', name: 'Poly VVX 450 (12-Line Executive)', series: 'VVX x50 Series', firmwareVersion: '6.4.5.0118', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-48840-001.sip.ld', firmwareNotes: 'Latest Poly Voice Software (PVOS) release' },
-      { id: 'VVX-300', name: 'Poly VVX 300 / 310', series: 'VVX Legacy', firmwareVersion: '5.9.8.5959', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-46157-001.sip.ld' },
-      { id: 'VVX-400', name: 'Poly VVX 400 / 410', series: 'VVX Legacy', firmwareVersion: '5.9.8.5959', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-46162-001.sip.ld' },
-      { id: 'VVX-500', name: 'Poly VVX 500 / 501', series: 'VVX Legacy', firmwareVersion: '5.9.8.5959', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-44500-001.sip.ld' },
-      { id: 'VVX-600', name: 'Poly VVX 600 / 601', series: 'VVX Legacy', firmwareVersion: '5.9.8.5959', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-44600-001.sip.ld' },
-      { id: 'Edge-E100', name: 'Poly Edge E100 (2-Line Microban)', series: 'Edge E Series', firmwareVersion: '8.1.3.1328', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: 'poly-edge-e100.bin' },
-      { id: 'Edge-E220', name: 'Poly Edge E220 (4-Line Bluetooth)', series: 'Edge E Series', firmwareVersion: '8.1.3.1328', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: 'poly-edge-e220.bin' },
-      { id: 'Edge-E320', name: 'Poly Edge E320 (8-Line Wi-Fi)', series: 'Edge E Series', firmwareVersion: '8.1.3.1328', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: 'poly-edge-e320.bin' },
-      { id: 'Edge-E450', name: 'Poly Edge E450 (14-Line Dual LCD)', series: 'Edge E Series', firmwareVersion: '8.1.3.1328', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: 'poly-edge-e450.bin' },
-      { id: 'Trio-8500', name: 'Poly Trio 8500 (Conference Smart IP)', series: 'Trio Series', firmwareVersion: '7.2.5.0085', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-66700-001.sip.ld' },
-      { id: 'Trio-8800', name: 'Poly Trio 8800 (Large Room Conference)', series: 'Trio Series', firmwareVersion: '7.2.5.0085', firmwareUrl: 'https://support.hp.com/poly', firmwareFilename: '3111-65290-001.sip.ld' }
+      { id: 'Maxwell-2', name: 'Gigaset Maxwell 2 (High-Definition Desktop)', series: 'Maxwell Series', firmwareVersion: '2.24.4', firmwareUrl: 'https://teamwork.gigaset.com/', firmwareFilename: 'maxwell2-2.24.4.bin' },
+      { id: 'Maxwell-3', name: 'Gigaset Maxwell 3 (Color Gigabit Desktop)', series: 'Maxwell Series', firmwareVersion: '2.24.4', firmwareUrl: 'https://teamwork.gigaset.com/', firmwareFilename: 'maxwell3-2.24.4.bin' },
+      { id: 'Maxwell-4', name: 'Gigaset Maxwell 4 (4.3" Touchscreen Desktop)', series: 'Maxwell Series', firmwareVersion: '2.24.4', firmwareUrl: 'https://teamwork.gigaset.com/', firmwareFilename: 'maxwell4-2.24.4.bin' },
+      { id: 'N510', name: 'Gigaset N510 IP Pro (Single-Cell DECT Base)', series: 'DECT IP Pro', firmwareVersion: '42.259', firmwareUrl: 'https://teamwork.gigaset.com/', firmwareFilename: 'n510-42.259.bin' },
+      { id: 'N670', name: 'Gigaset N670 IP Pro (Single/Multi-Cell DECT Base)', series: 'DECT IP Pro', firmwareVersion: '2.53.0', firmwareUrl: 'https://teamwork.gigaset.com/', firmwareFilename: 'n670-2.53.0.bin' },
+      { id: 'N870', name: 'Gigaset N870 IP Pro (Enterprise Multi-Cell DECT)', series: 'DECT IP Pro', firmwareVersion: '2.53.0', firmwareUrl: 'https://teamwork.gigaset.com/', firmwareFilename: 'n870-2.53.0.bin' }
     ]
   },
   {
@@ -146,36 +176,6 @@ export const HANDSET_CATALOG: DeviceBrandMeta[] = [
       { id: 'MPP-8841', name: 'Cisco MPP 8841 (Color Gigabit Multiplatform)', series: 'MPP 8800 Series', firmwareVersion: '14.2.1-0101', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'sip88xx.14-2-1-0101-44MPP.loads' },
       { id: 'MPP-8851', name: 'Cisco MPP 8851 (Executive USB/BT Multiplatform)', series: 'MPP 8800 Series', firmwareVersion: '14.2.1-0101', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'sip88xx.14-2-1-0101-44MPP.loads' },
       { id: 'MPP-8861', name: 'Cisco MPP 8861 (Executive Wi-Fi/BT Multiplatform)', series: 'MPP 8800 Series', firmwareVersion: '14.2.1-0101', firmwareUrl: 'https://software.cisco.com/', firmwareFilename: 'sip88xx.14-2-1-0101-44MPP.loads' }
-    ]
-  },
-  {
-    id: 'snom',
-    name: 'Snom (XML)',
-    configExt: '.xml',
-    vendorDocUrl: 'https://service.snom.com/',
-    models: [
-      { id: 'D712', name: 'Snom D712 (4-Line Standard)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD712-10.1.127.10-SIP-r.bin' },
-      { id: 'D717', name: 'Snom D717 (Color Screen Gigabit)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD717-10.1.127.10-SIP-r.bin' },
-      { id: 'D735', name: 'Snom D735 (Color Sensor Motion Display)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD735-10.1.127.10-SIP-r.bin' },
-      { id: 'D785', name: 'Snom D785 (Dual Display 24 BLF Keys)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD785-10.1.127.10-SIP-r.bin', firmwareNotes: 'Latest stable release with TLS 1.3 & SRTP default' },
-      { id: 'D862', name: 'Snom D862 (5" LCD Flagship)', series: 'D800 Series', firmwareVersion: '10.1.141.0', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD862-10.1.141.0-SIP-r.bin' },
-      { id: 'D865', name: 'Snom D865 (Flagship Wi-Fi & BT)', series: 'D800 Series', firmwareVersion: '10.1.141.0', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD865-10.1.141.0-SIP-r.bin' },
-      { id: 'M300', name: 'Snom M300 (Single-Cell DECT Base)', series: 'M DECT Series', firmwareVersion: '05.30.0002', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomM300-05.30.0002.bin' },
-      { id: 'M900', name: 'Snom M900 (Multi-Cell DECT Enterprise Base)', series: 'M DECT Series', firmwareVersion: '06.10.0001', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomM900-06.10.0001.bin' }
-    ]
-  },
-  {
-    id: 'gigaset',
-    name: 'Gigaset pro (XML)',
-    configExt: '.xml',
-    vendorDocUrl: 'https://teamwork.gigaset.com/',
-    models: [
-      { id: 'Maxwell-2', name: 'Gigaset Maxwell 2 (High-Definition Desktop)', series: 'Maxwell Series', firmwareVersion: '2.24.4', firmwareUrl: 'https://teamwork.gigaset.com/', firmwareFilename: 'maxwell2-2.24.4.bin' },
-      { id: 'Maxwell-3', name: 'Gigaset Maxwell 3 (Color Gigabit Desktop)', series: 'Maxwell Series', firmwareVersion: '2.24.4', firmwareUrl: 'https://teamwork.gigaset.com/', firmwareFilename: 'maxwell3-2.24.4.bin' },
-      { id: 'Maxwell-4', name: 'Gigaset Maxwell 4 (4.3" Touchscreen Desktop)', series: 'Maxwell Series', firmwareVersion: '2.24.4', firmwareUrl: 'https://teamwork.gigaset.com/', firmwareFilename: 'maxwell4-2.24.4.bin' },
-      { id: 'N510', name: 'Gigaset N510 IP Pro (Single-Cell DECT Base)', series: 'DECT IP Pro', firmwareVersion: '42.259', firmwareUrl: 'https://teamwork.gigaset.com/', firmwareFilename: 'n510-42.259.bin' },
-      { id: 'N670', name: 'Gigaset N670 IP Pro (Single/Multi-Cell DECT Base)', series: 'DECT IP Pro', firmwareVersion: '2.53.0', firmwareUrl: 'https://teamwork.gigaset.com/', firmwareFilename: 'n670-2.53.0.bin' },
-      { id: 'N870', name: 'Gigaset N870 IP Pro (Enterprise Multi-Cell DECT)', series: 'DECT IP Pro', firmwareVersion: '2.53.0', firmwareUrl: 'https://teamwork.gigaset.com/', firmwareFilename: 'n870-2.53.0.bin' }
     ]
   }
 ];
@@ -385,23 +385,58 @@ export function generateDefaultHandsetConfig(brand: string, cfg: HandsetAccountC
   const brandMeta = HANDSET_CATALOG.find(x => x.id === b);
   const modelMeta = brandMeta?.models.find(m => m.id === modelId) || brandMeta?.models[0];
 
-  if (b === 'grandstream') {
-    return generateGrandstreamConfig(cfg);
+  if (b === 'snom') {
+    let conf = generateSnomConfig(cfg);
+    if (modelMeta?.firmwareFilename) {
+      conf = conf.replace(
+        '</phone-settings>',
+        `    <!-- Model Firmware Target: ${modelMeta.name} (${modelMeta.firmwareVersion}) -->\n    <firmware_version perm="R">${modelMeta.firmwareVersion}</firmware_version>\n  </phone-settings>`
+      );
+    }
+    return conf;
   }
-  if (b === 'fanvil') {
-    return generateFanvilConfig(cfg);
+  if (b === 'grandstream') {
+    let conf = generateGrandstreamConfig(cfg);
+    if (modelMeta?.firmwareFilename) {
+      conf = conf.replace(
+        '</config>',
+        `  <!-- Model Firmware Target: ${modelMeta.name} (${modelMeta.firmwareVersion}) -->\n  <P192>${cfg.dataHandlerUrl}/firmware/grandstream/${modelMeta.firmwareFilename}</P192>\n</config>`
+      );
+    }
+    return conf;
   }
   if (b === 'poly' || b === 'polycom') {
-    return generatePolyConfig(cfg);
+    let conf = generatePolyConfig(cfg);
+    if (modelMeta?.firmwareFilename) {
+      conf = conf.replace(
+        '/>',
+        `  device.prov.upgradeServer="${cfg.dataHandlerUrl}/firmware/poly/${modelMeta.firmwareFilename}"\n  />`
+      );
+    }
+    return conf;
+  }
+  if (b === 'fanvil') {
+    let conf = generateFanvilConfig(cfg);
+    if (modelMeta?.firmwareFilename) {
+      conf = conf.replace(
+        '</AUTO_UPDATE>',
+        `  <!-- Model Firmware Target: ${modelMeta.name} (${modelMeta.firmwareVersion}) -->\n      <Firmware_File_Name>${modelMeta.firmwareFilename}</Firmware_File_Name>\n    </AUTO_UPDATE>`
+      );
+    }
+    return conf;
+  }
+  if (b === 'gigaset') {
+    let conf = generateGigasetConfig(cfg);
+    if (modelMeta?.firmwareFilename) {
+      conf = conf.replace(
+        '</part>',
+        `  <!-- Model Firmware Target: ${modelMeta.name} (${modelMeta.firmwareVersion}) -->\n    <param name="FirmwareFilename" value="${modelMeta.firmwareFilename}"/>\n  </part>`
+      );
+    }
+    return conf;
   }
   if (b === 'cisco' || b === 'linksys') {
     return generateCiscoPhoneConfig(cfg);
-  }
-  if (b === 'snom') {
-    return generateSnomConfig(cfg);
-  }
-  if (b === 'gigaset') {
-    return generateGigasetConfig(cfg);
   }
 
   // Default Yealink

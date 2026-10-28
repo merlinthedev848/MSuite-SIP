@@ -3,6 +3,11 @@ import { HandsetAccountConfig } from './yealink';
 export function generatePolyConfig(cfg: HandsetAccountConfig): string {
   const transport = cfg.sipTransport.toUpperCase() === 'TLS' ? 'TLS' : cfg.sipTransport.toUpperCase() === 'TCP' ? 'TCPOnly' : 'UDPOnly';
 
+  let blfXml = '';
+  if (cfg.blfKeys && cfg.blfKeys.length > 0) {
+    blfXml = '\n' + cfg.blfKeys.map(k => `    attendant.resourceList.${k.key}.address="${k.extension}" attendant.resourceList.${k.key}.label="${k.label}" attendant.resourceList.${k.key}.type="normal"`).join('\n');
+  }
+
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!-- ============================================================================== -->
 <!-- CKM Handler Auto-Generated Poly / Polycom Provisioning Profile                 -->
@@ -34,12 +39,22 @@ export function generatePolyConfig(cfg: HandsetAccountConfig): string {
     voice.codecPref.Opus="4"
     voice.codecPref.G729_AB="5"
     
+    qos.ip.rtp.dscp="46"
+    qos.ip.rtp.filter_enable="1"
+    qos.ip.sip.dscp="24"
+    
+    device.net.vlanId="20"
+    device.net.tagDetection="0"
+    
     tcpIpApp.sntp.address="pool.ntp.org"
     tcpIpApp.sntp.gmtOffset="0"
     
+    dir.corp.address="${cfg.dataHandlerUrl}/phonebook/poly.xml"
+    dir.corp.port="443"
+    
     device.prov.serverType="HTTP"
     device.prov.serverName="${cfg.dataHandlerUrl}/provision"
-    device.prov.tagDetection="0"
+    device.prov.tagDetection="0"${blfXml}
   />
 </PHONE_CONFIG>`;
 }
