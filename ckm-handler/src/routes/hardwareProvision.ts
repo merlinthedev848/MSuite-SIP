@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import systemDb from '../database/systemDb';
+import systemDb, { logActivity } from '../database/systemDb';
 import { generateYealinkConfig, HandsetAccountConfig } from '../templates/yealink';
 import { generateFanvilConfig } from '../templates/fanvil';
 import { generateGrandstreamConfig } from '../templates/grandstream';
@@ -93,6 +93,7 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
 
   // Update last provisioned timestamp
   updateHandsetProvisionedStmt.run(cleanMac);
+  logActivity('HANDSET_PROVISIONED', `Handset [${cleanMac.toUpperCase()}] (${(handset.brand || 'yealink').toUpperCase()}) fetched config for Ext ${handset.extension}`, req.ip);
 
   // 4. Render manufacturer-specific configuration
   const brand = (handset.brand || '').toLowerCase();

@@ -30,8 +30,9 @@
         </div>
       </div>
       <nav class="nav-menu">
+        <div class="nav-section-title">VOIP OPERATIONS</div>
         <button class="nav-btn active" data-tab="overview">
-          <span class="icon">📊</span> Overview
+          <span class="icon">📊</span> Overview & Telemetry
         </button>
         <button class="nav-btn" data-tab="extensions">
           <span class="icon">📱</span> Extensions & PINs
@@ -42,6 +43,11 @@
         <button class="nav-btn" data-tab="routers">
           <span class="icon">🌐</span> Routers & Gateways
         </button>
+
+        <div class="nav-section-title">SECURITY & CONFIG</div>
+        <button class="nav-btn" data-tab="users" id="navBtnUsers" style="background: rgba(37, 99, 235, 0.12); border: 1px solid rgba(59, 130, 246, 0.3); font-weight: 700; color: #93c5fd;">
+          <span class="icon">👥</span> Admin Users & RBAC
+        </button>
         <button class="nav-btn" data-tab="branding">
           <span class="icon">🎨</span> Brand & Colors
         </button>
@@ -50,9 +56,6 @@
         </button>
         <button class="nav-btn" data-tab="gdpr">
           <span class="icon">🔒</span> GDPR & Retention Vault
-        </button>
-        <button class="nav-btn" data-tab="users" id="navBtnUsers">
-          <span class="icon">👥</span> Admin Users & RBAC
         </button>
       </nav>
       <div class="sidebar-footer">
@@ -65,13 +68,16 @@
     <!-- Main Content Area -->
     <main class="main-content">
       <header class="topbar">
-        <div class="topbar-title" id="pageTitle">System Overview</div>
+        <div class="topbar-title" id="pageTitle">System Overview & Telemetry</div>
         <div class="topbar-actions">
-          <span class="badge badge-secondary" id="userRoleBadge">👤 Loading...</span>
+          <button class="btn btn-sm btn-secondary" id="btnTopbarUser" title="Jump to Admin Users & Permissions" style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <span id="userRoleBadge">👤 Loading...</span>
+          </button>
+          <button class="btn btn-sm btn-secondary" id="btnOpenChangePassModal" title="Change your password">🔑 Password</button>
           <span class="badge badge-primary" id="pbxBadge">PBX: Connecting...</span>
           <span class="badge badge-secondary" id="licenseBadge">License: Active</span>
           <button class="btn btn-sm" id="btnRefresh">🔄 Refresh</button>
-          <button class="btn btn-sm btn-secondary" id="btnLogout" style="margin-left: 6px;">🚪 Logout</button>
+          <button class="btn btn-sm btn-danger" id="btnLogout" style="margin-left: 6px;">🚪 Logout</button>
         </div>
       </header>
 
@@ -161,6 +167,41 @@
             </div>
           </div>
         </div>
+
+        <!-- PBX SIP Diagnostics & Live Audit Stream Grid -->
+        <div class="grid-2col mt-6">
+          <!-- PBX Live Diagnostic Card -->
+          <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h3>PBX SIP Ping & Latency Probe</h3>
+                <p class="muted">Test active socket connectivity and SIP OPTIONS round-trip time</p>
+              </div>
+              <button class="btn btn-sm btn-primary" id="btnPingPbx">⚡ Ping PBX Now</button>
+            </div>
+            <div id="pbxPingResult" style="margin-top: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: 13px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Target: <strong id="pingPbxTarget">Connecting...</strong></span>
+                <span class="status-pill operational" id="pingStatusPill">Ready</span>
+              </div>
+              <div id="pingDetails" class="muted" style="margin-top: 6px; font-size: 12px;">Click "Ping PBX Now" to measure live network latency to Asterisk/FreePBX.</div>
+            </div>
+          </div>
+
+          <!-- Live Audit Event Stream -->
+          <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h3>Real-Time Audit & Event Stream</h3>
+                <p class="muted">Live feed of provisioning requests, logins, and registrations</p>
+              </div>
+              <button class="btn btn-sm btn-secondary" id="btnRefreshLogs">🔄</button>
+            </div>
+            <div class="log-stream mt-4" id="auditLogStream">
+              <div class="muted">Loading recent activity events...</div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- TAB 2: EXTENSIONS & SOFTPHONES -->
@@ -172,6 +213,9 @@
             <button class="btn btn-success" id="btnOpenQuickProvModal" style="margin-right: 8px;">⚡ Quick Pull & Provision</button>
             <button class="btn btn-primary" id="btnOpenAddExtModal">+ New Extension</button>
           </div>
+        </div>
+        <div class="search-bar">
+          <input type="text" id="searchExt" class="search-input" placeholder="🔍 Search extensions by number, display name, or SIP username...">
         </div>
         <div class="card">
           <table class="data-table">
@@ -198,6 +242,9 @@
         <div class="toolbar">
           <div class="toolbar-title">Physical IP Deskphone Directory</div>
           <button class="btn btn-primary" id="btnOpenAddHandsetModal">+ Register Physical Handset</button>
+        </div>
+        <div class="search-bar">
+          <input type="text" id="searchHandset" class="search-input" placeholder="🔍 Search handsets by MAC address, brand, or extension...">
         </div>
         <div class="card">
           <table class="data-table">
@@ -448,6 +495,9 @@
             <p class="muted" style="font-size: 13px;">Manage administrator accounts, assign preset security roles, and enforce granular access control.</p>
           </div>
           <button class="btn btn-primary" id="btnOpenAddUserModal">+ New Admin User</button>
+        </div>
+        <div class="search-bar">
+          <input type="text" id="searchUser" class="search-input" placeholder="🔍 Search admin users by username, display name, or role...">
         </div>
         <div class="card">
           <table class="data-table">
@@ -807,6 +857,38 @@
           <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
             <button type="button" class="btn btn-secondary" onclick="closeModal('modalAddUser')">Cancel</button>
             <button type="submit" class="btn btn-primary" id="btnSaveUser">Save Account</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password Modal -->
+  <div id="modalChangePass" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>🔑 Change Administrator Password</h3>
+        <button class="modal-close" onclick="closeModal('modalChangePass')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formChangePass">
+          <div class="form-group">
+            <label>Current Password *</label>
+            <input type="password" id="curPassword" required placeholder="••••••••••••" autocomplete="current-password">
+          </div>
+          <div class="form-group">
+            <label>New Password *</label>
+            <input type="password" id="newPassword" required placeholder="Minimum 6 characters" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label>Confirm New Password *</label>
+            <input type="password" id="confirmNewPassword" required placeholder="Confirm new password" autocomplete="new-password">
+          </div>
+          <div id="changePassError" class="alert alert-danger hidden" style="margin-bottom: 14px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;"></div>
+          <div id="changePassSuccess" class="alert alert-success hidden" style="margin-bottom: 14px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;"></div>
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modalChangePass')">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btnSubmitChangePass">Update Password</button>
           </div>
         </form>
       </div>

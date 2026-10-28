@@ -79,6 +79,15 @@ body {
   gap: 6px;
 }
 
+.nav-section-title {
+  font-size: 10px;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 1px;
+  padding: 10px 12px 4px 12px;
+  text-transform: uppercase;
+}
+
 .nav-btn {
   display: flex;
   align-items: center;
@@ -576,4 +585,70 @@ body {
   font-size: 13px;
   color: #64748b;
   margin-bottom: 24px;
+}
+
+/* Search Bars & Filters */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.search-input {
+  width: 100%;
+  max-width: 380px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.search-input:focus {
+  border-color: var(--primary);
+}
+
+/* Real-Time Audit Log Stream */
+.log-stream {
+  max-height: 240px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 12px;
+  background: #0f172a;
+  color: #f8fafc;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.log-item {
+  display: flex;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  align-items: center;
+}
+
+.log-time {
+  color: #94a3b8;
+  font-size: 11px;
+  min-width: 75px;
+}
+
+.log-type {
+  color: #38bdf8;
+  font-weight: 700;
+  min-width: 160px;
+  font-size: 11px;
+}
+
+.log-details {
+  color: #e2e8f0;
+  flex: 1;
+}
+
+.log-ip {
+  color: #64748b;
+  font-size: 11px;
 }

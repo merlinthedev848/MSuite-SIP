@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import systemDb from '../database/systemDb';
+import systemDb, { logActivity } from '../database/systemDb';
 
 const router = Router();
 
@@ -96,6 +96,7 @@ const handlePinProvision = (req: Request, res: Response) => {
 
   // Mark PIN as claimed
   claimPinStmt.run(cleanedCode);
+  logActivity('PIN_CLAIMED', `Extension ${pinRecord.extension} provisioned via PIN [${cleanedCode}]`, clientIp);
 
   // Fetch current server config
   const config = getServerConfigStmt.get() as any;

@@ -279,7 +279,86 @@ document.addEventListener('DOMContentLoaded', () => {
       badge.textContent = `${opCount}/${total} Components Operational`;
       badge.className = opCount === total ? 'badge badge-primary' : 'badge badge-secondary';
     }
+
+    // Update PBX Ping Target Card
+    const pingTarget = document.getElementById('pingPbxTarget');
+    if (pingTarget) pingTarget.textContent = `${s.pbxServer || 'pbx.chriskendall.media'}:${s.pbxPort || 5060}`;
+
+    // Load Live Activity & Audit Logs
+    loadAuditLogs();
   }
+
+  // Live Audit Event Stream Loader
+  async function loadAuditLogs() {
+    const streamEl = document.getElementById('auditLogStream');
+    if (!streamEl) return;
+    const res = await fetchJson('/api/admin/audit-logs');
+    if (!res || !res.ok || !res.logs || !res.logs.length) {
+      streamEl.innerHTML = '<div class="muted" style="padding: 10px; font-size: 13px;">No recent activity logged yet.</div>';
+      return;
+    }
+    streamEl.innerHTML = res.logs.map(log => {
+      const time = new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      let badgeClass = 'badge-secondary';
+      if (log.event_type.includes('LOGIN') || log.event_type.includes('AUTH')) badgeClass = 'badge-primary';
+      if (log.event_type.includes('ERROR') || log.event_type.includes('PURGE')) badgeClass = 'badge-danger';
+      if (log.event_type.includes('PROVISION') || log.event_type.includes('PIN')) badgeClass = 'badge-success';
+
+      return `
+        <div class="log-item">
+          <span class="log-time">${time}</span>
+          <span class="tag ${badgeClass}">${log.event_type}</span>
+          <span class="log-msg" title="${log.details || ''}">${log.details}</span>
+          ${log.ip_address ? `<span class="muted" style="font-size: 11px; margin-left: auto;">${log.ip_address}</span>` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('btnRefreshLogs')?.addEventListener('click', () => {
+    loadAuditLogs();
+  });
+
+  // PBX Ping & Latency Probe Action
+  document.getElementById('btnPingPbx')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnPingPbx');
+    const pill = document.getElementById('pingStatusPill');
+    const details = document.getElementById('pingDetails');
+
+    btn.disabled = true;
+    btn.textContent = '⚡ Probing...';
+    if (pill) {
+      pill.className = 'status-pill connecting';
+      pill.textContent = 'Testing...';
+    }
+    if (details) details.textContent = 'Dispatching socket probe to PBX...';
+
+    try {
+      const res = await fetchJson('/api/admin/pbx/ping', { method: 'POST' });
+      if (res && res.reachable) {
+        if (pill) {
+          pill.className = 'status-pill operational';
+          pill.textContent = `${res.latencyMs} ms`;
+        }
+        if (details) details.textContent = res.message || 'PBX responded successfully.';
+      } else {
+        if (pill) {
+          pill.className = 'status-pill degraded';
+          pill.textContent = 'Unreachable';
+        }
+        if (details) details.textContent = res ? (res.error || res.message) : 'Connection failed.';
+      }
+    } catch (err) {
+      if (pill) {
+        pill.className = 'status-pill degraded';
+        pill.textContent = 'Error';
+      }
+      if (details) details.textContent = 'Failed to execute ping probe.';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '⚡ Ping PBX Now';
+    }
+  });
 
   window.copyEndpointText = (id) => {
     const el = document.getElementById(id);
@@ -293,19 +372,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   let cachedExtensions = [];
 
-  async function loadExtensions() {
-    const data = await fetchJson('/api/admin/extensions');
+  function renderExtensionsTable(list) {
     const tbody = document.getElementById('extTableBody');
-    if (!data || !data.ok || !data.extensions.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center">No extensions registered yet. Click "+ New Extension" to create one.</td></tr>';
-      cachedExtensions = [];
+    if (!tbody) return;
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center">No extensions match your search.</td></tr>';
       return;
     }
 
-    cachedExtensions = data.extensions;
     const canManage = hasPerm('manage_extensions');
-
-    tbody.innerHTML = data.extensions.map(ext => `
+    tbody.innerHTML = list.map(ext => `
       <tr>
         <td><strong>${ext.extension}</strong></td>
         <td>${ext.display_name}</td>
@@ -321,6 +397,40 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
       </tr>
     `).join('');
+  }
+
+  // Instant Live Search for Extensions
+  document.getElementById('searchExt')?.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    if (!query) {
+      renderExtensionsTable(cachedExtensions);
+      return;
+    }
+    const filtered = cachedExtensions.filter(ext =>
+      (ext.extension && String(ext.extension).toLowerCase().includes(query)) ||
+      (ext.display_name && ext.display_name.toLowerCase().includes(query)) ||
+      (ext.sip_username && ext.sip_username.toLowerCase().includes(query)) ||
+      (ext.active_pin && String(ext.active_pin).includes(query))
+    );
+    renderExtensionsTable(filtered);
+  });
+
+  async function loadExtensions() {
+    const data = await fetchJson('/api/admin/extensions');
+    const tbody = document.getElementById('extTableBody');
+    if (!data || !data.ok || !data.extensions.length) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center">No extensions registered yet. Click "+ New Extension" to create one.</td></tr>';
+      cachedExtensions = [];
+      return;
+    }
+
+    cachedExtensions = data.extensions;
+    const searchVal = document.getElementById('searchExt')?.value.toLowerCase().trim();
+    if (searchVal) {
+      document.getElementById('searchExt').dispatchEvent(new Event('input'));
+    } else {
+      renderExtensionsTable(cachedExtensions);
+    }
   }
 
   window.generatePin = async (ext) => {
@@ -470,17 +580,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   // 6. TAB 3: Physical IP Handsets
   // --------------------------------------------------------------------------
-  async function loadHandsets() {
-    const data = await fetchJson('/api/admin/handsets');
+  let cachedHandsets = [];
+
+  function renderHandsetsTable(list) {
     const tbody = document.getElementById('handsetTableBody');
-    if (!data || !data.ok || !data.handsets.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="text-center">No physical handsets registered. Click "+ Register Physical Handset" to add one by MAC address.</td></tr>';
+    if (!tbody) return;
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center">No physical handsets match your search.</td></tr>';
       return;
     }
 
     const canManage = hasPerm('manage_handsets');
-
-    tbody.innerHTML = data.handsets.map(h => `
+    tbody.innerHTML = list.map(h => `
       <tr>
         <td><code>${h.mac_address.toUpperCase()}</code></td>
         <td><strong>${h.brand.toUpperCase()}</strong> ${h.model || ''}</td>
@@ -494,6 +605,42 @@ document.addEventListener('DOMContentLoaded', () => {
         </td>
       </tr>
     `).join('');
+  }
+
+  // Instant Live Search for Handsets
+  document.getElementById('searchHandset')?.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    if (!query) {
+      renderHandsetsTable(cachedHandsets);
+      return;
+    }
+    const filtered = cachedHandsets.filter(h =>
+      (h.mac_address && h.mac_address.toLowerCase().includes(query)) ||
+      (h.brand && h.brand.toLowerCase().includes(query)) ||
+      (h.model && h.model.toLowerCase().includes(query)) ||
+      (h.extension && String(h.extension).toLowerCase().includes(query)) ||
+      (h.display_name && h.display_name.toLowerCase().includes(query)) ||
+      (h.line_label && h.line_label.toLowerCase().includes(query))
+    );
+    renderHandsetsTable(filtered);
+  });
+
+  async function loadHandsets() {
+    const data = await fetchJson('/api/admin/handsets');
+    const tbody = document.getElementById('handsetTableBody');
+    if (!data || !data.ok || !data.handsets.length) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center">No physical handsets registered. Click "+ Register Physical Handset" to add one by MAC address.</td></tr>';
+      cachedHandsets = [];
+      return;
+    }
+
+    cachedHandsets = data.handsets;
+    const searchVal = document.getElementById('searchHandset')?.value.toLowerCase().trim();
+    if (searchVal) {
+      document.getElementById('searchHandset').dispatchEvent(new Event('input'));
+    } else {
+      renderHandsetsTable(cachedHandsets);
+    }
   }
 
   window.deleteHandset = async (mac) => {
@@ -874,17 +1021,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   let cachedUsers = [];
 
-  async function loadUsers() {
-    const data = await fetchJson('/api/admin/users');
+  function renderUsersTable(list) {
     const tbody = document.getElementById('userTableBody');
-    if (!data || !data.ok || !data.users.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center">No admin accounts found.</td></tr>';
-      cachedUsers = [];
+    if (!tbody) return;
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center">No administrator accounts match your search.</td></tr>';
       return;
     }
 
-    cachedUsers = data.users;
-    tbody.innerHTML = data.users.map(u => {
+    tbody.innerHTML = list.map(u => {
       const isSuper = u.role === 'superadmin';
       const perms = isSuper ? ['Full Superadmin Access'] : (u.permissions || []);
       const permPills = perms.map(p => `<span class="tag" style="margin: 2px 2px 2px 0;">${p}</span>`).join('');
@@ -905,6 +1050,39 @@ document.addEventListener('DOMContentLoaded', () => {
         </tr>
       `;
     }).join('');
+  }
+
+  // Instant Live Search for Admin Users
+  document.getElementById('searchUser')?.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    if (!query) {
+      renderUsersTable(cachedUsers);
+      return;
+    }
+    const filtered = cachedUsers.filter(u =>
+      (u.username && u.username.toLowerCase().includes(query)) ||
+      (u.display_name && u.display_name.toLowerCase().includes(query)) ||
+      (u.role && u.role.toLowerCase().includes(query))
+    );
+    renderUsersTable(filtered);
+  });
+
+  async function loadUsers() {
+    const data = await fetchJson('/api/admin/users');
+    const tbody = document.getElementById('userTableBody');
+    if (!data || !data.ok || !data.users.length) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center">No admin accounts found.</td></tr>';
+      cachedUsers = [];
+      return;
+    }
+
+    cachedUsers = data.users;
+    const searchVal = document.getElementById('searchUser')?.value.toLowerCase().trim();
+    if (searchVal) {
+      document.getElementById('searchUser').dispatchEvent(new Event('input'));
+    } else {
+      renderUsersTable(cachedUsers);
+    }
   }
 
   // Role Preset Change Listener (Check/Uncheck Permissions automatically)
@@ -1020,6 +1198,75 @@ document.addEventListener('DOMContentLoaded', () => {
       alert(`Delete failed: ${res.error}`);
     }
   };
+
+  // Topbar Shortcut: Jump directly to Users & Permissions Tab
+  document.getElementById('btnTopbarUser')?.addEventListener('click', () => {
+    const usersBtn = document.querySelector('.nav-btn[data-tab="users"]');
+    if (usersBtn) usersBtn.click();
+  });
+
+  // Self-Service Change Password Modal Handlers
+  document.getElementById('btnOpenChangePassModal')?.addEventListener('click', () => {
+    document.getElementById('formChangePass')?.reset();
+    document.getElementById('changePassError')?.classList.add('hidden');
+    document.getElementById('changePassSuccess')?.classList.add('hidden');
+    openModal('modalChangePass');
+  });
+
+  document.getElementById('formChangePass')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const curPass = document.getElementById('curPassword').value;
+    const newPass = document.getElementById('newPassword').value;
+    const confirmPass = document.getElementById('confirmNewPassword').value;
+    const errBox = document.getElementById('changePassError');
+    const succBox = document.getElementById('changePassSuccess');
+    const btn = document.getElementById('btnSubmitChangePass');
+
+    errBox?.classList.add('hidden');
+    succBox?.classList.add('hidden');
+
+    if (newPass !== confirmPass) {
+      if (errBox) {
+        errBox.textContent = 'New passwords do not match.';
+        errBox.classList.remove('hidden');
+      }
+      return;
+    }
+    if (newPass.length < 6) {
+      if (errBox) {
+        errBox.textContent = 'New password must be at least 6 characters.';
+        errBox.classList.remove('hidden');
+      }
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Updating...';
+
+    const res = await fetchJson('/api/admin/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: curPass, newPassword: newPass })
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Update Password';
+
+    if (res && res.ok) {
+      if (succBox) {
+        succBox.textContent = 'Password changed successfully!';
+        succBox.classList.remove('hidden');
+      }
+      setTimeout(() => {
+        closeModal('modalChangePass');
+      }, 1500);
+    } else if (res) {
+      if (errBox) {
+        errBox.textContent = res.error || 'Failed to change password.';
+        errBox.classList.remove('hidden');
+      }
+    }
+  });
 
   // --------------------------------------------------------------------------
   // 12. Initial Application Boot & Telemetry Loop

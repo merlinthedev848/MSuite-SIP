@@ -147,12 +147,30 @@ systemDb.exec(`
     FOREIGN KEY (user_id) REFERENCES admin_users (id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS audit_activity_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    details TEXT NOT NULL,
+    ip_address TEXT DEFAULT '127.0.0.1',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_pins_extension ON softphone_pins (extension);
   CREATE INDEX IF NOT EXISTS idx_handsets_extension ON physical_handsets (extension);
   CREATE INDEX IF NOT EXISTS idx_routers_mac ON routers (mac_address);
   CREATE INDEX IF NOT EXISTS idx_admin_users_username ON admin_users (username);
   CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON admin_sessions (token);
+  CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_activity_logs (id DESC);
 `);
+
+export function logActivity(eventType: string, details: string, ipAddress: string = '127.0.0.1') {
+  try {
+    systemDb.prepare(`
+      INSERT INTO audit_activity_logs (event_type, details, ip_address)
+      VALUES (?, ?, ?)
+    `).run(eventType, details, ipAddress);
+  } catch {}
+}
 
 // Seed default server config if missing
 const checkConfig = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
