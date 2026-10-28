@@ -27,6 +27,9 @@
         <button class="nav-btn" data-tab="handsets">
           <span class="icon">☎️</span> Physical Handsets
         </button>
+        <button class="nav-btn" data-tab="routers">
+          <span class="icon">🌐</span> Routers & Gateways
+        </button>
         <button class="nav-btn" data-tab="config">
           <span class="icon">⚙️</span> PBX & Gateways
         </button>
@@ -154,7 +157,33 @@
         </div>
       </section>
 
-      <!-- TAB 4: PBX CONFIG -->
+      <!-- TAB 4: ROUTERS & GATEWAYS -->
+      <section class="tab-pane" id="pane-routers">
+        <div class="toolbar">
+          <div class="toolbar-title">VoIP Router & Network Gateway Profiles</div>
+          <button class="btn btn-primary" id="btnOpenAddRouterModal">+ New Router Profile</button>
+        </div>
+        <div class="card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Site Name</th>
+                <th>Brand / Model</th>
+                <th>Voice VLAN</th>
+                <th>Subnet</th>
+                <th>SIP ALG Killer</th>
+                <th>QoS Priority</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="routerTableBody">
+              <tr><td colspan="7" class="text-center">Loading router profiles...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 5: PBX CONFIG -->
       <section class="tab-pane" id="pane-config">
         <div class="toolbar">
           <div class="toolbar-title">PBX Integration & Gateway Settings</div>

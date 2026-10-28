@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     overview: 'System Overview & Metrics',
     extensions: 'SIP Extensions & Softphone PINs',
     handsets: 'Physical IP Handset Directory',
+    routers: 'VoIP Router & Network Gateway Profiles',
     config: 'PBX Integration & Gateway Settings',
     gdpr: 'GDPR Compliance & Data Retention Vault'
   };
@@ -37,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tab === 'overview') loadOverview();
     else if (tab === 'extensions') loadExtensions();
     else if (tab === 'handsets') loadHandsets();
+    else if (tab === 'routers') loadRouters();
     else if (tab === 'config') loadConfig();
     else if (tab === 'gdpr') loadGdprPolicy();
   }
@@ -179,7 +181,67 @@ document.addEventListener('DOMContentLoaded', () => {
     if (res && res.ok) loadHandsets();
   });
 
-  // 6. PBX Config Tab
+  // 6. Routers & Voice Gateways Tab
+  async function loadRouters() {
+    const data = await fetchJson('/api/admin/routers');
+    const tbody = document.getElementById('routerTableBody');
+    if (!data || !data.ok || !data.routers.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center">No router profiles generated yet. Click "+ New Router Profile" to create a VoIP-optimized setup.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.routers.map(r => `
+      <tr>
+        <td><strong>${r.site_name}</strong></td>
+        <td>${r.brand.toUpperCase()} ${r.model || ''}</td>
+        <td>VLAN ${r.voice_vlan_id}</td>
+        <td><code>${r.voice_subnet}</code></td>
+        <td><span class="badge ${r.disable_sip_alg ? 'badge-primary' : 'badge-secondary'}">${r.disable_sip_alg ? 'Disabled' : 'Active'}</span></td>
+        <td><span class="badge ${r.enable_qos ? 'badge-primary' : 'badge-secondary'}">${r.enable_qos ? 'DSCP 46 / EF' : 'Off'}</span></td>
+        <td>
+          <a class="btn btn-sm btn-primary" href="/api/admin/routers/${r.id}/script" download>Download Script</a>
+          <button class="btn btn-sm" onclick="copyRouterUrl(${r.id})">Copy Boot URL</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteRouter(${r.id})">Delete</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  window.copyRouterUrl = (id) => {
+    const url = `${window.location.origin}/provision/router/${id}.rsc`;
+    navigator.clipboard.writeText(url);
+    alert(`Copied Router Bootstrap Provisioning URL to clipboard:\n\n${url}`);
+  };
+
+  window.deleteRouter = async (id) => {
+    if (!confirm('Are you sure you want to remove this router profile?')) return;
+    const res = await fetchJson(`/api/admin/routers/${id}`, { method: 'DELETE' });
+    if (res && res.ok) loadRouters();
+  };
+
+  document.getElementById('btnOpenAddRouterModal')?.addEventListener('click', async () => {
+    const site = prompt('Enter Client / Site Name (e.g. Branch Office London):');
+    if (!site) return;
+    const brand = prompt('Enter Router Platform (mikrotik / ubiquiti / cisco):', 'mikrotik') || 'mikrotik';
+    const vlan = prompt('Enter Voice VLAN ID (Default 20):', '20') || '20';
+    const subnet = prompt('Enter Voice Subnet (Default 10.20.0.1/24):', '10.20.0.1/24') || '10.20.0.1/24';
+
+    const res = await fetchJson('/api/admin/routers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        siteName: site,
+        brand,
+        voiceVlanId: parseInt(vlan, 10),
+        voiceSubnet: subnet,
+        disableSipAlg: true,
+        enableQos: true
+      })
+    });
+    if (res && res.ok) loadRouters();
+  });
+
+  // 7. PBX Config Tab
   async function loadConfig() {
     const data = await fetchJson('/api/admin/config');
     if (!data || !data.ok || !data.config) return;

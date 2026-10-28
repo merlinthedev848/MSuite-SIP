@@ -5,9 +5,10 @@
 1. **Real-Time Data & Media Engine**: Sub-50ms WhatsApp-speed chat via Socket.IO, audio voice notes, file attachments, and delivery ACKs.
 2. **Softphone Auto-Provisioning & Config Sync**: 8-digit PIN lookup (`/sip/provision/:code`) and dynamic 10-minute config sync (`/api/v1/config/sync`).
 3. **Physical Hardware Deskphone Provisioning**: Automatic XML/CFG generation for Yealink, Fanvil, Grandstream, and Poly handsets based on MAC address (`/provision/:mac.cfg`).
-4. **Corporate Directory / Remote Phonebook**: Central address book served in Yealink XML, Fanvil XML, Grandstream XML, and JSON format (`/phonebook/yealink.xml`, `/api/v1/contacts`).
-5. **GDPR Data Isolation & Retention Vault**: Strict separation between operational device data (`system.db`) and sensitive communications PII (`comms_vault.db`), with automated daily retention pruning, Right-to-Erasure (Article 17) with SHA-256 cryptographic audit certificates, and Right-to-Portability (Article 20) data exports.
-6. **Web Admin Portal (`/admin`)**: Browser-based management dashboard for monitoring extensions, generating softphone PINs, binding handset MACs, updating PBX gateways, and managing GDPR policies.
+4. **VoIP Router & Network Gateway Provisioning**: Automated script generator for MikroTik (`.rsc`), Ubiquiti (`.sh`), and Cisco (`.cfg`) that disables SIP ALG, isolates a dedicated Voice VLAN, injects **DHCP Option 66** pointing to CKM Handler, and enforces DSCP 46 (EF) audio QoS (`/provision/router/:id`).
+5. **Corporate Directory / Remote Phonebook**: Central address book served in Yealink XML, Fanvil XML, Grandstream XML, and JSON format (`/phonebook/yealink.xml`, `/api/v1/contacts`).
+6. **GDPR Data Isolation & Retention Vault**: Strict separation between operational device data (`system.db`) and sensitive communications PII (`comms_vault.db`), with automated daily retention pruning, Right-to-Erasure (Article 17) with SHA-256 cryptographic audit certificates, and Right-to-Portability (Article 20) data exports.
+7. **Web Admin Portal (`/admin`)**: Browser-based management dashboard for monitoring extensions, generating softphone PINs, binding handset MACs, generating router configs, updating PBX gateways, and managing GDPR policies.
 
 ---
 

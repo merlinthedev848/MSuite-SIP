@@ -83,6 +83,21 @@ systemDb.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (extension) REFERENCES extensions (extension) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS routers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    site_name TEXT NOT NULL,
+    brand TEXT NOT NULL,
+    model TEXT,
+    mac_address TEXT,
+    lan_subnet TEXT DEFAULT '192.168.1.1/24',
+    voice_vlan_id INTEGER DEFAULT 20,
+    voice_subnet TEXT DEFAULT '10.20.0.1/24',
+    disable_sip_alg INTEGER DEFAULT 1,
+    enable_qos INTEGER DEFAULT 1,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Seed default server config if missing

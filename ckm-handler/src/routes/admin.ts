@@ -4,6 +4,7 @@ import fs from 'fs';
 import systemDb from '../database/systemDb';
 import vaultDb from '../database/vaultDb';
 import { ADMIN_USER, ADMIN_PASS, UPLOADS_DIR } from '../config';
+import { generateRouterConfig, RouterConfigParams } from '../templates/routerTemplates';
 
 const router = Router();
 
@@ -208,6 +209,73 @@ router.post('/api/admin/config', adminAuth, (req: Request, res: Response) => {
   );
 
   return res.json({ ok: true, message: 'Server configuration updated. Connected softphones will sync within 10 minutes.' });
+});
+
+// 6. Router & Voice Gateway Provisioning Management
+router.get('/api/admin/routers', adminAuth, (req: Request, res: Response) => {
+  const rows = systemDb.prepare('SELECT * FROM routers ORDER BY created_at DESC').all();
+  return res.json({ ok: true, routers: rows });
+});
+
+router.post('/api/admin/routers', adminAuth, (req: Request, res: Response) => {
+  const { siteName, brand, model, macAddress, lanSubnet, voiceVlanId, voiceSubnet, disableSipAlg, enableQos, notes } = req.body;
+  if (!siteName || !brand) {
+    return res.status(400).json({ ok: false, error: 'Site name and router brand are required.' });
+  }
+
+  const result = systemDb.prepare(`
+    INSERT INTO routers (site_name, brand, model, mac_address, lan_subnet, voice_vlan_id, voice_subnet, disable_sip_alg, enable_qos, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    String(siteName).trim(),
+    String(brand).trim().toLowerCase(),
+    String(model || '').trim(),
+    String(macAddress || '').trim(),
+    String(lanSubnet || '192.168.1.1/24').trim(),
+    parseInt(voiceVlanId || '20', 10),
+    String(voiceSubnet || '10.20.0.1/24').trim(),
+    disableSipAlg ? 1 : 0,
+    enableQos ? 1 : 0,
+    String(notes || '').trim()
+  );
+
+  return res.json({ ok: true, id: result.lastInsertRowid, message: `Router for site '${siteName}' created successfully.` });
+});
+
+router.delete('/api/admin/routers/:id', adminAuth, (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  systemDb.prepare('DELETE FROM routers WHERE id = ?').run(id);
+  return res.json({ ok: true, message: 'Router profile removed.' });
+});
+
+router.get('/api/admin/routers/:id/script', adminAuth, (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  const routerRec = systemDb.prepare('SELECT * FROM routers WHERE id = ?').get(id) as any;
+  if (!routerRec) {
+    return res.status(404).json({ ok: false, error: 'Router profile not found.' });
+  }
+
+  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+
+  const params: RouterConfigParams = {
+    siteName: routerRec.site_name,
+    brand: routerRec.brand,
+    model: routerRec.model,
+    macAddress: routerRec.mac_address,
+    lanSubnet: routerRec.lan_subnet,
+    voiceVlanId: routerRec.voice_vlan_id,
+    voiceSubnet: routerRec.voice_subnet,
+    pbxServer: config.pbx_server,
+    dataHandlerUrl: config.data_handler_url,
+    disableSipAlg: routerRec.disable_sip_alg === 1,
+    enableQos: routerRec.enable_qos === 1
+  };
+
+  const generated = generateRouterConfig(params);
+
+  res.setHeader('Content-Type', generated.mimeType);
+  res.setHeader('Content-Disposition', `attachment; filename="${generated.filename}"`);
+  return res.send(generated.content);
 });
 
 export default router;

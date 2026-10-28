@@ -3,6 +3,7 @@ import systemDb from '../database/systemDb';
 import { generateYealinkConfig, HandsetAccountConfig } from '../templates/yealink';
 import { generateFanvilConfig } from '../templates/fanvil';
 import { generateGrandstreamConfig } from '../templates/grandstream';
+import { generateRouterConfig, RouterConfigParams } from '../templates/routerTemplates';
 
 const router = Router();
 
@@ -89,6 +90,44 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.send(generateYealinkConfig(accountCfg));
   }
+});
+
+// Router & VoIP Gateway Automated Fetch
+// Example: GET /provision/router/1.rsc or GET /provision/router/001565112233.sh
+router.get('/provision/router/:identifier', (req: Request, res: Response) => {
+  const raw = req.params.identifier.toLowerCase();
+  const cleanId = raw.replace(/\.(rsc|sh|cfg|txt|xml)$/i, '');
+
+  let routerRec = null;
+  if (/^\d+$/.test(cleanId)) {
+    routerRec = systemDb.prepare('SELECT * FROM routers WHERE id = ?').get(parseInt(cleanId, 10)) as any;
+  } else {
+    routerRec = systemDb.prepare('SELECT * FROM routers WHERE LOWER(REPLACE(mac_address, ":", "")) = ?').get(cleanId) as any;
+  }
+
+  if (!routerRec) {
+    return res.status(404).send('# Error: Router configuration profile not found.');
+  }
+
+  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+
+  const params: RouterConfigParams = {
+    siteName: routerRec.site_name,
+    brand: routerRec.brand,
+    model: routerRec.model,
+    macAddress: routerRec.mac_address,
+    lanSubnet: routerRec.lan_subnet,
+    voiceVlanId: routerRec.voice_vlan_id,
+    voiceSubnet: routerRec.voice_subnet,
+    pbxServer: config.pbx_server,
+    dataHandlerUrl: config.data_handler_url,
+    disableSipAlg: routerRec.disable_sip_alg === 1,
+    enableQos: routerRec.enable_qos === 1
+  };
+
+  const generated = generateRouterConfig(params);
+  res.setHeader('Content-Type', `${generated.mimeType}; charset=utf-8`);
+  return res.send(generated.content);
 });
 
 export default router;
