@@ -15,6 +15,14 @@ import { licenseState } from '../services/licenseGuard';
 import { syncExtensionsFromAsterisk, AmiConfig } from '../services/pbxSyncService';
 import { getSocketStats } from '../services/socketService';
 import { registerSseClient, getRecentDeviceLogs, clearDeviceLogs, broadcastDeviceLog } from '../services/telemetryStream';
+import { 
+  getFirmwareCatalogStatus, 
+  downloadFirmwareForModel, 
+  saveUploadedFirmware, 
+  deleteFirmwareFile, 
+  syncAllStableFirmwares,
+  findFirmwareFile
+} from '../services/firmwareService';
 import { performance } from 'perf_hooks';
 
 const router = Router();
@@ -34,6 +42,12 @@ const logoStorage = multer.diskStorage({
 const logoUpload = multer({
   storage: logoStorage,
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB max logo size
+});
+
+// Configure In-Memory Buffer Upload for Firmware Binaries (up to 350MB)
+const firmwareUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 350 * 1024 * 1024 }
 });
 
 export interface AuthenticatedAdmin {
@@ -796,6 +810,7 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
       pbxServer: serverCfg.pbx_server,
       dataHandlerUrl: serverCfg.data_handler_url
     });
+    const localFwPath = (brandMeta && modelMeta) ? findFirmwareFile(brandMeta.id, modelMeta.firmwareFilename, modelMeta.id) : null;
     return res.json({
       ok: true,
       type: 'router',
@@ -805,8 +820,11 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
       firmware: modelMeta ? {
         version: modelMeta.firmwareVersion,
         url: modelMeta.firmwareUrl,
+        directDownloadUrl: modelMeta.directDownloadUrl || null,
         filename: modelMeta.firmwareFilename,
-        notes: modelMeta.firmwareNotes || 'Standard tested vendor release'
+        notes: modelMeta.firmwareNotes || 'Standard tested vendor release',
+        isCached: !!localFwPath,
+        localServingUrl: `${serverCfg.dataHandlerUrl}/firmware/${brandMeta?.id}/${modelMeta.id}/${modelMeta.firmwareFilename}`
       } : null,
       content: gen.content
     });
@@ -825,6 +843,7 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
       dataHandlerUrl: serverCfg.data_handler_url
     }, model);
 
+    const localFwPath = (brandMeta && modelMeta) ? findFirmwareFile(brandMeta.id, modelMeta.firmwareFilename, modelMeta.id) : null;
     return res.json({
       ok: true,
       type: 'handset',
@@ -834,11 +853,78 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
       firmware: modelMeta ? {
         version: modelMeta.firmwareVersion,
         url: modelMeta.firmwareUrl,
+        directDownloadUrl: modelMeta.directDownloadUrl || null,
         filename: modelMeta.firmwareFilename,
-        notes: modelMeta.firmwareNotes || 'Standard tested vendor release'
+        notes: modelMeta.firmwareNotes || 'Standard tested vendor release',
+        isCached: !!localFwPath,
+        localServingUrl: `${serverCfg.dataHandlerUrl}/firmware/${brandMeta?.id}/${modelMeta.id}/${modelMeta.firmwareFilename}`
       } : null,
       content: conf
     });
+  }
+});
+
+// ==============================================================================
+// 3.1 Firmware Repository & Automated Downloader Endpoints
+// ==============================================================================
+// GET /api/admin/firmware/status — Returns catalog & internal disk cache status
+router.get('/api/admin/firmware/status', adminAuth, (req: Request, res: Response) => {
+  try {
+    const catalog = getFirmwareCatalogStatus();
+    return res.json({ ok: true, catalog });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || 'Failed to retrieve firmware status' });
+  }
+});
+
+// POST /api/admin/firmware/download — Trigger auto-download to internal directory for a model
+router.post('/api/admin/firmware/download', adminAuth, async (req: Request, res: Response) => {
+  const { brand, model, customUrl } = req.body;
+  if (!brand || !model) {
+    return res.status(400).json({ ok: false, error: 'Missing required parameters: brand and model' });
+  }
+
+  try {
+    const result = await downloadFirmwareForModel(brand, model, customUrl);
+    return res.json({ ok: true, result });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || 'Download failed' });
+  }
+});
+
+// POST /api/admin/firmware/sync-all — Trigger batch auto-download of all stable firmwares
+router.post('/api/admin/firmware/sync-all', adminAuth, async (req: Request, res: Response) => {
+  try {
+    const result = await syncAllStableFirmwares();
+    return res.json({ ok: true, ...result });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || 'Batch sync failed' });
+  }
+});
+
+// POST /api/admin/firmware/upload — Upload binary directly to model directory
+router.post('/api/admin/firmware/upload', adminAuth, firmwareUpload.single('firmwareFile'), (req: Request, res: Response) => {
+  const { brand, model } = req.body;
+  if (!brand || !model || !req.file) {
+    return res.status(400).json({ ok: false, error: 'Missing required fields: brand, model, and firmwareFile' });
+  }
+
+  try {
+    const result = saveUploadedFirmware(brand, model, req.file.originalname, req.file.buffer);
+    return res.json({ ok: true, result });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || 'Upload failed' });
+  }
+});
+
+// DELETE /api/admin/firmware/:brand/:model — Purge local firmware file
+router.delete('/api/admin/firmware/:brand/:model', adminAuth, (req: Request, res: Response) => {
+  const { brand, model } = req.params;
+  try {
+    deleteFirmwareFile(brand, model);
+    return res.json({ ok: true, message: `Local firmware for ${brand} ${model} removed.` });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || 'Delete failed' });
   }
 });
 

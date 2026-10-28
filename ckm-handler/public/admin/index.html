@@ -377,9 +377,10 @@
                 <h3>📱 Universal SIP Handset Provisioning & Firmware Explorer</h3>
                 <p class="muted">Live configuration compiler, official firmware release manager, and downloadable provisioning profiles for all makes and models.</p>
               </div>
-              <div style="display: flex; gap: 8px;">
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn btn-sm btn-primary" id="btnSyncAllHandsetFw">⚡ Auto-Download All Stable Firmwares</button>
                 <button class="btn btn-sm btn-secondary" id="btnCopyHandsetExplorerConfig">📋 Copy Config</button>
-                <button class="btn btn-sm btn-primary" id="btnDownloadHandsetExplorerConfig">💾 Download Template</button>
+                <button class="btn btn-sm btn-secondary" id="btnDownloadHandsetExplorerConfig">💾 Download Template</button>
               </div>
             </div>
 
@@ -416,14 +417,42 @@
               </div>
             </div>
 
-            <!-- Live Firmware Information Banner -->
-            <div id="explorerHandsetFwBanner" style="margin-top: 12px; background: #090e1a; border: 1px solid #1e293b; border-radius: var(--radius-md); padding: 12px 16px; color: #f8fafc; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                <span class="badge badge-primary" id="explorerHandsetFwVer">Firmware: Loading...</span>
-                <span style="font-size: 12px; color: #94a3b8;">Binary: <code id="explorerHandsetFwFile" style="color: #38bdf8; background: transparent; border: none; padding: 0;">--</code></span>
-                <span id="explorerHandsetFwNotes" class="muted" style="font-size: 11.5px; color: #cbd5e1;"></span>
+            <!-- Internal Firmware Repository & Auto-Download Vault Deck -->
+            <div id="explorerHandsetFwBanner" class="firmware-vault-deck">
+              <div class="firmware-deck-row">
+                <div class="firmware-deck-info">
+                  <span class="badge badge-primary" id="explorerHandsetFwVer">Firmware: Loading...</span>
+                  <span id="explorerHandsetStorageBadge" class="badge badge-firmware-missing">Checking Local Storage...</span>
+                  <span style="font-size: 12px; color: #94a3b8;">Binary: <code id="explorerHandsetFwFile" style="color: #38bdf8; background: transparent; border: none; padding: 0;">--</code></span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                  <button id="btnAutoDownloadHandsetFw" class="btn btn-sm btn-primary firmware-action-btn">
+                    <span>⚡</span> Auto-Download to Server
+                  </button>
+                  <label class="btn btn-sm btn-secondary firmware-action-btn" style="margin-bottom: 0; cursor: pointer;">
+                    <span>⬆️</span> Upload File
+                    <input type="file" id="fileUploadHandsetFw" style="display: none;">
+                  </label>
+                  <button id="btnPurgeHandsetFw" class="btn btn-sm btn-danger firmware-action-btn hidden">
+                    <span>🗑️</span> Purge
+                  </button>
+                  <a id="explorerHandsetFwLink" class="btn btn-sm btn-secondary firmware-action-btn" href="#" target="_blank">
+                    <span>🔗</span> Vendor Portal
+                  </a>
+                </div>
               </div>
-              <a id="explorerHandsetFwLink" class="btn btn-sm btn-secondary" href="#" target="_blank" style="font-size: 11px; padding: 4px 10px;">⬇ Official Firmware Download</a>
+              <div class="firmware-deck-row" style="font-size: 11.5px; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 8px;">
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                  <span class="muted" style="color: #94a3b8;">Internal Model Directory:</span>
+                  <span class="firmware-dir-badge" id="explorerHandsetPathTag">data/firmware/yealink/T46U/</span>
+                  <span id="explorerHandsetFwNotes" class="muted" style="color: #cbd5e1;"></span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <span class="muted" style="color: #94a3b8;">Device Option 66 URL:</span>
+                  <code id="explorerHandsetBootUrl" style="font-size: 11px; color: #38bdf8; background: transparent; border: none; padding: 0;">--</code>
+                  <button class="btn btn-sm btn-secondary" id="btnCopyHandsetBootUrl" style="padding: 2px 7px; font-size: 10px;">📋 Copy</button>
+                </div>
+              </div>
             </div>
 
             <!-- Live Compiled Configuration Editor -->
@@ -496,9 +525,10 @@
                 <h3>🌐 Universal VoIP Router & Network Gateway Profile Explorer</h3>
                 <p class="muted">Live deployment script compiler, firmware OS versions, Voice VLAN setups, and SIP ALG mitigations across 14 router platforms.</p>
               </div>
-              <div style="display: flex; gap: 8px;">
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn btn-sm btn-primary" id="btnSyncAllRouterFw">⚡ Auto-Download All Stable Firmwares</button>
                 <button class="btn btn-sm btn-secondary" id="btnCopyRouterExplorerConfig">📋 Copy Script</button>
-                <button class="btn btn-sm btn-primary" id="btnDownloadRouterExplorerConfig">💾 Download Script</button>
+                <button class="btn btn-sm btn-secondary" id="btnDownloadRouterExplorerConfig">💾 Download Script</button>
               </div>
             </div>
 
@@ -543,18 +573,47 @@
               </div>
             </div>
 
-            <!-- Options & Firmware Banner -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; background: #090e1a; border: 1px solid #1e293b; border-radius: var(--radius-md); padding: 10px 16px; color: #f8fafc; flex-wrap: wrap; gap: 10px;">
-              <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
-                <span class="badge badge-primary" id="explorerRouterFwVer">Firmware: Loading...</span>
-                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;">
-                  <input type="checkbox" id="explorerRouterAlg" checked> Disable SIP ALG
-                </label>
-                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;">
-                  <input type="checkbox" id="explorerRouterQos" checked> Prioritize Voice Audio Traffic (DSCP 46 EF)
-                </label>
+            <!-- Internal Firmware Repository & Auto-Download Vault Deck -->
+            <div id="explorerRouterFwBanner" class="firmware-vault-deck">
+              <div class="firmware-deck-row">
+                <div class="firmware-deck-info">
+                  <span class="badge badge-primary" id="explorerRouterFwVer">Firmware: Loading...</span>
+                  <span id="explorerRouterStorageBadge" class="badge badge-firmware-missing">Checking Local Storage...</span>
+                  <span style="font-size: 12px; color: #94a3b8;">Binary: <code id="explorerRouterFwFile" style="color: #38bdf8; background: transparent; border: none; padding: 0;">--</code></span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                  <button id="btnAutoDownloadRouterFw" class="btn btn-sm btn-primary firmware-action-btn">
+                    <span>⚡</span> Auto-Download to Server
+                  </button>
+                  <label class="btn btn-sm btn-secondary firmware-action-btn" style="margin-bottom: 0; cursor: pointer;">
+                    <span>⬆️</span> Upload File
+                    <input type="file" id="fileUploadRouterFw" style="display: none;">
+                  </label>
+                  <button id="btnPurgeRouterFw" class="btn btn-sm btn-danger firmware-action-btn hidden">
+                    <span>🗑️</span> Purge
+                  </button>
+                  <a id="explorerRouterFwLink" class="btn btn-sm btn-secondary firmware-action-btn" href="#" target="_blank">
+                    <span>🔗</span> Vendor Portal
+                  </a>
+                </div>
               </div>
-              <a id="explorerRouterFwLink" class="btn btn-sm btn-secondary" href="#" target="_blank" style="font-size: 11px; padding: 4px 10px;">⬇ Vendor Firmware Download</a>
+              <div class="firmware-deck-row" style="font-size: 11.5px; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 8px;">
+                <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+                  <span class="muted" style="color: #94a3b8;">Internal Model Directory:</span>
+                  <span class="firmware-dir-badge" id="explorerRouterPathTag">data/firmware/mikrotik/HEX/</span>
+                  <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; cursor: pointer;">
+                    <input type="checkbox" id="explorerRouterAlg" checked> Disable SIP ALG
+                  </label>
+                  <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; cursor: pointer;">
+                    <input type="checkbox" id="explorerRouterQos" checked> Prioritize Voice Audio (DSCP 46 EF)
+                  </label>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <span class="muted" style="color: #94a3b8;">Direct Serving URL:</span>
+                  <code id="explorerRouterBootUrl" style="font-size: 11px; color: #38bdf8; background: transparent; border: none; padding: 0;">--</code>
+                  <button class="btn btn-sm btn-secondary" id="btnCopyRouterBootUrl" style="padding: 2px 7px; font-size: 10px;">📋 Copy</button>
+                </div>
+              </div>
             </div>
 
             <!-- Live Compiled Script Editor -->

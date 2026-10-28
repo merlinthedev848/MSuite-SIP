@@ -1578,3 +1578,64 @@ code, kbd, samp, pre {
   justify-content: flex-end;
 }
 
+/* Firmware Internal Storage Vault Deck */
+.firmware-vault-deck {
+  margin-top: 12px;
+  background: #090e1a;
+  border: 1px solid #1e293b;
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  color: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.firmware-deck-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.firmware-deck-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.firmware-dir-badge {
+  font-family: monospace;
+  font-size: 11px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: #94a3b8;
+}
+
+.badge-firmware-cached {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  font-weight: 600;
+}
+
+.badge-firmware-missing {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  font-weight: 500;
+}
+
+.firmware-action-btn {
+  font-size: 11.5px;
+  padding: 5px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+

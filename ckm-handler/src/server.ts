@@ -14,6 +14,8 @@ import chatFilesRouter from './routes/chatFiles';
 import gdprRouter from './routes/gdpr';
 import adminRouter from './routes/admin';
 import integrationApiRouter from './routes/integrationApi';
+import firmwareRouter from './routes/firmwareRoute';
+import { reconcileFirmwareStorage } from './services/firmwareService';
 
 const app = express();
 const server = http.createServer(app);
@@ -39,6 +41,7 @@ app.use(licenseGateMiddleware);
 // 4. Mount Route Engines
 app.use(softphoneProvisionRouter);
 app.use(hardwareProvisionRouter);
+app.use(firmwareRouter);
 app.use(directoryRouter);
 app.use(chatFilesRouter);
 app.use('/api/admin', adminRouter);
@@ -56,6 +59,7 @@ initializeSocketService(server);
 // 7. Start Automated GDPR Retention Scheduler & 24h License Guard Daemon
 startRetentionScheduler();
 startLicenseGuardDaemon();
+reconcileFirmwareStorage();
 
 // 8. Start Server Listener
 server.listen(PORT, () => {
@@ -67,6 +71,7 @@ server.listen(PORT, () => {
   console.log(`  - Real-Time Chat & Media Vault (Socket.io + Files)`);
   console.log(`  - Softphone Auto-Provisioning & 10-Min Dynamic Sync`);
   console.log(`  - Physical Handset Provisioning (Yealink / Fanvil / Grandstream)`);
+  console.log(`  - Internal Model Firmware Repository (Auto-Download & Option 66 Serving)`);
   console.log(`  - Corporate Directory & Phonebook (XML + JSON)`);
   console.log(`  - GDPR Isolated Storage & Automated Retention Pruner`);
   console.log(`==============================================================================`);

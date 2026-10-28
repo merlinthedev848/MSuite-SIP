@@ -155,12 +155,31 @@ systemDb.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS firmware_binaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL DEFAULT 'handset',
+    brand TEXT NOT NULL,
+    model TEXT NOT NULL,
+    version TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    filepath TEXT NOT NULL,
+    file_size INTEGER DEFAULT 0,
+    sha256 TEXT,
+    download_url TEXT,
+    status TEXT DEFAULT 'NOT_DOWNLOADED',
+    error_message TEXT,
+    downloaded_at DATETIME,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(brand, model, filename)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_pins_extension ON softphone_pins (extension);
   CREATE INDEX IF NOT EXISTS idx_handsets_extension ON physical_handsets (extension);
   CREATE INDEX IF NOT EXISTS idx_routers_mac ON routers (mac_address);
   CREATE INDEX IF NOT EXISTS idx_admin_users_username ON admin_users (username);
   CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON admin_sessions (token);
   CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_activity_logs (id DESC);
+  CREATE INDEX IF NOT EXISTS idx_firmware_lookup ON firmware_binaries (brand, model);
 `);
 
 export function logActivity(eventType: string, details: string, ipAddress: string = '127.0.0.1') {

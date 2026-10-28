@@ -1097,6 +1097,91 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // --------------------------------------------------------------------------
+  // Firmware Storage & Auto-Downloader Helpers
+  // --------------------------------------------------------------------------
+  async function refreshHandsetFirmwareStatus(brand, model) {
+    const badge = document.getElementById('explorerHandsetStorageBadge');
+    const pathTag = document.getElementById('explorerHandsetPathTag');
+    const bootUrlEl = document.getElementById('explorerHandsetBootUrl');
+    const purgeBtn = document.getElementById('btnPurgeHandsetFw');
+    const autoBtn = document.getElementById('btnAutoDownloadHandsetFw');
+
+    if (pathTag) pathTag.textContent = `data/firmware/${brand.toLowerCase()}/${model.toUpperCase().replace(/[^a-zA-Z0-9_-]/g, '_')}/`;
+
+    try {
+      const res = await fetchJson('/api/admin/firmware/status');
+      if (res && res.ok && res.catalog) {
+        const brandObj = res.catalog.handsets?.find(b => b.id.toLowerCase() === brand.toLowerCase());
+        const modelObj = brandObj?.models?.find(m => m.id.toLowerCase() === model.toLowerCase());
+        if (modelObj) {
+          if (bootUrlEl) {
+            const bootUrl = `${window.location.origin}/firmware/${brand.toLowerCase()}/${model.toUpperCase()}/${modelObj.firmwareFilename}`;
+            bootUrlEl.textContent = bootUrl;
+          }
+          if (modelObj.isCached) {
+            if (badge) {
+              badge.textContent = `● Stored Internally (${modelObj.fileSizeFormatted})`;
+              badge.className = 'badge badge-firmware-cached';
+            }
+            if (purgeBtn) purgeBtn.classList.remove('hidden');
+            if (autoBtn) autoBtn.innerHTML = '<span>⚡</span> Re-Download Package';
+          } else {
+            if (badge) {
+              badge.textContent = '○ Not Stored Internally';
+              badge.className = 'badge badge-firmware-missing';
+            }
+            if (purgeBtn) purgeBtn.classList.add('hidden');
+            if (autoBtn) autoBtn.innerHTML = '<span>⚡</span> Auto-Download to Server';
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Could not check firmware status:', err);
+    }
+  }
+
+  async function refreshRouterFirmwareStatus(brand, model) {
+    const badge = document.getElementById('explorerRouterStorageBadge');
+    const pathTag = document.getElementById('explorerRouterPathTag');
+    const bootUrlEl = document.getElementById('explorerRouterBootUrl');
+    const purgeBtn = document.getElementById('btnPurgeRouterFw');
+    const autoBtn = document.getElementById('btnAutoDownloadRouterFw');
+
+    if (pathTag) pathTag.textContent = `data/firmware/${brand.toLowerCase()}/${model.toUpperCase().replace(/[^a-zA-Z0-9_-]/g, '_')}/`;
+
+    try {
+      const res = await fetchJson('/api/admin/firmware/status');
+      if (res && res.ok && res.catalog) {
+        const brandObj = res.catalog.routers?.find(b => b.id.toLowerCase() === brand.toLowerCase());
+        const modelObj = brandObj?.models?.find(m => m.id.toLowerCase() === model.toLowerCase());
+        if (modelObj) {
+          if (bootUrlEl) {
+            const bootUrl = `${window.location.origin}/firmware/${brand.toLowerCase()}/${model.toUpperCase()}/${modelObj.firmwareFilename}`;
+            bootUrlEl.textContent = bootUrl;
+          }
+          if (modelObj.isCached) {
+            if (badge) {
+              badge.textContent = `● Stored Internally (${modelObj.fileSizeFormatted})`;
+              badge.className = 'badge badge-firmware-cached';
+            }
+            if (purgeBtn) purgeBtn.classList.remove('hidden');
+            if (autoBtn) autoBtn.innerHTML = '<span>⚡</span> Re-Download Package';
+          } else {
+            if (badge) {
+              badge.textContent = '○ Not Stored Internally';
+              badge.className = 'badge badge-firmware-missing';
+            }
+            if (purgeBtn) purgeBtn.classList.add('hidden');
+            if (autoBtn) autoBtn.innerHTML = '<span>⚡</span> Auto-Download to Server';
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Could not check firmware status:', err);
+    }
+  }
+
   async function updateHandsetExplorerPreview() {
     const brand = document.getElementById('explorerHandsetBrand')?.value || 'yealink';
     const model = document.getElementById('explorerHandsetModel')?.value || '';
@@ -1105,6 +1190,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const brandMeta = deviceCatalogs.handsets.find(b => b.id === brand);
     const modelMeta = brandMeta?.models.find(m => m.id === model) || brandMeta?.models[0];
+    const targetModelId = modelMeta ? modelMeta.id : model;
 
     // Update Firmware Banner
     const fwVer = document.getElementById('explorerHandsetFwVer');
@@ -1120,6 +1206,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fwLink.style.display = 'inline-flex';
       }
     }
+
+    refreshHandsetFirmwareStatus(brand, targetModelId);
 
     try {
       const res = await fetch('/api/admin/catalogs/preview', {
@@ -1147,17 +1235,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const brandMeta = deviceCatalogs.routers.find(b => b.id === brand);
     const modelMeta = brandMeta?.models.find(m => m.id === model) || brandMeta?.models[0];
+    const targetModelId = modelMeta ? modelMeta.id : model;
 
     // Update Firmware Banner
     const fwVer = document.getElementById('explorerRouterFwVer');
+    const fwFile = document.getElementById('explorerRouterFwFile');
     const fwLink = document.getElementById('explorerRouterFwLink');
     if (modelMeta) {
       if (fwVer) fwVer.textContent = `Recommended OS: ${modelMeta.firmwareVersion || 'Latest Release'}`;
+      if (fwFile) fwFile.textContent = modelMeta.firmwareFilename || 'firmware.bin';
       if (fwLink) {
         fwLink.href = modelMeta.firmwareUrl || brandMeta?.vendorDocUrl || '#';
         fwLink.style.display = 'inline-flex';
       }
     }
+
+    refreshRouterFirmwareStatus(brand, targetModelId);
 
     try {
       const res = await fetch('/api/admin/catalogs/preview', {
@@ -1234,6 +1327,200 @@ document.addEventListener('DOMContentLoaded', () => {
       window.showToast(`Downloaded ${brand}_${model}_script${ext}`, 'success');
     }
   });
+
+  // --------------------------------------------------------------------------
+  // Firmware Action Handlers (Auto-Download, Upload, Purge, Option 66 Copy)
+  // --------------------------------------------------------------------------
+  // Handset Auto-Download
+  document.getElementById('btnAutoDownloadHandsetFw')?.addEventListener('click', async () => {
+    const brand = document.getElementById('explorerHandsetBrand')?.value || 'yealink';
+    const model = document.getElementById('explorerHandsetModel')?.value || '';
+    const btn = document.getElementById('btnAutoDownloadHandsetFw');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> Downloading...';
+    window.showToast(`Contacting vendor repository for ${brand.toUpperCase()} ${model} firmware...`, 'info');
+
+    try {
+      const res = await fetchJson('/api/admin/firmware/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand, model })
+      });
+
+      if (res && res.ok) {
+        window.showToast(`Firmware ${res.result.filename} successfully downloaded and stored!`, 'success');
+        refreshHandsetFirmwareStatus(brand, model);
+      } else {
+        window.showToast(res?.error || 'Failed to auto-download firmware.', 'error');
+      }
+    } catch (e) {
+      window.showToast('Network error while requesting firmware download.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span>⚡</span> Auto-Download to Server';
+    }
+  });
+
+  // Handset Upload
+  document.getElementById('fileUploadHandsetFw')?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const brand = document.getElementById('explorerHandsetBrand')?.value || 'yealink';
+    const model = document.getElementById('explorerHandsetModel')?.value || '';
+
+    const formData = new FormData();
+    formData.append('brand', brand);
+    formData.append('model', model);
+    formData.append('firmwareFile', file);
+
+    window.showToast(`Uploading firmware ${file.name} to model directory...`, 'info');
+
+    try {
+      const token = getAuthToken();
+      const res = await fetch('/api/admin/firmware/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (data && data.ok) {
+        window.showToast(`Firmware ${data.result.filename} stored in internal model directory!`, 'success');
+        refreshHandsetFirmwareStatus(brand, model);
+      } else {
+        window.showToast(data?.error || 'Upload failed.', 'error');
+      }
+    } catch (err) {
+      window.showToast('Error uploading firmware file.', 'error');
+    }
+    e.target.value = '';
+  });
+
+  // Handset Purge
+  document.getElementById('btnPurgeHandsetFw')?.addEventListener('click', async () => {
+    const brand = document.getElementById('explorerHandsetBrand')?.value || 'yealink';
+    const model = document.getElementById('explorerHandsetModel')?.value || '';
+    if (!confirm(`Purge the locally stored firmware binary for ${brand.toUpperCase()} ${model}?`)) return;
+
+    const res = await fetchJson(`/api/admin/firmware/${brand}/${model}`, { method: 'DELETE' });
+    if (res && res.ok) {
+      window.showToast(`Local firmware for ${brand.toUpperCase()} ${model} purged.`, 'success');
+      refreshHandsetFirmwareStatus(brand, model);
+    } else {
+      window.showToast(res?.error || 'Failed to purge firmware.', 'error');
+    }
+  });
+
+  // Handset Option 66 URL Copy
+  document.getElementById('btnCopyHandsetBootUrl')?.addEventListener('click', () => {
+    const url = document.getElementById('explorerHandsetBootUrl')?.textContent;
+    if (url && url !== '--') {
+      window.copyText(url, 'Copied Device Option 66 Firmware URL to clipboard!');
+    }
+  });
+
+  // Router Auto-Download
+  document.getElementById('btnAutoDownloadRouterFw')?.addEventListener('click', async () => {
+    const brand = document.getElementById('explorerRouterBrand')?.value || 'mikrotik';
+    const model = document.getElementById('explorerRouterModel')?.value || '';
+    const btn = document.getElementById('btnAutoDownloadRouterFw');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> Downloading...';
+    window.showToast(`Contacting vendor repository for ${brand.toUpperCase()} ${model} firmware...`, 'info');
+
+    try {
+      const res = await fetchJson('/api/admin/firmware/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand, model })
+      });
+
+      if (res && res.ok) {
+        window.showToast(`Firmware ${res.result.filename} successfully downloaded and stored!`, 'success');
+        refreshRouterFirmwareStatus(brand, model);
+      } else {
+        window.showToast(res?.error || 'Failed to auto-download firmware.', 'error');
+      }
+    } catch (e) {
+      window.showToast('Network error while requesting firmware download.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span>⚡</span> Auto-Download to Server';
+    }
+  });
+
+  // Router Upload
+  document.getElementById('fileUploadRouterFw')?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const brand = document.getElementById('explorerRouterBrand')?.value || 'mikrotik';
+    const model = document.getElementById('explorerRouterModel')?.value || '';
+
+    const formData = new FormData();
+    formData.append('brand', brand);
+    formData.append('model', model);
+    formData.append('firmwareFile', file);
+
+    window.showToast(`Uploading firmware ${file.name} to model directory...`, 'info');
+
+    try {
+      const token = getAuthToken();
+      const res = await fetch('/api/admin/firmware/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (data && data.ok) {
+        window.showToast(`Firmware ${data.result.filename} stored in internal model directory!`, 'success');
+        refreshRouterFirmwareStatus(brand, model);
+      } else {
+        window.showToast(data?.error || 'Upload failed.', 'error');
+      }
+    } catch (err) {
+      window.showToast('Error uploading firmware file.', 'error');
+    }
+    e.target.value = '';
+  });
+
+  // Router Purge
+  document.getElementById('btnPurgeRouterFw')?.addEventListener('click', async () => {
+    const brand = document.getElementById('explorerRouterBrand')?.value || 'mikrotik';
+    const model = document.getElementById('explorerRouterModel')?.value || '';
+    if (!confirm(`Purge the locally stored firmware binary for ${brand.toUpperCase()} ${model}?`)) return;
+
+    const res = await fetchJson(`/api/admin/firmware/${brand}/${model}`, { method: 'DELETE' });
+    if (res && res.ok) {
+      window.showToast(`Local firmware for ${brand.toUpperCase()} ${model} purged.`, 'success');
+      refreshRouterFirmwareStatus(brand, model);
+    } else {
+      window.showToast(res?.error || 'Failed to purge firmware.', 'error');
+    }
+  });
+
+  // Router Boot URL Copy
+  document.getElementById('btnCopyRouterBootUrl')?.addEventListener('click', () => {
+    const url = document.getElementById('explorerRouterBootUrl')?.textContent;
+    if (url && url !== '--') {
+      window.copyText(url, 'Copied Router Firmware URL to clipboard!');
+    }
+  });
+
+  // Global Batch Auto-Download Sync Buttons
+  const handleBatchFwSync = async () => {
+    if (!confirm('Start automated background batch download of all vendor stable firmwares into internal model directories?')) return;
+    window.showToast('Queued stable firmware packages for auto-download. Watch Shell for live progress.', 'info');
+    const res = await fetchJson('/api/admin/firmware/sync-all', { method: 'POST' });
+    if (res && res.ok) {
+      window.showToast(res.message, 'success');
+    }
+  };
+
+  document.getElementById('btnSyncAllHandsetFw')?.addEventListener('click', handleBatchFwSync);
+  document.getElementById('btnSyncAllRouterFw')?.addEventListener('click', handleBatchFwSync);
 
   // Modal Brand Listeners
   document.getElementById('addHandsetBrand')?.addEventListener('change', updateHandsetModelsDropdown);

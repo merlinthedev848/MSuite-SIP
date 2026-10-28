@@ -14,6 +14,7 @@ export interface DeviceModelMeta {
   firmwareVersion: string;
   firmwareUrl: string;
   firmwareFilename: string;
+  directDownloadUrl?: string;
   firmwareNotes?: string;
 }
 
@@ -63,14 +64,14 @@ export const HANDSET_CATALOG: DeviceBrandMeta[] = [
     configExt: '.xml',
     vendorDocUrl: 'https://service.snom.com/',
     models: [
-      { id: 'D712', name: 'Snom D712 (4-Line Standard)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD712-10.1.127.10-SIP-r.bin' },
-      { id: 'D717', name: 'Snom D717 (Color Screen Gigabit)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD717-10.1.127.10-SIP-r.bin' },
-      { id: 'D735', name: 'Snom D735 (Color Sensor Motion Display)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD735-10.1.127.10-SIP-r.bin' },
-      { id: 'D785', name: 'Snom D785 (Dual Display 24 BLF Keys)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD785-10.1.127.10-SIP-r.bin', firmwareNotes: 'Latest stable release with TLS 1.3 & SRTP default' },
-      { id: 'D862', name: 'Snom D862 (5" LCD Flagship)', series: 'D800 Series', firmwareVersion: '10.1.141.0', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD862-10.1.141.0-SIP-r.bin' },
-      { id: 'D865', name: 'Snom D865 (Flagship Wi-Fi & BT)', series: 'D800 Series', firmwareVersion: '10.1.141.0', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomD865-10.1.141.0-SIP-r.bin' },
-      { id: 'M300', name: 'Snom M300 (Single-Cell DECT Base)', series: 'M DECT Series', firmwareVersion: '05.30.0002', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomM300-05.30.0002.bin' },
-      { id: 'M900', name: 'Snom M900 (Multi-Cell DECT Enterprise Base)', series: 'M DECT Series', firmwareVersion: '06.10.0001', firmwareUrl: 'https://service.snom.com/', firmwareFilename: 'snomM900-06.10.0001.bin' }
+      { id: 'D712', name: 'Snom D712 (4-Line Standard)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', directDownloadUrl: 'http://binaries.snom.com/release/snomD712-10.1.127.10-SIP-r.bin', firmwareFilename: 'snomD712-10.1.127.10-SIP-r.bin' },
+      { id: 'D717', name: 'Snom D717 (Color Screen Gigabit)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', directDownloadUrl: 'http://binaries.snom.com/release/snomD717-10.1.127.10-SIP-r.bin', firmwareFilename: 'snomD717-10.1.127.10-SIP-r.bin' },
+      { id: 'D735', name: 'Snom D735 (Color Sensor Motion Display)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', directDownloadUrl: 'http://binaries.snom.com/release/snomD735-10.1.127.10-SIP-r.bin', firmwareFilename: 'snomD735-10.1.127.10-SIP-r.bin' },
+      { id: 'D785', name: 'Snom D785 (Dual Display 24 BLF Keys)', series: 'D700 Series', firmwareVersion: '10.1.127.10', firmwareUrl: 'https://service.snom.com/', directDownloadUrl: 'http://binaries.snom.com/release/snomD785-10.1.127.10-SIP-r.bin', firmwareFilename: 'snomD785-10.1.127.10-SIP-r.bin', firmwareNotes: 'Latest stable release with TLS 1.3 & SRTP default' },
+      { id: 'D862', name: 'Snom D862 (5" LCD Flagship)', series: 'D800 Series', firmwareVersion: '10.1.141.0', firmwareUrl: 'https://service.snom.com/', directDownloadUrl: 'http://binaries.snom.com/release/snomD862-10.1.141.0-SIP-r.bin', firmwareFilename: 'snomD862-10.1.141.0-SIP-r.bin' },
+      { id: 'D865', name: 'Snom D865 (Flagship Wi-Fi & BT)', series: 'D800 Series', firmwareVersion: '10.1.141.0', firmwareUrl: 'https://service.snom.com/', directDownloadUrl: 'http://binaries.snom.com/release/snomD865-10.1.141.0-SIP-r.bin', firmwareFilename: 'snomD865-10.1.141.0-SIP-r.bin' },
+      { id: 'M300', name: 'Snom M300 (Single-Cell DECT Base)', series: 'M DECT Series', firmwareVersion: '05.30.0002', firmwareUrl: 'https://service.snom.com/', directDownloadUrl: 'http://binaries.snom.com/release/snomM300-05.30.0002.bin', firmwareFilename: 'snomM300-05.30.0002.bin' },
+      { id: 'M900', name: 'Snom M900 (Multi-Cell DECT Enterprise Base)', series: 'M DECT Series', firmwareVersion: '06.10.0001', firmwareUrl: 'https://service.snom.com/', directDownloadUrl: 'http://binaries.snom.com/release/snomM900-06.10.0001.bin', firmwareFilename: 'snomM900-06.10.0001.bin' }
     ]
   },
   {
@@ -79,24 +80,24 @@ export const HANDSET_CATALOG: DeviceBrandMeta[] = [
     configExt: '.xml',
     vendorDocUrl: 'https://www.grandstream.com/support/firmware',
     models: [
-      { id: 'GXP1610', name: 'Grandstream GXP1610 / 1615', series: 'GXP Essential', firmwareVersion: '1.0.7.53', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'gxp1600fw.bin' },
-      { id: 'GXP1625', name: 'Grandstream GXP1625 (HD Audio)', series: 'GXP Essential', firmwareVersion: '1.0.7.53', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'gxp1600fw.bin' },
-      { id: 'GXP2130', name: 'Grandstream GXP2130 (Color Gigabit)', series: 'GXP Enterprise', firmwareVersion: '1.0.11.64', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'gxp2100fw.bin' },
-      { id: 'GXP2135', name: 'Grandstream GXP2135 (32 Digital BLF)', series: 'GXP Enterprise', firmwareVersion: '1.0.11.64', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'gxp2100fw.bin' },
-      { id: 'GXP2140', name: 'Grandstream GXP2140 (Executive 4-Line)', series: 'GXP Enterprise', firmwareVersion: '1.0.11.64', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'gxp2100fw.bin' },
-      { id: 'GXP2160', name: 'Grandstream GXP2160 (6-Line 24 BLF Keys)', series: 'GXP Enterprise', firmwareVersion: '1.0.11.64', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'gxp2100fw.bin' },
-      { id: 'GXP2170', name: 'Grandstream GXP2170 (12-Line 48 BLF)', series: 'GXP Enterprise', firmwareVersion: '1.0.11.64', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'gxp2100fw.bin' },
-      { id: 'GRP2601', name: 'Grandstream GRP2601 / 2601P', series: 'GRP Carrier-Grade', firmwareVersion: '1.0.9.103', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'grp2600fw.bin' },
-      { id: 'GRP2602', name: 'Grandstream GRP2602 / 2602P / 2602W (Wi-Fi)', series: 'GRP Carrier-Grade', firmwareVersion: '1.0.9.103', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'grp2600fw.bin' },
-      { id: 'GRP2612', name: 'Grandstream GRP2612 / 2612W (Color LCD)', series: 'GRP Carrier-Grade', firmwareVersion: '1.0.9.103', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'grp2610fw.bin' },
-      { id: 'GRP2614', name: 'Grandstream GRP2614 (Dual LCD Screens)', series: 'GRP Carrier-Grade', firmwareVersion: '1.0.9.103', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'grp2610fw.bin' },
-      { id: 'GRP2615', name: 'Grandstream GRP2615 (10-Line Color Wi-Fi)', series: 'GRP Carrier-Grade', firmwareVersion: '1.0.9.103', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'grp2610fw.bin' },
-      { id: 'GRP2616', name: 'Grandstream GRP2616 (Flagship Dual Screen)', series: 'GRP Carrier-Grade', firmwareVersion: '1.0.9.103', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'grp2610fw.bin' },
-      { id: 'WP810', name: 'Grandstream WP810 (Dual-Band Wi-Fi Handset)', series: 'Cordless Wi-Fi', firmwareVersion: '1.0.11.20', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'wp810fw.bin' },
-      { id: 'WP820', name: 'Grandstream WP820 (Enterprise Wi-Fi Handset)', series: 'Cordless Wi-Fi', firmwareVersion: '1.0.11.20', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'wp820fw.bin' },
-      { id: 'WP825', name: 'Grandstream WP825 (Ruggedized Wi-Fi Cordless)', series: 'Cordless Wi-Fi', firmwareVersion: '1.0.11.20', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'wp825fw.bin' },
-      { id: 'DP750', name: 'Grandstream DP750 / DP720 (DECT Base Station)', series: 'DECT Cordless', firmwareVersion: '1.0.17.4', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'dp750fw.bin' },
-      { id: 'DP752', name: 'Grandstream DP752 / DP730 (Long-Range DECT)', series: 'DECT Cordless', firmwareVersion: '1.0.21.9', firmwareUrl: 'https://www.grandstream.com/support/firmware', firmwareFilename: 'dp752fw.bin' }
+      { id: 'GXP1610', name: 'Grandstream GXP1610 / 1615', series: 'GXP Essential', firmwareVersion: '1.0.7.53', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/gxp1600fw.bin', firmwareFilename: 'gxp1600fw.bin' },
+      { id: 'GXP1625', name: 'Grandstream GXP1625 (HD Audio)', series: 'GXP Essential', firmwareVersion: '1.0.7.53', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/gxp1600fw.bin', firmwareFilename: 'gxp1600fw.bin' },
+      { id: 'GXP2130', name: 'Grandstream GXP2130 (Color Gigabit)', series: 'GXP Enterprise', firmwareVersion: '1.0.11.64', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/gxp2100fw.bin', firmwareFilename: 'gxp2100fw.bin' },
+      { id: 'GXP2135', name: 'Grandstream GXP2135 (32 Digital BLF)', series: 'GXP Enterprise', firmwareVersion: '1.0.11.64', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/gxp2100fw.bin', firmwareFilename: 'gxp2100fw.bin' },
+      { id: 'GXP2140', name: 'Grandstream GXP2140 (Executive 4-Line)', series: 'GXP Enterprise', firmwareVersion: '1.0.11.64', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/gxp2100fw.bin', firmwareFilename: 'gxp2100fw.bin' },
+      { id: 'GXP2160', name: 'Grandstream GXP2160 (6-Line 24 BLF Keys)', series: 'GXP Enterprise', firmwareVersion: '1.0.11.64', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/gxp2100fw.bin', firmwareFilename: 'gxp2100fw.bin' },
+      { id: 'GXP2170', name: 'Grandstream GXP2170 (12-Line 48 BLF)', series: 'GXP Enterprise', firmwareVersion: '1.0.11.64', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/gxp2100fw.bin', firmwareFilename: 'gxp2100fw.bin' },
+      { id: 'GRP2601', name: 'Grandstream GRP2601 / 2601P', series: 'GRP Carrier-Grade', firmwareVersion: '1.0.9.103', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/grp2600fw.bin', firmwareFilename: 'grp2600fw.bin' },
+      { id: 'GRP2602', name: 'Grandstream GRP2602 / 2602P / 2602W (Wi-Fi)', series: 'GRP Carrier-Grade', firmwareVersion: '1.0.9.103', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/grp2600fw.bin', firmwareFilename: 'grp2600fw.bin' },
+      { id: 'GRP2612', name: 'Grandstream GRP2612 / 2612W (Color LCD)', series: 'GRP Carrier-Grade', firmwareVersion: '1.0.9.103', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/grp2610fw.bin', firmwareFilename: 'grp2610fw.bin' },
+      { id: 'GRP2614', name: 'Grandstream GRP2614 (Dual LCD Screens)', series: 'GRP Carrier-Grade', firmwareVersion: '1.0.9.103', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/grp2610fw.bin', firmwareFilename: 'grp2610fw.bin' },
+      { id: 'GRP2615', name: 'Grandstream GRP2615 (10-Line Color Wi-Fi)', series: 'GRP Carrier-Grade', firmwareVersion: '1.0.9.103', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/grp2610fw.bin', firmwareFilename: 'grp2610fw.bin' },
+      { id: 'GRP2616', name: 'Grandstream GRP2616 (Flagship Dual Screen)', series: 'GRP Carrier-Grade', firmwareVersion: '1.0.9.103', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/grp2610fw.bin', firmwareFilename: 'grp2610fw.bin' },
+      { id: 'WP810', name: 'Grandstream WP810 (Dual-Band Wi-Fi Handset)', series: 'Cordless Wi-Fi', firmwareVersion: '1.0.11.20', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/wp810fw.bin', firmwareFilename: 'wp810fw.bin' },
+      { id: 'WP820', name: 'Grandstream WP820 (Enterprise Wi-Fi Handset)', series: 'Cordless Wi-Fi', firmwareVersion: '1.0.11.20', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/wp820fw.bin', firmwareFilename: 'wp820fw.bin' },
+      { id: 'WP825', name: 'Grandstream WP825 (Ruggedized Wi-Fi Cordless)', series: 'Cordless Wi-Fi', firmwareVersion: '1.0.11.20', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/wp825fw.bin', firmwareFilename: 'wp825fw.bin' },
+      { id: 'DP750', name: 'Grandstream DP750 / DP720 (DECT Base Station)', series: 'DECT Cordless', firmwareVersion: '1.0.17.4', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/dp750fw.bin', firmwareFilename: 'dp750fw.bin' },
+      { id: 'DP752', name: 'Grandstream DP752 / DP730 (Long-Range DECT)', series: 'DECT Cordless', firmwareVersion: '1.0.21.9', firmwareUrl: 'https://www.grandstream.com/support/firmware', directDownloadUrl: 'http://firmware.grandstream.com/dp752fw.bin', firmwareFilename: 'dp752fw.bin' }
     ]
   },
   {
@@ -187,14 +188,14 @@ export const ROUTER_CATALOG: DeviceBrandMeta[] = [
     configExt: '.rsc',
     vendorDocUrl: 'https://mikrotik.com/download',
     models: [
-      { id: 'hex', name: 'MikroTik hEX (RB750Gr3 / RB760iGS)', series: 'Small Branch', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', firmwareFilename: 'routeros-7.16.1-mmips.npk', firmwareNotes: 'Latest RouterOS v7 release. Native SIP helper control and FastTrack bypass' },
-      { id: 'rb3011', name: 'MikroTik RB3011UiAS-RM (10-Port Gigabit)', series: 'Mid-Market', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', firmwareFilename: 'routeros-7.16.1-arm.npk' },
-      { id: 'rb4011', name: 'MikroTik RB4011iGS+ (Quad-Core 10G SFP+)', series: 'Enterprise', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', firmwareFilename: 'routeros-7.16.1-arm.npk' },
-      { id: 'rb5009', name: 'MikroTik RB5009UG+S+IN (Heavy Duty 2.5G)', series: 'Enterprise', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', firmwareFilename: 'routeros-7.16.1-arm64.npk' },
-      { id: 'ccr2004', name: 'MikroTik CCR2004-16G-2S+ (Cloud Core)', series: 'Data Center', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', firmwareFilename: 'routeros-7.16.1-arm64.npk' },
-      { id: 'ccr2116', name: 'MikroTik CCR2116-12G-4S+ (16-Core Carrier)', series: 'Data Center', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', firmwareFilename: 'routeros-7.16.1-arm64.npk' },
-      { id: 'hap-ax3', name: 'MikroTik hAP ax3 / ax2 (Wi-Fi 6 VoIP Gateway)', series: 'Wireless Branch', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', firmwareFilename: 'routeros-7.16.1-arm64.npk' },
-      { id: 'chr', name: 'MikroTik Cloud Hosted Router (CHR / x86 VM)', series: 'Virtual Appliance', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', firmwareFilename: 'chr-7.16.1.img.zip' }
+      { id: 'hex', name: 'MikroTik hEX (RB750Gr3 / RB760iGS)', series: 'Small Branch', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', directDownloadUrl: 'https://download.mikrotik.com/routeros/7.16.1/routeros-7.16.1-mmips.npk', firmwareFilename: 'routeros-7.16.1-mmips.npk', firmwareNotes: 'Latest RouterOS v7 release. Native SIP helper control and FastTrack bypass' },
+      { id: 'rb3011', name: 'MikroTik RB3011UiAS-RM (10-Port Gigabit)', series: 'Mid-Market', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', directDownloadUrl: 'https://download.mikrotik.com/routeros/7.16.1/routeros-7.16.1-arm.npk', firmwareFilename: 'routeros-7.16.1-arm.npk' },
+      { id: 'rb4011', name: 'MikroTik RB4011iGS+ (Quad-Core 10G SFP+)', series: 'Enterprise', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', directDownloadUrl: 'https://download.mikrotik.com/routeros/7.16.1/routeros-7.16.1-arm.npk', firmwareFilename: 'routeros-7.16.1-arm.npk' },
+      { id: 'rb5009', name: 'MikroTik RB5009UG+S+IN (Heavy Duty 2.5G)', series: 'Enterprise', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', directDownloadUrl: 'https://download.mikrotik.com/routeros/7.16.1/routeros-7.16.1-arm64.npk', firmwareFilename: 'routeros-7.16.1-arm64.npk' },
+      { id: 'ccr2004', name: 'MikroTik CCR2004-16G-2S+ (Cloud Core)', series: 'Data Center', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', directDownloadUrl: 'https://download.mikrotik.com/routeros/7.16.1/routeros-7.16.1-arm64.npk', firmwareFilename: 'routeros-7.16.1-arm64.npk' },
+      { id: 'ccr2116', name: 'MikroTik CCR2116-12G-4S+ (16-Core Carrier)', series: 'Data Center', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', directDownloadUrl: 'https://download.mikrotik.com/routeros/7.16.1/routeros-7.16.1-arm64.npk', firmwareFilename: 'routeros-7.16.1-arm64.npk' },
+      { id: 'hap-ax3', name: 'MikroTik hAP ax3 / ax2 (Wi-Fi 6 VoIP Gateway)', series: 'Wireless Branch', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', directDownloadUrl: 'https://download.mikrotik.com/routeros/7.16.1/routeros-7.16.1-arm64.npk', firmwareFilename: 'routeros-7.16.1-arm64.npk' },
+      { id: 'chr', name: 'MikroTik Cloud Hosted Router (CHR / x86 VM)', series: 'Virtual Appliance', firmwareVersion: 'RouterOS v7.16.1', firmwareUrl: 'https://mikrotik.com/download', directDownloadUrl: 'https://download.mikrotik.com/routeros/7.16.1/chr-7.16.1.img.zip', firmwareFilename: 'chr-7.16.1.img.zip' }
     ]
   },
   {

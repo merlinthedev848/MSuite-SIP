@@ -18,11 +18,13 @@ export const ADMIN_PASS = process.env.ADMIN_PASS || 'MerlinAdmin2026!';
 export const DATA_DIR = process.env.DATA_DIR || path.resolve(process.cwd(), 'data');
 export const VAULT_DIR = path.join(DATA_DIR, 'vault');
 export const UPLOADS_DIR = path.join(VAULT_DIR, 'uploads');
+export const FIRMWARE_DIR = process.env.FIRMWARE_DIR || path.join(DATA_DIR, 'firmware');
 
 // Ensure storage directories exist
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(VAULT_DIR)) fs.mkdirSync(VAULT_DIR, { recursive: true });
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+if (!fs.existsSync(FIRMWARE_DIR)) fs.mkdirSync(FIRMWARE_DIR, { recursive: true });
 
 // Operational Database (Zero PII) & GDPR Communications Vault
 export const SYSTEM_DB_PATH = path.join(DATA_DIR, 'system.db');
