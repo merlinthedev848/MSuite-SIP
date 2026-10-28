@@ -1390,15 +1390,31 @@ public partial class MainWindow : Window
 
     private async Task SyncRemoteConfigAsync()
     {
-        if (_config.AllowsCustomSipEndpoint)
+        // Stability Guard: Never trigger dynamic configuration polling or socket re-binds during active calls or ringing
+        if (_line1.Status != "Idle" || _line2.Status != "Idle")
         {
-            // Buyout contractor mode: does not poll Chris Kendall media endpoints
             return;
         }
+
+        string syncEndpoint;
+        if (_config.AllowsCustomSipEndpoint)
+        {
+            // Contractor buyout mode: sync dynamically from contractor's self-hosted handler if configured
+            if (string.IsNullOrWhiteSpace(_config.DataHandlerUrl))
+            {
+                return;
+            }
+            syncEndpoint = $"{_config.DataHandlerUrl.TrimEnd('/')}/api/v1/config/sync";
+        }
+        else
+        {
+            syncEndpoint = "https://accounts.chriskendall.media/api/v1/config/sync";
+        }
+
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            using var request = new HttpRequestMessage(HttpMethod.Get, "https://accounts.chriskendall.media/api/v1/config/sync");
+            using var request = new HttpRequestMessage(HttpMethod.Get, syncEndpoint);
             request.Headers.Add("User-Agent", "MerlinSIP/1.3.9.3");
             using var response = await HttpClientHelper.SharedClient.SendAsync(request, cts.Token);
 

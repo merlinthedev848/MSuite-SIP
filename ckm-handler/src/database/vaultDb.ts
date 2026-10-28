@@ -111,20 +111,31 @@ if (!checkPolicy) {
   `).run();
 }
 
+// Pre-compiled high-speed statements (prepared once, executed repeatedly at C-speed)
+const insertMessageStmt = vaultDb.prepare(`
+  INSERT INTO messages (conversation_id, sender_id, message_type, content, file_id, file_name, file_size)
+  VALUES (?, ?, ?, ?, ?, ?, ?)
+`);
+
+const getMessageByIdStmt = vaultDb.prepare(`
+  SELECT * FROM messages WHERE id = ?
+`);
+
+const getRecentMessagesStmt = vaultDb.prepare(`
+  SELECT * FROM messages 
+  WHERE conversation_id = ? 
+  ORDER BY id DESC LIMIT ?
+`);
+
 // Helper methods for transparent AES-256-GCM encryption/decryption
 export const VaultStore = {
   insertMessage: (conversationId: string, senderId: string, messageType: string, content: string, fileId?: string, fileName?: string, fileSize?: number) => {
     // Encrypt content at rest using AES-256-GCM
     const encryptedContent = encryptVaultText(content);
     
-    const stmt = vaultDb.prepare(`
-      INSERT INTO messages (conversation_id, sender_id, message_type, content, file_id, file_name, file_size)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const info = stmt.run(conversationId, senderId, messageType || 'text', encryptedContent, fileId || null, fileName || null, fileSize || null);
+    const info = insertMessageStmt.run(conversationId, senderId, messageType || 'text', encryptedContent, fileId || null, fileName || null, fileSize || null);
     
-    const row = vaultDb.prepare('SELECT * FROM messages WHERE id = ?').get(info.lastInsertRowid) as any;
+    const row = getMessageByIdStmt.get(info.lastInsertRowid) as any;
     if (row) {
       row.content = content; // Return plaintext to active memory caller
     }
@@ -132,11 +143,7 @@ export const VaultStore = {
   },
 
   getRecentMessages: (conversationId: string, limit = 50) => {
-    const rows = vaultDb.prepare(`
-      SELECT * FROM messages 
-      WHERE conversation_id = ? 
-      ORDER BY id DESC LIMIT ?
-    `).all(conversationId, limit) as any[];
+    const rows = getRecentMessagesStmt.all(conversationId, limit) as any[];
 
     // Decrypt content transparently
     return rows.map(r => ({

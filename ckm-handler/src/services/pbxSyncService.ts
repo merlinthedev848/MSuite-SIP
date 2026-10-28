@@ -70,19 +70,21 @@ export async function syncExtensionsFromAsterisk(ami: AmiConfig): Promise<{ succ
           return;
         }
 
-        // Insert or update into system.db
-        let added = 0;
-        const stmt = systemDb.prepare(`
-          INSERT INTO extensions (extension, sip_username, sip_password, display_name)
-          VALUES (?, ?, ?, ?)
-          ON CONFLICT(extension) DO UPDATE SET
-            display_name = excluded.display_name
-        `);
+        // Insert or update into system.db in a single ACID high-speed transaction
+        const syncTx = systemDb.transaction((exts: SyncedExtension[]) => {
+          const stmt = systemDb.prepare(`
+            INSERT INTO extensions (extension, sip_username, sip_password, display_name)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(extension) DO UPDATE SET
+              display_name = excluded.display_name
+          `);
+          for (const ext of exts) {
+            stmt.run(ext.extension, ext.username, ext.password || 'ExtPassword123!', ext.displayName);
+          }
+        });
 
-        for (const ext of found) {
-          stmt.run(ext.extension, ext.username, ext.password || 'ExtPassword123!', ext.displayName);
-          added++;
-        }
+        syncTx(found);
+        const added = found.length;
 
         resolve({
           success: true,

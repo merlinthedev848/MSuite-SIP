@@ -85,6 +85,17 @@ router.get('/files/:fileId', (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'public, max-age=86400');
 
   const stream = fs.createReadStream(record.stored_path);
+  stream.on('error', (err) => {
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: 'Failed to read media file.' });
+    }
+  });
+
+  // Release file handle immediately if client closes connection prematurely
+  res.on('close', () => {
+    stream.destroy();
+  });
+
   return stream.pipe(res);
 });
 

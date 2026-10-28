@@ -10,6 +10,33 @@ interface FailedAttempt {
 }
 const failedPinAttempts = new Map<string, FailedAttempt>();
 
+// Periodic cleanup of expired rate limit records (runs every 5 minutes to prevent memory leak)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, attempt] of failedPinAttempts.entries()) {
+    if (now >= attempt.resetAt) {
+      failedPinAttempts.delete(ip);
+    }
+  }
+}, 5 * 60 * 1000).unref();
+
+// Pre-compiled high-frequency SQLite statements
+const getPinRecordStmt = systemDb.prepare(`
+  SELECT p.code, p.extension, p.claimed, p.expires_at,
+         e.sip_username, e.sip_password, e.display_name, e.is_active
+  FROM softphone_pins p
+  JOIN extensions e ON p.extension = e.extension
+  WHERE p.code = ?
+`);
+
+const claimPinStmt = systemDb.prepare(`
+  UPDATE softphone_pins SET claimed = 1 WHERE code = ?
+`);
+
+const getServerConfigStmt = systemDb.prepare(`
+  SELECT * FROM server_config WHERE id = 1
+`);
+
 // 1. Softphone Auto-Provisioning by 8-Digit PIN
 // Handled for multiple endpoint patterns matching desktop client
 const handlePinProvision = (req: Request, res: Response) => {
@@ -39,14 +66,8 @@ const handlePinProvision = (req: Request, res: Response) => {
     return res.status(400).json({ ok: false, error: 'Provisioning PIN must be exactly 8 digits.' });
   }
 
-  // Look up PIN
-  const pinRecord = systemDb.prepare(`
-    SELECT p.code, p.extension, p.claimed, p.expires_at,
-           e.sip_username, e.sip_password, e.display_name, e.is_active
-    FROM softphone_pins p
-    JOIN extensions e ON p.extension = e.extension
-    WHERE p.code = ?
-  `).get(cleanedCode) as any;
+  // Look up PIN using pre-compiled statement
+  const pinRecord = getPinRecordStmt.get(cleanedCode) as any;
 
   if (!pinRecord) {
     const cur = failedPinAttempts.get(clientIp);
@@ -74,10 +95,10 @@ const handlePinProvision = (req: Request, res: Response) => {
   }
 
   // Mark PIN as claimed
-  systemDb.prepare('UPDATE softphone_pins SET claimed = 1 WHERE code = ?').run(cleanedCode);
+  claimPinStmt.run(cleanedCode);
 
   // Fetch current server config
-  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  const config = getServerConfigStmt.get() as any;
 
   return res.json({
     ok: true,

@@ -7,6 +7,33 @@ import { generateRouterConfig, RouterConfigParams } from '../templates/routerTem
 
 const router = Router();
 
+// Pre-compiled high-speed statements
+const getHandsetStmt = systemDb.prepare(`
+  SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json,
+         e.extension, e.sip_username, e.sip_password, e.display_name, e.is_active
+  FROM physical_handsets h
+  JOIN extensions e ON h.extension = e.extension
+  WHERE LOWER(REPLACE(h.mac_address, ':', '')) = ?
+`);
+
+const updateHandsetProvisionedStmt = systemDb.prepare(`
+  UPDATE physical_handsets 
+  SET last_provisioned_at = CURRENT_TIMESTAMP 
+  WHERE LOWER(REPLACE(mac_address, ':', '')) = ?
+`);
+
+const getServerConfigStmt = systemDb.prepare(`
+  SELECT * FROM server_config WHERE id = 1
+`);
+
+const getRouterByIdStmt = systemDb.prepare(`
+  SELECT * FROM routers WHERE id = ?
+`);
+
+const getRouterByMacStmt = systemDb.prepare(`
+  SELECT * FROM routers WHERE LOWER(REPLACE(mac_address, ":", "")) = ?
+`);
+
 // Hardware Deskphone Provisioning Handler
 router.get('/provision/:filename', (req: Request, res: Response) => {
   const filename = req.params.filename.toLowerCase();
@@ -28,14 +55,8 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     return res.status(404).send('# Error: Invalid MAC address length.');
   }
 
-  // 3. Look up MAC address in physical_handsets table
-  const handset = systemDb.prepare(`
-    SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json,
-           e.extension, e.sip_username, e.sip_password, e.display_name, e.is_active
-    FROM physical_handsets h
-    JOIN extensions e ON h.extension = e.extension
-    WHERE LOWER(REPLACE(h.mac_address, ':', '')) = ?
-  `).get(cleanMac) as any;
+  // 3. Look up MAC address using pre-compiled statement
+  const handset = getHandsetStmt.get(cleanMac) as any;
 
   if (!handset) {
     return res.status(404).send(`# Error: Handset MAC [${cleanMac}] is not registered in CKM Handler.`);
@@ -46,7 +67,7 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
   }
 
   // Fetch current server config
-  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  const config = getServerConfigStmt.get() as any;
 
   // Parse optional BLF keys
   let blfKeys: Array<{ key: number; extension: string; label: string }> = [];
@@ -71,11 +92,7 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
   };
 
   // Update last provisioned timestamp
-  systemDb.prepare(`
-    UPDATE physical_handsets 
-    SET last_provisioned_at = CURRENT_TIMESTAMP 
-    WHERE LOWER(REPLACE(mac_address, ':', '')) = ?
-  `).run(cleanMac);
+  updateHandsetProvisionedStmt.run(cleanMac);
 
   // 4. Render manufacturer-specific configuration
   const brand = (handset.brand || '').toLowerCase();
@@ -100,16 +117,16 @@ router.get('/provision/router/:identifier', (req: Request, res: Response) => {
 
   let routerRec = null;
   if (/^\d+$/.test(cleanId)) {
-    routerRec = systemDb.prepare('SELECT * FROM routers WHERE id = ?').get(parseInt(cleanId, 10)) as any;
+    routerRec = getRouterByIdStmt.get(parseInt(cleanId, 10)) as any;
   } else {
-    routerRec = systemDb.prepare('SELECT * FROM routers WHERE LOWER(REPLACE(mac_address, ":", "")) = ?').get(cleanId) as any;
+    routerRec = getRouterByMacStmt.get(cleanId) as any;
   }
 
   if (!routerRec) {
     return res.status(404).send('# Error: Router configuration profile not found.');
   }
 
-  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  const config = getServerConfigStmt.get() as any;
 
   const params: RouterConfigParams = {
     siteName: routerRec.site_name,
