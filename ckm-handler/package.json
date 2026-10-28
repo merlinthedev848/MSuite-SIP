@@ -1,7 +1,7 @@
 {
-  "name": "merlin-handler",
+  "name": "ckm-handler",
   "version": "1.4.0",
-  "description": "Unified Communications, Provisioning Gateway, and GDPR Data Vault for MerlinSIP",
+  "description": "CKM Handler: Unified Communications, Provisioning Gateway, and GDPR Data Vault",
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",

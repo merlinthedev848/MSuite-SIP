@@ -1,7 +1,7 @@
-# Merlin Handler (`handler.domain.tld`)
+# CKM Handler (`handler.domain.tld`)
 ### Unified Communications, Provisioning Gateway & GDPR Vault for MerlinSIP
 
-`merlin-handler` is a unified, versatile server packaged in a single Docker container that integrates:
+`ckm-handler` is a unified, versatile server packaged in a single Docker container that integrates:
 1. **Real-Time Data & Media Engine**: Sub-50ms WhatsApp-speed chat via Socket.IO, audio voice notes, file attachments, and delivery ACKs.
 2. **Softphone Auto-Provisioning & Config Sync**: 8-digit PIN lookup (`/sip/provision/:code`) and dynamic 10-minute config sync (`/api/v1/config/sync`).
 3. **Physical Hardware Deskphone Provisioning**: Automatic XML/CFG generation for Yealink, Fanvil, Grandstream, and Poly handsets based on MAC address (`/provision/:mac.cfg`).
@@ -17,7 +17,7 @@ Deploy in seconds with Docker Compose:
 
 ```bash
 git clone https://github.com/merlinthedev848/MSuite-SIP.git
-cd MSuite-SIP/merlin-handler
+cd MSuite-SIP/ckm-handler
 docker compose up -d --build
 ```
 

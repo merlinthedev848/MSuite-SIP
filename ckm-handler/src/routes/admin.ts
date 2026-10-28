@@ -11,7 +11,7 @@ const router = Router();
 export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="Merlin Handler Admin"');
+    res.setHeader('WWW-Authenticate', 'Basic realm="CKM Handler Admin"');
     return res.status(401).json({ ok: false, error: 'Authentication required' });
   }
 

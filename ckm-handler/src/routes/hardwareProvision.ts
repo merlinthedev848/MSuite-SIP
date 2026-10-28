@@ -37,7 +37,7 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
   `).get(cleanMac) as any;
 
   if (!handset) {
-    return res.status(404).send(`# Error: Handset MAC [${cleanMac}] is not registered in Merlin Handler.`);
+    return res.status(404).send(`# Error: Handset MAC [${cleanMac}] is not registered in CKM Handler.`);
   }
 
   if (handset.is_active !== 1) {

@@ -25,7 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    service: 'merlin-handler',
+    service: 'ckm-handler',
     domain: SERVER_DOMAIN,
     timestamp: new Date().toISOString()
   });
@@ -53,7 +53,7 @@ startRetentionScheduler();
 // 7. Start Server Listener
 server.listen(PORT, () => {
   console.log(`==============================================================================`);
-  console.log(`[Merlin Handler] Unified Communications & Provisioning Gateway`);
+  console.log(`[CKM Handler] Unified Communications & Provisioning Gateway`);
   console.log(`[Status] Active on port ${PORT} | Domain: https://${SERVER_DOMAIN}`);
   console.log(`[Admin Portal] Access at: http://localhost:${PORT}/admin`);
   console.log(`[Engines Loaded]`);

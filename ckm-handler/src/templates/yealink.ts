@@ -16,7 +16,7 @@ export function generateYealinkConfig(cfg: HandsetAccountConfig): string {
   let lines = [
     `#!version:1.0.0.1`,
     `# ==============================================================================`,
-    `# Merlin Handler Auto-Generated Yealink Provisioning Profile`,
+    `# CKM Handler Auto-Generated Yealink Provisioning Profile`,
     `# Handset Extension: ${cfg.extension} (${cfg.displayName})`,
     `# Generated at: ${new Date().toISOString()}`,
     `# ==============================================================================`,

@@ -1,5 +1,5 @@
 # ==============================================================================
-# Merlin Handler: Unified Communications, Provisioning Gateway & GDPR Vault
+# CKM Handler: Unified Communications, Provisioning Gateway & GDPR Vault
 # Multi-stage production container with native SQLite compilation
 # ==============================================================================
 

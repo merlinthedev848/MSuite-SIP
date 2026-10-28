@@ -5,8 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: merlinthedev848/merlin-handler:1.4.0
-    container_name: merlin-handler
+    image: merlinthedev848/ckm-handler:1.4.0
+    container_name: ckm-handler
     restart: unless-stopped
     ports:
       - "443:3000"
