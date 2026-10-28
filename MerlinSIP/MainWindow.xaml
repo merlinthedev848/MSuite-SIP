@@ -2588,7 +2588,7 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <Border Style="{StaticResource SettingsCard}">
+                                    <Border x:Name="SetupCodeCard" Style="{StaticResource SettingsCard}">
                                         <Grid VerticalAlignment="Center">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="150" />
@@ -2635,6 +2635,8 @@
                                                 <StackPanel x:Name="PrivatePbxSettingsPanel" Visibility="Collapsed">
                                                     <TextBlock Text="PBX server" />
                                                     <TextBox x:Name="PrivatePbxSettingsTextBox" AutomationProperties.Name="Private PBX Server" />
+                                                    <TextBlock Text="Data Handler (Chat / Files)" Margin="0,6,0,0" />
+                                                    <TextBox x:Name="PrivateDataHandlerTextBox" AutomationProperties.Name="Private Data Handler Server" ToolTip="URL of self-hosted data handler (e.g. https://chat.yourcompany.com)" />
                                                 </StackPanel>
                                                 <TextBlock Text="Extension" />
                                                 <TextBox x:Name="ExtensionTextBox" AutomationProperties.Name="SIP Extension" />

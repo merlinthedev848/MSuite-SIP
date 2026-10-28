@@ -13,7 +13,7 @@ namespace MerlinSip.Services;
 public class ChatConnectorService : IDisposable
 {
     private SocketIO? _socketClient;
-    private readonly string _serverUrl = "https://handler.chriskendall.media";
+    private string _serverUrl = "https://handler.chriskendall.media";
     private readonly string _token = "UClDFZpFu1gj7I8oGmKVsOvzGTqSFwq3jpcgLoC2ApmkyZTjpq1ftIZmJ5EMoshE";
     private readonly HttpClient _httpClient;
     private readonly SemaphoreSlim _connectLock = new(1, 1);
@@ -31,12 +31,29 @@ public class ChatConnectorService : IDisposable
     private event Action<string>? ServerError;
     public bool IsConnected => _socketClient?.Connected == true;
 
-    public ChatConnectorService()
+    public ChatConnectorService(string? customServerUrl = null)
     {
+        if (!string.IsNullOrWhiteSpace(customServerUrl))
+        {
+            _serverUrl = customServerUrl.Trim().TrimEnd('/');
+        }
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
     }
 
+    public async Task UpdateServerUrlAsync(string? newServerUrl)
+    {
+        var url = string.IsNullOrWhiteSpace(newServerUrl) ? "https://handler.chriskendall.media" : newServerUrl.Trim().TrimEnd('/');
+        if (string.Equals(_serverUrl, url, StringComparison.OrdinalIgnoreCase)) return;
+        _serverUrl = url;
+        _joinedRooms.Clear();
+        if (_socketClient != null)
+        {
+            try { await _socketClient.DisconnectAsync(); _socketClient.Dispose(); } catch { }
+            _socketClient = null;
+            await ConnectAsync();
+        }
+    }
     public async Task ConnectAsync()
     {
         if (_socketClient is { Connected: true }) return;

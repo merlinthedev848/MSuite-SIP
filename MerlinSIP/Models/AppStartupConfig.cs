@@ -52,9 +52,11 @@ public sealed record AppStartupConfig(
     MediaDeviceInfo? SecondaryRingerOutput = null,
     bool AutoAnswerEnabled = false,
     MediaDeviceInfo? VideoSource = null,
-    bool IsProvisioned = false)
+    bool IsProvisioned = false,
+    string? DataHandlerUrl = null)
 {
     public const string FixedSipServer = "pbx.chriskendall.media";
+    public const string DefaultDataHandlerUrl = "https://handler.chriskendall.media";
     public const int FixedSipPort = 5060;
     public const string DefaultRingtone = "ring-classic";
     public const string TransportUdp = "UDP";
@@ -71,6 +73,9 @@ public sealed record AppStartupConfig(
         LicenseKey.StartsWith("PR", StringComparison.OrdinalIgnoreCase) ||
         LicenseKey.StartsWith("BUYOUT", StringComparison.OrdinalIgnoreCase) ||
         LicenseStatus.Contains("Buyout", StringComparison.OrdinalIgnoreCase);
+
+    public string EffectiveDataHandlerUrl =>
+        string.IsNullOrWhiteSpace(DataHandlerUrl) ? DefaultDataHandlerUrl : DataHandlerUrl.Trim();
 
     public AppStartupConfig WithFixedSipEndpoint()
     {

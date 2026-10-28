@@ -112,7 +112,19 @@
     return Boolean(s.extension && s.password && s.sipServer && s.sipDomain);
   }
 
+  function isBuyoutLicense() {
+    const key = (state.settings?.licenseKey || state.license?.key || '').toUpperCase();
+    const status = (state.license?.status || '').toLowerCase();
+    return key.startsWith('PR') || key.startsWith('BUYOUT') || status.includes('buyout');
+  }
+
   function updateSetupGateState() {
+    if (isBuyoutLicense()) {
+      $('btnAuthModeProvision')?.classList.add('hidden');
+      setAuthMode('manual');
+    } else {
+      $('btnAuthModeProvision')?.classList.remove('hidden');
+    }
     if (isConfigured()) {
       els.appShell?.classList.remove('hidden');
       els.setupOverlay?.classList.add('hidden');
@@ -1201,6 +1213,10 @@
     $('setupErrorText').textContent = '';
 
     if (isProvision) {
+      if (isBuyoutLicense()) {
+        $('setupErrorText').textContent = 'Provisioning PIN codes are reserved for managed cloud accounts. Please enter your manual PBX server details for buyout licenses.';
+        return;
+      }
       const code = $('setupProvisionCode')?.value.trim();
       if (!code || code.length !== 8) {
         $('setupErrorText').textContent = 'Please enter a valid 8-digit provisioning PIN code.';

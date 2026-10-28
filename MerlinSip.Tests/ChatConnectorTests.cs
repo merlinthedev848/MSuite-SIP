@@ -210,4 +210,24 @@ public class ChatConnectorTests
         Assert.Equal("#F1F5F9", inbound.ResultBadgeBackground);
         Assert.Equal("#475569", inbound.ResultBadgeForeground);
     }
+
+    [Fact]
+    public void ChatConnectorService_CustomUrl_SetsExpectedServerUrl()
+    {
+        var service = new ChatConnectorService("https://my-custom-handler.domain.com:8443");
+        Assert.Equal("https://my-custom-handler.domain.com:8443", service.ServerUrl);
+    }
+
+    [Fact]
+    public async Task ChatConnectorService_UpdateServerUrlAsync_UpdatesUrlGracefully()
+    {
+        var service = new ChatConnectorService();
+        Assert.Equal("https://handler.chriskendall.media", service.ServerUrl);
+
+        await service.UpdateServerUrlAsync("https://pbx-contractor.example.net");
+        Assert.Equal("https://pbx-contractor.example.net", service.ServerUrl);
+
+        await service.UpdateServerUrlAsync(null);
+        Assert.Equal("https://handler.chriskendall.media", service.ServerUrl);
+    }
 }

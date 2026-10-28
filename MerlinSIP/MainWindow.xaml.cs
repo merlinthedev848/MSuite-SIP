@@ -2,9 +2,11 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -64,6 +66,7 @@ public partial class MainWindow : Window
     private bool _queueFlashToggle = false;
     private readonly DispatcherTimer _connectionWatchdog = new() { Interval = TimeSpan.FromSeconds(15) };
     private readonly DispatcherTimer _licenseWatchdog = new() { Interval = TimeSpan.FromHours(6) };
+    private readonly DispatcherTimer _remoteConfigSyncTimer = new() { Interval = TimeSpan.FromMinutes(10) };
     private CancellationTokenSource? _earlyMediaRingbackCancellation;
     private CancellationTokenSource? _incomingNoAnswerCancellation;
     private bool _connectionCheckInProgress;
@@ -201,6 +204,10 @@ public partial class MainWindow : Window
         DataContext = _viewModel;
         UpdateActiveDirectoryTab(DirTabHistoryBtn);
         ApplyStartupConfig();
+        if (!string.IsNullOrWhiteSpace(_config.DataHandlerUrl))
+        {
+            _ = _chatService.UpdateServerUrlAsync(_config.DataHandlerUrl);
+        }
         ApplyAppVersion();
         LoadDefaultDeviceSelectors();
         DialContactsListView.ItemsSource = _filteredDirectoryContacts;
@@ -236,6 +243,7 @@ public partial class MainWindow : Window
         _callTimer.Tick += CallTimer_Tick;
         _connectionWatchdog.Tick += ConnectionWatchdog_Tick;
         _licenseWatchdog.Tick += LicenseWatchdog_Tick;
+        _remoteConfigSyncTimer.Tick += RemoteConfigSyncTimer_Tick;
         _searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
         _line2AmberFlashTimer.Tick += Line2AmberFlashTimer_Tick;
         _line1ResetTimer.Tick += (s, e) => { _line1ResetTimer.Stop(); if (_line1.Status == "Failed") { _line1.Status = "Idle"; UpdateLineAppearances(); } };
@@ -316,6 +324,7 @@ public partial class MainWindow : Window
         await Dispatcher.InvokeAsync(LoadDeviceSelectors, DispatcherPriority.Background);
         WindowsStartupService.EnableLaunchOnWindowsStartup();
         _licenseWatchdog.Start();
+        _remoteConfigSyncTimer.Start();
         _ = CheckForUpdatesOnStartupAsync();
         await VerifyLicenseAsync();
         _ = RegisterSipAsync();
@@ -1274,9 +1283,14 @@ public partial class MainWindow : Window
             SwitchToManualConfigButton.Visibility = Visibility.Collapsed;
         }
         var isBuyout = _config.AllowsCustomSipEndpoint;
+        SetupCodeCard.Visibility = isBuyout ? Visibility.Collapsed : Visibility.Visible;
+        SettingsProvisioningCodeTextBox.IsEnabled = !isBuyout;
+        ProvisionAndReconnectButton.IsEnabled = !isBuyout;
         PrivatePbxSettingsPanel.Visibility = isBuyout ? Visibility.Visible : Visibility.Collapsed;
         PrivatePbxSettingsTextBox.IsEnabled = isBuyout;
         PrivatePbxSettingsTextBox.Text = isBuyout && !string.IsNullOrWhiteSpace(_config.Server) ? _config.Server : string.Empty;
+        PrivateDataHandlerTextBox.IsEnabled = isBuyout;
+        PrivateDataHandlerTextBox.Text = isBuyout && !string.IsNullOrWhiteSpace(_config.DataHandlerUrl) ? _config.DataHandlerUrl : string.Empty;
         SipAlgCompatibilityCheckBox.IsChecked = _config.SipAlgCompatibilityMode;
         IgnoreSslErrorsCheckBox.IsChecked = _config.IgnoreSslErrors;
         SelectSipTransportMode(_config.SipSignallingTransport);
@@ -1368,6 +1382,48 @@ public partial class MainWindow : Window
         return int.TryParse(digits, out var value) ? value : fallback;
     }
 
+
+    private void RemoteConfigSyncTimer_Tick(object? sender, EventArgs e)
+    {
+        _ = SyncRemoteConfigAsync();
+    }
+
+    private async Task SyncRemoteConfigAsync()
+    {
+        if (_config.AllowsCustomSipEndpoint)
+        {
+            // Buyout contractor mode: does not poll Chris Kendall media endpoints
+            return;
+        }
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Add("User-Agent", "MerlinSIP/1.3.9.3");
+            var syncUrl = "https://accounts.chriskendall.media/api/v1/config/sync";
+            using var response = await http.GetAsync(syncUrl, cts.Token);
+            if (!response.IsSuccessStatusCode) return;
+            var json = await response.Content.ReadAsStringAsync(cts.Token);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("data_handler", out var dh) && dh.TryGetProperty("socket_url", out var socketUrl))
+            {
+                var newHandler = socketUrl.GetString();
+                if (!string.IsNullOrWhiteSpace(newHandler) && !string.Equals(_config.DataHandlerUrl, newHandler, StringComparison.OrdinalIgnoreCase))
+                {
+                    _config = _config with { DataHandlerUrl = newHandler };
+                    await _cacheService.SaveSettingsAsync(_config);
+                    await _chatService.UpdateServerUrlAsync(newHandler);
+                    DebugLog.Write($"REMOTE SYNC: Updated data handler URL to {newHandler}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Fail completely silently: network timeout or offline should never interrupt normal operation
+            DebugLog.Write($"REMOTE SYNC: Check completed with notice: {ex.Message}");
+        }
+    }
     private async Task VerifyLicenseAsync()
     {
         if (_licenseCheckInProgress)
@@ -1608,6 +1664,10 @@ public partial class MainWindow : Window
                         _config = tcpConfig;
                         await _cacheService.SaveSettingsAsync(_config.WithFixedSipEndpoint());
                         ApplyStartupConfig();
+        if (!string.IsNullOrWhiteSpace(_config.DataHandlerUrl))
+        {
+            _ = _chatService.UpdateServerUrlAsync(_config.DataHandlerUrl);
+        }
                         result = tcpResult;
                     }
                 }
@@ -3252,6 +3312,10 @@ public partial class MainWindow : Window
             Password = string.Empty
         };
         ApplyStartupConfig();
+        if (!string.IsNullOrWhiteSpace(_config.DataHandlerUrl))
+        {
+            _ = _chatService.UpdateServerUrlAsync(_config.DataHandlerUrl);
+        }
         await _cacheService.SaveSettingsAsync(_config.WithFixedSipEndpoint());
         FooterStatusText.Text = "Switched to manual credentials.";
     }
@@ -3369,6 +3433,11 @@ public partial class MainWindow : Window
 
     private async void ProvisionAndReconnectButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_config.AllowsCustomSipEndpoint)
+        {
+            FooterStatusText.Text = "Auto-provisioning is not available on buyout licenses.";
+            return;
+        }
         ProvisionAndReconnectButton.IsEnabled = false;
         FooterStatusText.Text = "Applying account setup.";
 
@@ -3403,6 +3472,10 @@ public partial class MainWindow : Window
                 SipSignallingTransport = ComboBoxTag(SipTransportModeComboBox, AppStartupConfig.TransportUdp)
             };
             ApplyStartupConfig();
+        if (!string.IsNullOrWhiteSpace(_config.DataHandlerUrl))
+        {
+            _ = _chatService.UpdateServerUrlAsync(_config.DataHandlerUrl);
+        }
             await _cacheService.SaveSettingsAsync(_config);
             SettingsProvisioningCodeTextBox.Text = string.Empty;
             SettingsOverlay.Visibility = Visibility.Collapsed;
@@ -3854,6 +3927,9 @@ public partial class MainWindow : Window
             var server = _config.AllowsCustomSipEndpoint
                 ? (!string.IsNullOrWhiteSpace(PrivatePbxSettingsTextBox.Text) ? PrivatePbxSettingsTextBox.Text.Trim() : AppStartupConfig.FixedSipServer)
                 : AppStartupConfig.FixedSipServer;
+            var dataHandlerUrl = _config.AllowsCustomSipEndpoint
+                ? (!string.IsNullOrWhiteSpace(PrivateDataHandlerTextBox.Text) ? PrivateDataHandlerTextBox.Text.Trim() : AppStartupConfig.DefaultDataHandlerUrl)
+                : AppStartupConfig.DefaultDataHandlerUrl;
 
             _config = _config with
             {
@@ -3892,13 +3968,15 @@ public partial class MainWindow : Window
                 QueueLoginLogoutCode = string.IsNullOrWhiteSpace(QueueToggleCodeTextBox.Text) ? "*62" : QueueToggleCodeTextBox.Text.Trim(),
                 CallRecordingCode = string.IsNullOrWhiteSpace(CallRecordingCodeTextBox.Text) ? "*1" : CallRecordingCodeTextBox.Text.Trim(),
                 VoicemailNumber = string.IsNullOrWhiteSpace(VoicemailCodeTextBox.Text) ? "*2" : VoicemailCodeTextBox.Text.Trim(),
-                IgnoreSslErrors = IgnoreSslErrorsCheckBox.IsChecked == true
+                IgnoreSslErrors = IgnoreSslErrorsCheckBox.IsChecked == true,
+                DataHandlerUrl = dataHandlerUrl
             };
 
             await _cacheService.SaveSettingsAsync(_config.WithFixedSipEndpoint());
             ApplyDndMode();
             _sipRegistrationService.UpdateNetworkAssistance(_config.SipAlgCompatibilityMode);
             UpdateNetworkAssistanceText();
+            _ = _chatService.UpdateServerUrlAsync(_config.DataHandlerUrl);
 
             var mediaDeviceChanged = previousInput.Id != _config.AudioInput.Id || previousOutput.Id != _config.AudioOutput.Id;
             var transportChanged = !string.Equals(previousTransport, _config.SipSignallingTransport, StringComparison.OrdinalIgnoreCase);

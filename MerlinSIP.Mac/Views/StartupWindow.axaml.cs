@@ -14,6 +14,26 @@ public partial class StartupWindow : Window
         InitializeComponent();
         ProvisionRadio.IsCheckedChanged += (_, _) => ShowMode();
         ManualRadio.IsCheckedChanged += (_, _) => ShowMode();
+        LicenseBox.PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name == nameof(TextBox.Text))
+            {
+                var text = (LicenseBox.Text ?? "").Trim();
+                var isBuyout = text.StartsWith("PR", StringComparison.OrdinalIgnoreCase) ||
+                               text.StartsWith("BUYOUT", StringComparison.OrdinalIgnoreCase);
+                if (isBuyout)
+                {
+                    ProvisionRadio.IsEnabled = false;
+                    ProvisionRadio.IsVisible = false;
+                    ManualRadio.IsChecked = true;
+                }
+                else
+                {
+                    ProvisionRadio.IsEnabled = true;
+                    ProvisionRadio.IsVisible = true;
+                }
+            }
+        };
         var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "CKMedia-Icon.png");
         if (File.Exists(icon))
         {
@@ -44,6 +64,11 @@ public partial class StartupWindow : Window
         config.LicenseKey = (LicenseBox.Text ?? "").Trim();
         config.LicenseStatus = license.Status;
         config.LicenseLocalKey = license.LocalKey ?? "";
+        if (config.AllowsCustomServer && ManualRadio.IsChecked != true)
+        {
+            ErrorText.Text = "Provisioning PIN codes are reserved for managed cloud accounts. Please use SIP account setup for buyout licenses.";
+            return;
+        }
 
         if (ManualRadio.IsChecked == true)
         {

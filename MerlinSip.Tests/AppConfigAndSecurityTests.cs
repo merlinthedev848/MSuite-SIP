@@ -104,4 +104,36 @@ public class AppConfigAndSecurityTests
         Assert.Equal(expectedHa1, ha1);
         Assert.NotEqual(plainTextPassword, ha1);
     }
+
+    [Theory]
+    [InlineData("PR-12345", "Active", true)]
+    [InlineData("BUYOUT-CONTRACTOR-01", "Licensed", true)]
+    [InlineData("STD-KEY-88", "Buyout License", true)]
+    [InlineData("STD-KEY-88", "Standard Active", false)]
+    [InlineData("", "None", false)]
+    public void AllowsCustomSipEndpoint_EvaluatesAccurately(string licenseKey, string licenseStatus, bool expected)
+    {
+        var config = new AppStartupConfig(
+            "pbx.example.com", 5060, "pbx.example.com", "101", "101", "pass",
+            licenseKey, licenseStatus,
+            new MediaDeviceInfo("in", "Input"),
+            new MediaDeviceInfo("out", "Output"));
+
+        Assert.Equal(expected, config.AllowsCustomSipEndpoint);
+    }
+
+    [Fact]
+    public void AppStartupConfig_DataHandlerUrl_PreservedOrDefaults()
+    {
+        var defaultConfig = new AppStartupConfig(
+            "pbx.example.com", 5060, "pbx.example.com", "101", "101", "pass",
+            "LIC", "Active",
+            new MediaDeviceInfo("in", "Input"),
+            new MediaDeviceInfo("out", "Output"));
+
+        Assert.Equal(AppStartupConfig.DefaultDataHandlerUrl, defaultConfig.EffectiveDataHandlerUrl);
+
+        var customConfig = defaultConfig with { DataHandlerUrl = "https://contractor.handler.com" };
+        Assert.Equal("https://contractor.handler.com", customConfig.EffectiveDataHandlerUrl);
+    }
 }
