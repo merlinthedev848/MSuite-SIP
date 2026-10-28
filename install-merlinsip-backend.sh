@@ -79,8 +79,11 @@ pm2 delete merlinsip-backend >/dev/null 2>&1 || true
 mkdir -p "${APP_DIR}"
 
 # Check if we are running inside the repository directory containing ckm-handler/
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-if [ -d "${SCRIPT_DIR}/ckm-handler/src" ]; then
+SCRIPT_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+fi
+if [ -n "${SCRIPT_DIR}" ] && [ -d "${SCRIPT_DIR}/ckm-handler/src" ]; then
   echo "[*] Found local ckm-handler source at ${SCRIPT_DIR}/ckm-handler. Copying..."
   cp -r "${SCRIPT_DIR}/ckm-handler/"* "${APP_DIR}/"
 else
