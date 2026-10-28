@@ -63,22 +63,21 @@ ${enableQos ? `## 4. Quality of Service (QoS), Fasttrack Bypass & DSCP Priority
 `;
 }
 
-// 2. TP-Link (Omada SDN Gateways & Aginet / Archer VoIP Routers — VZ230v, VX220-G2v, VR2100v, ER605)
+// 2. TP-Link (Omada SDN Gateways & Aginet / Archer VoIP & Wi-Fi 6 Routers — VZ230v, AX1800, EX220v, VX220-G2v, VR2100v, ER605)
 export function generateTpLinkConfig(cfg: RouterConfigParams): string {
   const subnetBase = cfg.voiceSubnet.split('/')[0];
   const ipPrefix = subnetBase.substring(0, subnetBase.lastIndexOf('.'));
   const disableAlg = cfg.disableSipAlg !== false;
   const enableQos = cfg.enableQos !== false;
-  const isVz230v = (cfg.model || '').toLowerCase().includes('vz230') || (cfg.model || '').toLowerCase().includes('vx220');
 
   return `# ==============================================================================
 # CKM Handler TP-Link VoIP Deployment Guide & Configuration Script
-# Site: ${cfg.siteName} | Target Model: ${cfg.model || 'VZ230v / VX220-G2v / ER605 / VR2100v'}
-# Operating System: TP-Link Aginet OS / Omada SDN / Linux Kernel
+# Site: ${cfg.siteName} | Target Model: ${cfg.model || 'VZ230v / AX1800 / EX220v / ER605'}
+# Operating System: TP-Link Aginet OS / Archer Wi-Fi 6 / Omada SDN
 # Generated at: ${new Date().toISOString()}
 # ==============================================================================
 
-### SECTION A: TP-LINK AGINET VZ230v / VX220-G2v ISP VOIP GATEWAY SETUP
+### SECTION A: TP-LINK AGINET VZ230v / EX220v / VX220-G2v ISP VOIP GATEWAY SETUP
 ${disableAlg ? `1. Disable Hardware SIP ALG Helper:
    - Log into Web GUI: http://192.168.1.1 (or ${subnetBase})
    - Navigate to: Advanced > Network > NAT > ALG
@@ -117,7 +116,26 @@ ${enableQos ? `5. Hardware QoS (Quality of Service) Bandwidth Reservation:
    - Voice Packet DSCP Tag: DSCP 46 (EF - Expedited Forwarding)` : ''}
 
 ------------------------------------------------------------------------------
-### SECTION B: TP-LINK OMADA SDN CONTROLLER SETUP (ER605 / ER7206 / ER8411)
+### SECTION B: TP-LINK ARCHER AX1800 (ARCHER AX20 / AX21 / AX23) WI-FI 6 SETUP
+${disableAlg ? `1. Disable SPI Firewall SIP ALG:
+   - Log into Web GUI: http://tplinkwifi.net or http://192.168.0.1
+   - Navigate to: Advanced > Security > ALG
+   - Uncheck: [ ] SIP ALG
+   - Click "Save"` : ''}
+
+2. QoS Voice Prioritization:
+   - Navigate to: Advanced > QoS
+   - Toggle QoS: ON
+   - Set Total Bandwidth (e.g. 100 Mbps Download / 20 Mbps Upload)
+   - Under Device Priority, set IP Phone / Softphone device to "High Priority"
+
+3. DHCP Server & DNS Configuration:
+   - Navigate to: Advanced > Network > DHCP Server
+   - Primary DNS: 1.1.1.1, Secondary DNS: 8.8.8.8
+   - Set Gateway Address: ${subnetBase}
+
+------------------------------------------------------------------------------
+### SECTION C: TP-LINK OMADA SDN CONTROLLER SETUP (ER605 / ER7206 / ER8411)
 ${disableAlg ? `1. Disable SIP ALG in Omada Controller:
    - Navigate to: Network Security > Attack Defense > ALG
    - Uncheck: [ ] SIP ALG
@@ -143,7 +161,7 @@ ${disableAlg ? `1. Disable SIP ALG in Omada Controller:
        - Value: "${cfg.dataHandlerUrl}/provision/"
 
 ------------------------------------------------------------------------------
-### SECTION C: STANDALONE ARCHER / VR-SERIES (TELNET / SSH / CLI SCRIPT)
+### SECTION D: STANDALONE ARCHER / VR-SERIES (TELNET / SSH / CLI SCRIPT)
 ${disableAlg ? `# Disable SIP ALG helper on Broadcom/Qualcomm chipset:
 sys alg -s sip disable
 # Or on OpenWrt / Linux-based TP-Link models:
