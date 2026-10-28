@@ -763,14 +763,14 @@ document.addEventListener('DOMContentLoaded', () => {
         name: 'Snom (XML)',
         configExt: '.xml',
         models: [
-          { id: 'D712', name: 'Snom D712 (4-Line Standard)', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD712-10.1.127.10-SIP-r.bin' },
-          { id: 'D717', name: 'Snom D717 Color', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD717-10.1.127.10-SIP-r.bin' },
-          { id: 'D735', name: 'Snom D735 Sensor', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD735-10.1.127.10-SIP-r.bin' },
-          { id: 'D785', name: 'Snom D785 Dual Display', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD785-10.1.127.10-SIP-r.bin' },
-          { id: 'D862', name: 'Snom D862 5" LCD', firmwareVersion: '10.1.141.0', firmwareFilename: 'snomD862-10.1.141.0-SIP-r.bin' },
-          { id: 'D865', name: 'Snom D865 Wi-Fi/BT', firmwareVersion: '10.1.141.0', firmwareFilename: 'snomD865-10.1.141.0-SIP-r.bin' },
-          { id: 'M300', name: 'Snom M300 DECT Base', firmwareVersion: '05.30.0002', firmwareFilename: 'snomM300-05.30.0002.bin' },
-          { id: 'M900', name: 'Snom M900 Multi-Cell DECT', firmwareVersion: '06.10.0001', firmwareFilename: 'snomM900-06.10.0001.bin' }
+          { id: 'D712', name: 'Snom D712 (4-Line Standard)', firmwareVersion: '10.1.184.14', firmwareFilename: 'snomD712-10.1.184.14-SIP-r.bin' },
+          { id: 'D717', name: 'Snom D717 Color', firmwareVersion: '10.1.184.14', firmwareFilename: 'snomD717-10.1.184.14-SIP-r.bin' },
+          { id: 'D735', name: 'Snom D735 Sensor', firmwareVersion: '10.1.184.14', firmwareFilename: 'snomD735-10.1.184.14-SIP-r.bin' },
+          { id: 'D785', name: 'Snom D785 Dual Display', firmwareVersion: '10.1.184.14', firmwareFilename: 'snomD785-10.1.184.14-SIP-r.bin' },
+          { id: 'D862', name: 'Snom D862 5" LCD', firmwareVersion: 'Carrier Managed', firmwareFilename: 'snomD862.bin' },
+          { id: 'D865', name: 'Snom D865 Wi-Fi/BT', firmwareVersion: 'Carrier Managed', firmwareFilename: 'snomD865.bin' },
+          { id: 'M300', name: 'Snom M300 DECT Base', firmwareVersion: '05.30.0002', firmwareFilename: 'M300_v0530_b0002.fwu' },
+          { id: 'M900', name: 'Snom M900 Multi-Cell DECT', firmwareVersion: '05.30.0007', firmwareFilename: 'M900_v0530_b0007.fwu' }
         ]
       },
       {
@@ -780,11 +780,11 @@ document.addEventListener('DOMContentLoaded', () => {
         models: [
           { id: 'GXP1610', name: 'Grandstream GXP1610 / 1615', firmwareVersion: '1.0.7.53', firmwareFilename: 'gxp1600fw.bin' },
           { id: 'GXP1625', name: 'Grandstream GXP1625', firmwareVersion: '1.0.7.53', firmwareFilename: 'gxp1600fw.bin' },
-          { id: 'GXP2130', name: 'Grandstream GXP2130', firmwareVersion: '1.0.11.64', firmwareFilename: 'gxp2100fw.bin' },
-          { id: 'GXP2135', name: 'Grandstream GXP2135', firmwareVersion: '1.0.11.64', firmwareFilename: 'gxp2100fw.bin' },
-          { id: 'GXP2140', name: 'Grandstream GXP2140', firmwareVersion: '1.0.11.64', firmwareFilename: 'gxp2100fw.bin' },
-          { id: 'GXP2160', name: 'Grandstream GXP2160', firmwareVersion: '1.0.11.64', firmwareFilename: 'gxp2100fw.bin' },
-          { id: 'GXP2170', name: 'Grandstream GXP2170', firmwareVersion: '1.0.11.64', firmwareFilename: 'gxp2100fw.bin' },
+          { id: 'GXP2130', name: 'Grandstream GXP2130', firmwareVersion: '1.0.11.106', firmwareFilename: 'gxp2130fw.bin' },
+          { id: 'GXP2135', name: 'Grandstream GXP2135', firmwareVersion: '1.0.11.106', firmwareFilename: 'gxp2135fw.bin' },
+          { id: 'GXP2140', name: 'Grandstream GXP2140', firmwareVersion: '1.0.11.106', firmwareFilename: 'gxp2140fw.bin' },
+          { id: 'GXP2160', name: 'Grandstream GXP2160', firmwareVersion: '1.0.11.106', firmwareFilename: 'gxp2160fw.bin' },
+          { id: 'GXP2170', name: 'Grandstream GXP2170', firmwareVersion: '1.0.11.106', firmwareFilename: 'gxp2170fw.bin' },
           { id: 'GRP2601', name: 'Grandstream GRP2601', firmwareVersion: '1.0.9.103', firmwareFilename: 'grp2600fw.bin' },
           { id: 'GRP2602', name: 'Grandstream GRP2602', firmwareVersion: '1.0.9.103', firmwareFilename: 'grp2600fw.bin' },
           { id: 'GRP2612', name: 'Grandstream GRP2612', firmwareVersion: '1.0.9.103', firmwareFilename: 'grp2610fw.bin' },
@@ -792,8 +792,8 @@ document.addEventListener('DOMContentLoaded', () => {
           { id: 'GRP2615', name: 'Grandstream GRP2615', firmwareVersion: '1.0.9.103', firmwareFilename: 'grp2610fw.bin' },
           { id: 'GRP2616', name: 'Grandstream GRP2616', firmwareVersion: '1.0.9.103', firmwareFilename: 'grp2610fw.bin' },
           { id: 'WP810', name: 'Grandstream WP810 Wi-Fi', firmwareVersion: '1.0.11.20', firmwareFilename: 'wp810fw.bin' },
-          { id: 'DP750', name: 'Grandstream DP750 DECT', firmwareVersion: '1.0.17.4', firmwareFilename: 'dp750fw.bin' },
-          { id: 'DP752', name: 'Grandstream DP752 DECT', firmwareVersion: '1.0.21.9', firmwareFilename: 'dp752fw.bin' }
+          { id: 'DP750', name: 'Grandstream DP750 DECT', firmwareVersion: '1.0.21.33', firmwareFilename: 'dp75xfw.bin' },
+          { id: 'DP752', name: 'Grandstream DP752 DECT', firmwareVersion: '1.0.21.33', firmwareFilename: 'dp75xfw.bin' }
         ]
       },
       {
