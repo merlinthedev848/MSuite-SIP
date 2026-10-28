@@ -1,0 +1,13 @@
+{
+  "name": "ckm-stress-test",
+  "version": "1.0.0",
+  "description": "High-concurrency stress test harness for CKM Handler & MerlinSIP backend",
+  "main": "stress-test.js",
+  "type": "module",
+  "scripts": {
+    "test": "node stress-test.js"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.0"
+  }
+}
