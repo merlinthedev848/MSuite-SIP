@@ -5,6 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CKM Handler — Communications & Provisioning Gateway</title>
   <link rel="stylesheet" href="style.css">
+  <script>
+    // Immediately populate live host domain across endpoints on DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+      const activeHost = window.location.host;
+      const activeOrigin = window.location.origin;
+      const activeWss = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + activeHost;
+      const c = document.getElementById('epChat'); if (c) c.textContent = `${activeWss}/socket.io`;
+      const p = document.getElementById('epProv'); if (p) p.textContent = `${activeOrigin}/provision/`;
+      const b = document.getElementById('epPhonebook'); if (b) b.textContent = `${activeOrigin}/phonebook/yealink.xml`;
+      const s = document.getElementById('epSync'); if (s) s.textContent = `${activeOrigin}/api/v1/config/sync`;
+    });
+  </script>
 </head>
 <body>
   <div class="app-layout">

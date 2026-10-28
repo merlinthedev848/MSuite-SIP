@@ -155,7 +155,7 @@ systemDb.exec(`
 `);
 
 // Seed default server config if missing
-const checkConfig = systemDb.prepare('SELECT id FROM server_config WHERE id = 1').get();
+const checkConfig = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
 if (!checkConfig) {
   systemDb.prepare(`
     INSERT INTO server_config (id, pbx_server, pbx_port, pbx_transport, data_handler_url, license_key)
@@ -167,6 +167,8 @@ if (!checkConfig) {
     `https://${SERVER_DOMAIN}`,
     LICENSE_KEY
   );
+} else if (checkConfig.data_handler_url && checkConfig.data_handler_url.includes('handler.chriskendall.media') && SERVER_DOMAIN !== 'handler.chriskendall.media') {
+  systemDb.prepare('UPDATE server_config SET data_handler_url = ? WHERE id = 1').run(`https://${SERVER_DOMAIN}`);
 }
 
 // Ensure api_key column exists

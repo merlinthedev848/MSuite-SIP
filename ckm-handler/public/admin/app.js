@@ -243,8 +243,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('pbxBadge').textContent = `PBX: ${s.pbxServer}`;
     document.getElementById('licenseBadge').textContent = `License: ${s.licenseKey || 'Active'}`;
 
-    const host = window.location.origin;
-    document.getElementById('epChat').textContent = `${host.replace(/^http/, 'ws')}/socket.io`;
+    const host = s.handlerUrl || window.location.origin;
+    const wssProtocol = host.startsWith('https:') ? 'wss:' : 'ws:';
+    const cleanHost = host.replace(/^https?:\/\//, '');
+    document.getElementById('epChat').textContent = `${wssProtocol}//${cleanHost}/socket.io`;
     document.getElementById('epProv').textContent = `${host}/provision/`;
     document.getElementById('epPhonebook').textContent = `${host}/phonebook/yealink.xml`;
     document.getElementById('epSync').textContent = `${host}/api/v1/config/sync`;
