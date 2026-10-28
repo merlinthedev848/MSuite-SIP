@@ -57,7 +57,7 @@ public sealed class LicenseService
 
             Status = BuildStatus(activation);
             LocalKey = activation.LocalKey;
-            return LicenseActivationResult.Ok(Status, activation.LocalKey);
+            return LicenseActivationResult.Ok(Status, activation.LocalKey, activation.ContractorProfile);
         }
         catch (Exception error)
         {
@@ -93,7 +93,7 @@ public sealed class LicenseService
 
             Status = BuildStatus(verify);
             LocalKey = verify.LocalKey ?? localKey;
-            return LicenseVerificationResult.Valid(Status, GetLicenseeDisplay(verify));
+            return LicenseVerificationResult.Valid(Status, GetLicenseeDisplay(verify), verify.ContractorProfile);
         }
         catch (Exception error)
         {
@@ -210,7 +210,8 @@ public sealed class LicenseService
         [property: JsonPropertyName("local_key")] string? LocalKey,
         [property: JsonPropertyName("buyer")] string? Buyer,
         [property: JsonPropertyName("buyer_email")] string? BuyerEmail,
-        [property: JsonPropertyName("licensee")] LicenseeResponse? Licensee);
+        [property: JsonPropertyName("licensee")] LicenseeResponse? Licensee,
+        [property: JsonPropertyName("contractor_profile")] ContractorProfileResponse? ContractorProfile = null);
 
     private sealed record LicenseeResponse(
         [property: JsonPropertyName("name")] string? Name,
@@ -218,16 +219,23 @@ public sealed class LicenseService
         [property: JsonPropertyName("company")] string? Company);
 }
 
-public sealed record LicenseActivationResult(bool Success, string Message, string? LocalKey = null)
+public sealed record ContractorProfileResponse(
+    [property: JsonPropertyName("handler_url")] string? HandlerUrl,
+    [property: JsonPropertyName("sip_server")] string? SipServer,
+    [property: JsonPropertyName("sip_port")] int? SipPort,
+    [property: JsonPropertyName("sip_transport")] string? SipTransport,
+    [property: JsonPropertyName("company_name")] string? CompanyName);
+
+public sealed record LicenseActivationResult(bool Success, string Message, string? LocalKey = null, ContractorProfileResponse? Profile = null)
 {
-    public static LicenseActivationResult Ok(string message, string? localKey = null) => new(true, message, localKey);
+    public static LicenseActivationResult Ok(string message, string? localKey = null, ContractorProfileResponse? profile = null) => new(true, message, localKey, profile);
 
     public static LicenseActivationResult Fail(string message) => new(false, message);
 }
 
-public sealed record LicenseVerificationResult(bool Checked, bool Active, string Message, string Licensee)
+public sealed record LicenseVerificationResult(bool Checked, bool Active, string Message, string Licensee, ContractorProfileResponse? Profile = null)
 {
-    public static LicenseVerificationResult Valid(string message, string licensee) => new(true, true, message, licensee);
+    public static LicenseVerificationResult Valid(string message, string licensee, ContractorProfileResponse? profile = null) => new(true, true, message, licensee, profile);
 
     public static LicenseVerificationResult Inactive(string message) => new(true, false, message, "");
 

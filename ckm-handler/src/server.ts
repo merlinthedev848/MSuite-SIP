@@ -5,6 +5,7 @@ import cors from 'cors';
 import { PORT, SERVER_DOMAIN } from './config';
 import { initializeSocketService } from './services/socketService';
 import { startRetentionScheduler } from './services/retentionService';
+import { licenseGateMiddleware, startLicenseGuardDaemon } from './services/licenseGuard';
 
 import softphoneProvisionRouter from './routes/softphoneProvision';
 import hardwareProvisionRouter from './routes/hardwareProvision';
@@ -31,7 +32,10 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 3. Mount Route Engines
+// 3. License Guard & IP Protection Middleware
+app.use(licenseGateMiddleware);
+
+// 4. Mount Route Engines
 app.use(softphoneProvisionRouter);
 app.use(hardwareProvisionRouter);
 app.use(directoryRouter);
@@ -40,17 +44,18 @@ app.use('/api/admin', adminRouter);
 app.use(adminRouter);
 app.use(gdprRouter);
 
-// 4. Static Web Admin Portal
+// 5. Static Web Admin Portal
 const adminStaticPath = path.resolve(__dirname, '../public/admin');
 app.use('/admin', express.static(adminStaticPath));
 
-// 5. Initialize Real-Time Socket.IO Server
+// 6. Initialize Real-Time Socket.IO Server
 initializeSocketService(server);
 
-// 6. Start Automated GDPR Retention Scheduler
+// 7. Start Automated GDPR Retention Scheduler & 24h License Guard Daemon
 startRetentionScheduler();
+startLicenseGuardDaemon();
 
-// 7. Start Server Listener
+// 8. Start Server Listener
 server.listen(PORT, () => {
   console.log(`==============================================================================`);
   console.log(`[CKM Handler] Unified Communications & Provisioning Gateway`);

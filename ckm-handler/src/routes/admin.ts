@@ -5,6 +5,8 @@ import systemDb from '../database/systemDb';
 import vaultDb from '../database/vaultDb';
 import { ADMIN_USER, ADMIN_PASS, UPLOADS_DIR } from '../config';
 import { generateRouterConfig, RouterConfigParams } from '../templates/routerTemplates';
+import { licenseState } from '../services/licenseGuard';
+import { syncExtensionsFromAsterisk, AmiConfig } from '../services/pbxSyncService';
 
 const router = Router();
 
@@ -72,7 +74,9 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
       uptimeSeconds: Math.floor(process.uptime()),
       pbxServer: `${config.pbx_server}:${config.pbx_port} (${config.pbx_transport})`,
       handlerUrl: config.data_handler_url,
-      licenseKey: config.license_key
+      licenseKey: config.license_key,
+      licenseStatus: licenseState.status,
+      isLicenseActive: licenseState.isActive
     }
   });
 });
@@ -284,6 +288,26 @@ router.get('/api/admin/routers/:id/script', adminAuth, (req: Request, res: Respo
   res.setHeader('Content-Type', generated.mimeType);
   res.setHeader('Content-Disposition', `attachment; filename="${generated.filename}"`);
   return res.send(generated.content);
+});
+
+// 7. Asterisk AMI / FreePBX Extension Auto-Sync
+router.post('/api/admin/pbx/sync', adminAuth, async (req: Request, res: Response) => {
+  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  const { amiHost, amiPort, amiUser, amiSecret } = req.body;
+
+  const ami: AmiConfig = {
+    host: amiHost || config.pbx_server,
+    port: parseInt(amiPort || '5038', 10),
+    username: amiUser || 'admin',
+    secret: amiSecret || 'amp111'
+  };
+
+  const syncResult = await syncExtensionsFromAsterisk(ami);
+  if (!syncResult.success) {
+    return res.status(502).json({ ok: false, error: syncResult.message });
+  }
+
+  return res.json({ ok: true, count: syncResult.count, message: syncResult.message });
 });
 
 export default router;

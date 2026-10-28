@@ -1455,6 +1455,27 @@ public partial class MainWindow : Window
                 LicenseLocalKey = _licenseService.LocalKey ?? _config.LicenseLocalKey
             };
             await _cacheService.SaveSettingsAsync(_config.WithFixedSipEndpoint());
+            if (result.Profile != null)
+            {
+                var prof = result.Profile;
+                if (!string.IsNullOrWhiteSpace(prof.HandlerUrl) && !string.Equals(_config.DataHandlerUrl, prof.HandlerUrl, StringComparison.OrdinalIgnoreCase))
+                {
+                    _config = _config with { DataHandlerUrl = prof.HandlerUrl.Trim() };
+                    _ = _chatService.UpdateServerUrlAsync(prof.HandlerUrl.Trim());
+                    DebugLog.Write($"LICENSE SYNC: Auto-bound data handler URL to {prof.HandlerUrl}");
+                }
+                if (!string.IsNullOrWhiteSpace(prof.SipServer))
+                {
+                    _config = _config with
+                    {
+                        Server = prof.SipServer.Trim(),
+                        Domain = prof.SipServer.Trim(),
+                        Port = prof.SipPort ?? _config.Port,
+                        SipSignallingTransport = prof.SipTransport ?? _config.SipSignallingTransport
+                    };
+                    DebugLog.Write($"LICENSE SYNC: Auto-bound SIP server to {prof.SipServer}:{_config.Port}");
+                }
+            }
             LicenseStatusText.Text = ShortLicenseStatus(status);
             LicensedToText.Text = string.IsNullOrWhiteSpace(result.Licensee)
                 ? LicenseeFromStatus(status)

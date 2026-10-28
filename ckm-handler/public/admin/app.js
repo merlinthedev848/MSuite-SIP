@@ -137,6 +137,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (res && res.ok) loadExtensions();
   });
 
+  document.getElementById('btnSyncPbx')?.addEventListener('click', async () => {
+    const amiUser = prompt('Enter Asterisk AMI Username:', 'admin') || 'admin';
+    const amiSecret = prompt('Enter Asterisk AMI Secret / Password:') || '';
+    if (!amiSecret) return;
+
+    const res = await fetchJson('/api/admin/pbx/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amiUser, amiSecret })
+    });
+
+    if (res && res.ok) {
+      alert(`PBX Sync Completed:\n${res.message}`);
+      loadExtensions();
+    } else if (res) {
+      alert(`PBX Sync Notice:\n${res.error || 'Check AMI credentials on port 5038.'}`);
+    }
+  });
+
   // 5. Handsets Tab
   async function loadHandsets() {
     const data = await fetchJson('/api/admin/handsets');
