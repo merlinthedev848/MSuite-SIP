@@ -1,0 +1,213 @@
+import { Router, Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
+import fs from 'fs';
+import systemDb from '../database/systemDb';
+import vaultDb from '../database/vaultDb';
+import { ADMIN_USER, ADMIN_PASS, UPLOADS_DIR } from '../config';
+
+const router = Router();
+
+// Simple Admin Authentication Middleware
+export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Merlin Handler Admin"');
+    return res.status(401).json({ ok: false, error: 'Authentication required' });
+  }
+
+  const match = authHeader.match(/^Basic\s+(.*)$/i);
+  if (!match) {
+    return res.status(401).json({ ok: false, error: 'Invalid authentication format' });
+  }
+
+  const credentials = Buffer.from(match[1], 'base64').toString('utf-8');
+  const [user, pass] = credentials.split(':');
+
+  if (user === ADMIN_USER && pass === ADMIN_PASS) {
+    return next();
+  }
+
+  return res.status(403).json({ ok: false, error: 'Invalid admin credentials' });
+};
+
+// 1. Dashboard Overview Stats
+router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
+  const extCount = (systemDb.prepare('SELECT COUNT(*) as count FROM extensions').get() as any).count;
+  const handsetCount = (systemDb.prepare('SELECT COUNT(*) as count FROM physical_handsets').get() as any).count;
+  const pinCount = (systemDb.prepare('SELECT COUNT(*) as count FROM softphone_pins WHERE claimed = 0').get() as any).count;
+  const msgCount = (vaultDb.prepare('SELECT COUNT(*) as count FROM messages').get() as any).count;
+  const fileCount = (vaultDb.prepare('SELECT COUNT(*) as count FROM media_vault_files').get() as any).count;
+  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+
+  // Calculate vault storage size
+  let totalBytes = 0;
+  try {
+    const files = fs.readdirSync(UPLOADS_DIR);
+    for (const f of files) {
+      const stat = fs.statSync(`${UPLOADS_DIR}/${f}`);
+      totalBytes += stat.size;
+    }
+  } catch {
+    // ignore
+  }
+
+  return res.json({
+    ok: true,
+    stats: {
+      extensions: extCount,
+      handsets: handsetCount,
+      unclaimedPins: pinCount,
+      messages: msgCount,
+      vaultFiles: fileCount,
+      storageMb: (totalBytes / (1024 * 1024)).toFixed(2),
+      uptimeSeconds: Math.floor(process.uptime()),
+      pbxServer: `${config.pbx_server}:${config.pbx_port} (${config.pbx_transport})`,
+      handlerUrl: config.data_handler_url,
+      licenseKey: config.license_key
+    }
+  });
+});
+
+// 2. Extensions Management
+router.get('/api/admin/extensions', adminAuth, (req: Request, res: Response) => {
+  const rows = systemDb.prepare(`
+    SELECT e.extension, e.sip_username, e.display_name, e.is_active, e.created_at,
+           (SELECT p.code FROM softphone_pins p WHERE p.extension = e.extension AND p.claimed = 0 LIMIT 1) as active_pin,
+           (SELECT COUNT(*) FROM physical_handsets h WHERE h.extension = e.extension) as bound_handsets
+    FROM extensions e
+    ORDER BY e.extension ASC
+  `).all();
+  return res.json({ ok: true, extensions: rows });
+});
+
+router.post('/api/admin/extensions', adminAuth, (req: Request, res: Response) => {
+  const { extension, username, password, displayName } = req.body;
+  if (!extension || !password) {
+    return res.status(400).json({ ok: false, error: 'Extension and password are required.' });
+  }
+
+  const cleanExt = String(extension).trim();
+  const cleanUser = String(username || cleanExt).trim();
+  const cleanName = String(displayName || `Extension ${cleanExt}`).trim();
+
+  systemDb.prepare(`
+    INSERT INTO extensions (extension, sip_username, sip_password, display_name)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(extension) DO UPDATE SET
+      sip_username = excluded.sip_username,
+      sip_password = excluded.sip_password,
+      display_name = excluded.display_name
+  `).run(cleanExt, cleanUser, password, cleanName);
+
+  return res.json({ ok: true, message: `Extension ${cleanExt} saved successfully.` });
+});
+
+router.delete('/api/admin/extensions/:ext', adminAuth, (req: Request, res: Response) => {
+  const ext = req.params.ext;
+  systemDb.prepare('DELETE FROM extensions WHERE extension = ?').run(ext);
+  return res.json({ ok: true, message: `Extension ${ext} removed.` });
+});
+
+// 3. Generate 8-Digit Softphone PIN
+router.post('/api/admin/pins', adminAuth, (req: Request, res: Response) => {
+  const { extension, expiryHours } = req.body;
+  if (!extension) {
+    return res.status(400).json({ ok: false, error: 'Extension is required to generate a PIN.' });
+  }
+
+  // Generate a random 8-digit PIN
+  const pin = Math.floor(10000000 + Math.random() * 90000000).toString();
+  
+  const hours = parseInt(expiryHours || '72', 10);
+  const expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+
+  // Invalidate previous unclaimed PINs for this extension
+  systemDb.prepare('DELETE FROM softphone_pins WHERE extension = ? AND claimed = 0').run(extension);
+
+  systemDb.prepare(`
+    INSERT INTO softphone_pins (code, extension, expires_at)
+    VALUES (?, ?, ?)
+  `).run(pin, extension, expiresAt);
+
+  return res.json({
+    ok: true,
+    code: pin,
+    extension,
+    expiresAt,
+    message: `8-digit PIN ${pin} generated for extension ${extension}.`
+  });
+});
+
+// 4. Physical Handsets Management
+router.get('/api/admin/handsets', adminAuth, (req: Request, res: Response) => {
+  const rows = systemDb.prepare(`
+    SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json, h.last_provisioned_at,
+           e.extension, e.display_name
+    FROM physical_handsets h
+    JOIN extensions e ON h.extension = e.extension
+    ORDER BY h.created_at DESC
+  `).all();
+  return res.json({ ok: true, handsets: rows });
+});
+
+router.post('/api/admin/handsets', adminAuth, (req: Request, res: Response) => {
+  const { macAddress, brand, model, extension, lineLabel, blfKeys } = req.body;
+  if (!macAddress || !extension) {
+    return res.status(400).json({ ok: false, error: 'MAC address and extension are required.' });
+  }
+
+  // Normalize MAC: clean out colons and hyphens
+  const cleanMac = String(macAddress).toLowerCase().replace(/[^0-9a-f]/g, '');
+  if (cleanMac.length !== 12) {
+    return res.status(400).json({ ok: false, error: 'MAC address must be 12 hex digits (e.g. 001565A1B2C3).' });
+  }
+
+  const blfJson = blfKeys ? JSON.stringify(blfKeys) : null;
+
+  systemDb.prepare(`
+    INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, blf_keys_json)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(mac_address) DO UPDATE SET
+      brand = excluded.brand,
+      model = excluded.model,
+      extension = excluded.extension,
+      line_label = excluded.line_label,
+      blf_keys_json = excluded.blf_keys_json
+  `).run(cleanMac, brand || 'yealink', model || '', extension, lineLabel || '', blfJson);
+
+  return res.json({ ok: true, message: `Handset MAC [${cleanMac}] bound to extension ${extension}.` });
+});
+
+router.delete('/api/admin/handsets/:mac', adminAuth, (req: Request, res: Response) => {
+  const cleanMac = req.params.mac.toLowerCase().replace(/[^0-9a-f]/g, '');
+  systemDb.prepare('DELETE FROM physical_handsets WHERE LOWER(REPLACE(mac_address, ":", "")) = ?').run(cleanMac);
+  return res.json({ ok: true, message: `Handset MAC [${cleanMac}] removed.` });
+});
+
+// 5. PBX Server & Global Config
+router.get('/api/admin/config', adminAuth, (req: Request, res: Response) => {
+  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get();
+  return res.json({ ok: true, config });
+});
+
+router.post('/api/admin/config', adminAuth, (req: Request, res: Response) => {
+  const { pbxServer, pbxPort, pbxTransport, dataHandlerUrl } = req.body;
+  if (!pbxServer) {
+    return res.status(400).json({ ok: false, error: 'PBX server domain or IP is required.' });
+  }
+
+  systemDb.prepare(`
+    UPDATE server_config
+    SET pbx_server = ?, pbx_port = ?, pbx_transport = ?, data_handler_url = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = 1
+  `).run(
+    String(pbxServer).trim(),
+    parseInt(pbxPort || '5060', 10),
+    String(pbxTransport || 'UDP').toUpperCase(),
+    String(dataHandlerUrl || '').trim()
+  );
+
+  return res.json({ ok: true, message: 'Server configuration updated. Connected softphones will sync within 10 minutes.' });
+});
+
+export default router;

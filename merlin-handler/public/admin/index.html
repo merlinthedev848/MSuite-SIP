@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Merlin Handler — Communications & Provisioning Gateway</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">M</div>
+        <div>
+          <div class="brand-title">Merlin Handler</div>
+          <div class="brand-sub">Communications Gateway</div>
+        </div>
+      </div>
+      <nav class="nav-menu">
+        <button class="nav-btn active" data-tab="overview">
+          <span class="icon">📊</span> Overview
+        </button>
+        <button class="nav-btn" data-tab="extensions">
+          <span class="icon">📱</span> Extensions & PINs
+        </button>
+        <button class="nav-btn" data-tab="handsets">
+          <span class="icon">☎️</span> Physical Handsets
+        </button>
+        <button class="nav-btn" data-tab="config">
+          <span class="icon">⚙️</span> PBX & Gateways
+        </button>
+        <button class="nav-btn" data-tab="gdpr">
+          <span class="icon">🔒</span> GDPR & Retention Vault
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="status-indicator">
+          <span class="status-dot"></span> Online (Port 443)
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <header class="topbar">
+        <div class="topbar-title" id="pageTitle">System Overview</div>
+        <div class="topbar-actions">
+          <span class="badge badge-primary" id="pbxBadge">PBX: Connecting...</span>
+          <span class="badge badge-secondary" id="licenseBadge">License: Active</span>
+          <button class="btn btn-sm" id="btnRefresh">Refresh Data</button>
+        </div>
+      </header>
+
+      <!-- TAB 1: OVERVIEW -->
+      <section class="tab-pane active" id="pane-overview">
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-title">Active Extensions</div>
+            <div class="metric-val" id="statExt">0</div>
+            <div class="metric-sub">Softphones & Deskphones</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-title">Physical Handsets</div>
+            <div class="metric-val" id="statHandsets">0</div>
+            <div class="metric-sub">Yealink, Fanvil, Grandstream</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-title">Unclaimed PINs</div>
+            <div class="metric-val" id="statPins">0</div>
+            <div class="metric-sub">8-Digit Provisioning Codes</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-title">Vault Messages</div>
+            <div class="metric-val" id="statMessages">0</div>
+            <div class="metric-sub">Chat & Signaling Records</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-title">Vault Storage</div>
+            <div class="metric-val" id="statStorage">0 MB</div>
+            <div class="metric-sub">Attachments & Recordings</div>
+          </div>
+        </div>
+
+        <div class="card mt-6">
+          <div class="card-header">
+            <h3>Unified Service Endpoints</h3>
+          </div>
+          <div class="endpoint-list">
+            <div class="endpoint-item">
+              <span class="tag">WSS</span> <strong>Real-Time Data Handler:</strong>
+              <code id="epChat">wss://handler.domain.tld/socket.io</code>
+            </div>
+            <div class="endpoint-item">
+              <span class="tag">HTTP</span> <strong>Deskphone Provisioning Server:</strong>
+              <code id="epProv">https://handler.domain.tld/provision/</code>
+            </div>
+            <div class="endpoint-item">
+              <span class="tag">XML</span> <strong>Corporate Remote Phonebook:</strong>
+              <code id="epPhonebook">https://handler.domain.tld/phonebook/yealink.xml</code>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: EXTENSIONS & SOFTPHONES -->
+      <section class="tab-pane" id="pane-extensions">
+        <div class="toolbar">
+          <div class="toolbar-title">SIP Extensions & Softphone PIN Codes</div>
+          <button class="btn btn-primary" id="btnOpenAddExtModal">+ New Extension</button>
+        </div>
+        <div class="card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Ext</th>
+                <th>Display Name</th>
+                <th>SIP Username</th>
+                <th>Active 8-Digit PIN</th>
+                <th>Bound Handsets</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="extTableBody">
+              <tr><td colspan="7" class="text-center">Loading extensions...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 3: PHYSICAL HANDSETS -->
+      <section class="tab-pane" id="pane-handsets">
+        <div class="toolbar">
+          <div class="toolbar-title">Physical IP Deskphone Directory</div>
+          <button class="btn btn-primary" id="btnOpenAddHandsetModal">+ Register Physical Handset</button>
+        </div>
+        <div class="card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>MAC Address</th>
+                <th>Brand / Model</th>
+                <th>Assigned Ext</th>
+                <th>Line Label</th>
+                <th>Last Provisioned</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="handsetTableBody">
+              <tr><td colspan="6" class="text-center">Loading registered handsets...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 4: PBX CONFIG -->
+      <section class="tab-pane" id="pane-config">
+        <div class="toolbar">
+          <div class="toolbar-title">PBX Integration & Gateway Settings</div>
+        </div>
+        <div class="card form-card">
+          <form id="formConfig">
+            <div class="form-group">
+              <label>PBX Server Host / Domain</label>
+              <input type="text" id="cfgPbxServer" required placeholder="pbx.chriskendall.media">
+              <small>The hostname or IP address of your Asterisk / FreePBX core.</small>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>SIP Signaling Port</label>
+                <input type="number" id="cfgPbxPort" required value="5060">
+              </div>
+              <div class="form-group">
+                <label>Signaling Transport</label>
+                <select id="cfgPbxTransport">
+                  <option value="UDP">UDP (Standard)</option>
+                  <option value="TCP">TCP</option>
+                  <option value="TLS">TLS (Encrypted SIP)</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Public Data Handler URL</label>
+              <input type="text" id="cfgDataHandlerUrl" required placeholder="https://handler.chriskendall.media">
+              <small>Public URL where softphones and deskphones connect for chat, files, and provisioning.</small>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Configuration</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- TAB 5: GDPR & RETENTION -->
+      <section class="tab-pane" id="pane-gdpr">
+        <div class="toolbar">
+          <div class="toolbar-title">GDPR Data Privacy & Retention Vault</div>
+        </div>
+        <div class="grid-2col">
+          <div class="card">
+            <h3>Automated Retention Policy (Article 5(1)(e))</h3>
+            <p class="muted">Messages and files older than the retention threshold are permanently scrubbed.</p>
+            <form id="formGdprPolicy" class="mt-4">
+              <div class="form-group">
+                <label>Chat Messages Retention (Days)</label>
+                <input type="number" id="gdprChatDays" value="90">
+              </div>
+              <div class="form-group">
+                <label>Media & Attachments Retention (Days)</label>
+                <input type="number" id="gdprMediaDays" value="90">
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="gdprAutoPrune" checked> Enable Daily Automated Pruning
+                </label>
+              </div>
+              <button type="submit" class="btn btn-primary">Update Policy</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <h3>Right to Erasure / Forgotten (Article 17)</h3>
+            <p class="muted">Purge all messages, files, and contacts for an extension with an audit certificate.</p>
+            <div class="form-group mt-4">
+              <label>Target Extension to Purge</label>
+              <input type="text" id="purgeExt" placeholder="e.g. 102">
+            </div>
+            <button class="btn btn-danger" id="btnExecutePurge">Execute Right to Erasure</button>
+            <div id="purgeResult" class="mt-4 hidden alert alert-success"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

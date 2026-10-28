@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  handler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: merlinthedev848/merlin-handler:1.4.0
+    container_name: merlin-handler
+    restart: unless-stopped
+    ports:
+      - "443:3000"
+      - "80:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SERVER_DOMAIN=handler.chriskendall.media
+      - ADMIN_USER=admin
+      - ADMIN_PASS=ChangeMeImmediately123!
+      - PBX_SERVER=pbx.chriskendall.media
+      - PBX_PORT=5060
+      - PBX_TRANSPORT=UDP
+      - LICENSE_KEY=MANAGED-STANDARD
+    volumes:
+      - ./data:/data
