@@ -320,24 +320,26 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('epPhonebook').textContent = `${host}/phonebook/yealink.xml`;
     document.getElementById('epSync').textContent = `${host}/api/v1/config/sync`;
 
-    // Render Component Health Matrix
+    // Render Consolidated Component Health Matrix
     const grid = document.getElementById('componentsGrid');
     const badge = document.getElementById('componentsSummaryBadge');
     if (grid && data.components) {
       grid.innerHTML = data.components.map(c => {
-        const statusClass = c.status || 'operational';
+        const isOp = (c.status === 'operational');
+        const dotClass = isOp ? 'dot-op' : (c.status === 'degraded' ? 'dot-warn' : 'dot-err');
+        const badgeLabel = c.badge || (isOp ? 'Active' : (c.status || 'Alert'));
         return `
-          <div class="component-card">
-            <div class="component-header">
-              <span class="component-name">${c.name}</span>
-              <span class="status-pill ${statusClass}">
-                <span class="status-pulse"></span> ${c.status}
-              </span>
+          <div class="health-row-item">
+            <div class="health-row-left">
+              <span class="health-dot ${dotClass}" title="${c.status || 'operational'}"></span>
+              <div class="health-info">
+                <span class="health-name">${c.name}</span>
+                <span class="health-meta">${c.details}</span>
+              </div>
             </div>
-            <div class="component-details">${c.details}</div>
-            <div class="component-footer">
-              <span>Latency: <strong>${c.latency}</strong></span>
-              <span class="tag">${c.badge}</span>
+            <div class="health-row-right">
+              <span class="health-latency">${c.latency}</span>
+              <span class="health-pill ${isOp ? 'op' : 'warn'}">${badgeLabel}</span>
             </div>
           </div>
         `;
@@ -345,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const total = data.components.length;
       const opCount = data.components.filter(c => c.status === 'operational').length;
-      badge.textContent = `${opCount}/${total} Components Operational`;
+      badge.textContent = `${opCount} / ${total} Operational`;
       badge.className = opCount === total ? 'badge badge-primary' : 'badge badge-secondary';
     }
 
