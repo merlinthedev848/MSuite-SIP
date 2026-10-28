@@ -12,7 +12,7 @@ import { generateRouterConfig, RouterConfigParams } from '../templates/routerTem
 import { HANDSET_CATALOG, ROUTER_CATALOG, generateDefaultHandsetConfig } from '../templates/catalog';
 import { HandsetAccountConfig } from '../templates/yealink';
 import { licenseState } from '../services/licenseGuard';
-import { syncExtensionsFromAsterisk, AmiConfig } from '../services/pbxSyncService';
+import { syncExtensionsFromAsterisk, syncExtensionsFromPbx, PbxSyncConfig, AmiConfig } from '../services/pbxSyncService';
 import { getSocketStats } from '../services/socketService';
 import { registerSseClient, getRecentDeviceLogs, clearDeviceLogs, broadcastDeviceLog } from '../services/telemetryStream';
 import { 
@@ -1206,19 +1206,22 @@ router.get('/api/admin/routers/:id/script', adminAuth, (req: Request, res: Respo
   return res.send(generated.content);
 });
 
-// 7. Asterisk AMI / FreePBX Extension Auto-Sync
+// 7. PBX Extension Auto-Sync (Yeastar API & Asterisk AMI)
 router.post('/api/admin/pbx/sync', adminAuth, requirePermission('manage_pbx'), async (req: Request, res: Response) => {
   const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
-  const { amiHost, amiPort, amiUser, amiSecret } = req.body;
+  const { pbxType, amiHost, amiPort, amiUser, amiSecret, apiProtocol, apiPath } = req.body;
 
-  const ami: AmiConfig = {
+  const syncConfig: PbxSyncConfig = {
+    type: pbxType || (parseInt(amiPort || '5038', 10) === 5038 ? 'asterisk_ami' : 'yeastar_api'),
     host: amiHost || config.pbx_server,
-    port: parseInt(amiPort || '5038', 10),
+    port: parseInt(amiPort || (pbxType === 'yeastar_api' ? '8260' : '5038'), 10),
     username: amiUser || 'admin',
-    secret: amiSecret || 'amp111'
+    secret: amiSecret || '',
+    protocol: apiProtocol || 'https',
+    apiPath: apiPath || 'api/v2.0.0'
   };
 
-  const syncResult = await syncExtensionsFromAsterisk(ami);
+  const syncResult = await syncExtensionsFromPbx(syncConfig);
   if (!syncResult.success) {
     return res.status(502).json({ ok: false, error: syncResult.message });
   }

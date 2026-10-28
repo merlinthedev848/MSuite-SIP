@@ -571,10 +571,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Asterisk AMI Sync Modal
+  // PBX Platform & Type Dropdown Change Handler
+  function updatePbxTypeFields() {
+    const pbxType = document.getElementById('pbxType')?.value || 'yeastar_api';
+    const portInput = document.getElementById('amiPort');
+    const lblPort = document.getElementById('lblPbxPort');
+    const lblUser = document.getElementById('lblPbxUser');
+    const lblSecret = document.getElementById('lblPbxSecret');
+    const rowProtocol = document.getElementById('rowProtocol');
+    const btnSync = document.getElementById('btnRunSync');
+    const helpHint = document.getElementById('pbxHelpHint');
+
+    if (pbxType === 'yeastar_api') {
+      if (portInput) portInput.value = '8260';
+      if (lblPort) lblPort.textContent = 'API Port';
+      if (lblUser) lblUser.textContent = 'API Username *';
+      if (lblSecret) lblSecret.textContent = 'API Password / Secret *';
+      if (rowProtocol) rowProtocol.style.display = 'flex';
+      if (btnSync) btnSync.textContent = 'Start Yeastar API Sync';
+      if (helpHint) helpHint.innerHTML = 'Yeastar S-Series / P-Series REST API connects over port 8260 (or 443/80) using <code>/api/v2.0.0/login</code> to authenticate and pull all active extensions.';
+    } else if (pbxType === 'yeastar_ami') {
+      if (portInput) portInput.value = '5038';
+      if (lblPort) lblPort.textContent = 'AMI Port';
+      if (lblUser) lblUser.textContent = 'AMI Username *';
+      if (lblSecret) lblSecret.textContent = 'AMI Secret / Password *';
+      if (rowProtocol) rowProtocol.style.display = 'none';
+      if (btnSync) btnSync.textContent = 'Start Yeastar AMI Sync';
+      if (helpHint) helpHint.innerHTML = 'Connects to Yeastar PBX via Asterisk Manager Interface (AMI) on port 5038 using ExtensionState and CLI fallback.';
+    } else {
+      if (portInput) portInput.value = '5038';
+      if (lblPort) lblPort.textContent = 'AMI Port';
+      if (lblUser) lblUser.textContent = 'AMI Username *';
+      if (lblSecret) lblSecret.textContent = 'AMI Secret *';
+      if (rowProtocol) rowProtocol.style.display = 'none';
+      if (btnSync) btnSync.textContent = 'Start Asterisk AMI Sync';
+      if (helpHint) helpHint.innerHTML = 'Connects directly to Asterisk / FreePBX Manager Interface (AMI) on port 5038 to import all configured SIP peers.';
+    }
+  }
+
+  document.getElementById('pbxType')?.addEventListener('change', updatePbxTypeFields);
+
+  // PBX Sync Modal Open
   document.getElementById('btnSyncPbx')?.addEventListener('click', () => {
-    document.getElementById('formSyncPbx')?.reset();
     document.getElementById('amiSyncOutput')?.classList.add('hidden');
+    updatePbxTypeFields();
     openModal('modalSyncPbx');
   });
 
@@ -582,14 +622,19 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const out = document.getElementById('amiSyncOutput');
     const btn = document.getElementById('btnRunSync');
+    const pbxType = document.getElementById('pbxType')?.value || 'yeastar_api';
+
     btn.disabled = true;
-    btn.textContent = 'Connecting to Asterisk AMI...';
+    btn.textContent = 'Connecting & Synchronizing...';
 
     const payload = {
+      pbxType: pbxType,
       amiHost: document.getElementById('amiHost').value.trim(),
-      amiPort: parseInt(document.getElementById('amiPort').value || '5038', 10),
+      amiPort: parseInt(document.getElementById('amiPort').value || (pbxType === 'yeastar_api' ? '8260' : '5038'), 10),
       amiUser: document.getElementById('amiUser').value.trim(),
-      amiSecret: document.getElementById('amiSecret').value
+      amiSecret: document.getElementById('amiSecret').value,
+      apiProtocol: document.getElementById('apiProtocol')?.value || 'https',
+      apiPath: document.getElementById('apiPath')?.value?.trim() || 'api/v2.0.0'
     };
 
     const res = await fetchJson('/api/admin/pbx/sync', {
@@ -599,13 +644,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     btn.disabled = false;
-    btn.textContent = 'Start AMI Sync';
+    updatePbxTypeFields();
 
     if (out) {
       out.classList.remove('hidden');
-      out.textContent = res ? (res.ok ? `Success: ${res.message}` : `Error: ${res.error}`) : 'Network error.';
+      if (res && res.ok) {
+        out.style.background = '#f0fdf4';
+        out.style.borderColor = '#bbf7d0';
+        out.style.color = '#15803d';
+        out.textContent = `Success: ${res.message}`;
+        window.showToast?.(res.message, 'success');
+        loadExtensions();
+      } else {
+        out.style.background = '#fef2f2';
+        out.style.borderColor = '#fecaca';
+        out.style.color = '#991b1b';
+        out.textContent = `Error: ${res?.error || 'Failed to sync with PBX.'}`;
+        window.showToast?.(res?.error || 'Sync failed', 'error');
+      }
     }
-    if (res && res.ok) loadExtensions();
   });
 
   // Quick Pull & Provision Modal

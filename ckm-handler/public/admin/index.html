@@ -293,7 +293,7 @@
           </div>
           <div class="section-header-actions">
             <button class="btn btn-secondary" id="btnSyncPbx">
-              Sync from PBX (AMI)
+              Sync from PBX
             </button>
             <button class="btn btn-secondary" id="btnOpenQuickProvModal">
               Quick Pull & Provision
@@ -1161,40 +1161,70 @@
     </div>
   </div>
 
-  <!-- PBX AMI Sync Modal -->
+    <!-- PBX Synchronization Modal -->
   <div id="modalSyncPbx" class="modal-backdrop hidden">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>Asterisk AMI Extension Synchronization</h3>
+        <h3 id="syncModalTitle">PBX Extension Synchronization</h3>
         <button class="modal-close" onclick="closeModal('modalSyncPbx')">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="muted" style="margin-bottom: 16px; font-size: 13px;">Connect directly to Asterisk Manager Interface (AMI) on port 5038 to import all configured SIP peers, endpoints, and credentials automatically.</p>
+        <p class="muted" id="syncModalDesc" style="margin-bottom: 16px; font-size: 13px;">Select your PBX platform below to automatically import configured SIP extensions, display names, and credentials.</p>
         <form id="formSyncPbx">
+          <div class="form-group">
+            <label>PBX Platform / Integration Engine</label>
+            <select id="pbxType" class="form-select">
+              <option value="yeastar_api" selected>Yeastar S-Series / P-Series (REST API v2.0.0 / OpenAPI)</option>
+              <option value="yeastar_ami">Yeastar PBX (Asterisk AMI Port 5038)</option>
+              <option value="asterisk_ami">Asterisk / FreePBX (Standard AMI Port 5038)</option>
+            </select>
+          </div>
+
           <div class="form-row">
-            <div class="form-group">
-              <label>AMI Host / IP</label>
-              <input type="text" id="amiHost" placeholder="Defaults to PBX server">
+            <div class="form-group" style="flex: 2;">
+              <label id="lblPbxHost">PBX Host / IP</label>
+              <input type="text" id="amiHost" placeholder="e.g. pbx.chriskendall.media" required>
             </div>
-            <div class="form-group">
-              <label>AMI Port</label>
-              <input type="number" id="amiPort" value="5038">
+            <div class="form-group" style="flex: 1;">
+              <label id="lblPbxPort">API Port</label>
+              <input type="number" id="amiPort" value="8260" required>
             </div>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>AMI Username *</label>
-              <input type="text" id="amiUser" required value="admin">
+
+          <div class="form-row" id="rowProtocol" style="display: flex;">
+            <div class="form-group" style="flex: 1;">
+              <label>Protocol / SSL</label>
+              <select id="apiProtocol" class="form-select">
+                <option value="https" selected>HTTPS (Secure / SSL)</option>
+                <option value="http">HTTP (Standard)</option>
+              </select>
             </div>
-            <div class="form-group">
-              <label>AMI Secret / Password *</label>
-              <input type="password" id="amiSecret" required placeholder="••••••••">
+            <div class="form-group" style="flex: 1;">
+              <label>API Path Prefix</label>
+              <input type="text" id="apiPath" value="api/v2.0.0" placeholder="api/v2.0.0">
             </div>
           </div>
-          <div id="amiSyncOutput" class="hidden" style="margin: 14px 0; background: #090e1a; color: #38bdf8; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap; border: 1px solid #1e293b;"></div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label id="lblPbxUser">API Username *</label>
+              <input type="text" id="amiUser" required value="perfexapi" placeholder="e.g. perfexapi">
+            </div>
+            <div class="form-group">
+              <label id="lblPbxSecret">API Password / Secret *</label>
+              <input type="password" id="amiSecret" required placeholder="Enter API password or secret">
+            </div>
+          </div>
+
+          <div class="form-group" id="pbxHelpHint" style="font-size: 11.5px; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; margin-top: 4px;">
+            Yeastar S-Series / P-Series REST API connects over port 8260 (or 443) using <code>/api/v2.0.0/login</code> to authenticate and sync all extensions.
+          </div>
+
+          <div id="amiSyncOutput" class="hidden" style="margin-top: 14px; padding: 12px 14px; border-radius: 6px; font-size: 12.5px; font-family: ui-monospace, monospace; white-space: pre-wrap; border: 1px solid #e2e8f0;"></div>
+
           <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
             <button type="button" class="btn btn-secondary" onclick="closeModal('modalSyncPbx')">Close</button>
-            <button type="submit" class="btn btn-primary" id="btnRunSync">Start AMI Sync</button>
+            <button type="submit" class="btn btn-primary" id="btnRunSync">Start Yeastar API Sync</button>
           </div>
         </form>
       </div>
