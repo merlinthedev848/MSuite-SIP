@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import fs from 'fs';
+import crypto from 'crypto';
 import { SYSTEM_DB_PATH, DEFAULT_PBX_SERVER, DEFAULT_PBX_PORT, DEFAULT_PBX_TRANSPORT, SERVER_DOMAIN, LICENSE_KEY } from '../config';
 
 const systemDb = new Database(SYSTEM_DB_PATH);
@@ -51,6 +52,7 @@ systemDb.exec(`
     pbx_transport TEXT NOT NULL,
     data_handler_url TEXT NOT NULL,
     license_key TEXT,
+    api_key TEXT,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -117,6 +119,20 @@ if (!checkConfig) {
     `https://${SERVER_DOMAIN}`,
     LICENSE_KEY
   );
+}
+
+// Ensure api_key column exists
+try {
+  systemDb.exec('ALTER TABLE server_config ADD COLUMN api_key TEXT;');
+} catch {
+  // column already exists
+}
+
+// Generate default secure API key if not set
+const cfgRow = systemDb.prepare('SELECT api_key FROM server_config WHERE id = 1').get() as any;
+if (!cfgRow?.api_key) {
+  const newKey = `ckm_live_${crypto.randomBytes(16).toString('hex')}`;
+  systemDb.prepare('UPDATE server_config SET api_key = ? WHERE id = 1').run(newKey);
 }
 
 export default systemDb;

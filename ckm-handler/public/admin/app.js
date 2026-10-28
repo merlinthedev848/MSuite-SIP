@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (res && res.ok) loadRouters();
   });
 
-  // 7. PBX Config Tab
+  // 7. PBX Config Tab & API Key Management
   async function loadConfig() {
     const data = await fetchJson('/api/admin/config');
     if (!data || !data.ok || !data.config) return;
@@ -269,7 +269,47 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cfgPbxPort').value = c.pbx_port;
     document.getElementById('cfgPbxTransport').value = c.pbx_transport;
     document.getElementById('cfgDataHandlerUrl').value = c.data_handler_url;
+
+    const apiKeyInput = document.getElementById('cfgApiKey');
+    if (apiKeyInput) apiKeyInput.value = c.api_key || '';
+
+    updateCurlExample(c.api_key, c.data_handler_url);
   }
+
+  function updateCurlExample(key, handlerUrl) {
+    const pre = document.getElementById('curlExample');
+    if (!pre) return;
+    const domain = handlerUrl || window.location.origin;
+    const cleanKey = key || 'ckm_live_xxxxxxxxxxxxxxxxxxxxxxxx';
+    pre.textContent = `# 1. Pull extension details from PBX and generate 8-digit provisioning PIN
+curl -X POST "${domain}/api/v1/integrations/provision-user" \\
+  -H "X-API-Key: ${cleanKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"extension": "101", "displayName": "Alice Walker", "queryPbx": true}'
+
+# 2. Query active PIN code and deep-link for extension 101
+curl -X GET "${domain}/api/v1/integrations/extension/101/code" \\
+  -H "X-API-Key: ${cleanKey}"`;
+  }
+
+  document.getElementById('btnCopyApiKey')?.addEventListener('click', () => {
+    const key = document.getElementById('cfgApiKey')?.value;
+    if (key) {
+      navigator.clipboard.writeText(key);
+      alert('API Key copied to clipboard!');
+    }
+  });
+
+  document.getElementById('btnRegenApiKey')?.addEventListener('click', async () => {
+    if (!confirm('CAUTION: Regenerating the API Key will immediately invalidate the current key for all external systems.\n\nProceed?')) return;
+    const res = await fetchJson('/api/admin/config/regenerate-api-key', { method: 'POST' });
+    if (res && res.ok && res.apiKey) {
+      document.getElementById('cfgApiKey').value = res.apiKey;
+      const handlerUrl = document.getElementById('cfgDataHandlerUrl')?.value;
+      updateCurlExample(res.apiKey, handlerUrl);
+      alert('New API Key generated successfully!');
+    }
+  });
 
   document.getElementById('formConfig')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -287,6 +327,97 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     if (res && res.ok) {
       alert(res.message || 'Configuration saved successfully.');
+    }
+  });
+
+  // 8. Quick Pull & Provision Modal
+  const modalQuickProv = document.getElementById('modalQuickProvision');
+  const btnOpenQuickProv = document.getElementById('btnOpenQuickProvModal');
+  const btnCloseModal = document.getElementById('btnCloseModal');
+  const btnCancelModal = document.getElementById('btnCancelModal');
+  const formQuickProv = document.getElementById('formQuickProvision');
+  const qpResult = document.getElementById('qpResult');
+
+  function openQuickProvModal() {
+    if (!modalQuickProv) return;
+    formQuickProv.reset();
+    document.getElementById('qpExpiry').value = '72';
+    document.getElementById('qpQueryPbx').checked = true;
+    qpResult.classList.add('hidden');
+    formQuickProv.classList.remove('hidden');
+    modalQuickProv.classList.remove('hidden');
+    document.getElementById('qpExt')?.focus();
+  }
+
+  function closeQuickProvModal() {
+    if (modalQuickProv) modalQuickProv.classList.add('hidden');
+  }
+
+  btnOpenQuickProv?.addEventListener('click', openQuickProvModal);
+  btnCloseModal?.addEventListener('click', closeQuickProvModal);
+  btnCancelModal?.addEventListener('click', closeQuickProvModal);
+
+  modalQuickProv?.addEventListener('click', (e) => {
+    if (e.target === modalQuickProv) closeQuickProvModal();
+  });
+
+  formQuickProv?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const ext = document.getElementById('qpExt')?.value.trim();
+    if (!ext) return;
+
+    const btnSubmit = document.getElementById('btnSubmitQuickProv');
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = 'Provisioning...';
+    }
+
+    const payload = {
+      extension: ext,
+      displayName: document.getElementById('qpName')?.value.trim() || undefined,
+      sipPassword: document.getElementById('qpPass')?.value.trim() || undefined,
+      expiryHours: parseInt(document.getElementById('qpExpiry')?.value || '72', 10),
+      queryPbx: document.getElementById('qpQueryPbx')?.checked ?? true
+    };
+
+    try {
+      const res = await fetchJson('/api/admin/extensions/quick-provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res && res.ok) {
+        document.getElementById('qpResultCode').textContent = res.code;
+        document.getElementById('qpResultExt').textContent = `Extension ${res.extension} (${res.displayName || 'Active'}) — Expires in ${payload.expiryHours}h`;
+        document.getElementById('qpResultDeepLink').value = res.deepLink || '';
+        document.getElementById('qpResultCard').value = res.userWelcomeCard || '';
+        qpResult.classList.remove('hidden');
+        loadExtensions();
+      } else {
+        alert(res?.error || 'Failed to provision extension.');
+      }
+    } finally {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = '⚡ Provision Now';
+      }
+    }
+  });
+
+  document.getElementById('btnCopyDeepLink')?.addEventListener('click', () => {
+    const link = document.getElementById('qpResultDeepLink')?.value;
+    if (link) {
+      navigator.clipboard.writeText(link);
+      alert('MerlinSIP Auto-Setup deep link copied to clipboard!');
+    }
+  });
+
+  document.getElementById('btnCopyWelcomeCard')?.addEventListener('click', () => {
+    const card = document.getElementById('qpResultCard')?.value;
+    if (card) {
+      navigator.clipboard.writeText(card);
+      alert('Welcome card instructions copied to clipboard! You can paste this in an email or message to the user.');
     }
   });
 

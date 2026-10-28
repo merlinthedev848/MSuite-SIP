@@ -112,6 +112,7 @@
           <div class="toolbar-title">SIP Extensions & Softphone PIN Codes</div>
           <div>
             <button class="btn btn-secondary" id="btnSyncPbx" style="margin-right: 8px;">🔄 Sync from PBX (AMI)</button>
+            <button class="btn btn-success" id="btnOpenQuickProvModal" style="margin-right: 8px;">⚡ Quick Pull & Provision</button>
             <button class="btn btn-primary" id="btnOpenAddExtModal">+ New Extension</button>
           </div>
         </div>
@@ -220,6 +221,39 @@
             <button type="submit" class="btn btn-primary">Save Configuration</button>
           </form>
         </div>
+
+        <!-- Inbound Provisioning API & Webhooks -->
+        <div class="card mt-6">
+          <div class="card-header">
+            <h3>External Provisioning API & Webhook Integrations</h3>
+            <p class="muted">Allow external CRM, Billing portals (e.g. WHMCS, Stripe, custom portals), or PBX webhooks to automatically query extensions, pull credentials from Asterisk, and issue 8-digit auto-provisioning codes.</p>
+          </div>
+          <div class="form-group mt-4">
+            <label>Server API Key (Header: <code>X-API-Key</code> or <code>Authorization: Bearer &lt;key&gt;</code>)</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="cfgApiKey" readonly style="font-family: monospace; background: #f8fafc; font-weight: 600;">
+              <button type="button" class="btn btn-secondary" id="btnCopyApiKey">Copy</button>
+              <button type="button" class="btn btn-danger" id="btnRegenApiKey">Regenerate Key</button>
+            </div>
+            <small>Keep this key secret. Any external integration holding this key can provision softphone credentials.</small>
+          </div>
+
+          <div class="endpoint-list mt-4">
+            <div class="endpoint-item">
+              <span class="tag">POST</span> <strong>Pull / Register & Issue 8-Digit Code:</strong>
+              <code>/api/v1/integrations/provision-user</code>
+            </div>
+            <div class="endpoint-item">
+              <span class="tag">GET</span> <strong>Fetch Active Provisioning PIN for Extension:</strong>
+              <code>/api/v1/integrations/extension/{ext}/code</code>
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px;">cURL Integration Command Example</label>
+            <pre id="curlExample" style="background: #0f172a; color: #38bdf8; padding: 14px; border-radius: 6px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; font-family: monospace;"></pre>
+          </div>
+        </div>
       </section>
 
       <!-- TAB 5: GDPR & RETENTION -->
@@ -262,6 +296,73 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- Quick Pull & Provision Modal -->
+  <div id="modalQuickProvision" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>⚡ Quick Pull & Provision Extension</h3>
+        <button class="modal-close" id="btnCloseModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted" style="margin-bottom: 16px; font-size: 13px;">Pull extension credentials from Asterisk / PBX or specify them manually. Instantly generates a fresh 8-digit auto-provisioning PIN and customer onboarding welcome card.</p>
+        
+        <form id="formQuickProvision">
+          <div class="form-group">
+            <label>Extension Number *</label>
+            <input type="text" id="qpExt" required placeholder="e.g. 101">
+          </div>
+          <div class="form-group">
+            <label>User Display Name (Optional)</label>
+            <input type="text" id="qpName" placeholder="e.g. Alice Walker">
+          </div>
+          <div class="form-group">
+            <label>SIP Password (Optional — auto-generated if left blank)</label>
+            <input type="password" id="qpPass" placeholder="Leave empty to auto-generate">
+          </div>
+          <div class="form-group">
+            <label>PIN Expiration (Hours)</label>
+            <input type="number" id="qpExpiry" value="72">
+          </div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
+              <input type="checkbox" id="qpQueryPbx" checked> Check & Pull SIP secret from PBX via AMI if not found locally
+            </label>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" id="btnCancelModal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btnSubmitQuickProv">⚡ Provision Now</button>
+          </div>
+        </form>
+
+        <!-- Result View -->
+        <div id="qpResult" class="hidden" style="margin-top: 20px;">
+          <div class="alert alert-success" style="margin-bottom: 14px;">
+            <strong>Extension Provisioned Successfully!</strong>
+          </div>
+          <div class="metric-card" style="text-align: center; margin-bottom: 14px; border: 2px solid #0284c7; background: #f0f9ff;">
+            <div class="metric-title" style="color: #0369a1;">8-DIGIT PROVISIONING PIN</div>
+            <div id="qpResultCode" style="font-size: 34px; font-weight: 800; color: #0284c7; letter-spacing: 4px; margin: 8px 0;"></div>
+            <div id="qpResultExt" class="metric-sub" style="font-weight: 600;"></div>
+          </div>
+          <div class="form-group">
+            <label>One-Click MerlinSIP Auto-Setup Link</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="qpResultDeepLink" readonly style="font-family: monospace; font-size: 12px; background: #f8fafc;">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnCopyDeepLink">Copy Link</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Customer Welcome Instructions Card</label>
+            <textarea id="qpResultCard" rows="8" readonly style="width: 100%; font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; border: 1px solid var(--border); resize: vertical; background: #f8fafc;"></textarea>
+            <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+              <button type="button" class="btn btn-primary btn-sm" id="btnCopyWelcomeCard">📋 Copy Welcome Card</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>

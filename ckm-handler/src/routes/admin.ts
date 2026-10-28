@@ -151,6 +151,84 @@ router.post('/api/admin/pins', adminAuth, (req: Request, res: Response) => {
   });
 });
 
+// 3b. Quick Pull & Provision Extension
+router.post('/api/admin/extensions/quick-provision', adminAuth, async (req: Request, res: Response) => {
+  const { extension, displayName, sipPassword, expiryHours, queryPbx, amiConfig } = req.body;
+  if (!extension) {
+    return res.status(400).json({ ok: false, error: 'Extension number is required.' });
+  }
+
+  const cleanExt = String(extension).trim();
+  const serverCfg = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+
+  // 1. Check if extension exists, or query PBX if requested
+  let extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as any;
+
+  if (!extRecord && queryPbx) {
+    const ami: AmiConfig = {
+      host: amiConfig?.host || serverCfg.pbx_server,
+      port: parseInt(amiConfig?.port || '5038', 10),
+      username: amiConfig?.username || 'admin',
+      secret: amiConfig?.secret || 'amp111'
+    };
+    await syncExtensionsFromAsterisk(ami);
+    extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as any;
+  }
+
+  // 2. If still doesn't exist, register with provided or auto-generated SIP password
+  if (!extRecord) {
+    const generatedPwd = sipPassword || crypto.randomBytes(8).toString('hex');
+    const name = displayName || `Extension ${cleanExt}`;
+
+    systemDb.prepare(`
+      INSERT INTO extensions (extension, sip_username, sip_password, display_name)
+      VALUES (?, ?, ?, ?)
+    `).run(cleanExt, cleanExt, generatedPwd, name);
+
+    extRecord = {
+      extension: cleanExt,
+      sip_username: cleanExt,
+      sip_password: generatedPwd,
+      display_name: name
+    };
+  } else if (displayName || sipPassword) {
+    if (displayName) extRecord.display_name = displayName;
+    if (sipPassword) extRecord.sip_password = sipPassword;
+
+    systemDb.prepare(`
+      UPDATE extensions 
+      SET display_name = ?, sip_password = ?
+      WHERE extension = ?
+    `).run(extRecord.display_name, extRecord.sip_password, cleanExt);
+  }
+
+  // 3. Issue fresh 8-digit PIN
+  const pin = Math.floor(10000000 + Math.random() * 90000000).toString();
+  const hours = parseInt(expiryHours || '72', 10);
+  const expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+
+  systemDb.prepare('DELETE FROM softphone_pins WHERE extension = ? AND claimed = 0').run(cleanExt);
+  systemDb.prepare(`
+    INSERT INTO softphone_pins (code, extension, expires_at)
+    VALUES (?, ?, ?)
+  `).run(pin, cleanExt, expiresAt);
+
+  const deepLink = `merlinsip://provision?code=${pin}&handler=${encodeURIComponent(serverCfg.data_handler_url)}`;
+  const welcomeCard = `========================================\nMerlinSIP Softphone Configuration Card\n========================================\nUser / Display Name: ${extRecord.display_name}\nExtension Number:    ${cleanExt}\n8-Digit Setup PIN:   ${pin}\nAuto-Setup Link:     ${deepLink}\nHandler Gateway:     ${serverCfg.data_handler_url}\nCode Expiration:     ${expiresAt}\n\nInstructions:\n1. Download or open MerlinSIP Softphone.\n2. In the setup prompt, enter the 8-Digit PIN [${pin}] or click the Auto-Setup link above.\n3. Your softphone will configure its SIP credentials and connect to the secure chat network automatically!`;
+
+  return res.json({
+    ok: true,
+    extension: cleanExt,
+    displayName: extRecord.display_name,
+    code: pin,
+    expiresAt,
+    handlerUrl: serverCfg.data_handler_url,
+    pbxServer: serverCfg.pbx_server,
+    deepLink,
+    userWelcomeCard: welcomeCard
+  });
+});
+
 // 4. Physical Handsets Management
 router.get('/api/admin/handsets', adminAuth, (req: Request, res: Response) => {
   const rows = systemDb.prepare(`
@@ -221,6 +299,12 @@ router.post('/api/admin/config', adminAuth, (req: Request, res: Response) => {
   );
 
   return res.json({ ok: true, message: 'Server configuration updated. Connected softphones will sync within 10 minutes.' });
+});
+
+router.post('/api/admin/config/regenerate-api-key', adminAuth, (req: Request, res: Response) => {
+  const newKey = `ckm_live_${crypto.randomBytes(16).toString('hex')}`;
+  systemDb.prepare('UPDATE server_config SET api_key = ? WHERE id = 1').run(newKey);
+  return res.json({ ok: true, apiKey: newKey, message: 'New API key generated.' });
 });
 
 // 6. Router & Voice Gateway Provisioning Management

@@ -13,6 +13,7 @@ import directoryRouter from './routes/directory';
 import chatFilesRouter from './routes/chatFiles';
 import gdprRouter from './routes/gdpr';
 import adminRouter from './routes/admin';
+import integrationApiRouter from './routes/integrationApi';
 
 const app = express();
 const server = http.createServer(app);
@@ -43,6 +44,7 @@ app.use(chatFilesRouter);
 app.use('/api/admin', adminRouter);
 app.use(adminRouter);
 app.use(gdprRouter);
+app.use(integrationApiRouter);
 
 // 5. Static Web Admin Portal
 const adminStaticPath = path.resolve(__dirname, '../public/admin');
