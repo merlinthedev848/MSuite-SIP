@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CKM Handler — Communications & Provisioning Gateway</title>
+  <title>CKM Handler — Enterprise Communications & Provisioning Gateway</title>
   <link rel="stylesheet" href="style.css">
   <script>
     // Immediately populate live host domain across endpoints on DOM ready
@@ -29,8 +29,9 @@
           <div class="brand-sub">Communications Gateway</div>
         </div>
       </div>
+      
       <nav class="nav-menu">
-        <div class="nav-section-title">VOIP OPERATIONS</div>
+        <div class="nav-section-title">Operations</div>
         <button class="nav-btn active" data-tab="overview">
           <span class="icon">📊</span> Overview & Telemetry
         </button>
@@ -43,12 +44,13 @@
         <button class="nav-btn" data-tab="routers">
           <span class="icon">🌐</span> Routers & Gateways
         </button>
-        <button class="nav-btn" data-tab="shell" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 700;">
+        <button class="nav-btn" data-tab="shell" id="navBtnShell">
           <span class="icon">💻</span> Live Device Shell
+          <span class="nav-badge-live">LIVE</span>
         </button>
 
-        <div class="nav-section-title">SECURITY & CONFIG</div>
-        <button class="nav-btn" data-tab="users" id="navBtnUsers" style="background: rgba(37, 99, 235, 0.12); border: 1px solid rgba(59, 130, 246, 0.3); font-weight: 700; color: #93c5fd;">
+        <div class="nav-section-title">Administration & Security</div>
+        <button class="nav-btn" data-tab="users" id="navBtnUsers">
           <span class="icon">👥</span> Admin Users & RBAC
         </button>
         <button class="nav-btn" data-tab="branding">
@@ -61,57 +63,110 @@
           <span class="icon">🔒</span> GDPR & Retention Vault
         </button>
       </nav>
+
       <div class="sidebar-footer">
         <div class="status-indicator">
-          <span class="status-dot"></span> Online (Port 443)
+          <span class="status-dot green"></span> Online (Port 443)
         </div>
+        <span class="muted" style="font-size: 11px;">v1.4.0</span>
       </div>
     </aside>
 
     <!-- Main Content Area -->
     <main class="main-content">
       <header class="topbar">
-        <div class="topbar-title" id="pageTitle">System Overview & Telemetry</div>
-        <div class="topbar-actions">
-          <button class="btn btn-sm btn-secondary" id="btnTopbarUser" title="Jump to Admin Users & Permissions" style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
-            <span id="userRoleBadge">👤 Loading...</span>
-          </button>
-          <button class="btn btn-sm btn-secondary" id="btnOpenChangePassModal" title="Change your password">🔑 Password</button>
-          <button class="btn btn-sm btn-secondary" id="btnToggleShellDrawer" title="Toggle Floating Shell Console" style="display: flex; align-items: center; gap: 6px;">
-            <span class="status-pulse" style="width: 6px; height: 6px; background: #22c55e;"></span> 💻 Shell
-          </button>
-          <span class="badge badge-primary" id="pbxBadge">PBX: Connecting...</span>
-          <span class="badge badge-secondary" id="licenseBadge">License: Active</span>
-          <button class="btn btn-sm" id="btnRefresh">🔄 Refresh</button>
-          <button class="btn btn-sm btn-danger" id="btnLogout" style="margin-left: 6px;">🚪 Logout</button>
+        <div class="topbar-left">
+          <div class="topbar-breadcrumb">CKM Gateway <span class="breadcrumb-sep">/</span> Operations</div>
+          <h1 class="topbar-title" id="pageTitle">System Overview & Telemetry</h1>
+        </div>
+
+        <div class="topbar-right">
+          <!-- Live Service Status Group -->
+          <div class="topbar-status-group">
+            <div class="status-chip" id="pbxStatusChip" title="Asterisk PBX Core Connectivity">
+              <span class="status-dot-pulse"></span>
+              <span id="pbxBadge">PBX: Connecting...</span>
+            </div>
+            <div class="status-chip status-chip-secondary" title="System Licensing State">
+              <span class="status-dot green"></span>
+              <span id="licenseBadge">License: Active</span>
+            </div>
+            <button class="btn-shell-toggle" id="btnToggleShellDrawer" title="Toggle Floating Shell Console">
+              <span class="shell-dot"></span>
+              <span>Shell Console</span>
+            </button>
+          </div>
+
+          <div class="topbar-divider"></div>
+
+          <!-- Actions & User Profile Group -->
+          <div class="topbar-actions-group">
+            <button class="btn btn-icon btn-secondary" id="btnRefresh" title="Refresh Telemetry & Data">
+              <span class="btn-icon-symbol">🔄</span>
+              <span class="btn-label">Refresh</span>
+            </button>
+
+            <div class="user-menu-pill">
+              <button class="user-pill-btn" id="btnTopbarUser" title="View Administrator Details">
+                <span class="user-avatar-circle">👤</span>
+                <span id="userRoleBadge" class="user-role-text">Loading...</span>
+              </button>
+              <button class="btn-user-action" id="btnOpenChangePassModal" title="Change Password">
+                🔑
+              </button>
+              <button class="btn-user-action logout" id="btnLogout" title="Sign Out">
+                🚪
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
       <!-- TAB 1: OVERVIEW -->
       <section class="tab-pane active" id="pane-overview">
+        <!-- Top Metrics Cards -->
         <div class="metrics-grid">
           <div class="metric-card">
-            <div class="metric-title">Active Extensions</div>
+            <div class="metric-header">
+              <span class="metric-title">Active Extensions</span>
+              <div class="metric-icon-bubble">📱</div>
+            </div>
             <div class="metric-val" id="statExt">0</div>
             <div class="metric-sub">Softphones & Deskphones</div>
           </div>
+
           <div class="metric-card">
-            <div class="metric-title">Physical Handsets</div>
+            <div class="metric-header">
+              <span class="metric-title">Physical Handsets</span>
+              <div class="metric-icon-bubble">☎️</div>
+            </div>
             <div class="metric-val" id="statHandsets">0</div>
-            <div class="metric-sub">Yealink, Fanvil, Grandstream</div>
+            <div class="metric-sub">Yealink, Fanvil, Grandstream, Poly</div>
           </div>
+
           <div class="metric-card">
-            <div class="metric-title">Unclaimed PINs</div>
+            <div class="metric-header">
+              <span class="metric-title">Unclaimed PINs</span>
+              <div class="metric-icon-bubble">⚡</div>
+            </div>
             <div class="metric-val" id="statPins">0</div>
             <div class="metric-sub">8-Digit Provisioning Codes</div>
           </div>
+
           <div class="metric-card">
-            <div class="metric-title">Vault Messages</div>
+            <div class="metric-header">
+              <span class="metric-title">Vault Messages</span>
+              <div class="metric-icon-bubble">💬</div>
+            </div>
             <div class="metric-val" id="statMessages">0</div>
             <div class="metric-sub">Chat & Signaling Records</div>
           </div>
+
           <div class="metric-card">
-            <div class="metric-title">Vault Storage</div>
+            <div class="metric-header">
+              <span class="metric-title">Vault Storage</span>
+              <div class="metric-icon-bubble">💾</div>
+            </div>
             <div class="metric-val" id="statStorage">0 MB</div>
             <div class="metric-sub">Attachments & Recordings</div>
           </div>
@@ -121,7 +176,7 @@
         <div class="card mt-6">
           <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <h3>Service Component Health & Status</h3>
+              <h3>Service Component Health & Telemetry</h3>
               <p class="muted">Live status, latency, and telemetry across all internal system daemons</p>
             </div>
             <span class="badge badge-primary" id="componentsSummaryBadge">Loading status...</span>
@@ -131,29 +186,32 @@
           </div>
         </div>
 
+        <!-- Unified Service Endpoints -->
         <div class="card mt-6">
           <div class="card-header">
             <h3>Unified Service Endpoints</h3>
             <p class="muted">Public client endpoints for VoIP deskphones, routers, and MerlinSIP softphones</p>
           </div>
           <div class="endpoint-list">
-            <div class="endpoint-item" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <div class="endpoint-item">
               <div>
-                <span class="tag">WSS</span> <strong>Real-Time Chat & Signaling:</strong>
+                <span class="tag tag-wss">WSS</span> <strong>Real-Time Chat & Signaling:</strong>
                 <code id="epChat">wss://handler.domain.tld/socket.io</code>
               </div>
               <button class="btn btn-sm btn-secondary" onclick="copyEndpointText('epChat')">Copy WSS</button>
             </div>
-            <div class="endpoint-item" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+
+            <div class="endpoint-item">
               <div>
-                <span class="tag">HTTP</span> <strong>Deskphone Auto-Provisioning Server:</strong>
+                <span class="tag tag-http">HTTP</span> <strong>Deskphone Auto-Provisioning Server:</strong>
                 <code id="epProv">https://handler.domain.tld/provision/</code>
               </div>
               <button class="btn btn-sm btn-secondary" onclick="copyEndpointText('epProv')">Copy URL</button>
             </div>
-            <div class="endpoint-item" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+
+            <div class="endpoint-item">
               <div>
-                <span class="tag">XML</span> <strong>Corporate Remote Phonebook (Yealink):</strong>
+                <span class="tag tag-xml">XML</span> <strong>Corporate Remote Phonebook (Yealink/Poly):</strong>
                 <code id="epPhonebook">https://handler.domain.tld/phonebook/yealink.xml</code>
               </div>
               <div style="display: flex; gap: 6px;">
@@ -161,9 +219,10 @@
                 <a class="btn btn-sm btn-primary" id="linkPhonebook" href="/phonebook/yealink.xml" target="_blank">Open XML</a>
               </div>
             </div>
-            <div class="endpoint-item" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+
+            <div class="endpoint-item">
               <div>
-                <span class="tag">JSON</span> <strong>Softphone Config Dynamic Sync:</strong>
+                <span class="tag tag-json">JSON</span> <strong>Softphone Dynamic Configuration Sync:</strong>
                 <code id="epSync">https://handler.domain.tld/api/v1/config/sync</code>
               </div>
               <div style="display: flex; gap: 6px;">
@@ -185,9 +244,9 @@
               </div>
               <button class="btn btn-sm btn-primary" id="btnPingPbx">⚡ Ping PBX Now</button>
             </div>
-            <div id="pbxPingResult" style="margin-top: 14px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: 13px;">
+            <div id="pbxPingResult" style="margin-top: 14px; background: #f8fafc; border: 1px solid var(--border-light); border-radius: 8px; padding: 14px; font-size: 13px;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span>Target: <strong id="pingPbxTarget">Connecting...</strong></span>
+                <span>Target Host: <strong id="pingPbxTarget">Connecting...</strong></span>
                 <span class="status-pill operational" id="pingStatusPill">Ready</span>
               </div>
               <div id="pingDetails" class="muted" style="margin-top: 6px; font-size: 12px;">Click "Ping PBX Now" to measure live network latency to Asterisk/FreePBX.</div>
@@ -201,7 +260,7 @@
                 <h3>Real-Time Audit & Event Stream</h3>
                 <p class="muted">Live feed of provisioning requests, logins, and registrations</p>
               </div>
-              <button class="btn btn-sm btn-secondary" id="btnRefreshLogs">🔄</button>
+              <button class="btn btn-sm btn-secondary" id="btnRefreshLogs">🔄 Refresh</button>
             </div>
             <div class="log-stream mt-4" id="auditLogStream">
               <div class="muted">Loading recent activity events...</div>
@@ -212,18 +271,32 @@
 
       <!-- TAB 2: EXTENSIONS & SOFTPHONES -->
       <section class="tab-pane" id="pane-extensions">
-        <div class="toolbar">
-          <div class="toolbar-title">SIP Extensions & Softphone PIN Codes</div>
-          <div>
-            <button class="btn btn-secondary" id="btnSyncPbx" style="margin-right: 8px;">🔄 Sync from PBX (AMI)</button>
-            <button class="btn btn-success" id="btnOpenQuickProvModal" style="margin-right: 8px;">⚡ Quick Pull & Provision</button>
-            <button class="btn btn-primary" id="btnOpenAddExtModal">+ New Extension</button>
+        <div class="section-header-panel">
+          <div class="section-header-info">
+            <h2>SIP Extensions & Softphone PIN Codes</h2>
+            <p class="section-subtitle">Manage PBX extensions, active credentials, and issue 8-digit auto-provisioning codes.</p>
+          </div>
+          <div class="section-header-actions">
+            <button class="btn btn-secondary" id="btnSyncPbx">
+              <span>🔄</span> Sync from PBX (AMI)
+            </button>
+            <button class="btn btn-accent" id="btnOpenQuickProvModal">
+              <span>⚡</span> Quick Pull & Provision
+            </button>
+            <button class="btn btn-primary" id="btnOpenAddExtModal">
+              <span>+</span> New Extension
+            </button>
           </div>
         </div>
-        <div class="search-bar">
-          <input type="text" id="searchExt" class="search-input" placeholder="🔍 Search extensions by number, display name, or SIP username...">
+
+        <div class="table-filter-bar">
+          <div class="search-box-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchExt" class="search-input" placeholder="Search extensions by number, name, or username...">
+          </div>
         </div>
-        <div class="card">
+
+        <div class="table-card">
           <table class="data-table">
             <thead>
               <tr>
@@ -245,14 +318,26 @@
 
       <!-- TAB 3: PHYSICAL HANDSETS -->
       <section class="tab-pane" id="pane-handsets">
-        <div class="toolbar">
-          <div class="toolbar-title">Physical IP Deskphone Directory</div>
-          <button class="btn btn-primary" id="btnOpenAddHandsetModal">+ Register Physical Handset</button>
+        <div class="section-header-panel">
+          <div class="section-header-info">
+            <h2>Physical IP Deskphone Directory</h2>
+            <p class="section-subtitle">Auto-provision Yealink, Grandstream, Fanvil, Poly, Cisco, Snom, and Gigaset pro handsets.</p>
+          </div>
+          <div class="section-header-actions">
+            <button class="btn btn-primary" id="btnOpenAddHandsetModal">
+              <span>+</span> Register Physical Handset
+            </button>
+          </div>
         </div>
-        <div class="search-bar">
-          <input type="text" id="searchHandset" class="search-input" placeholder="🔍 Search handsets by MAC address, brand, or extension...">
+
+        <div class="table-filter-bar">
+          <div class="search-box-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchHandset" class="search-input" placeholder="Search handsets by MAC address, brand, or extension...">
+          </div>
         </div>
-        <div class="card">
+
+        <div class="table-card">
           <table class="data-table">
             <thead>
               <tr>
@@ -273,11 +358,19 @@
 
       <!-- TAB 4: ROUTERS & GATEWAYS -->
       <section class="tab-pane" id="pane-routers">
-        <div class="toolbar">
-          <div class="toolbar-title">VoIP Router & Network Gateway Profiles</div>
-          <button class="btn btn-primary" id="btnOpenAddRouterModal">+ New Router Profile</button>
+        <div class="section-header-panel">
+          <div class="section-header-info">
+            <h2>VoIP Router & Network Gateway Profiles</h2>
+            <p class="section-subtitle">Generate automated boot scripts and configurations for MikroTik, pfSense, Ubiquiti, Fortinet, Cisco, and DrayTek.</p>
+          </div>
+          <div class="section-header-actions">
+            <button class="btn btn-primary" id="btnOpenAddRouterModal">
+              <span>+</span> New Router Profile
+            </button>
+          </div>
         </div>
-        <div class="card">
+
+        <div class="table-card">
           <table class="data-table">
             <thead>
               <tr>
@@ -299,9 +392,13 @@
 
       <!-- TAB: BRANDING & CUSTOMIZATION -->
       <section class="tab-pane" id="pane-branding">
-        <div class="toolbar">
-          <div class="toolbar-title">Softphone Custom Branding, Logo & Colors</div>
+        <div class="section-header-panel">
+          <div class="section-header-info">
+            <h2>Softphone Custom Branding, Logo & Colors</h2>
+            <p class="section-subtitle">Customize theme colors, logo, and organization branding dynamically provisioned to softphones.</p>
+          </div>
         </div>
+
         <div class="grid-2col">
           <div class="card form-card">
             <h3>Suite Appearance & Theme Settings</h3>
@@ -386,9 +483,13 @@
 
       <!-- TAB 5: PBX CONFIG -->
       <section class="tab-pane" id="pane-config">
-        <div class="toolbar">
-          <div class="toolbar-title">PBX Integration & Gateway Settings</div>
+        <div class="section-header-panel">
+          <div class="section-header-info">
+            <h2>PBX Integration & Gateway Settings</h2>
+            <p class="section-subtitle">Core SIP PBX server addresses, transport parameters, and external integration APIs.</p>
+          </div>
         </div>
+
         <div class="card form-card">
           <form id="formConfig">
             <div class="form-group">
@@ -437,27 +538,31 @@
 
           <div class="endpoint-list mt-4">
             <div class="endpoint-item">
-              <span class="tag">POST</span> <strong>Pull / Register & Issue 8-Digit Code:</strong>
+              <span class="tag tag-http">POST</span> <strong>Pull / Register & Issue 8-Digit Code:</strong>
               <code>/api/v1/integrations/provision-user</code>
             </div>
             <div class="endpoint-item">
-              <span class="tag">GET</span> <strong>Fetch Active Provisioning PIN for Extension:</strong>
+              <span class="tag tag-json">GET</span> <strong>Fetch Active Provisioning PIN for Extension:</strong>
               <code>/api/v1/integrations/extension/{ext}/code</code>
             </div>
           </div>
 
           <div class="mt-4">
             <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px;">cURL Integration Command Example</label>
-            <pre id="curlExample" style="background: #0f172a; color: #38bdf8; padding: 14px; border-radius: 6px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; font-family: monospace;"></pre>
+            <pre id="curlExample" style="background: #090e1a; color: #38bdf8; padding: 14px; border-radius: 8px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; font-family: monospace; border: 1px solid #1e293b;"></pre>
           </div>
         </div>
       </section>
 
-      <!-- TAB 5: GDPR & RETENTION -->
+      <!-- TAB 6: GDPR & RETENTION -->
       <section class="tab-pane" id="pane-gdpr">
-        <div class="toolbar">
-          <div class="toolbar-title">GDPR Data Privacy & Retention Vault</div>
+        <div class="section-header-panel">
+          <div class="section-header-info">
+            <h2>GDPR Compliance & Data Retention Vault</h2>
+            <p class="section-subtitle">Automated compliance purging and Right to Erasure (Article 17) cryptographic scrubbing.</p>
+          </div>
         </div>
+
         <div class="grid-2col">
           <div class="card">
             <h3>Automated Retention Policy (Article 5(1)(e))</h3>
@@ -472,7 +577,7 @@
                 <input type="number" id="gdprMediaDays" value="90">
               </div>
               <div class="form-group">
-                <label>
+                <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
                   <input type="checkbox" id="gdprAutoPrune" checked> Enable Daily Automated Pruning
                 </label>
               </div>
@@ -493,19 +598,28 @@
         </div>
       </section>
 
-      <!-- TAB 8: ADMIN USERS & PERMISSIONS -->
+      <!-- TAB 7: ADMIN USERS & PERMISSIONS -->
       <section class="tab-pane" id="pane-users">
-        <div class="toolbar">
-          <div>
-            <div class="toolbar-title">Administrator Users & Role Permissions (RBAC)</div>
-            <p class="muted" style="font-size: 13px;">Manage administrator accounts, assign preset security roles, and enforce granular access control.</p>
+        <div class="section-header-panel">
+          <div class="section-header-info">
+            <h2>Administrator Users & Role Permissions (RBAC)</h2>
+            <p class="section-subtitle">Manage administrator accounts, assign preset security roles, and enforce granular access control.</p>
           </div>
-          <button class="btn btn-primary" id="btnOpenAddUserModal">+ New Admin User</button>
+          <div class="section-header-actions">
+            <button class="btn btn-primary" id="btnOpenAddUserModal">
+              <span>+</span> New Admin User
+            </button>
+          </div>
         </div>
-        <div class="search-bar">
-          <input type="text" id="searchUser" class="search-input" placeholder="🔍 Search admin users by username, display name, or role...">
+
+        <div class="table-filter-bar">
+          <div class="search-box-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchUser" class="search-input" placeholder="Search admin users by username, display name, or role...">
+          </div>
         </div>
-        <div class="card">
+
+        <div class="table-card">
           <table class="data-table">
             <thead>
               <tr>
@@ -525,7 +639,7 @@
         </div>
       </section>
 
-      <!-- TAB 9: LIVE DEVICE CONNECTIVITY SHELL -->
+      <!-- TAB 8: LIVE DEVICE CONNECTIVITY SHELL -->
       <section class="tab-pane" id="pane-shell">
         <div class="shell-container">
           <div class="shell-header">
@@ -581,7 +695,7 @@
           <label>Password</label>
           <input type="password" id="loginPassword" required placeholder="••••••••••••" autocomplete="current-password">
         </div>
-        <div id="loginError" class="alert alert-danger hidden" style="margin-bottom: 14px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; text-align: left;">
+        <div id="loginError" class="alert alert-danger hidden" style="margin-bottom: 14px; text-align: left;">
           Invalid credentials. Please verify your username and password.
         </div>
         <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Login to Dashboard</button>
@@ -778,7 +892,7 @@
               <input type="password" id="amiSecret" required placeholder="••••••••">
             </div>
           </div>
-          <div id="amiSyncOutput" class="hidden" style="margin: 14px 0; background: #0f172a; color: #38bdf8; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap;"></div>
+          <div id="amiSyncOutput" class="hidden" style="margin: 14px 0; background: #090e1a; color: #38bdf8; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap; border: 1px solid #1e293b;"></div>
           <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
             <button type="button" class="btn btn-secondary" onclick="closeModal('modalSyncPbx')">Close</button>
             <button type="submit" class="btn btn-primary" id="btnRunSync">⚡ Start AMI Sync</button>
@@ -845,7 +959,7 @@
           </div>
           <div class="form-group">
             <label>Customer Welcome Instructions Card</label>
-            <textarea id="qpResultCard" rows="8" readonly style="width: 100%; font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; border: 1px solid var(--border); resize: vertical; background: #f8fafc;"></textarea>
+            <textarea id="qpResultCard" rows="8" readonly style="width: 100%; font-family: monospace; font-size: 12px; padding: 10px; border-radius: 6px; border: 1px solid var(--border-light); resize: vertical; background: #f8fafc;"></textarea>
             <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
               <button type="button" class="btn btn-primary btn-sm" id="btnCopyWelcomeCard">📋 Copy Welcome Card</button>
             </div>
@@ -892,7 +1006,7 @@
 
           <div class="form-group" id="permsContainer">
             <label>Granular Permissions Matrix</label>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid var(--border-light);">
               <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 13px; cursor: pointer;">
                 <input type="checkbox" class="perm-check" value="manage_extensions" checked> Extensions & PINs
               </label>
@@ -953,8 +1067,8 @@
             <label>Confirm New Password *</label>
             <input type="password" id="confirmNewPassword" required placeholder="Confirm new password" autocomplete="new-password">
           </div>
-          <div id="changePassError" class="alert alert-danger hidden" style="margin-bottom: 14px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;"></div>
-          <div id="changePassSuccess" class="alert alert-success hidden" style="margin-bottom: 14px; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0;"></div>
+          <div id="changePassError" class="alert alert-danger hidden" style="margin-bottom: 14px;"></div>
+          <div id="changePassSuccess" class="alert alert-success hidden" style="margin-bottom: 14px;"></div>
           <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
             <button type="button" class="btn btn-secondary" onclick="closeModal('modalChangePass')">Cancel</button>
             <button type="submit" class="btn btn-primary" id="btnSubmitChangePass">Update Password</button>
@@ -1054,6 +1168,9 @@
       <button class="btn btn-sm btn-secondary" onclick="document.querySelector('[data-tab=\'shell\']').click()" style="padding: 2px 6px; font-size: 10px;">Open Full Shell</button>
     </div>
   </div>
+
+  <!-- Floating Toast Notifications Container -->
+  <div id="toastContainer" class="toast-container"></div>
 
   <script src="app.js"></script>
 </body>

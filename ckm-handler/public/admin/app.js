@@ -1,5 +1,31 @@
 document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
+  // Elegant Non-Intrusive Toast System
+  // --------------------------------------------------------------------------
+  window.showToast = function(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) {
+      console.log(`[Toast ${type}]: ${message}`);
+      return;
+    }
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    let icon = 'ℹ️';
+    if (type === 'success') icon = '✅';
+    else if (type === 'error') icon = '❌';
+    else if (type === 'warning') icon = '⚠️';
+
+    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-6px)';
+      setTimeout(() => toast.remove(), 250);
+    }, duration);
+  };
+
+  // --------------------------------------------------------------------------
   // 1. Authentication & Session Management (Session Tokens + RBAC)
   // --------------------------------------------------------------------------
   const modalLogin = document.getElementById('modalLogin');
@@ -58,8 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const roleBadge = document.getElementById('userRoleBadge');
     if (currentUser) {
       if (roleBadge) {
-        roleBadge.textContent = `👤 ${currentUser.displayName || currentUser.username} (${(currentUser.role || 'user').toUpperCase()})`;
-        roleBadge.className = currentUser.role === 'superadmin' ? 'badge badge-primary' : 'badge badge-secondary';
+        roleBadge.textContent = `${currentUser.displayName || currentUser.username} (${(currentUser.role || 'user').toUpperCase()})`;
       }
 
       // Hide or show Users tab based on manage_users permission
@@ -68,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
         usersNav.style.display = hasPerm('manage_users') ? 'flex' : 'none';
       }
     } else {
-      if (roleBadge) roleBadge.textContent = '👤 Not Authenticated';
+      if (roleBadge) roleBadge.textContent = 'Not Authenticated';
     }
   }
 
@@ -186,6 +211,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const activePane = document.getElementById(`pane-${tab}`);
       if (activePane) activePane.classList.add('active');
       if (pageTitle && titles[tab]) pageTitle.textContent = titles[tab];
+
+      const breadcrumb = document.querySelector('.topbar-breadcrumb');
+      const sectionMap = {
+        overview: 'Operations / Overview',
+        extensions: 'Operations / Extensions & PINs',
+        handsets: 'Operations / Physical Handsets',
+        routers: 'Operations / Routers & Gateways',
+        shell: 'Operations / Live Device Shell',
+        users: 'Administration / Admin Users & RBAC',
+        branding: 'Administration / Theme & Branding',
+        config: 'Administration / PBX Integration',
+        gdpr: 'Administration / GDPR Vault'
+      };
+      if (breadcrumb && sectionMap[tab]) {
+        breadcrumb.innerHTML = `CKM Gateway <span class="breadcrumb-sep">/</span> ${sectionMap[tab]}`;
+      }
 
       loadTabData(tab);
     });
@@ -366,8 +407,9 @@ document.addEventListener('DOMContentLoaded', () => {
   window.copyEndpointText = (id) => {
     const el = document.getElementById(id);
     if (!el) return;
-    navigator.clipboard.writeText(el.textContent.trim());
-    alert(`Copied endpoint URL to clipboard:\n\n${el.textContent.trim()}`);
+    const txt = el.textContent.trim();
+    navigator.clipboard.writeText(txt);
+    window.showToast(`Copied ${txt} to clipboard!`, 'success');
   };
 
   // --------------------------------------------------------------------------
@@ -571,13 +613,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnCopyDeepLink')?.addEventListener('click', () => {
     const val = document.getElementById('qpResultDeepLink').value;
     navigator.clipboard.writeText(val);
-    alert('Copied 1-Click Setup Link to clipboard!');
+    window.showToast('Copied 1-Click Setup Link to clipboard!', 'success');
   });
 
   document.getElementById('btnCopyWelcomeCard')?.addEventListener('click', () => {
     const val = document.getElementById('qpResultCard').value;
     navigator.clipboard.writeText(val);
-    alert('Copied Customer Welcome Card to clipboard!');
+    window.showToast('Copied Customer Welcome Card to clipboard!', 'success');
   });
 
   // --------------------------------------------------------------------------
@@ -756,7 +798,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnCopyHandsetConfig')?.addEventListener('click', () => {
     const val = document.getElementById('handsetConfigEditor').value;
     navigator.clipboard.writeText(val);
-    alert('Handset configuration copied to clipboard!');
+    window.showToast('Handset configuration copied to clipboard!', 'success');
   });
 
   document.getElementById('btnSaveHandsetConfig')?.addEventListener('click', async () => {
@@ -925,7 +967,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnCopyRouterScript')?.addEventListener('click', () => {
     const val = document.getElementById('routerScriptEditor').value;
     navigator.clipboard.writeText(val);
-    alert('Router script copied to clipboard!');
+    window.showToast('Router script copied to clipboard!', 'success');
   });
 
   document.getElementById('btnDownloadRouterScriptModal')?.addEventListener('click', () => {
@@ -1210,7 +1252,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnCopyApiKey')?.addEventListener('click', () => {
     const key = document.getElementById('cfgApiKey').value;
     navigator.clipboard.writeText(key);
-    alert('API Key copied to clipboard!');
+    window.showToast('API Key copied to clipboard!', 'success');
   });
 
   document.getElementById('btnRegenApiKey')?.addEventListener('click', async () => {
