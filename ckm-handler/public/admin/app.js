@@ -741,6 +741,7 @@ document.addEventListener('DOMContentLoaded', () => {
           { id: 'T42S', name: 'Yealink T42S', firmwareVersion: '66.86.0.15', firmwareFilename: 'T42S-66.86.0.15.rom' },
           { id: 'T42U', name: 'Yealink T42U', firmwareVersion: '108.86.0.70', firmwareFilename: 'T42U-108.86.0.70.rom' },
           { id: 'T43U', name: 'Yealink T43U', firmwareVersion: '108.86.0.70', firmwareFilename: 'T43U-108.86.0.70.rom' },
+                    { id: 'T46G', name: 'Yealink T46G (Color Display Gigabit)', firmwareVersion: '28.83.0.120', firmwareFilename: 'T46G-28.83.0.120.rom' },
           { id: 'T46S', name: 'Yealink T46S', firmwareVersion: '66.86.0.15', firmwareFilename: 'T46S-66.86.0.15.rom' },
           { id: 'T46U', name: 'Yealink T46U', firmwareVersion: '108.86.0.70', firmwareFilename: 'T46U-108.86.0.70.rom' },
           { id: 'T48S', name: 'Yealink T48S', firmwareVersion: '66.86.0.15', firmwareFilename: 'T48S-66.86.0.15.rom' },
