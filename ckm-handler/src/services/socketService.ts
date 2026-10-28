@@ -34,6 +34,21 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
       console.log(`[Socket.IO] Socket ${socket.id} joined room ${room}`);
     });
 
+    // Fetch Decrypted Conversation History (Last 50 messages)
+    socket.on('get_history', (payload: { conversationId: string; limit?: number }, callback?: (res: any) => void) => {
+      try {
+        const limit = Math.min(Math.max(1, payload?.limit || 50), 100);
+        const messages = VaultStore.getRecentMessages(payload.conversationId, limit);
+        if (typeof callback === 'function') {
+          callback({ success: true, messages });
+        }
+      } catch (err: any) {
+        if (typeof callback === 'function') {
+          callback({ success: false, error: err.message });
+        }
+      }
+    });
+
     // Real-Time WhatsApp-Speed Message Broadcast & Persistence
     socket.on('send_message', (payload: any, ackCallback?: (response: any) => void) => {
       try {

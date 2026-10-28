@@ -3,9 +3,32 @@ import systemDb from '../database/systemDb';
 
 const router = Router();
 
+// Anti-Brute-Force Rate Limiter: Max 5 failed attempts per IP per minute
+interface FailedAttempt {
+  count: number;
+  resetAt: number;
+}
+const failedPinAttempts = new Map<string, FailedAttempt>();
+
 // 1. Softphone Auto-Provisioning by 8-Digit PIN
 // Handled for multiple endpoint patterns matching desktop client
 const handlePinProvision = (req: Request, res: Response) => {
+  const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+  const now = Date.now();
+
+  const attemptRec = failedPinAttempts.get(clientIp);
+  if (attemptRec) {
+    if (now < attemptRec.resetAt && attemptRec.count >= 5) {
+      const waitSec = Math.ceil((attemptRec.resetAt - now) / 1000);
+      return res.status(429).json({
+        ok: false,
+        error: `Too many failed provisioning PIN attempts. Rate limited for ${waitSec} seconds.`
+      });
+    } else if (now >= attemptRec.resetAt) {
+      failedPinAttempts.delete(clientIp);
+    }
+  }
+
   const rawCode = req.params.code || req.body.code || req.query.code;
   if (!rawCode) {
     return res.status(400).json({ ok: false, error: 'Provisioning PIN is required.' });
@@ -26,8 +49,17 @@ const handlePinProvision = (req: Request, res: Response) => {
   `).get(cleanedCode) as any;
 
   if (!pinRecord) {
+    const cur = failedPinAttempts.get(clientIp);
+    if (!cur) {
+      failedPinAttempts.set(clientIp, { count: 1, resetAt: now + 60000 });
+    } else {
+      cur.count++;
+    }
     return res.status(404).json({ ok: false, error: 'Invalid or expired provisioning PIN.' });
   }
+
+  // Clear failed attempts counter on success
+  failedPinAttempts.delete(clientIp);
 
   if (pinRecord.is_active !== 1) {
     return res.status(403).json({ ok: false, error: 'This extension has been deactivated.' });

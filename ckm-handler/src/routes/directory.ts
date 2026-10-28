@@ -4,6 +4,20 @@ import systemDb from '../database/systemDb';
 
 const router = Router();
 
+// XML Special Characters Escaping for Hardware Deskphones
+function escapeXml(unsafe: string): string {
+  return String(unsafe || '').replace(/[<>&'"]/g, (c) => {
+    switch (c) {
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '&': return '&amp;';
+      case '\'': return '&apos;';
+      case '"': return '&quot;';
+      default: return c;
+    }
+  });
+}
+
 // Helper to get unified contact entries
 function getUnifiedContacts() {
   // Pull from vaultDb contacts first, then fallback to systemDb extensions
@@ -51,10 +65,10 @@ router.get('/phonebook/yealink.xml', (req: Request, res: Response) => {
 
   for (const c of contacts) {
     xml += `  <DirectoryEntry>\r\n`;
-    xml += `    <Name>${c.name}</Name>\r\n`;
-    xml += `    <Telephone>${c.extension}</Telephone>\r\n`;
+    xml += `    <Name>${escapeXml(c.name)}</Name>\r\n`;
+    xml += `    <Telephone>${escapeXml(c.extension)}</Telephone>\r\n`;
     if (c.mobile) {
-      xml += `    <Telephone>${c.mobile}</Telephone>\r\n`;
+      xml += `    <Telephone>${escapeXml(c.mobile)}</Telephone>\r\n`;
     }
     xml += `  </DirectoryEntry>\r\n`;
   }
@@ -71,9 +85,9 @@ router.get('/phonebook/fanvil.xml', (req: Request, res: Response) => {
 
   for (const c of contacts) {
     xml += `  <Contact>\r\n`;
-    xml += `    <Name>${c.name}</Name>\r\n`;
+    xml += `    <Name>${escapeXml(c.name)}</Name>\r\n`;
     xml += `    <Phone>\r\n`;
-    xml += `      <phonenumber>${c.extension}</phonenumber>\r\n`;
+    xml += `      <phonenumber>${escapeXml(c.extension)}</phonenumber>\r\n`;
     xml += `      <accountindex>1</accountindex>\r\n`;
     xml += `    </Phone>\r\n`;
     xml += `  </Contact>\r\n`;
@@ -91,9 +105,9 @@ router.get('/phonebook/grandstream.xml', (req: Request, res: Response) => {
 
   for (const c of contacts) {
     xml += `  <Contact>\r\n`;
-    xml += `    <FirstName>${c.name}</FirstName>\r\n`;
+    xml += `    <FirstName>${escapeXml(c.name)}</FirstName>\r\n`;
     xml += `    <Phone>\r\n`;
-    xml += `      <phonenumber>${c.extension}</phonenumber>\r\n`;
+    xml += `      <phonenumber>${escapeXml(c.extension)}</phonenumber>\r\n`;
     xml += `    </Phone>\r\n`;
     xml += `  </Contact>\r\n`;
   }

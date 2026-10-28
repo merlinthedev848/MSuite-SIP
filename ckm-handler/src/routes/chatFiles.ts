@@ -8,6 +8,9 @@ import vaultDb from '../database/vaultDb';
 
 const router = Router();
 
+// Block dangerous executable extensions from VoIP media vault
+const BLOCKED_EXTENSIONS = new Set(['.exe', '.bat', '.cmd', '.sh', '.php', '.phtml', '.dll', '.so', '.vbs', '.com']);
+
 // Configure Multer for encrypted / obfuscated vault storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -16,7 +19,10 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     // Cryptographically secure UUID-style filename: e.g. "a1b2c3d4-e5f6-7890-..."
     const id = crypto.randomUUID();
-    const ext = path.extname(file.originalname);
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (BLOCKED_EXTENSIONS.has(ext)) {
+      return cb(new Error('Executable and script file uploads are prohibited for security.'), '');
+    }
     cb(null, `${id}${ext}`);
   }
 });
@@ -59,6 +65,9 @@ router.post('/files/upload', upload.single('file'), (req: Request, res: Response
 // 2. File Download / Media Streaming
 router.get('/files/:fileId', (req: Request, res: Response) => {
   const fileId = req.params.fileId;
+  if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) {
+    return res.status(400).json({ success: false, error: 'Invalid file ID format.' });
+  }
 
   const record = vaultDb.prepare(`
     SELECT file_id, original_name, mime_type, file_size, stored_path

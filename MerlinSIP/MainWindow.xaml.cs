@@ -1398,10 +1398,10 @@ public partial class MainWindow : Window
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            using var http = new HttpClient();
-            http.DefaultRequestHeaders.Add("User-Agent", "MerlinSIP/1.3.9.3");
-            var syncUrl = "https://accounts.chriskendall.media/api/v1/config/sync";
-            using var response = await http.GetAsync(syncUrl, cts.Token);
+            using var request = new HttpRequestMessage(HttpMethod.Get, "https://accounts.chriskendall.media/api/v1/config/sync");
+            request.Headers.Add("User-Agent", "MerlinSIP/1.3.9.3");
+            using var response = await HttpClientHelper.SharedClient.SendAsync(request, cts.Token);
+
             if (!response.IsSuccessStatusCode) return;
             var json = await response.Content.ReadAsStringAsync(cts.Token);
             using var doc = JsonDocument.Parse(json);

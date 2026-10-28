@@ -80,6 +80,9 @@ vaultDb.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE INDEX IF NOT EXISTS idx_vault_media_uploaded_by 
+    ON media_vault_files (uploaded_by);
+
   CREATE TABLE IF NOT EXISTS gdpr_retention_policy (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     chat_retention_days INTEGER DEFAULT 90,

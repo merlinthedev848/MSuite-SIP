@@ -98,6 +98,10 @@ systemDb.exec(`
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE INDEX IF NOT EXISTS idx_pins_extension ON softphone_pins (extension);
+  CREATE INDEX IF NOT EXISTS idx_handsets_extension ON physical_handsets (extension);
+  CREATE INDEX IF NOT EXISTS idx_routers_mac ON routers (mac_address);
 `);
 
 // Seed default server config if missing

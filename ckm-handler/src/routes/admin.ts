@@ -24,7 +24,15 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
   const credentials = Buffer.from(match[1], 'base64').toString('utf-8');
   const [user, pass] = credentials.split(':');
 
-  if (user === ADMIN_USER && pass === ADMIN_PASS) {
+  const userBuf = Buffer.from(user || '');
+  const adminUserBuf = Buffer.from(ADMIN_USER);
+  const passBuf = Buffer.from(pass || '');
+  const adminPassBuf = Buffer.from(ADMIN_PASS);
+
+  const userMatch = userBuf.length === adminUserBuf.length && crypto.timingSafeEqual(userBuf, adminUserBuf);
+  const passMatch = passBuf.length === adminPassBuf.length && crypto.timingSafeEqual(passBuf, adminPassBuf);
+
+  if (userMatch && passMatch) {
     return next();
   }
 
