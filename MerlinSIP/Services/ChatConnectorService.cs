@@ -12,9 +12,11 @@ namespace MerlinSip.Services;
 
 public class ChatConnectorService : IDisposable
 {
+    public const string DefaultServerUrl = "https://handler.chriskendall.media";
+    public const string DefaultToken = "UClDFZpFu1gj7I8oGmKVsOvzGTqSFwq3jpcgLoC2ApmkyZTjpq1ftIZmJ5EMoshE";
     private SocketIO? _socketClient;
-    private string _serverUrl = "https://handler.chriskendall.media";
-    private readonly string _token = "UClDFZpFu1gj7I8oGmKVsOvzGTqSFwq3jpcgLoC2ApmkyZTjpq1ftIZmJ5EMoshE";
+    private string _serverUrl = DefaultServerUrl;
+    private string _token = DefaultToken;
     private readonly HttpClient _httpClient;
     private readonly SemaphoreSlim _connectLock = new(1, 1);
     private readonly HashSet<string> _joinedRooms = new(StringComparer.OrdinalIgnoreCase);
@@ -31,31 +33,44 @@ public class ChatConnectorService : IDisposable
     private event Action<string>? ServerError;
     public bool IsConnected => _socketClient?.Connected == true;
 
-    public ChatConnectorService(string? customServerUrl = null)
+    public ChatConnectorService(string? customServerUrl = null, string? customToken = null)
     {
         if (!string.IsNullOrWhiteSpace(customServerUrl))
         {
             _serverUrl = customServerUrl.Trim().TrimEnd('/');
         }
+        if (!string.IsNullOrWhiteSpace(customToken))
+        {
+            _token = customToken.Trim();
+        }
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
     }
 
-    public async Task UpdateServerUrlAsync(string? newServerUrl)
+    public async Task UpdateServerUrlAsync(string? newServerUrl, string? newToken = null)
     {
-        var url = string.IsNullOrWhiteSpace(newServerUrl) ? "https://handler.chriskendall.media" : newServerUrl.Trim().TrimEnd('/');
-        if (string.Equals(_serverUrl, url, StringComparison.OrdinalIgnoreCase)) return;
+        var url = string.IsNullOrWhiteSpace(newServerUrl) ? DefaultServerUrl : newServerUrl.Trim().TrimEnd('/');
+        if (!string.IsNullOrWhiteSpace(newToken))
+        {
+            _token = newToken.Trim();
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+        }
+        if (string.Equals(_serverUrl, url, StringComparison.OrdinalIgnoreCase) && _socketClient?.Connected == true) return;
         _serverUrl = url;
         _joinedRooms.Clear();
         if (_socketClient != null)
         {
             try { await _socketClient.DisconnectAsync(); _socketClient.Dispose(); } catch { }
             _socketClient = null;
+        }
+        if (!string.IsNullOrWhiteSpace(_serverUrl))
+        {
             await ConnectAsync();
         }
     }
     public async Task ConnectAsync()
     {
+        if (string.IsNullOrWhiteSpace(_serverUrl)) return;
         if (_socketClient is { Connected: true }) return;
 
         await _connectLock.WaitAsync();
@@ -95,7 +110,7 @@ public class ChatConnectorService : IDisposable
 
         client.OnConnected += (_, _) =>
         {
-            DebugLog.Write("ChatConnectorService connected to https://handler.chriskendall.media");
+            DebugLog.Write($"ChatConnectorService connected to {_serverUrl}");
             OnConnectionStateChanged?.Invoke(true, "Connected");
         };
 

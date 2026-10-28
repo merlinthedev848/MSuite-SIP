@@ -100,6 +100,14 @@ const handlePinProvision = (req: Request, res: Response) => {
   // Fetch current server config
   const config = getServerConfigStmt.get() as any;
 
+  const baseHandlerUrl = (config.data_handler_url || '').trim().replace(/\/$/, '');
+  const branding = {
+    brand_name: config.brand_name || 'MerlinSIP',
+    primary_color: config.primary_color || '#2563EB',
+    accent_color: config.accent_color || '#38BDF8',
+    logo_url: config.logo_url ? (config.logo_url.startsWith('http') ? config.logo_url : `${baseHandlerUrl}${config.logo_url}`) : `${baseHandlerUrl}/branding/logo`
+  };
+
   return res.json({
     ok: true,
     message: 'Extension provisioned successfully.',
@@ -113,7 +121,8 @@ const handlePinProvision = (req: Request, res: Response) => {
       password: pinRecord.sip_password,
       display_name: pinRecord.display_name,
       data_handler_url: config.data_handler_url
-    }
+    },
+    branding
   });
 };
 
@@ -127,6 +136,14 @@ router.post('/api/v1/provision', handlePinProvision);
 router.get('/api/v1/config/sync', (req: Request, res: Response) => {
   res.set('Cache-Control', 'public, max-age=300');
   const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+
+  const baseHandlerUrl = (config.data_handler_url || '').trim().replace(/\/$/, '');
+  const branding = {
+    brand_name: config.brand_name || 'MerlinSIP',
+    primary_color: config.primary_color || '#2563EB',
+    accent_color: config.accent_color || '#38BDF8',
+    logo_url: config.logo_url ? (config.logo_url.startsWith('http') ? config.logo_url : `${baseHandlerUrl}${config.logo_url}`) : `${baseHandlerUrl}/branding/logo`
+  };
 
   return res.json({
     ok: true,
@@ -145,7 +162,8 @@ router.get('/api/v1/config/sync', (req: Request, res: Response) => {
       chat_enabled: true,
       video_calls_enabled: true,
       remote_phonebook_enabled: true
-    }
+    },
+    branding
   });
 });
 

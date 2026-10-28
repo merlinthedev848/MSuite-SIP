@@ -1,0 +1,19 @@
+{
+  "pbx_server": "pbx.yourdomain.com",
+  "pbx_port": 5060,
+  "pbx_transport": "UDP",
+  "domain": "pbx.yourdomain.com",
+  "extension": "101",
+  "sip_username": "101",
+  "sip_password": "YourSecureSipPassword123!",
+  "display_name": "User Name",
+  "data_handler_url": "https://handler.yourdomain.com",
+  "license_key": "BUYOUT-ORGANIZATION-KEY",
+  "app_secret_token": "OptionalSocketAuthSecret",
+  "branding": {
+    "brand_name": "My Company Phone",
+    "primary_color": "#2563EB",
+    "accent_color": "#38BDF8",
+    "logo_url": "https://handler.yourdomain.com/branding/logo"
+  }
+}

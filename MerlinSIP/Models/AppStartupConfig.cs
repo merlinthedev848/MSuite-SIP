@@ -53,7 +53,12 @@ public sealed record AppStartupConfig(
     bool AutoAnswerEnabled = false,
     MediaDeviceInfo? VideoSource = null,
     bool IsProvisioned = false,
-    string? DataHandlerUrl = null)
+    string? DataHandlerUrl = null,
+    string? BrandName = "MerlinSIP",
+    string? PrimaryColor = "#2563EB",
+    string? AccentColor = "#38BDF8",
+    string? LogoUrl = null,
+    string? AppSecretToken = null)
 {
     public const string FixedSipServer = "pbx.chriskendall.media";
     public const string DefaultDataHandlerUrl = "https://handler.chriskendall.media";
@@ -72,7 +77,8 @@ public sealed record AppStartupConfig(
     public bool AllowsCustomSipEndpoint =>
         LicenseKey.StartsWith("PR", StringComparison.OrdinalIgnoreCase) ||
         LicenseKey.StartsWith("BUYOUT", StringComparison.OrdinalIgnoreCase) ||
-        LicenseStatus.Contains("Buyout", StringComparison.OrdinalIgnoreCase);
+        LicenseStatus.Contains("Buyout", StringComparison.OrdinalIgnoreCase) ||
+        LicenseStatus.Contains("Suite Config", StringComparison.OrdinalIgnoreCase);
 
     public string EffectiveDataHandlerUrl =>
         string.IsNullOrWhiteSpace(DataHandlerUrl) ? DefaultDataHandlerUrl : DataHandlerUrl.Trim();

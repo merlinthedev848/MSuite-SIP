@@ -116,10 +116,19 @@ public sealed class ProvisioningService
                         var isMd5 = SipRegistrationService.IsMd5Hash(pwd);
                         DebugLog.Write($"PROVISION loaded ext={ext} auth={auth} isMd5Password={isMd5}");
 
+                        var srv = payload.Sip.EffectiveServer;
+                        var prt = payload.Sip.EffectivePort;
+                        var dom = payload.Sip.EffectiveDomain;
+                        var handlerUrl = payload.Sip.DataHandlerUrl;
+                        var bName = payload.Branding?.BrandName ?? "MerlinSIP";
+                        var pColor = payload.Branding?.PrimaryColor ?? "#2563EB";
+                        var aColor = payload.Branding?.AccentColor ?? "#38BDF8";
+                        var lUrl = payload.Branding?.LogoUrl;
+
                         var config = new AppStartupConfig(
-                            AppStartupConfig.FixedSipServer,
-                            AppStartupConfig.FixedSipPort,
-                            AppStartupConfig.FixedSipServer,
+                            srv,
+                            prt,
+                            dom,
                             ext,
                             auth,
                             pwd,
@@ -127,7 +136,13 @@ public sealed class ProvisioningService
                             licenseStatus,
                             audioInput,
                             audioOutput,
-                            LicenseLocalKey: licenseLocalKey, IsProvisioned: true).WithFixedSipEndpoint();
+                            LicenseLocalKey: licenseLocalKey,
+                            IsProvisioned: true,
+                            DataHandlerUrl: handlerUrl,
+                            BrandName: bName,
+                            PrimaryColor: pColor,
+                            AccentColor: aColor,
+                            LogoUrl: lUrl).WithFixedSipEndpoint();
 
                         return ProvisioningResult.Ok(config);
                     }
@@ -161,10 +176,17 @@ public sealed class ProvisioningService
 
     private sealed record ProvisioningRequest([property: JsonPropertyName("code")] string Code);
 
+    public sealed record ProvisionedBrandingDetails(
+        [property: JsonPropertyName("brand_name")] string? BrandName = null,
+        [property: JsonPropertyName("primary_color")] string? PrimaryColor = null,
+        [property: JsonPropertyName("accent_color")] string? AccentColor = null,
+        [property: JsonPropertyName("logo_url")] string? LogoUrl = null);
+
     private sealed record ProvisioningResponse(
         [property: JsonPropertyName("success")] bool Success,
         [property: JsonPropertyName("sip")] ProvisionedSipDetails? Sip,
-        [property: JsonPropertyName("error")] string? Error);
+        [property: JsonPropertyName("branding")] ProvisionedBrandingDetails? Branding = null,
+        [property: JsonPropertyName("error")] string? Error = null);
 
     private sealed record ProvisionedSipDetails(
         [property: JsonPropertyName("extension")] string? Extension,
@@ -172,11 +194,18 @@ public sealed class ProvisioningService
         [property: JsonPropertyName("sip_password")] string? SipPassword,
         [property: JsonPropertyName("password")] string? Password = null,
         [property: JsonPropertyName("secret")] string? Secret = null,
-        [property: JsonPropertyName("username")] string? Username = null)
+        [property: JsonPropertyName("username")] string? Username = null,
+        [property: JsonPropertyName("server")] string? Server = null,
+        [property: JsonPropertyName("port")] int? Port = null,
+        [property: JsonPropertyName("domain")] string? Domain = null,
+        [property: JsonPropertyName("data_handler_url")] string? DataHandlerUrl = null)
     {
         public string EffectiveExtension => !string.IsNullOrWhiteSpace(Extension) ? Extension.Trim() : (Username?.Trim() ?? string.Empty);
         public string EffectiveAuthName => !string.IsNullOrWhiteSpace(AuthName) ? AuthName.Trim() : (!string.IsNullOrWhiteSpace(Username) ? Username.Trim() : EffectiveExtension);
         public string EffectivePassword => !string.IsNullOrWhiteSpace(SipPassword) ? SipPassword.Trim() : (!string.IsNullOrWhiteSpace(Password) ? Password.Trim() : (Secret?.Trim() ?? string.Empty));
+        public string EffectiveServer => !string.IsNullOrWhiteSpace(Server) ? Server.Trim() : AppStartupConfig.FixedSipServer;
+        public int EffectivePort => Port is > 0 ? Port.Value : AppStartupConfig.FixedSipPort;
+        public string EffectiveDomain => !string.IsNullOrWhiteSpace(Domain) ? Domain.Trim() : EffectiveServer;
     }
 }
 

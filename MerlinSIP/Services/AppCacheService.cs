@@ -67,6 +67,13 @@ public sealed class AppCacheService
 
         if (settings is null)
         {
+            var suiteConfig = SuiteConfigLoader.TryLoadSuiteConfig();
+            if (suiteConfig is not null)
+            {
+                ActiveConfig = suiteConfig;
+                await SaveSettingsAsync(suiteConfig);
+                return suiteConfig;
+            }
             return null;
         }
 
@@ -126,7 +133,14 @@ public sealed class AppCacheService
             settings.IgnoreSslErrors ?? false,
             settings.SecondaryRingerOutput,
             settings.AutoAnswerEnabled ?? false,
-            settings.VideoSource, settings.IsProvisioned ?? false, settings.DataHandlerUrl).WithFixedSipEndpoint();
+            settings.VideoSource,
+            settings.IsProvisioned ?? false,
+            settings.DataHandlerUrl,
+            settings.BrandName ?? "MerlinSIP",
+            settings.PrimaryColor ?? "#2563EB",
+            settings.AccentColor ?? "#38BDF8",
+            settings.LogoUrl,
+            settings.AppSecretToken).WithFixedSipEndpoint();
     }
 
     public async Task SaveSettingsAsync(AppStartupConfig config)
@@ -193,7 +207,12 @@ public sealed class AppCacheService
             config.VoicemailNumber,
             config.AutoAnswerEnabled,
             config.IsProvisioned,
-            config.DataHandlerUrl);
+            config.DataHandlerUrl,
+            config.BrandName,
+            config.PrimaryColor,
+            config.AccentColor,
+            config.LogoUrl,
+            config.AppSecretToken);
 
         try
         {
@@ -404,5 +423,10 @@ public sealed class AppCacheService
         string? VoicemailNumber = null,
         bool? AutoAnswerEnabled = null,
         bool? IsProvisioned = null,
-        string? DataHandlerUrl = null);
+        string? DataHandlerUrl = null,
+        string? BrandName = null,
+        string? PrimaryColor = null,
+        string? AccentColor = null,
+        string? LogoUrl = null,
+        string? AppSecretToken = null);
 }

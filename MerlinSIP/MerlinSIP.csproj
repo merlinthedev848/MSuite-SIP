@@ -27,6 +27,7 @@
     <Content Include="Assets\CKMedia-Icon.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\CKMedia-Icon.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\Ringtones\*.wav" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="merlinsip-config.template.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.14" />

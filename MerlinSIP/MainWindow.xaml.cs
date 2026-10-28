@@ -1254,6 +1254,7 @@ public partial class MainWindow : Window
     private void ApplyStartupConfig()
     {
         _config = _config.WithFixedSipEndpoint();
+        ApplyBranding(_config.BrandName, _config.PrimaryColor, _config.AccentColor, _config.LogoUrl);
         ExtensionTextBox.Text = _config.Extension;
         if (_config.IsProvisioned)
         {
@@ -1431,6 +1432,25 @@ public partial class MainWindow : Window
                     await _cacheService.SaveSettingsAsync(_config);
                     await _chatService.UpdateServerUrlAsync(newHandler);
                     DebugLog.Write($"REMOTE SYNC: Updated data handler URL to {newHandler}");
+                }
+            }
+
+            if (root.TryGetProperty("branding", out var brandingEl))
+            {
+                var bName = brandingEl.TryGetProperty("brand_name", out var bn) ? bn.GetString() : _config.BrandName;
+                var pCol = brandingEl.TryGetProperty("primary_color", out var pc) ? pc.GetString() : _config.PrimaryColor;
+                var aCol = brandingEl.TryGetProperty("accent_color", out var ac) ? ac.GetString() : _config.AccentColor;
+                var lUrl = brandingEl.TryGetProperty("logo_url", out var lu) ? lu.GetString() : _config.LogoUrl;
+
+                if (!string.Equals(_config.BrandName, bName, StringComparison.Ordinal) ||
+                    !string.Equals(_config.PrimaryColor, pCol, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(_config.AccentColor, aCol, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(_config.LogoUrl, lUrl, StringComparison.OrdinalIgnoreCase))
+                {
+                    _config = _config with { BrandName = bName, PrimaryColor = pCol, AccentColor = aCol, LogoUrl = lUrl };
+                    await _cacheService.SaveSettingsAsync(_config);
+                    ApplyBranding(bName, pCol, aCol, lUrl);
+                    DebugLog.Write($"REMOTE SYNC: Updated suite branding: Brand={bName}, Primary={pCol}, Accent={aCol}");
                 }
             }
         }
@@ -1761,6 +1781,63 @@ public partial class MainWindow : Window
             FooterStatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString(foreground)!;
             FooterStatusText.Text = isConnected ? "Live connectivity status: Connected" : $"Connection: {text}";
         }
+    }
+
+    public void ApplyBranding(string? brandName, string? primaryColorHex, string? accentColorHex, string? logoUrl)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(brandName) && NavBrandTitleText != null)
+                {
+                    NavBrandTitleText.Text = brandName;
+                    Title = $"{brandName} Softphone";
+                }
+
+                if (!string.IsNullOrWhiteSpace(primaryColorHex))
+                {
+                    var primaryColor = (WpfColor)System.Windows.Media.ColorConverter.ConvertFromString(primaryColorHex);
+                    var primaryBrush = new System.Windows.Media.SolidColorBrush(primaryColor);
+                    if (DialButton != null)
+                    {
+                        DialButton.Background = primaryBrush;
+                    }
+                    if (UserPresencePill != null)
+                    {
+                        UserPresencePill.BorderBrush = primaryBrush;
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(accentColorHex) && NavBrandSubtitleText != null)
+                {
+                    var accentColor = (WpfColor)System.Windows.Media.ColorConverter.ConvertFromString(accentColorHex);
+                    var accentBrush = new System.Windows.Media.SolidColorBrush(accentColor);
+                    NavBrandSubtitleText.Foreground = accentBrush;
+                }
+
+                if (!string.IsNullOrWhiteSpace(logoUrl) && NavBrandLogoImage != null)
+                {
+                    try
+                    {
+                        var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                        bmp.BeginInit();
+                        bmp.UriSource = new Uri(logoUrl, UriKind.RelativeOrAbsolute);
+                        bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                        bmp.EndInit();
+                        NavBrandLogoImage.Source = bmp;
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugLog.Write($"Brand logo load notice: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"ApplyBranding error: {ex.Message}");
+            }
+        });
     }
 
     private void ApplyAppVersion()

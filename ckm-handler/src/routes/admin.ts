@@ -1,6 +1,8 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
+import path from 'path';
+import multer from 'multer';
 import systemDb from '../database/systemDb';
 import vaultDb from '../database/vaultDb';
 import { ADMIN_USER, ADMIN_PASS, UPLOADS_DIR } from '../config';
@@ -9,6 +11,23 @@ import { licenseState } from '../services/licenseGuard';
 import { syncExtensionsFromAsterisk, AmiConfig } from '../services/pbxSyncService';
 
 const router = Router();
+
+// Configure Logo Upload Storage
+const logoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.png';
+    const id = `logo_${Date.now()}`;
+    cb(null, `${id}${ext}`);
+  }
+});
+
+const logoUpload = multer({
+  storage: logoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB max logo size
+});
 
 // Simple Admin Authentication Middleware
 export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
@@ -392,6 +411,75 @@ router.post('/api/admin/pbx/sync', adminAuth, async (req: Request, res: Response
   }
 
   return res.json({ ok: true, count: syncResult.count, message: syncResult.message });
+});
+
+// 8. Custom Branding & Theme Configuration
+router.get('/api/admin/branding', adminAuth, (req: Request, res: Response) => {
+  const config = systemDb.prepare('SELECT brand_name, primary_color, accent_color, logo_url FROM server_config WHERE id = 1').get() as any;
+  return res.json({
+    ok: true,
+    branding: {
+      brandName: config?.brand_name || 'MerlinSIP',
+      primaryColor: config?.primary_color || '#2563EB',
+      accentColor: config?.accent_color || '#38BDF8',
+      logoUrl: config?.logo_url || ''
+    }
+  });
+});
+
+router.post('/api/admin/branding', adminAuth, (req: Request, res: Response) => {
+  const { brandName, primaryColor, accentColor, logoUrl } = req.body;
+
+  systemDb.prepare(`
+    UPDATE server_config 
+    SET brand_name = ?, primary_color = ?, accent_color = ?, logo_url = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = 1
+  `).run(
+    String(brandName || 'MerlinSIP').trim(),
+    String(primaryColor || '#2563EB').trim(),
+    String(accentColor || '#38BDF8').trim(),
+    String(logoUrl || '').trim()
+  );
+
+  return res.json({
+    ok: true,
+    message: 'Branding customization updated. Connected softphones will receive these colors and logo on registration and dynamic sync.'
+  });
+});
+
+router.post('/api/admin/branding/logo', adminAuth, logoUpload.single('logo'), (req: Request, res: Response) => {
+  if (!req.file) {
+    return res.status(400).json({ ok: false, error: 'No logo image file was provided.' });
+  }
+
+  const logoUrl = `/branding/logo?v=${Date.now()}`;
+  systemDb.prepare('UPDATE server_config SET logo_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(logoUrl);
+
+  return res.json({
+    ok: true,
+    logoUrl,
+    message: 'Brand logo uploaded successfully.'
+  });
+});
+
+// Public Logo Fetch Endpoint for Softphones & Deskphones
+router.get('/branding/logo', (req: Request, res: Response) => {
+  try {
+    const files = fs.readdirSync(UPLOADS_DIR);
+    const logoFile = files.find(f => f.startsWith('logo_'));
+    if (logoFile) {
+      const filePath = path.join(UPLOADS_DIR, logoFile);
+      const ext = path.extname(logoFile).toLowerCase();
+      const mime = ext === '.png' ? 'image/png' : ext === '.svg' ? 'image/svg+xml' : ext === '.ico' ? 'image/x-icon' : 'image/jpeg';
+      res.setHeader('Content-Type', mime);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.sendFile(filePath);
+    }
+  } catch {
+    // fallback
+  }
+
+  return res.status(404).send('No custom logo uploaded yet.');
 });
 
 export default router;

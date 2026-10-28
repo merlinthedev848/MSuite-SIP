@@ -30,6 +30,9 @@
         <button class="nav-btn" data-tab="routers">
           <span class="icon">🌐</span> Routers & Gateways
         </button>
+        <button class="nav-btn" data-tab="branding">
+          <span class="icon">🎨</span> Brand & Colors
+        </button>
         <button class="nav-btn" data-tab="config">
           <span class="icon">⚙️</span> PBX & Gateways
         </button>
@@ -184,6 +187,93 @@
               <tr><td colspan="7" class="text-center">Loading router profiles...</td></tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- TAB: BRANDING & CUSTOMIZATION -->
+      <section class="tab-pane" id="pane-branding">
+        <div class="toolbar">
+          <div class="toolbar-title">Softphone Custom Branding, Logo & Colors</div>
+        </div>
+        <div class="grid-2col">
+          <div class="card form-card">
+            <h3>Suite Appearance & Theme Settings</h3>
+            <p class="muted">These brand styles will be automatically provisioned to all registered softphones upon setup and dynamic synchronization.</p>
+            <form id="formBranding" class="mt-4">
+              <div class="form-group">
+                <label>Brand / Organization Name</label>
+                <input type="text" id="brandName" placeholder="e.g. Acme VoIP Solutions" required>
+                <small>Appears in the desktop softphone navigation header and window title.</small>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Primary Brand Color</label>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="color" id="primaryColorPicker" value="#2563eb" style="width: 44px; height: 38px; padding: 2px; border-radius: 6px; cursor: pointer;">
+                    <input type="text" id="primaryColorText" value="#2563EB" style="font-family: monospace; text-transform: uppercase;">
+                  </div>
+                  <small>Main buttons, active line indicators, tabs.</small>
+                </div>
+
+                <div class="form-group">
+                  <label>Secondary / Accent Color</label>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="color" id="accentColorPicker" value="#38bdf8" style="width: 44px; height: 38px; padding: 2px; border-radius: 6px; cursor: pointer;">
+                    <input type="text" id="accentColorText" value="#38BDF8" style="font-family: monospace; text-transform: uppercase;">
+                  </div>
+                  <small>Highlights, subtle borders, notifications.</small>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Company Logo Image</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/svg+xml,image/x-icon,image/webp" style="display: none;">
+                  <button type="button" class="btn btn-secondary" id="btnUploadLogo">Choose Logo File...</button>
+                  <span id="logoFileName" class="muted" style="font-size: 12px;">No file selected</span>
+                </div>
+                <small>Recommended: Transparent PNG or SVG (approx. 128x128px or square).</small>
+              </div>
+
+              <div class="form-group">
+                <label>Direct Logo URL (Alternative to file upload)</label>
+                <input type="text" id="logoUrl" placeholder="https://example.com/logo.png or /branding/logo">
+              </div>
+
+              <button type="submit" class="btn btn-primary" id="btnSaveBranding">Save Branding</button>
+            </form>
+          </div>
+
+          <!-- Live Softphone Preview -->
+          <div class="card">
+            <h3>Live Softphone UI Preview</h3>
+            <p class="muted">Simulated preview of how your brand theme will render in the desktop app:</p>
+            <div id="previewCard" style="margin-top: 20px; background: #0f172a; border-radius: 12px; padding: 20px; color: #fff; width: 100%; max-width: 340px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);">
+              <!-- Top bar -->
+              <div style="display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 14px;">
+                <div id="previewLogoBox" style="width: 40px; height: 40px; border-radius: 8px; background: #2563eb; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                  <span id="previewLogoFallback" style="font-weight: 800; font-size: 18px;">M</span>
+                  <img id="previewLogoImg" src="" style="width: 100%; height: 100%; object-fit: contain; display: none;">
+                </div>
+                <div>
+                  <div id="previewBrandTitle" style="font-weight: 700; font-size: 15px;">MerlinSIP</div>
+                  <div id="previewSubtitle" style="font-size: 11px; color: #94a3b8;">Active Extension: 101</div>
+                </div>
+              </div>
+
+              <!-- Dialpad mock button -->
+              <div style="margin-top: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                  <span style="font-size: 12px; color: #94a3b8;">Line 1 Status</span>
+                  <span id="previewAccentBadge" style="background: #38bdf8; color: #000; font-weight: 700; font-size: 10px; padding: 2px 8px; border-radius: 9999px;">Ready</span>
+                </div>
+                <button id="previewCallBtn" type="button" style="width: 100%; padding: 10px; border-radius: 8px; border: none; background: #2563eb; color: #fff; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                  📞 Place Call
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

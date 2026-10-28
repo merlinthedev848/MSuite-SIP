@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     extensions: 'SIP Extensions & Softphone PINs',
     handsets: 'Physical IP Handset Directory',
     routers: 'VoIP Router & Network Gateway Profiles',
+    branding: 'Softphone Custom Branding, Logo & Colors',
     config: 'PBX Integration & Gateway Settings',
     gdpr: 'GDPR Compliance & Data Retention Vault'
   };
@@ -39,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     else if (tab === 'extensions') loadExtensions();
     else if (tab === 'handsets') loadHandsets();
     else if (tab === 'routers') loadRouters();
+    else if (tab === 'branding') loadBranding();
     else if (tab === 'config') loadConfig();
     else if (tab === 'gdpr') loadGdprPolicy();
   }
@@ -258,6 +260,136 @@ document.addEventListener('DOMContentLoaded', () => {
       })
     });
     if (res && res.ok) loadRouters();
+  });
+
+  // 6b. Branding & Customization Tab
+  async function loadBranding() {
+    const data = await fetchJson('/api/admin/branding');
+    if (!data || !data.ok || !data.branding) return;
+    const b = data.branding;
+    document.getElementById('brandName').value = b.brandName || 'MerlinSIP';
+    document.getElementById('primaryColorText').value = b.primaryColor || '#2563EB';
+    document.getElementById('primaryColorPicker').value = b.primaryColor || '#2563eb';
+    document.getElementById('accentColorText').value = b.accentColor || '#38BDF8';
+    document.getElementById('accentColorPicker').value = b.accentColor || '#38bdf8';
+    document.getElementById('logoUrl').value = b.logoUrl || '';
+
+    updateBrandingPreview();
+  }
+
+  function updateBrandingPreview() {
+    const brandName = document.getElementById('brandName')?.value.trim() || 'MerlinSIP';
+    const primary = document.getElementById('primaryColorText')?.value.trim() || '#2563EB';
+    const accent = document.getElementById('accentColorText')?.value.trim() || '#38BDF8';
+    const logoUrl = document.getElementById('logoUrl')?.value.trim();
+
+    const titleEl = document.getElementById('previewBrandTitle');
+    if (titleEl) titleEl.textContent = brandName;
+
+    const logoBox = document.getElementById('previewLogoBox');
+    if (logoBox) logoBox.style.backgroundColor = primary;
+
+    const callBtn = document.getElementById('previewCallBtn');
+    if (callBtn) callBtn.style.backgroundColor = primary;
+
+    const accentBadge = document.getElementById('previewAccentBadge');
+    if (accentBadge) accentBadge.style.backgroundColor = accent;
+
+    const img = document.getElementById('previewLogoImg');
+    const fallback = document.getElementById('previewLogoFallback');
+    if (logoUrl && img && fallback) {
+      img.src = logoUrl;
+      img.style.display = 'block';
+      fallback.style.display = 'none';
+      img.onerror = () => {
+        img.style.display = 'none';
+        fallback.style.display = 'block';
+        fallback.textContent = brandName.charAt(0).toUpperCase() || 'M';
+      };
+    } else if (fallback && img) {
+      img.style.display = 'none';
+      fallback.style.display = 'block';
+      fallback.textContent = brandName.charAt(0).toUpperCase() || 'M';
+    }
+  }
+
+  // Color picker sync
+  document.getElementById('primaryColorPicker')?.addEventListener('input', (e) => {
+    document.getElementById('primaryColorText').value = e.target.value.toUpperCase();
+    updateBrandingPreview();
+  });
+  document.getElementById('primaryColorText')?.addEventListener('input', (e) => {
+    if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
+      document.getElementById('primaryColorPicker').value = e.target.value;
+      updateBrandingPreview();
+    }
+  });
+
+  document.getElementById('accentColorPicker')?.addEventListener('input', (e) => {
+    document.getElementById('accentColorText').value = e.target.value.toUpperCase();
+    updateBrandingPreview();
+  });
+  document.getElementById('accentColorText')?.addEventListener('input', (e) => {
+    if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
+      document.getElementById('accentColorPicker').value = e.target.value;
+      updateBrandingPreview();
+    }
+  });
+
+  document.getElementById('brandName')?.addEventListener('input', updateBrandingPreview);
+  document.getElementById('logoUrl')?.addEventListener('input', updateBrandingPreview);
+
+  // Logo file upload
+  document.getElementById('btnUploadLogo')?.addEventListener('click', () => {
+    document.getElementById('logoFileInput')?.click();
+  });
+
+  document.getElementById('logoFileInput')?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    document.getElementById('logoFileName').textContent = file.name;
+    const formData = new FormData();
+    formData.append('logo', file);
+
+    try {
+      const res = await fetch('/api/admin/branding/logo', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data && data.ok) {
+        document.getElementById('logoUrl').value = data.logoUrl;
+        updateBrandingPreview();
+        alert('Logo uploaded successfully! Click "Save Branding" to apply.');
+      } else {
+        alert(data?.error || 'Failed to upload logo.');
+      }
+    } catch (err) {
+      console.error('Logo upload error:', err);
+      alert('Upload failed: ' + err.message);
+    }
+  });
+
+  // Save Branding Form
+  document.getElementById('formBranding')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+      brandName: document.getElementById('brandName')?.value.trim(),
+      primaryColor: document.getElementById('primaryColorText')?.value.trim(),
+      accentColor: document.getElementById('accentColorText')?.value.trim(),
+      logoUrl: document.getElementById('logoUrl')?.value.trim()
+    };
+
+    const res = await fetchJson('/api/admin/branding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res && res.ok) {
+      alert(res.message || 'Branding updated successfully!');
+    }
   });
 
   // 7. PBX Config Tab & API Key Management

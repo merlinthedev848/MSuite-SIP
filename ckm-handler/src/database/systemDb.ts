@@ -53,6 +53,10 @@ systemDb.exec(`
     data_handler_url TEXT NOT NULL,
     license_key TEXT,
     api_key TEXT,
+    brand_name TEXT DEFAULT 'MerlinSIP',
+    primary_color TEXT DEFAULT '#2563EB',
+    accent_color TEXT DEFAULT '#38BDF8',
+    logo_url TEXT DEFAULT '',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -127,6 +131,12 @@ try {
 } catch {
   // column already exists
 }
+
+// Ensure branding customization columns exist
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN brand_name TEXT DEFAULT 'MerlinSIP';"); } catch {}
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN primary_color TEXT DEFAULT '#2563EB';"); } catch {}
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN accent_color TEXT DEFAULT '#38BDF8';"); } catch {}
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN logo_url TEXT DEFAULT '';"); } catch {}
 
 // Generate default secure API key if not set
 const cfgRow = systemDb.prepare('SELECT api_key FROM server_config WHERE id = 1').get() as any;
