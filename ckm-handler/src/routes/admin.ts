@@ -9,6 +9,8 @@ import systemDb, { hashPassword, verifyPassword, logActivity } from '../database
 import vaultDb from '../database/vaultDb';
 import { ADMIN_USER, ADMIN_PASS, UPLOADS_DIR, PORT, SERVER_DOMAIN } from '../config';
 import { generateRouterConfig, RouterConfigParams } from '../templates/routerTemplates';
+import { HANDSET_CATALOG, ROUTER_CATALOG, generateDefaultHandsetConfig } from '../templates/catalog';
+import { HandsetAccountConfig } from '../templates/yealink';
 import { licenseState } from '../services/licenseGuard';
 import { syncExtensionsFromAsterisk, AmiConfig } from '../services/pbxSyncService';
 import { getSocketStats } from '../services/socketService';
@@ -744,10 +746,19 @@ router.post('/api/admin/extensions/quick-provision', adminAuth, requirePermissio
   });
 });
 
+// Device Catalogs Metadata Endpoint (Full Makes & Models for Handsets & Routers)
+router.get('/api/admin/catalogs', adminAuth, (req: Request, res: Response) => {
+  return res.json({
+    ok: true,
+    handsets: HANDSET_CATALOG,
+    routers: ROUTER_CATALOG
+  });
+});
+
 // 4. Physical Handsets Management
 router.get('/api/admin/handsets', adminAuth, (req: Request, res: Response) => {
   const rows = systemDb.prepare(`
-    SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json, h.last_provisioned_at,
+    SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json, h.custom_config, h.last_provisioned_at,
            e.extension, e.display_name
     FROM physical_handsets h
     JOIN extensions e ON h.extension = e.extension
@@ -756,8 +767,69 @@ router.get('/api/admin/handsets', adminAuth, (req: Request, res: Response) => {
   return res.json({ ok: true, handsets: rows });
 });
 
+router.get('/api/admin/handsets/:mac/preview', adminAuth, (req: Request, res: Response) => {
+  const cleanMac = req.params.mac.toLowerCase().replace(/[^0-9a-f]/g, '');
+  const handset = systemDb.prepare(`
+    SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json, h.custom_config,
+           e.extension, e.sip_username, e.sip_password, e.display_name
+    FROM physical_handsets h
+    JOIN extensions e ON h.extension = e.extension
+    WHERE LOWER(REPLACE(h.mac_address, ':', '')) = ?
+  `).get(cleanMac) as any;
+
+  if (!handset) {
+    return res.status(404).json({ ok: false, error: 'Handset not found.' });
+  }
+
+  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  let blfKeys = [];
+  try { if (handset.blf_keys_json) blfKeys = JSON.parse(handset.blf_keys_json); } catch {}
+
+  const accountCfg: HandsetAccountConfig = {
+    extension: handset.extension,
+    username: handset.sip_username,
+    password: handset.sip_password,
+    displayName: handset.line_label || handset.display_name,
+    sipServer: config.pbx_server,
+    sipPort: config.pbx_port,
+    sipTransport: config.pbx_transport,
+    dataHandlerUrl: config.data_handler_url,
+    blfKeys
+  };
+
+  const defaultContent = generateDefaultHandsetConfig(handset.brand, accountCfg);
+  const isCustomized = !!(handset.custom_config && handset.custom_config.trim().length > 0);
+  const content = isCustomized ? handset.custom_config : defaultContent;
+
+  return res.json({
+    ok: true,
+    macAddress: cleanMac,
+    brand: handset.brand,
+    model: handset.model,
+    extension: handset.extension,
+    displayName: handset.display_name,
+    isCustomized,
+    content,
+    defaultContent
+  });
+});
+
+router.put('/api/admin/handsets/:mac/config', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
+  const cleanMac = req.params.mac.toLowerCase().replace(/[^0-9a-f]/g, '');
+  const { customConfig } = req.body;
+
+  systemDb.prepare(`
+    UPDATE physical_handsets
+    SET custom_config = ?
+    WHERE LOWER(REPLACE(mac_address, ':', '')) = ?
+  `).run(customConfig || '', cleanMac);
+
+  logActivity('HANDSET_CONFIG_UPDATED', `Custom provisioning profile updated for Handset [${cleanMac.toUpperCase()}]`, req.ip);
+  return res.json({ ok: true, message: 'Handset provisioning configuration saved.' });
+});
+
 router.post('/api/admin/handsets', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
-  const { macAddress, brand, model, extension, lineLabel, blfKeys } = req.body;
+  const { macAddress, brand, model, extension, lineLabel, blfKeys, customConfig } = req.body;
   if (!macAddress || !extension) {
     return res.status(400).json({ ok: false, error: 'MAC address and extension are required.' });
   }
@@ -771,15 +843,16 @@ router.post('/api/admin/handsets', adminAuth, requirePermission('manage_handsets
   const blfJson = blfKeys ? JSON.stringify(blfKeys) : null;
 
   systemDb.prepare(`
-    INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, blf_keys_json)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, blf_keys_json, custom_config)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(mac_address) DO UPDATE SET
       brand = excluded.brand,
       model = excluded.model,
       extension = excluded.extension,
       line_label = excluded.line_label,
-      blf_keys_json = excluded.blf_keys_json
-  `).run(cleanMac, brand || 'yealink', model || '', extension, lineLabel || '', blfJson);
+      blf_keys_json = excluded.blf_keys_json,
+      custom_config = COALESCE(excluded.custom_config, physical_handsets.custom_config)
+  `).run(cleanMac, brand || 'yealink', model || '', extension, lineLabel || '', blfJson, customConfig || '');
 
   return res.json({ ok: true, message: `Handset MAC [${cleanMac}] bound to extension ${extension}.` });
 });
@@ -828,15 +901,69 @@ router.get('/api/admin/routers', adminAuth, (req: Request, res: Response) => {
   return res.json({ ok: true, routers: rows });
 });
 
+router.get('/api/admin/routers/:id/preview', adminAuth, (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  const routerRec = systemDb.prepare('SELECT * FROM routers WHERE id = ?').get(id) as any;
+  if (!routerRec) {
+    return res.status(404).json({ ok: false, error: 'Router profile not found.' });
+  }
+
+  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  const params: RouterConfigParams = {
+    siteName: routerRec.site_name,
+    brand: routerRec.brand,
+    model: routerRec.model,
+    macAddress: routerRec.mac_address,
+    lanSubnet: routerRec.lan_subnet,
+    voiceVlanId: routerRec.voice_vlan_id,
+    voiceSubnet: routerRec.voice_subnet,
+    pbxServer: config.pbx_server,
+    dataHandlerUrl: config.data_handler_url,
+    disableSipAlg: routerRec.disable_sip_alg === 1,
+    enableQos: routerRec.enable_qos === 1
+  };
+
+  const generated = generateRouterConfig(params);
+  const defaultContent = generated.content;
+  const isCustomized = !!(routerRec.custom_script && routerRec.custom_script.trim().length > 0);
+  const content = isCustomized ? routerRec.custom_script : defaultContent;
+
+  return res.json({
+    ok: true,
+    id: routerRec.id,
+    siteName: routerRec.site_name,
+    brand: routerRec.brand,
+    model: routerRec.model,
+    filename: generated.filename,
+    isCustomized,
+    content,
+    defaultContent
+  });
+});
+
+router.put('/api/admin/routers/:id/script', adminAuth, requirePermission('manage_routers'), (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  const { customScript } = req.body;
+
+  systemDb.prepare(`
+    UPDATE routers
+    SET custom_script = ?
+    WHERE id = ?
+  `).run(customScript || '', id);
+
+  logActivity('ROUTER_SCRIPT_UPDATED', `Custom deployment script updated for Router profile #${id}`, req.ip);
+  return res.json({ ok: true, message: 'Router configuration script saved.' });
+});
+
 router.post('/api/admin/routers', adminAuth, requirePermission('manage_routers'), (req: Request, res: Response) => {
-  const { siteName, brand, model, macAddress, lanSubnet, voiceVlanId, voiceSubnet, disableSipAlg, enableQos, notes } = req.body;
+  const { siteName, brand, model, macAddress, lanSubnet, voiceVlanId, voiceSubnet, disableSipAlg, enableQos, notes, customScript } = req.body;
   if (!siteName || !brand) {
     return res.status(400).json({ ok: false, error: 'Site name and router brand are required.' });
   }
 
   const result = systemDb.prepare(`
-    INSERT INTO routers (site_name, brand, model, mac_address, lan_subnet, voice_vlan_id, voice_subnet, disable_sip_alg, enable_qos, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO routers (site_name, brand, model, mac_address, lan_subnet, voice_vlan_id, voice_subnet, disable_sip_alg, enable_qos, notes, custom_script)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     String(siteName).trim(),
     String(brand).trim().toLowerCase(),
@@ -847,7 +974,8 @@ router.post('/api/admin/routers', adminAuth, requirePermission('manage_routers')
     String(voiceSubnet || '10.20.0.1/24').trim(),
     disableSipAlg ? 1 : 0,
     enableQos ? 1 : 0,
-    String(notes || '').trim()
+    String(notes || '').trim(),
+    String(customScript || '').trim()
   );
 
   return res.json({ ok: true, id: result.lastInsertRowid, message: `Router for site '${siteName}' created successfully.` });
@@ -886,6 +1014,12 @@ router.get('/api/admin/routers/:id/script', adminAuth, (req: Request, res: Respo
 
   res.setHeader('Content-Type', generated.mimeType);
   res.setHeader('Content-Disposition', `attachment; filename="${generated.filename}"`);
+
+  // If customized, send custom script
+  if (routerRec.custom_script && routerRec.custom_script.trim().length > 0) {
+    return res.send(routerRec.custom_script);
+  }
+
   return res.send(generated.content);
 });
 

@@ -3,13 +3,18 @@ import systemDb, { logActivity } from '../database/systemDb';
 import { generateYealinkConfig, HandsetAccountConfig } from '../templates/yealink';
 import { generateFanvilConfig } from '../templates/fanvil';
 import { generateGrandstreamConfig } from '../templates/grandstream';
+import { generatePolyConfig } from '../templates/poly';
+import { generateCiscoPhoneConfig } from '../templates/ciscoPhone';
+import { generateSnomConfig } from '../templates/snom';
+import { generateGigasetConfig } from '../templates/gigaset';
+import { generateDefaultHandsetConfig } from '../templates/catalog';
 import { generateRouterConfig, RouterConfigParams } from '../templates/routerTemplates';
 
 const router = Router();
 
 // Pre-compiled high-speed statements
 const getHandsetStmt = systemDb.prepare(`
-  SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json,
+  SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json, h.custom_config,
          e.extension, e.sip_username, e.sip_password, e.display_name, e.is_active
   FROM physical_handsets h
   JOIN extensions e ON h.extension = e.extension
@@ -38,17 +43,22 @@ const getRouterByMacStmt = systemDb.prepare(`
 router.get('/provision/:filename', (req: Request, res: Response) => {
   const filename = req.params.filename.toLowerCase();
 
-  // 1. Check for common model configs (e.g. y000000000000.cfg)
+  // 1. Check for vendor generic/common model bootstrap configs
   if (filename.startsWith('y0000000000') && filename.endsWith('.cfg')) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.send(`#!version:1.0.0.1\r\n# Common Yealink Configuration Template\r\n`);
   }
+  if (filename === '000000000000.cfg' || filename === '000000000000-phone.cfg') {
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    return res.send(`<?xml version="1.0" standalone="yes"?><PHONE_CONFIG><ALL/></PHONE_CONFIG>`);
+  }
 
   // 2. Extract MAC address from filename
-  // Examples: "001565a1b2c3.cfg", "cfg000b82a1b2c3.xml", "00a0bca1b2c3.txt", "00a0bca1b2c3.xml"
+  // Examples: "001565a1b2c3.cfg", "cfg000b82a1b2c3.xml", "spa001565a1b2c3.cfg", "snom000413112233.xml", "0004f2112233-phone.cfg"
   let cleanMac = filename
-    .replace(/^cfg/, '')
-    .replace(/\.(cfg|xml|txt|ini|boot)$/i, '')
+    .replace(/^(cfg|spa|snom|cp-)/i, '')
+    .replace(/-phone/i, '')
+    .replace(/\.(cfg|xml|txt|ini|boot|htm)$/i, '')
     .replace(/[^0-9a-f]/gi, '');
 
   if (cleanMac.length !== 12) {
@@ -66,17 +76,25 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     return res.status(403).send('# Error: Assigned extension has been deactivated.');
   }
 
-  // Fetch current server config
+  // Update last provisioned timestamp
+  updateHandsetProvisionedStmt.run(cleanMac);
+  logActivity('HANDSET_PROVISIONED', `Handset [${cleanMac.toUpperCase()}] (${(handset.brand || 'deskphone').toUpperCase()} ${handset.model || ''}) fetched config for Ext ${handset.extension}`, req.ip);
+
+  // 4. If user has customized their provisioning profile directly, serve it!
+  if (handset.custom_config && handset.custom_config.trim().length > 0) {
+    const isXml = handset.custom_config.trim().startsWith('<');
+    res.setHeader('Content-Type', `${isXml ? 'application/xml' : 'text/plain'}; charset=utf-8`);
+    return res.send(handset.custom_config);
+  }
+
+  // 5. Otherwise generate standard manufacturer template
   const config = getServerConfigStmt.get() as any;
 
-  // Parse optional BLF keys
   let blfKeys: Array<{ key: number; extension: string; label: string }> = [];
   if (handset.blf_keys_json) {
     try {
       blfKeys = JSON.parse(handset.blf_keys_json);
-    } catch {
-      // ignore parse error
-    }
+    } catch {}
   }
 
   const accountCfg: HandsetAccountConfig = {
@@ -91,30 +109,19 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     blfKeys
   };
 
-  // Update last provisioned timestamp
-  updateHandsetProvisionedStmt.run(cleanMac);
-  logActivity('HANDSET_PROVISIONED', `Handset [${cleanMac.toUpperCase()}] (${(handset.brand || 'yealink').toUpperCase()}) fetched config for Ext ${handset.extension}`, req.ip);
-
-  // 4. Render manufacturer-specific configuration
   const brand = (handset.brand || '').toLowerCase();
-  if (brand === 'fanvil' || filename.endsWith('.xml') && brand.includes('fanvil')) {
-    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-    return res.send(generateFanvilConfig(accountCfg));
-  } else if (brand === 'grandstream' || filename.startsWith('cfg') || (filename.endsWith('.xml') && brand.includes('grandstream'))) {
-    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-    return res.send(generateGrandstreamConfig(accountCfg));
-  } else {
-    // Default to Yealink CFG
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.send(generateYealinkConfig(accountCfg));
-  }
+  const content = generateDefaultHandsetConfig(brand, accountCfg);
+  const isXml = content.trim().startsWith('<') || filename.endsWith('.xml');
+
+  res.setHeader('Content-Type', `${isXml ? 'application/xml' : 'text/plain'}; charset=utf-8`);
+  return res.send(content);
 });
 
 // Router & VoIP Gateway Automated Fetch
 // Example: GET /provision/router/1.rsc or GET /provision/router/001565112233.sh
 router.get('/provision/router/:identifier', (req: Request, res: Response) => {
   const raw = req.params.identifier.toLowerCase();
-  const cleanId = raw.replace(/\.(rsc|sh|cfg|txt|xml)$/i, '');
+  const cleanId = raw.replace(/\.(rsc|sh|cfg|txt|xml|conf)$/i, '');
 
   let routerRec = null;
   if (/^\d+$/.test(cleanId)) {
@@ -125,6 +132,12 @@ router.get('/provision/router/:identifier', (req: Request, res: Response) => {
 
   if (!routerRec) {
     return res.status(404).send('# Error: Router configuration profile not found.');
+  }
+
+  // If user has customized the script in the UI, serve the customized script!
+  if (routerRec.custom_script && routerRec.custom_script.trim().length > 0) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.send(routerRec.custom_script);
   }
 
   const config = getServerConfigStmt.get() as any;

@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.ok && data.ok) {
         setAuthSession(data.token, data.user, true);
         hideLogin();
+        loadCatalogs();
         loadOverview();
       } else {
         if (loginError) {
@@ -578,9 +579,61 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 6. TAB 3: Physical IP Handsets
+  // 6. TAB 3: Physical IP Handsets & Provisioning Profiles
   // --------------------------------------------------------------------------
   let cachedHandsets = [];
+  let deviceCatalogs = { handsets: [], routers: [] };
+
+  async function loadCatalogs() {
+    const data = await fetchJson('/api/admin/catalogs');
+    if (data && data.ok) {
+      deviceCatalogs = { handsets: data.handsets || [], routers: data.routers || [] };
+      updateHandsetModelsDropdown();
+      updateRouterModelsDropdown();
+    }
+  }
+
+  function updateHandsetModelsDropdown() {
+    const brandSel = document.getElementById('addHandsetBrand');
+    const modelSel = document.getElementById('addHandsetModel');
+    if (!brandSel || !modelSel) return;
+    const brandId = brandSel.value;
+    const brandObj = deviceCatalogs.handsets.find(b => b.id === brandId);
+    if (!brandObj || !brandObj.models || !brandObj.models.length) {
+      modelSel.innerHTML = '<option value="">Standard / Generic Model</option>';
+      return;
+    }
+    modelSel.innerHTML = brandObj.models.map(m => `
+      <option value="${m.id}">${m.name} (${m.series || 'Desktop'})</option>
+    `).join('') + '<option value="Custom">Custom / Other Model</option>';
+  }
+
+  function updateRouterModelsDropdown() {
+    const brandSel = document.getElementById('addRouterBrand');
+    const modelSel = document.getElementById('addRouterModel');
+    if (!brandSel || !modelSel) return;
+    const brandId = brandSel.value;
+    const brandObj = deviceCatalogs.routers.find(b => b.id === brandId);
+    if (!brandObj || !brandObj.models || !brandObj.models.length) {
+      modelSel.innerHTML = '<option value="">Standard / Generic Model</option>';
+      return;
+    }
+    modelSel.innerHTML = brandObj.models.map(m => `
+      <option value="${m.id}">${m.name} (${m.series || 'Gateway'})</option>
+    `).join('') + '<option value="Custom">Custom / Other Model</option>';
+  }
+
+  document.getElementById('addHandsetBrand')?.addEventListener('change', updateHandsetModelsDropdown);
+  document.getElementById('addRouterBrand')?.addEventListener('change', updateRouterModelsDropdown);
+
+  function getHandsetProvisionUrl(brand, mac) {
+    const cleanMac = mac.toLowerCase().replace(/[^0-9a-f]/g, '');
+    const b = (brand || '').toLowerCase();
+    if (b === 'grandstream') return `/provision/cfg${cleanMac}.xml`;
+    if (b === 'fanvil' || b === 'snom' || b === 'gigaset') return `/provision/${cleanMac}.xml`;
+    if (b === 'cisco') return `/provision/spa${cleanMac}.cfg`;
+    return `/provision/${cleanMac}.cfg`;
+  }
 
   function renderHandsetsTable(list) {
     const tbody = document.getElementById('handsetTableBody');
@@ -591,20 +644,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const canManage = hasPerm('manage_handsets');
-    tbody.innerHTML = list.map(h => `
-      <tr>
-        <td><code>${h.mac_address.toUpperCase()}</code></td>
-        <td><strong>${h.brand.toUpperCase()}</strong> ${h.model || ''}</td>
-        <td>Ext ${h.extension} (${h.display_name || ''})</td>
-        <td>${h.line_label || 'Default'}</td>
-        <td>${h.last_provisioned_at ? new Date(h.last_provisioned_at).toLocaleString() : '<span class="muted">Never fetched</span>'}</td>
-        <td>
-          ${canManage ? `
-            <button class="btn btn-sm btn-danger" onclick="deleteHandset('${h.mac_address}')">Remove</button>
-          ` : '<span class="muted">Read Only</span>'}
-        </td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = list.map(h => {
+      const cleanMac = h.mac_address.toLowerCase().replace(/[^0-9a-f]/g, '');
+      const provUrl = getHandsetProvisionUrl(h.brand, cleanMac);
+      const isCustom = h.custom_config && h.custom_config.trim().length > 0;
+
+      return `
+        <tr>
+          <td>
+            <code>${h.mac_address.toUpperCase()}</code>
+            ${isCustom ? '<span class="tag badge-primary" style="margin-left:6px;font-size:10px;">Custom Profile</span>' : ''}
+          </td>
+          <td><strong>${h.brand.toUpperCase()}</strong> ${h.model || ''}</td>
+          <td>Ext ${h.extension} (${h.display_name || ''})</td>
+          <td>${h.line_label || 'Default'}</td>
+          <td>${h.last_provisioned_at ? new Date(h.last_provisioned_at).toLocaleString() : '<span class="muted">Never fetched</span>'}</td>
+          <td>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+              <button class="btn btn-sm btn-primary" onclick="editHandsetConfig('${cleanMac}')">✏️ Edit Config</button>
+              <a class="btn btn-sm btn-secondary" href="${provUrl}" target="_blank" title="Test Fetch Profile">🔗 Test</a>
+              ${canManage ? `
+                <button class="btn btn-sm btn-danger" onclick="deleteHandset('${cleanMac}')">Remove</button>
+              ` : ''}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
 
   // Instant Live Search for Handsets
@@ -643,6 +709,80 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Handset Config Editor Modal Handlers
+  let activeHandsetMac = '';
+  let activeHandsetDefaultConfig = '';
+
+  window.editHandsetConfig = async (mac) => {
+    activeHandsetMac = mac;
+    const res = await fetchJson(`/api/admin/handsets/${mac}/preview`);
+    if (!res || !res.ok) {
+      alert(res?.error || 'Failed to load handset configuration preview.');
+      return;
+    }
+
+    document.getElementById('editHandsetTitle').textContent = `✏️ Edit Provisioning Profile — ${res.brand.toUpperCase()} ${res.model || ''}`;
+    document.getElementById('editHandsetSub').textContent = `Device MAC: ${mac.toUpperCase()} | Assigned to Extension ${res.extension} (${res.displayName})`;
+
+    const provUrl = getHandsetProvisionUrl(res.brand, mac);
+    document.getElementById('editHandsetFileTag').textContent = provUrl.replace('/provision/', '');
+    document.getElementById('btnTestFetchHandset').href = provUrl;
+
+    const badge = document.getElementById('editHandsetStatusBadge');
+    if (res.isCustomized) {
+      badge.textContent = 'Customized Profile Active';
+      badge.className = 'badge badge-primary';
+    } else {
+      badge.textContent = 'Standard Brand Default';
+      badge.className = 'badge badge-secondary';
+    }
+
+    activeHandsetDefaultConfig = res.defaultContent;
+    document.getElementById('handsetConfigEditor').value = res.content;
+    openModal('modalEditHandsetConfig');
+  };
+
+  document.getElementById('btnResetHandsetDefault')?.addEventListener('click', () => {
+    if (confirm('Reset this handset configuration to the standard manufacturer default template?')) {
+      document.getElementById('handsetConfigEditor').value = activeHandsetDefaultConfig;
+      const badge = document.getElementById('editHandsetStatusBadge');
+      badge.textContent = 'Standard Brand Default';
+      badge.className = 'badge badge-secondary';
+    }
+  });
+
+  document.getElementById('btnCopyHandsetConfig')?.addEventListener('click', () => {
+    const val = document.getElementById('handsetConfigEditor').value;
+    navigator.clipboard.writeText(val);
+    alert('Handset configuration copied to clipboard!');
+  });
+
+  document.getElementById('btnSaveHandsetConfig')?.addEventListener('click', async () => {
+    const content = document.getElementById('handsetConfigEditor').value;
+    const btn = document.getElementById('btnSaveHandsetConfig');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    const toSave = content.trim() === activeHandsetDefaultConfig.trim() ? '' : content;
+
+    const res = await fetchJson(`/api/admin/handsets/${activeHandsetMac}/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customConfig: toSave })
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Save Custom Profile';
+
+    if (res && res.ok) {
+      alert('Handset provisioning profile saved successfully! The physical phone will receive this updated configuration on its next boot or re-sync.');
+      closeModal('modalEditHandsetConfig');
+      loadHandsets();
+    } else if (res) {
+      alert(res.error || 'Failed to save configuration.');
+    }
+  });
+
   window.deleteHandset = async (mac) => {
     if (!confirm(`Remove handset with MAC [${mac}]?`)) return;
     const res = await fetchJson(`/api/admin/handsets/${mac}`, { method: 'DELETE' });
@@ -651,6 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btnOpenAddHandsetModal')?.addEventListener('click', () => {
     document.getElementById('formAddHandset')?.reset();
+    updateHandsetModelsDropdown();
     const sel = document.getElementById('addHandsetExt');
     if (sel) {
       sel.innerHTML = '<option value="">Select an extension...</option>' + cachedExtensions.map(e => `
@@ -683,34 +824,146 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 7. TAB 4: Routers & Network Gateways
+  // 7. TAB 4: Routers & Network Gateways (14 Platforms Supported)
   // --------------------------------------------------------------------------
-  async function loadRouters() {
-    const data = await fetchJson('/api/admin/routers');
+  let cachedRouters = [];
+
+  function renderRoutersTable(list) {
     const tbody = document.getElementById('routerTableBody');
-    if (!data || !data.ok || !data.routers.length) {
+    if (!tbody) return;
+    if (!list.length) {
       tbody.innerHTML = '<tr><td colspan="7" class="text-center">No router profiles generated yet. Click "+ New Router Profile" to create a VoIP-optimized setup.</td></tr>';
       return;
     }
 
     const canManage = hasPerm('manage_routers');
-
-    tbody.innerHTML = data.routers.map(r => `
-      <tr>
-        <td><strong>${r.site_name}</strong></td>
-        <td>${r.brand.toUpperCase()} ${r.model || ''}</td>
-        <td>VLAN ${r.voice_vlan_id}</td>
-        <td><code>${r.voice_subnet}</code></td>
-        <td><span class="badge ${r.disable_sip_alg ? 'badge-primary' : 'badge-secondary'}">${r.disable_sip_alg ? 'Disabled' : 'Active'}</span></td>
-        <td><span class="badge ${r.enable_qos ? 'badge-primary' : 'badge-secondary'}">${r.enable_qos ? 'DSCP 46 / EF' : 'Off'}</span></td>
-        <td>
-          <button class="btn btn-sm btn-primary" onclick="downloadRouterScript(${r.id}, '${r.site_name.replace(/'/g, "\\'")}', '${r.brand}')">Download Script</button>
-          <button class="btn btn-sm btn-secondary" onclick="copyRouterUrl(${r.id})">Copy Boot URL</button>
-          ${canManage ? `<button class="btn btn-sm btn-danger" onclick="deleteRouter(${r.id})">Delete</button>` : ''}
-        </td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = list.map(r => {
+      const isCustom = r.custom_script && r.custom_script.trim().length > 0;
+      return `
+        <tr>
+          <td>
+            <strong>${r.site_name}</strong>
+            ${isCustom ? '<span class="tag badge-primary" style="margin-left:6px;font-size:10px;">Custom Script</span>' : ''}
+          </td>
+          <td><strong>${r.brand.toUpperCase()}</strong> ${r.model || ''}</td>
+          <td>VLAN ${r.voice_vlan_id}</td>
+          <td><code>${r.voice_subnet}</code></td>
+          <td><span class="badge ${r.disable_sip_alg ? 'badge-primary' : 'badge-secondary'}">${r.disable_sip_alg ? 'Disabled' : 'Active'}</span></td>
+          <td><span class="badge ${r.enable_qos ? 'badge-primary' : 'badge-secondary'}">${r.enable_qos ? 'DSCP 46 / EF' : 'Off'}</span></td>
+          <td>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+              <button class="btn btn-sm btn-primary" onclick="editRouterScript(${r.id})">✏️ Edit Script</button>
+              <button class="btn btn-sm btn-secondary" onclick="downloadRouterScript(${r.id}, '${r.site_name.replace(/'/g, "\\'")}', '${r.brand}')">💾 Download</button>
+              <button class="btn btn-sm btn-secondary" onclick="copyRouterUrl(${r.id})">🔗 Boot URL</button>
+              ${canManage ? `<button class="btn btn-sm btn-danger" onclick="deleteRouter(${r.id})">Delete</button>` : ''}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
+
+  async function loadRouters() {
+    const data = await fetchJson('/api/admin/routers');
+    const tbody = document.getElementById('routerTableBody');
+    if (!data || !data.ok || !data.routers.length) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center">No router profiles generated yet. Click "+ New Router Profile" to create a VoIP-optimized setup.</td></tr>';
+      cachedRouters = [];
+      return;
+    }
+
+    cachedRouters = data.routers;
+    renderRoutersTable(cachedRouters);
+  }
+
+  // Router Script Editor Modal Handlers
+  let activeRouterId = 0;
+  let activeRouterDefaultScript = '';
+  let activeRouterFilename = '';
+
+  window.editRouterScript = async (id) => {
+    activeRouterId = id;
+    const res = await fetchJson(`/api/admin/routers/${id}/preview`);
+    if (!res || !res.ok) {
+      alert(res?.error || 'Failed to load router configuration script.');
+      return;
+    }
+
+    document.getElementById('editRouterTitle').textContent = `✏️ Edit VoIP Script — ${res.siteName} (${res.brand.toUpperCase()} ${res.model || ''})`;
+    document.getElementById('editRouterSub').textContent = `Target Platform: ${res.brand.toUpperCase()} | File: ${res.filename}`;
+    document.getElementById('editRouterFileTag').textContent = res.filename;
+
+    const bootUrl = `${window.location.origin}/provision/router/${id}.rsc`;
+    document.getElementById('btnTestFetchRouter').href = bootUrl;
+
+    const badge = document.getElementById('editRouterStatusBadge');
+    if (res.isCustomized) {
+      badge.textContent = 'Customized Script Active';
+      badge.className = 'badge badge-primary';
+    } else {
+      badge.textContent = 'Platform Standard Default';
+      badge.className = 'badge badge-secondary';
+    }
+
+    activeRouterDefaultScript = res.defaultContent;
+    activeRouterFilename = res.filename;
+    document.getElementById('routerScriptEditor').value = res.content;
+    openModal('modalEditRouterScript');
+  };
+
+  document.getElementById('btnResetRouterDefault')?.addEventListener('click', () => {
+    if (confirm('Reset this router configuration script to the platform default template?')) {
+      document.getElementById('routerScriptEditor').value = activeRouterDefaultScript;
+      const badge = document.getElementById('editRouterStatusBadge');
+      badge.textContent = 'Platform Standard Default';
+      badge.className = 'badge badge-secondary';
+    }
+  });
+
+  document.getElementById('btnCopyRouterScript')?.addEventListener('click', () => {
+    const val = document.getElementById('routerScriptEditor').value;
+    navigator.clipboard.writeText(val);
+    alert('Router script copied to clipboard!');
+  });
+
+  document.getElementById('btnDownloadRouterScriptModal')?.addEventListener('click', () => {
+    const val = document.getElementById('routerScriptEditor').value;
+    const blob = new Blob([val], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = activeRouterFilename || `router-config-${activeRouterId}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('btnSaveRouterScript')?.addEventListener('click', async () => {
+    const content = document.getElementById('routerScriptEditor').value;
+    const btn = document.getElementById('btnSaveRouterScript');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    const toSave = content.trim() === activeRouterDefaultScript.trim() ? '' : content;
+
+    const res = await fetchJson(`/api/admin/routers/${activeRouterId}/script`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customScript: toSave })
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'Save Custom Script';
+
+    if (res && res.ok) {
+      alert('Router deployment script saved successfully! The router will receive this customized script when booting or provisioning.');
+      closeModal('modalEditRouterScript');
+      loadRouters();
+    } else if (res) {
+      alert(res.error || 'Failed to save router script.');
+    }
+  });
 
   window.downloadRouterScript = async (id, siteName, brand) => {
     const token = getAuthToken();
@@ -723,7 +976,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const ext = brand === 'ubiquiti' ? 'sh' : (brand === 'cisco' ? 'cfg' : 'rsc');
+      const b = (brand || '').toLowerCase();
+      const ext = (b.includes('ubiquiti') || b.includes('linux')) ? 'sh' : (b.includes('cisco') || b.includes('switch')) ? 'cfg' : (b.includes('fortinet')) ? 'conf' : (b.includes('pfsense') || b.includes('opnsense') || b.includes('meraki') || b.includes('draytek') || b.includes('sonicwall') || b.includes('sophos') || b.includes('omada')) ? 'txt' : 'rsc';
       a.download = `${siteName.replace(/[^a-zA-Z0-9_-]/g, '_')}_voip.${ext}`;
       document.body.appendChild(a);
       a.click();
@@ -748,6 +1002,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btnOpenAddRouterModal')?.addEventListener('click', () => {
     document.getElementById('formAddRouter')?.reset();
+    updateRouterModelsDropdown();
     openModal('modalAddRouter');
   });
 
@@ -755,6 +1010,7 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const site = document.getElementById('addRouterSite').value.trim();
     const brand = document.getElementById('addRouterBrand').value;
+    const model = document.getElementById('addRouterModel').value.trim();
     const vlan = parseInt(document.getElementById('addRouterVlan').value || '20', 10);
     const subnet = document.getElementById('addRouterSubnet').value.trim() || '10.20.0.1/24';
     const alg = document.getElementById('addRouterAlg').checked;
@@ -766,6 +1022,7 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify({
         siteName: site,
         brand,
+        model,
         voiceVlanId: vlan,
         voiceSubnet: subnet,
         disableSipAlg: alg,
@@ -1288,6 +1545,7 @@ document.addEventListener('DOMContentLoaded', () => {
     currentUser = getStoredUser();
     applyUserPermissions();
     loadMe();
+    loadCatalogs();
     loadOverview();
   }
 

@@ -599,15 +599,20 @@
             <div class="form-group">
               <label>Phone Brand *</label>
               <select id="addHandsetBrand">
-                <option value="yealink">Yealink (XML / CFG)</option>
-                <option value="fanvil">Fanvil (XML)</option>
+                <option value="yealink">Yealink (CFG)</option>
                 <option value="grandstream">Grandstream (XML)</option>
-                <option value="poly">Poly / Polycom</option>
+                <option value="fanvil">Fanvil (XML)</option>
+                <option value="poly">Poly / Polycom (CFG)</option>
+                <option value="cisco">Cisco / Linksys (SPA & MPP XML)</option>
+                <option value="snom">Snom (XML)</option>
+                <option value="gigaset">Gigaset pro (XML)</option>
               </select>
             </div>
             <div class="form-group">
-              <label>Model (Optional)</label>
-              <input type="text" id="addHandsetModel" placeholder="e.g. T46U, X4U, GRP2614">
+              <label>Hardware Model *</label>
+              <select id="addHandsetModel">
+                <!-- Dynamically populated based on brand -->
+              </select>
             </div>
           </div>
           <div class="form-group">
@@ -644,21 +649,40 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>Router Platform *</label>
+              <label>Router / Firewall Platform *</label>
               <select id="addRouterBrand">
-                <option value="mikrotik">MikroTik RouterOS (.rsc)</option>
-                <option value="ubiquiti">Ubiquiti EdgeOS / UniFi (.sh)</option>
-                <option value="cisco">Cisco IOS (.cfg)</option>
+                <option value="mikrotik">MikroTik RouterOS (v6/v7 .rsc)</option>
+                <option value="ubiquiti">Ubiquiti EdgeRouter (EdgeOS .sh)</option>
+                <option value="unifi">Ubiquiti UniFi Gateway (UDM / UXG)</option>
+                <option value="pfsense">pfSense Firewall (Static Port NAT & QoS)</option>
+                <option value="opnsense">OPNsense Firewall (Static Port NAT)</option>
+                <option value="cisco">Cisco IOS & ISR Gateway (.cfg)</option>
+                <option value="switch">Cisco Catalyst Switch (Voice VLAN .cfg)</option>
+                <option value="meraki">Cisco Meraki MX Security Appliance</option>
+                <option value="draytek">DrayTek Vigor Series</option>
+                <option value="fortinet">Fortinet FortiGate (FortiOS)</option>
+                <option value="sonicwall">SonicWall TZ & NSA Series</option>
+                <option value="sophos">Sophos XGS Firewall</option>
+                <option value="omada">TP-Link Omada SDN Gateway</option>
+                <option value="linux">Generic Linux / Dnsmasq (Option 66)</option>
               </select>
             </div>
+            <div class="form-group">
+              <label>Hardware Model *</label>
+              <select id="addRouterModel">
+                <!-- Dynamically populated based on brand -->
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
             <div class="form-group">
               <label>Voice VLAN ID</label>
               <input type="number" id="addRouterVlan" value="20">
             </div>
-          </div>
-          <div class="form-group">
-            <label>Voice Subnet (CIDR)</label>
-            <input type="text" id="addRouterSubnet" value="10.20.0.1/24" style="font-family: monospace;">
+            <div class="form-group">
+              <label>Voice Subnet (CIDR)</label>
+              <input type="text" id="addRouterSubnet" value="10.20.0.1/24" style="font-family: monospace;">
+            </div>
           </div>
           <div class="form-group">
             <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
@@ -891,6 +915,75 @@
             <button type="submit" class="btn btn-primary" id="btnSubmitChangePass">Update Password</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Handset Custom Provisioning Profile Modal -->
+  <div id="modalEditHandsetConfig" class="modal-backdrop hidden">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <div>
+          <h3 id="editHandsetTitle">✏️ Edit Provisioning Profile</h3>
+          <p class="muted" id="editHandsetSub" style="font-size: 12px; margin-top: 2px;">Handset MAC: 001565A1B2C3</p>
+        </div>
+        <button class="modal-close" onclick="closeModal('modalEditHandsetConfig')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding-top: 10px;">
+        <div class="editor-toolbar">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <span class="tag" id="editHandsetFileTag">config.cfg</span>
+            <span class="badge badge-secondary" id="editHandsetStatusBadge">Brand Default</span>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="btn btn-sm btn-secondary" id="btnResetHandsetDefault">🔄 Reset to Default</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btnCopyHandsetConfig">📋 Copy</button>
+            <a class="btn btn-sm btn-primary" id="btnTestFetchHandset" href="#" target="_blank">🔗 Test URL</a>
+          </div>
+        </div>
+        <textarea id="handsetConfigEditor" class="code-editor" spellcheck="false" placeholder="Loading configuration syntax..."></textarea>
+        <p class="muted" style="font-size: 11px; margin-top: 6px;">
+          💡 You can customize vendor parameters, BLF keys, codec orders, or remote phonebook paths. Click "Save Custom Profile" to serve these edits whenever this deskphone boots or provisions.
+        </p>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modalEditHandsetConfig')">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnSaveHandsetConfig">Save Custom Profile</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Router Custom Script Modal -->
+  <div id="modalEditRouterScript" class="modal-backdrop hidden">
+    <div class="modal-card modal-card-lg">
+      <div class="modal-header">
+        <div>
+          <h3 id="editRouterTitle">✏️ Edit VoIP Deployment Script</h3>
+          <p class="muted" id="editRouterSub" style="font-size: 12px; margin-top: 2px;">Site Name: Central Office</p>
+        </div>
+        <button class="modal-close" onclick="closeModal('modalEditRouterScript')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding-top: 10px;">
+        <div class="editor-toolbar">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <span class="tag" id="editRouterFileTag">script.rsc</span>
+            <span class="badge badge-secondary" id="editRouterStatusBadge">Platform Default</span>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="btn btn-sm btn-secondary" id="btnResetRouterDefault">🔄 Reset to Default</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btnCopyRouterScript">📋 Copy</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btnDownloadRouterScriptModal">💾 Download</button>
+            <a class="btn btn-sm btn-primary" id="btnTestFetchRouter" href="#" target="_blank">🔗 Direct Boot URL</a>
+          </div>
+        </div>
+        <textarea id="routerScriptEditor" class="code-editor" spellcheck="false" placeholder="Loading router script..."></textarea>
+        <p class="muted" style="font-size: 11px; margin-top: 6px;">
+          💡 You can fine-tune interface names, add custom port-forwarding pinholes, or adjust DSCP EF bandwidth queues. Saved edits will be automatically served by the router auto-provisioning endpoint.
+        </p>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modalEditRouterScript')">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnSaveRouterScript">Save Custom Script</button>
+        </div>
       </div>
     </div>
   </div>
