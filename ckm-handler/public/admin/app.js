@@ -11,9 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     let icon = 'ℹ️';
-    if (type === 'success') icon = '✅';
-    else if (type === 'error') icon = '❌';
-    else if (type === 'warning') icon = '⚠️';
+    if (type === 'success') icon = '';
+    else if (type === 'error') icon = '';
+    else if (type === 'warning') icon = '';
 
     toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
     container.appendChild(toast);
@@ -407,7 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const details = document.getElementById('pingDetails');
 
     btn.disabled = true;
-    btn.textContent = '⚡ Probing...';
+    btn.textContent = 'Probing...';
     if (pill) {
       pill.className = 'status-pill connecting';
       pill.textContent = 'Testing...';
@@ -437,7 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (details) details.textContent = 'Failed to execute ping probe.';
     } finally {
       btn.disabled = false;
-      btn.textContent = '⚡ Ping PBX Now';
+      btn.textContent = 'Ping PBX Now';
     }
   });
 
@@ -599,11 +599,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     btn.disabled = false;
-    btn.textContent = '⚡ Start AMI Sync';
+    btn.textContent = 'Start AMI Sync';
 
     if (out) {
       out.classList.remove('hidden');
-      out.textContent = res ? (res.ok ? `✅ Success!\n${res.message}` : `❌ Failed:\n${res.error}`) : 'Network error.';
+      out.textContent = res ? (res.ok ? `Success: ${res.message}` : `Error: ${res.error}`) : 'Network error.';
     }
     if (res && res.ok) loadExtensions();
   });
@@ -622,7 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const btn = document.getElementById('btnSubmitQuickProv');
     btn.disabled = true;
-    btn.textContent = '⚡ Provisioning...';
+    btn.textContent = 'Provisioning...';
 
     const payload = {
       extension: document.getElementById('qpExt').value.trim(),
@@ -639,7 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     btn.disabled = false;
-    btn.textContent = '⚡ Provision Now';
+    btn.textContent = 'Provision Now';
 
     if (res && res.ok) {
       document.getElementById('qpResult')?.classList.remove('hidden');
@@ -1152,14 +1152,14 @@ document.addEventListener('DOMContentLoaded', () => {
               badge.className = 'badge badge-firmware-cached';
             }
             if (purgeBtn) purgeBtn.classList.remove('hidden');
-            if (autoBtn) autoBtn.innerHTML = '<span>⚡</span> Re-Download Package';
+            if (autoBtn) autoBtn.innerHTML = 'Re-Download Package';
           } else {
             if (badge) {
               badge.textContent = '○ Not Stored Internally';
               badge.className = 'badge badge-firmware-missing';
             }
             if (purgeBtn) purgeBtn.classList.add('hidden');
-            if (autoBtn) autoBtn.innerHTML = '<span>⚡</span> Auto-Download to Server';
+            if (autoBtn) autoBtn.innerHTML = 'Auto-Download to Server';
           }
         }
       }
@@ -1195,14 +1195,14 @@ document.addEventListener('DOMContentLoaded', () => {
               badge.className = 'badge badge-firmware-cached';
             }
             if (purgeBtn) purgeBtn.classList.remove('hidden');
-            if (autoBtn) autoBtn.innerHTML = '<span>⚡</span> Re-Download Package';
+            if (autoBtn) autoBtn.innerHTML = 'Re-Download Package';
           } else {
             if (badge) {
               badge.textContent = '○ Not Stored Internally';
               badge.className = 'badge badge-firmware-missing';
             }
             if (purgeBtn) purgeBtn.classList.add('hidden');
-            if (autoBtn) autoBtn.innerHTML = '<span>⚡</span> Auto-Download to Server';
+            if (autoBtn) autoBtn.innerHTML = 'Auto-Download to Server';
           }
         }
       }
@@ -1387,7 +1387,7 @@ document.addEventListener('DOMContentLoaded', () => {
       window.showToast('Network error while requesting firmware download.', 'error');
     } finally {
       btn.disabled = false;
-      btn.innerHTML = '<span>⚡</span> Auto-Download to Server';
+      btn.innerHTML = 'Auto-Download to Server';
     }
   });
 
@@ -1476,7 +1476,7 @@ document.addEventListener('DOMContentLoaded', () => {
       window.showToast('Network error while requesting firmware download.', 'error');
     } finally {
       btn.disabled = false;
-      btn.innerHTML = '<span>⚡</span> Auto-Download to Server';
+      btn.innerHTML = 'Auto-Download to Server';
     }
   });
 
@@ -1590,8 +1590,8 @@ document.addEventListener('DOMContentLoaded', () => {
           <td>${h.last_provisioned_at ? new Date(h.last_provisioned_at).toLocaleString() : '<span class="muted">Never fetched</span>'}</td>
           <td>
             <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-              <button class="btn btn-sm btn-primary" onclick="editHandsetConfig('${cleanMac}')">✏️ Edit Config</button>
-              <a class="btn btn-sm btn-secondary" href="${provUrl}" target="_blank" title="Test Fetch Profile">🔗 Test</a>
+              <button class="btn btn-sm btn-primary" onclick="editHandsetConfig('${cleanMac}')">Edit Config</button>
+              <a class="btn btn-sm btn-secondary" href="${provUrl}" target="_blank" title="Test Fetch Profile">Test</a>
               ${canManage ? `
                 <button class="btn btn-sm btn-danger" onclick="deleteHandset('${cleanMac}')">Remove</button>
               ` : ''}
@@ -1654,7 +1654,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    document.getElementById('editHandsetTitle').textContent = `✏️ Edit Provisioning Profile — ${res.brand.toUpperCase()} ${res.model || ''}`;
+    document.getElementById('editHandsetTitle').textContent = `Edit Provisioning Profile — ${res.brand.toUpperCase()} ${res.model || ''}`;
     document.getElementById('editHandsetSub').textContent = `Device MAC: ${mac.toUpperCase()} | Assigned to Extension ${res.extension} (${res.displayName})`;
 
     const provUrl = getHandsetProvisionUrl(res.brand, mac);
@@ -1803,9 +1803,9 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><span class="badge ${r.enable_qos ? 'badge-primary' : 'badge-secondary'}">${r.enable_qos ? 'DSCP 46 / EF' : 'Off'}</span></td>
           <td>
             <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-              <button class="btn btn-sm btn-primary" onclick="editRouterScript(${r.id})">✏️ Edit Script</button>
-              <button class="btn btn-sm btn-secondary" onclick="downloadRouterScript(${r.id}, '${r.site_name.replace(/'/g, "\\'")}', '${r.brand}')">💾 Download</button>
-              <button class="btn btn-sm btn-secondary" onclick="copyRouterUrl(${r.id})">🔗 Boot URL</button>
+              <button class="btn btn-sm btn-primary" onclick="editRouterScript(${r.id})">Edit Script</button>
+              <button class="btn btn-sm btn-secondary" onclick="downloadRouterScript(${r.id}, '${r.site_name.replace(/'/g, "\\'")}', '${r.brand}')">Download</button>
+              <button class="btn btn-sm btn-secondary" onclick="copyRouterUrl(${r.id})">Boot URL</button>
               ${canManage ? `<button class="btn btn-sm btn-danger" onclick="deleteRouter(${r.id})">Delete</button>` : ''}
             </div>
           </td>
@@ -1866,7 +1866,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    document.getElementById('editRouterTitle').textContent = `✏️ Edit VoIP Script — ${res.siteName} (${res.brand.toUpperCase()} ${res.model || ''})`;
+    document.getElementById('editRouterTitle').textContent = `Edit VoIP Script — ${res.siteName} (${res.brand.toUpperCase()} ${res.model || ''})`;
     document.getElementById('editRouterSub').textContent = `Target Platform: ${res.brand.toUpperCase()} | File: ${res.filename}`;
     document.getElementById('editRouterFileTag').textContent = res.filename;
 
