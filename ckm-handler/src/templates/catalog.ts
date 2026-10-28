@@ -200,16 +200,17 @@ export const ROUTER_CATALOG: DeviceBrandMeta[] = [
   },
   {
     id: 'tplink',
-    name: 'TP-Link (Omada SDN & Archer/VR Series)',
+    name: 'TP-Link (Omada SDN & Aginet/Archer VoIP Series)',
     configExt: '.txt',
-    vendorDocUrl: 'https://www.tp-link.com/support/download/',
+    vendorDocUrl: 'https://service-provider.tp-link.com/',
     models: [
+      { id: 'vz230v', name: 'TP-Link Aginet VZ230v (AX1800 Wi-Fi 6 Super VDSL VoIP Router)', series: 'Aginet ISP VoIP', firmwareVersion: 'Firmware v1.1.0', firmwareUrl: 'https://service-provider.tp-link.com/xdsl/vz230v/', firmwareFilename: 'VZ230vv1_un_1.1.0.bin', firmwareNotes: 'Aginet Wi-Fi 6 VoIP Gateway with dual FXS ports, TR-104 voice provisioning, and hardware SIP ALG control' },
+      { id: 'vx220-g2v', name: 'TP-Link VX220-G2v (Wi-Fi 6 VDSL VoIP Router)', series: 'Aginet ISP VoIP', firmwareVersion: 'Firmware v2.0.0', firmwareUrl: 'https://service-provider.tp-link.com/', firmwareFilename: 'VX220-G2vv2.bin', firmwareNotes: 'ISP VoIP router with dual RJ11 FXS ports & Option 66' },
+      { id: 'vr2100v', name: 'TP-Link Archer VR2100v (Super VDSL VoIP Gateway)', series: 'Archer VoIP Series', firmwareVersion: 'Firmware v1.1.0', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'Archer_VR2100vv1.bin' },
       { id: 'er605', name: 'TP-Link Omada ER605 (TL-R605 Gigabit VPN)', series: 'Omada Gigabit', firmwareVersion: 'Firmware v2.2.4', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'ER605v2_un_2.2.4.bin', firmwareNotes: 'Omada SDN Gateway with hardware SIP ALG bypass & Option 66' },
       { id: 'er7206', name: 'TP-Link Omada ER7206 (TL-ER7206 SFP Gigabit)', series: 'Omada Enterprise', firmwareVersion: 'Firmware v1.4.1', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'ER7206v1_un_1.4.1.bin' },
       { id: 'er707-m2', name: 'TP-Link Omada ER707-M2 (Multi-Gigabit 2.5G)', series: 'Omada Multi-Gig', firmwareVersion: 'Firmware v1.2.2', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'ER707-M2v1_un_1.2.2.bin' },
-      { id: 'er8411', name: 'TP-Link Omada ER8411 (Enterprise 10G SFP+)', series: 'Omada 10G', firmwareVersion: 'Firmware v1.2.0', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'ER8411v1_un_1.2.0.bin' },
-      { id: 'vr2100v', name: 'TP-Link Archer VR2100v (Super VDSL VoIP Gateway)', series: 'Archer VoIP Series', firmwareVersion: 'Firmware v1.1.0', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'Archer_VR2100vv1.bin' },
-      { id: 'vx220-g2v', name: 'TP-Link VX220-G2v (Wi-Fi 6 VDSL VoIP Router)', series: 'ISP VoIP Series', firmwareVersion: 'Firmware v2.0.0', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'VX220-G2vv2.bin' }
+      { id: 'er8411', name: 'TP-Link Omada ER8411 (Enterprise 10G SFP+)', series: 'Omada 10G', firmwareVersion: 'Firmware v1.2.0', firmwareUrl: 'https://www.tp-link.com/support/download/', firmwareFilename: 'ER8411v1_un_1.2.0.bin' }
     ]
   },
   {

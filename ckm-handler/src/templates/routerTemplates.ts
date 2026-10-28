@@ -63,20 +63,61 @@ ${enableQos ? `## 4. Quality of Service (QoS), Fasttrack Bypass & DSCP Priority
 `;
 }
 
-// 2. TP-Link (Omada SDN Gateways & Archer / VR DSL Routers)
+// 2. TP-Link (Omada SDN Gateways & Aginet / Archer VoIP Routers — VZ230v, VX220-G2v, VR2100v, ER605)
 export function generateTpLinkConfig(cfg: RouterConfigParams): string {
   const subnetBase = cfg.voiceSubnet.split('/')[0];
   const ipPrefix = subnetBase.substring(0, subnetBase.lastIndexOf('.'));
   const disableAlg = cfg.disableSipAlg !== false;
   const enableQos = cfg.enableQos !== false;
+  const isVz230v = (cfg.model || '').toLowerCase().includes('vz230') || (cfg.model || '').toLowerCase().includes('vx220');
 
   return `# ==============================================================================
 # CKM Handler TP-Link VoIP Deployment Guide & Configuration Script
-# Site: ${cfg.siteName} | Target Model: ${cfg.model || 'ER605 / ER7206 / VR2100v / Archer'}
+# Site: ${cfg.siteName} | Target Model: ${cfg.model || 'VZ230v / VX220-G2v / ER605 / VR2100v'}
+# Operating System: TP-Link Aginet OS / Omada SDN / Linux Kernel
 # Generated at: ${new Date().toISOString()}
 # ==============================================================================
 
-### SECTION A: TP-LINK OMADA SDN CONTROLLER SETUP (ER605 / ER7206 / ER8411)
+### SECTION A: TP-LINK AGINET VZ230v / VX220-G2v ISP VOIP GATEWAY SETUP
+${disableAlg ? `1. Disable Hardware SIP ALG Helper:
+   - Log into Web GUI: http://192.168.1.1 (or ${subnetBase})
+   - Navigate to: Advanced > Network > NAT > ALG
+   - Uncheck: [ ] SIP ALG
+   - Click "Save" (Crucial: prevents NAT port corruption and 30-sec dropouts)` : ''}
+
+2. Voice VLAN 20 & High-Priority Traffic Tagging:
+   - Navigate to: Advanced > Network > IPTV/VLAN
+   - Select Mode: Custom
+   - Voice VLAN ID: ${cfg.voiceVlanId}
+   - 802.1Q Priority / CoS: 6 (Voice / Telephony)
+   - Assign to LAN Ports: LAN 2, LAN 3, LAN 4 (for IP Deskphones)
+
+3. Integrated RJ11 FXS Analog Phone Port 1 & Port 2 SIP Provisioning:
+   - Navigate to: Advanced > Telephony > Telephone Numbers > Add Account:
+     * Telephony Provider: Other
+     * SIP Server / Registrar: ${cfg.pbxServer}
+     * SIP Server Port: 5060 (UDP/TLS)
+     * Outbound Proxy: ${cfg.pbxServer}
+     * Register Expiry Time: 3600 seconds
+     * Codecs Priority: 1. G.722 HD, 2. G.711a (PCMA), 3. G.729
+     * DTMF Method: RFC 2833 / SIP INFO
+     * T.38 Fax Support: Enabled (High-Speed Error Correction)
+
+4. Auto-Provisioning Option 66 for Connected IP Deskphones:
+   - Navigate to: Advanced > Network > LAN Settings > DHCP Server
+   - Advanced Settings > Option 66 (TFTP / HTTP Provisioning Server):
+     * Value: "${cfg.dataHandlerUrl}/provision/"
+   - Connected Yealink, Snom, Grandstream, Poly, and Fanvil handsets will
+     automatically configure on boot via this gateway.
+
+${enableQos ? `5. Hardware QoS (Quality of Service) Bandwidth Reservation:
+   - Navigate to: Advanced > QoS
+   - Enable Quality of Service: [x] Checked
+   - Set Guaranteed VoIP Reserve: Minimum 10 Mbps Up / 10 Mbps Down
+   - Voice Packet DSCP Tag: DSCP 46 (EF - Expedited Forwarding)` : ''}
+
+------------------------------------------------------------------------------
+### SECTION B: TP-LINK OMADA SDN CONTROLLER SETUP (ER605 / ER7206 / ER8411)
 ${disableAlg ? `1. Disable SIP ALG in Omada Controller:
    - Navigate to: Network Security > Attack Defense > ALG
    - Uncheck: [ ] SIP ALG
@@ -101,16 +142,11 @@ ${disableAlg ? `1. Disable SIP ALG in Omada Controller:
        - Type: String
        - Value: "${cfg.dataHandlerUrl}/provision/"
 
-${enableQos ? `4. QoS & Bandwidth Prioritization:
-   - Navigate to: Transmission > Quality of Service
-   - Enable Quality of Service for VLAN ${cfg.voiceVlanId}
-   - Assign Guaranteed Minimum Voice Bandwidth: 10 Mbps (DSCP EF 46)` : ''}
-
 ------------------------------------------------------------------------------
-### SECTION B: STANDALONE ARCHER / VR-SERIES (TELNET / SSH / CLI SCRIPT)
+### SECTION C: STANDALONE ARCHER / VR-SERIES (TELNET / SSH / CLI SCRIPT)
 ${disableAlg ? `# Disable SIP ALG helper on Broadcom/Qualcomm chipset:
 sys alg -s sip disable
-# Or on OpenWrt-based TP-Link models:
+# Or on OpenWrt / Linux-based TP-Link models:
 uci set firewall.@alg[0].sip='0'
 uci commit firewall
 /etc/init.d/firewall restart` : ''}
