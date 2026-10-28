@@ -72,12 +72,12 @@ export function generateTpLinkConfig(cfg: RouterConfigParams): string {
 
   return `# ==============================================================================
 # CKM Handler TP-Link VoIP Deployment Guide & Configuration Script
-# Site: ${cfg.siteName} | Target Model: ${cfg.model || 'VZ230v / AX1800 / EX220v / ER605'}
+# Site: ${cfg.siteName} | Target Model: ${cfg.model || 'VX220-G2v / VZ230v / AX1800 / ER605'}
 # Operating System: TP-Link Aginet OS / Archer Wi-Fi 6 / Omada SDN
 # Generated at: ${new Date().toISOString()}
 # ==============================================================================
 
-### SECTION A: TP-LINK AGINET VZ230v / EX220v / VX220-G2v ISP VOIP GATEWAY SETUP
+### SECTION A: TP-LINK AGINET VX220-G2v / VZ230v / EX220v ISP VOIP GATEWAY SETUP
 ${disableAlg ? `1. Disable Hardware SIP ALG Helper:
    - Log into Web GUI: http://192.168.1.1 (or ${subnetBase})
    - Navigate to: Advanced > Network > NAT > ALG
@@ -101,15 +101,26 @@ ${disableAlg ? `1. Disable Hardware SIP ALG Helper:
      * Codecs Priority: 1. G.722 HD, 2. G.711a (PCMA), 3. G.729
      * DTMF Method: RFC 2833 / SIP INFO
      * T.38 Fax Support: Enabled (High-Speed Error Correction)
+   - Advanced SIP Telephony Options:
+     * NAT Keep Alive: 30 seconds
+     * Session Timer (RFC 4028): 1800 seconds
+     * PRACK (RFC 3262): Enabled
+     * Caller ID: Bellcore / ETSI FSK
 
-4. Auto-Provisioning Option 66 for Connected IP Deskphones:
+4. Integrated DECT Cordless Handset Base Station (VX220-G2v DECT variant):
+   - Navigate to: Advanced > Telephony > DECT
+   - Enable DECT Function: [x] Checked
+   - Click "Pairing" and press pairing button on DECT handset (supports up to 6 handsets)
+   - Assign incoming/outgoing SIP numbers per cordless handset
+
+5. Auto-Provisioning Option 66 for Connected IP Deskphones:
    - Navigate to: Advanced > Network > LAN Settings > DHCP Server
    - Advanced Settings > Option 66 (TFTP / HTTP Provisioning Server):
      * Value: "${cfg.dataHandlerUrl}/provision/"
    - Connected Yealink, Snom, Grandstream, Poly, and Fanvil handsets will
      automatically configure on boot via this gateway.
 
-${enableQos ? `5. Hardware QoS (Quality of Service) Bandwidth Reservation:
+${enableQos ? `6. Hardware QoS (Quality of Service) Bandwidth Reservation:
    - Navigate to: Advanced > QoS
    - Enable Quality of Service: [x] Checked
    - Set Guaranteed VoIP Reserve: Minimum 10 Mbps Up / 10 Mbps Down
