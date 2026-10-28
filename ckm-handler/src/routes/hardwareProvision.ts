@@ -31,7 +31,7 @@ const getRouterByIdStmt = systemDb.prepare(`
 `);
 
 const getRouterByMacStmt = systemDb.prepare(`
-  SELECT * FROM routers WHERE LOWER(REPLACE(mac_address, ":", "")) = ?
+  SELECT * FROM routers WHERE LOWER(REPLACE(mac_address, ':', '')) = ?
 `);
 
 // Hardware Deskphone Provisioning Handler

@@ -290,7 +290,7 @@ router.post('/api/admin/handsets', adminAuth, (req: Request, res: Response) => {
 
 router.delete('/api/admin/handsets/:mac', adminAuth, (req: Request, res: Response) => {
   const cleanMac = req.params.mac.toLowerCase().replace(/[^0-9a-f]/g, '');
-  systemDb.prepare('DELETE FROM physical_handsets WHERE LOWER(REPLACE(mac_address, ":", "")) = ?').run(cleanMac);
+  systemDb.prepare("DELETE FROM physical_handsets WHERE LOWER(REPLACE(mac_address, ':', '')) = ?").run(cleanMac);
   return res.json({ ok: true, message: `Handset MAC [${cleanMac}] removed.` });
 });
 
