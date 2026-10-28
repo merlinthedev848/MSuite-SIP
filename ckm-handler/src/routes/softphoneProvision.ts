@@ -144,6 +144,13 @@ router.post('/sip/autoprovision/:code', handlePinProvision);
 router.post('/sip/details/:code', handlePinProvision);
 router.post('/api/v1/provision', handlePinProvision);
 
+// Support GET method for manual testing and browser diagnostics
+router.get('/sip/provision/:code', handlePinProvision);
+router.get('/sip/register/:code', handlePinProvision);
+router.get('/sip/autoprovision/:code', handlePinProvision);
+router.get('/sip/details/:code', handlePinProvision);
+router.get('/api/v1/provision', handlePinProvision);
+
 // 2. Dynamic 10-Minute Config Sync Endpoint
 router.get('/api/v1/config/sync', (req: Request, res: Response) => {
   res.set('Cache-Control', 'public, max-age=300');

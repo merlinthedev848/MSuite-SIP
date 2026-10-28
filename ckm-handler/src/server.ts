@@ -1,5 +1,6 @@
 import http from 'http';
 import path from 'path';
+import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
 import { PORT, SERVER_DOMAIN } from './config';
@@ -44,7 +45,6 @@ app.use(hardwareProvisionRouter);
 app.use(firmwareRouter);
 app.use(directoryRouter);
 app.use(chatFilesRouter);
-app.use('/api/admin', adminRouter);
 app.use(adminRouter);
 app.use(gdprRouter);
 app.use(integrationApiRouter);
@@ -52,6 +52,42 @@ app.use(integrationApiRouter);
 // 5. Static Web Admin Portal
 const adminStaticPath = path.resolve(__dirname, '../public/admin');
 app.use('/admin', express.static(adminStaticPath));
+
+// Seamless root redirect to Admin Dashboard
+app.get('/', (req, res) => {
+  res.redirect(302, '/admin');
+});
+
+// Favicon handlers to prevent 404 log noise
+app.get('/favicon.ico', (req, res) => {
+  const icoPath = path.resolve(adminStaticPath, 'favicon.ico');
+  if (fs.existsSync(icoPath)) return res.sendFile(icoPath);
+  res.status(204).end();
+});
+
+app.get('/favicon.png', (req, res) => {
+  const pngPath = path.resolve(adminStaticPath, 'favicon.png');
+  if (fs.existsSync(pngPath)) return res.sendFile(pngPath);
+  res.status(204).end();
+});
+
+// API 404 handler for unknown endpoints
+app.use('/api', (req, res) => {
+  res.status(404).json({ ok: false, error: `API endpoint ${req.method} ${req.originalUrl} not found` });
+});
+
+// Global Error Boundary & Exception Handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('[CKM Handler Internal Error]', err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  const status = typeof err.status === 'number' ? err.status : 500;
+  res.status(status).json({
+    ok: false,
+    error: err.message || 'Internal Server Error'
+  });
+});
 
 // 6. Initialize Real-Time Socket.IO Server
 initializeSocketService(server);

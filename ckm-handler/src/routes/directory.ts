@@ -117,4 +117,41 @@ router.get('/phonebook/grandstream.xml', (req: Request, res: Response) => {
   return res.send(xml);
 });
 
+// 5. Snom XML Phonebook
+router.get('/phonebook/snom.xml', (req: Request, res: Response) => {
+  const contacts = getUnifiedContacts();
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\r\n<SnomIPPhoneDirectory>\r\n  <Title>Company Directory</Title>\r\n  <Prompt>Select Contact</Prompt>\r\n';
+
+  for (const c of contacts) {
+    xml += '  <DirectoryEntry>\r\n';
+    xml += '    <Name>' + escapeXml(c.name) + '</Name>\r\n';
+    xml += '    <Telephone>' + escapeXml(c.extension) + '</Telephone>\r\n';
+    if (c.mobile) {
+      xml += '    <Telephone>' + escapeXml(c.mobile) + '</Telephone>\r\n';
+    }
+    xml += '  </DirectoryEntry>\r\n';
+  }
+
+  xml += '</SnomIPPhoneDirectory>';
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  return res.send(xml);
+});
+
+// 6. Cisco / SPA XML Phonebook
+router.get(['/phonebook/cisco.xml', '/phonebook/spa.xml'], (req: Request, res: Response) => {
+  const contacts = getUnifiedContacts();
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\r\n<CiscoIPPhoneDirectory>\r\n  <Title>Company Directory</Title>\r\n  <Prompt>Select Contact</Prompt>\r\n';
+
+  for (const c of contacts) {
+    xml += '  <DirectoryEntry>\r\n';
+    xml += '    <Name>' + escapeXml(c.name) + '</Name>\r\n';
+    xml += '    <Telephone>' + escapeXml(c.extension) + '</Telephone>\r\n';
+    xml += '  </DirectoryEntry>\r\n';
+  }
+
+  xml += '</CiscoIPPhoneDirectory>';
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  return res.send(xml);
+});
+
 export default router;

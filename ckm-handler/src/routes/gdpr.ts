@@ -71,7 +71,7 @@ router.delete('/api/v1/gdpr/user/:extension', adminAuth, requirePermission('mana
 });
 
 // 2. Data Portability Export (GDPR Article 20)
-router.get('/api/v1/gdpr/user/:extension/export', (req: Request, res: Response) => {
+router.get('/api/v1/gdpr/user/:extension/export', adminAuth, requirePermission('manage_gdpr'), (req: Request, res: Response) => {
   const extension = String(req.params.extension).trim();
   
   const rawMessages = vaultDb.prepare(`

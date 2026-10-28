@@ -32,6 +32,7 @@ mkdir -p "${APP_DIR}"
 cp -r "${REPO_DIR}/ckm-handler/src" "${APP_DIR}/"
 cp -r "${REPO_DIR}/ckm-handler/public" "${APP_DIR}/"
 cp "${REPO_DIR}/ckm-handler/package.json" "${APP_DIR}/"
+cp "${REPO_DIR}/ckm-handler/package-lock.json" "${APP_DIR}/" 2>/dev/null || true
 cp "${REPO_DIR}/ckm-handler/tsconfig.json" "${APP_DIR}/"
 
 # Also install update helper in /usr/local/bin and /var/www/ckm-handler
@@ -40,6 +41,10 @@ chmod +x "${APP_DIR}/update.sh" 2>/dev/null || true
 ln -sfn "${APP_DIR}/update.sh" /usr/local/bin/update-ckm-handler 2>/dev/null || true
 
 cd "${APP_DIR}"
+if [ ! -d "node_modules" ] || [ package.json -nt node_modules ]; then
+  echo "[*] Synchronizing dependencies..."
+  npm install --no-audit --prefer-offline 2>/dev/null || npm install 2>/dev/null || true
+fi
 echo "[*] Building application with TypeScript..."
 npm run build
 
