@@ -1,7 +1,7 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { APP_SECRET_KEY } from '../config';
-import vaultDb from '../database/vaultDb';
+import { VaultStore } from '../database/vaultDb';
 
 export function initializeSocketService(httpServer: HttpServer): SocketIOServer {
   const io = new SocketIOServer(httpServer, {
@@ -44,13 +44,8 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
           return;
         }
 
-        // Synchronous SQLite statement execution guaranteed within event loop
-        const insertStmt = vaultDb.prepare(`
-          INSERT INTO messages (conversation_id, sender_id, message_type, content, file_id, file_name, file_size)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
-
-        const info = insertStmt.run(
+        // Synchronous SQLite statement execution with AES-256-GCM encryption at rest
+        const newRow = VaultStore.insertMessage(
           conversationId,
           senderId,
           messageType || 'text',
@@ -60,7 +55,10 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
           fileSize || null
         );
 
-        const newRow = vaultDb.prepare('SELECT * FROM messages WHERE id = ?').get(info.lastInsertRowid) as any;
+        if (!newRow) {
+          if (ackCallback) ackCallback({ success: false, error: 'Database write failed.' });
+          return;
+        }
 
         const broadcastPayload = {
           id: newRow.id,

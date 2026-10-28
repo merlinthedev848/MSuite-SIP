@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import crypto from 'crypto';
 import vaultDb from '../database/vaultDb';
+import { decryptVaultText } from '../database/cryptoVault';
 
 const router = Router();
 
@@ -72,12 +73,17 @@ router.delete('/api/v1/gdpr/user/:extension', (req: Request, res: Response) => {
 router.get('/api/v1/gdpr/user/:extension/export', (req: Request, res: Response) => {
   const extension = String(req.params.extension).trim();
   
-  const userMessages = vaultDb.prepare(`
+  const rawMessages = vaultDb.prepare(`
     SELECT id, conversation_id, sender_id, message_type, content, file_name, file_size, timestamp
     FROM messages
     WHERE sender_id = ? OR conversation_id = ?
     ORDER BY id ASC
-  `).all(extension, extension);
+  `).all(extension, extension) as any[];
+
+  const userMessages = rawMessages.map(m => ({
+    ...m,
+    content: decryptVaultText(m.content)
+  }));
 
   const userContacts = vaultDb.prepare(`
     SELECT extension, full_name, email, mobile, department, created_at
