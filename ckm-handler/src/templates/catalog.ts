@@ -33,6 +33,16 @@ export const HANDSET_CATALOG: DeviceBrandMeta[] = [
     configExt: '.cfg',
     vendorDocUrl: 'https://support.yealink.com/',
     models: [
+      { id: 'T73U', name: 'Yealink T73U (Next-Gen 3.2" Color Dual-USB)', series: 'T7 Productivity Series', firmwareVersion: '183.86.0.15', firmwareUrl: 'https://support.yealink.com/', firmwareFilename: 'T73U-183.86.0.15.rom', firmwareNotes: 'AI Noise Reduction, Opus HD 48kHz, Three Rings Security' },
+      { id: 'T73W', name: 'Yealink T73W (Next-Gen Wi-Fi 6 & BT Color)', series: 'T7 Productivity Series', firmwareVersion: '183.86.0.15', firmwareUrl: 'https://support.yealink.com/', firmwareFilename: 'T73W-183.86.0.15.rom', firmwareNotes: 'Built-in Wi-Fi 6, Bluetooth 5.0, AI Noise Cancellation' },
+      { id: 'T74U', name: 'Yealink T74U (Next-Gen 4.3" Color Dual-USB)', series: 'T7 Productivity Series', firmwareVersion: '184.86.0.15', firmwareUrl: 'https://support.yealink.com/', firmwareFilename: 'T74U-184.86.0.15.rom', firmwareNotes: '4.3" Color Display, Acoustic Shield 2.0, Multi-Page BLF' },
+      { id: 'T74W', name: 'Yealink T74W (Next-Gen 4.3" Wi-Fi 6 & BT)', series: 'T7 Productivity Series', firmwareVersion: '184.86.0.15', firmwareUrl: 'https://support.yealink.com/', firmwareFilename: 'T74W-184.86.0.15.rom', firmwareNotes: 'Built-in Wi-Fi 6, Bluetooth 5.0, USB-C Device Mode' },
+      { id: 'T77U', name: 'Yealink T77U (Next-Gen 7" Color Touchscreen)', series: 'T7 Executive Series', firmwareVersion: '187.86.0.15', firmwareUrl: 'https://support.yealink.com/', firmwareFilename: 'T77U-187.86.0.15.rom', firmwareNotes: '7-inch Touch Display, 29 One-Touch DSS Keys, USB-C/USB-A' },
+      { id: 'T85W', name: 'Yealink T85W (Next-Gen 5.5" Executive Wi-Fi 6)', series: 'T8 Executive Series', firmwareVersion: '195.86.0.10', firmwareUrl: 'https://support.yealink.com/', firmwareFilename: 'T85W-195.86.0.10.rom', firmwareNotes: '5.5" Color Display, Wi-Fi 6, Bluetooth 5.0, USB-C Device Mode, Three Rings Security' },
+      { id: 'T87W', name: 'Yealink T87W (Next-Gen 7" Touch Executive Wi-Fi 6)', series: 'T8 Executive Series', firmwareVersion: '197.86.0.10', firmwareUrl: 'https://support.yealink.com/', firmwareFilename: 'T87W-197.86.0.10.rom', firmwareNotes: '7" Capacitive Touch, Wi-Fi 6, BT 5.0, Acoustic Shield 3.0, Floating BLF' },
+      { id: 'T88W', name: 'Yealink T88W (Next-Gen Android 13 Flagship Smart Phone)', series: 'T8 Flagship Series', firmwareVersion: '200.86.0.10', firmwareUrl: 'https://support.yealink.com/', firmwareFilename: 'T88W-200.86.0.10.rom', firmwareNotes: 'Android 13 OS, 8" HD Touchscreen, Wi-Fi 6, BT 5.2, USB-C Device Mode' },
+      { id: 'T88V', name: 'Yealink T88V (Next-Gen Android 13 Smart Video Phone)', series: 'T8 Flagship Series', firmwareVersion: '200.86.0.10', firmwareUrl: 'https://support.yealink.com/', firmwareFilename: 'T88V-200.86.0.10.rom', firmwareNotes: 'Integrated 5MP 1080p Video Camera, Android 13, 8" Touch, Wi-Fi 6' },
+      { id: 'T88-Pro', name: 'Yealink T88 Pro (Flagship Wireless Handset Smart Video)', series: 'T8 Flagship Series', firmwareVersion: '200.86.0.10', firmwareUrl: 'https://support.yealink.com/', firmwareFilename: 'T88Pro-200.86.0.10.rom', firmwareNotes: 'Bluetooth Wireless Handset, Android 13, 5MP Camera, 8" Screen' },
       { id: 'T30P', name: 'Yealink T30P', series: 'T3 Entry Series', firmwareVersion: '124.86.0.40', firmwareUrl: 'https://support.yealink.com/en/portal/docList?archiveType=software&productCode=9c5c7dbfa1766a50', firmwareFilename: 'T30P-124.86.0.40.rom', firmwareNotes: 'TLS 1.3, Opus HD, Enhanced BLF' },
       { id: 'T31P', name: 'Yealink T31P', series: 'T3 Entry Series', firmwareVersion: '124.86.0.40', firmwareUrl: 'https://support.yealink.com/en/portal/docList?archiveType=software&productCode=9c5c7dbfa1766a50', firmwareFilename: 'T31P-124.86.0.40.rom' },
       { id: 'T31G', name: 'Yealink T31G (Gigabit)', series: 'T3 Entry Series', firmwareVersion: '124.86.0.40', firmwareUrl: 'https://support.yealink.com/en/portal/docList?archiveType=software&productCode=9c5c7dbfa1766a50', firmwareFilename: 'T31G-124.86.0.40.rom' },
@@ -448,6 +458,27 @@ export function generateDefaultHandsetConfig(brand: string, cfg: HandsetAccountC
   if (modelMeta?.firmwareFilename) {
     conf += `\r\n## Specific Model Firmware Target: ${modelMeta.name} (${modelMeta.firmwareVersion})\r\n`;
     conf += `firmware.url = ${cfg.dataHandlerUrl}/firmware/yealink/${modelMeta.firmwareFilename}\r\n`;
+  }
+
+  const mId = (model || '').toUpperCase();
+  if (mId.startsWith('T7') || mId.startsWith('T8')) {
+    conf += `\r\n## Yealink Next-Gen ${mId.startsWith('T7') ? 'T7X Productivity' : 'T8X Executive'} Telephony Engine\r\n`;
+    conf += `features.noise_filter.enable = 1\r\n`;
+    conf += `features.acoustic_shield.enable = 1\r\n`;
+    conf += `features.acoustic_shield.mode = 1\r\n`;
+    conf += `network.qos.rtptos = 184\r\n`;
+    conf += `network.qos.signaltos = 104\r\n`;
+    conf += `network.vlan.internet_port_enable = 1\r\n`;
+    conf += `network.vlan.internet_port_vid = 20\r\n`;
+    conf += `network.vlan.internet_port_priority = 6\r\n`;
+    conf += `security.tls.version = 1\r\n`;
+    if (mId.includes('W') || mId.includes('88') || mId.includes('PRO')) {
+      conf += `features.bluetooth.enable = 1\r\n`;
+      conf += `wifi.enable = 1\r\n`;
+    }
+    if (mId.startsWith('T8')) {
+      conf += `features.usb_device_mode.enable = 1\r\n`;
+    }
   }
   return conf;
 }
