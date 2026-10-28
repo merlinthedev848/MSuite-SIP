@@ -207,8 +207,10 @@ async function testFileVault() {
 
         if (res.ok) {
           const json = await res.json();
-          if (json.fileId || json.url) {
-            uploadedFiles.push(json.fileId || json.url);
+          if (json.url) {
+            uploadedFiles.push(json.url);
+          } else if (json.fileId) {
+            uploadedFiles.push(`/files/${json.fileId}`);
           }
         } else {
           errors++;

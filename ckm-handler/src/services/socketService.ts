@@ -3,6 +3,15 @@ import { Server as HttpServer } from 'http';
 import { APP_SECRET_KEY } from '../config';
 import { VaultStore } from '../database/vaultDb';
 
+let activeIo: SocketIOServer | null = null;
+
+export function getSocketStats() {
+  return {
+    connectedClients: activeIo ? activeIo.engine.clientsCount : 0,
+    isOpen: activeIo !== null
+  };
+}
+
 export function initializeSocketService(httpServer: HttpServer): SocketIOServer {
   const io = new SocketIOServer(httpServer, {
     cors: {
@@ -13,6 +22,8 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
     pingTimeout: 20000,
     pingInterval: 10000
   });
+
+  activeIo = io;
 
   // Authentication Middleware
   io.use((socket: Socket, next) => {

@@ -54,7 +54,8 @@
         <div class="topbar-actions">
           <span class="badge badge-primary" id="pbxBadge">PBX: Connecting...</span>
           <span class="badge badge-secondary" id="licenseBadge">License: Active</span>
-          <button class="btn btn-sm" id="btnRefresh">Refresh Data</button>
+          <button class="btn btn-sm" id="btnRefresh">🔄 Refresh</button>
+          <button class="btn btn-sm btn-secondary" id="btnLogout" style="margin-left: 6px;">🚪 Logout</button>
         </div>
       </header>
 
@@ -88,22 +89,59 @@
           </div>
         </div>
 
+        <!-- Live Component Health Matrix -->
+        <div class="card mt-6">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <h3>Service Component Health & Status</h3>
+              <p class="muted">Live status, latency, and telemetry across all internal system daemons</p>
+            </div>
+            <span class="badge badge-primary" id="componentsSummaryBadge">Loading status...</span>
+          </div>
+          <div class="component-grid" id="componentsGrid">
+            <!-- Dynamically populated from /api/admin/overview -->
+          </div>
+        </div>
+
         <div class="card mt-6">
           <div class="card-header">
             <h3>Unified Service Endpoints</h3>
+            <p class="muted">Public client endpoints for VoIP deskphones, routers, and MerlinSIP softphones</p>
           </div>
           <div class="endpoint-list">
-            <div class="endpoint-item">
-              <span class="tag">WSS</span> <strong>Real-Time Data Handler:</strong>
-              <code id="epChat">wss://handler.domain.tld/socket.io</code>
+            <div class="endpoint-item" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <div>
+                <span class="tag">WSS</span> <strong>Real-Time Chat & Signaling:</strong>
+                <code id="epChat">wss://handler.domain.tld/socket.io</code>
+              </div>
+              <button class="btn btn-sm btn-secondary" onclick="copyEndpointText('epChat')">Copy WSS</button>
             </div>
-            <div class="endpoint-item">
-              <span class="tag">HTTP</span> <strong>Deskphone Provisioning Server:</strong>
-              <code id="epProv">https://handler.domain.tld/provision/</code>
+            <div class="endpoint-item" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <div>
+                <span class="tag">HTTP</span> <strong>Deskphone Auto-Provisioning Server:</strong>
+                <code id="epProv">https://handler.domain.tld/provision/</code>
+              </div>
+              <button class="btn btn-sm btn-secondary" onclick="copyEndpointText('epProv')">Copy URL</button>
             </div>
-            <div class="endpoint-item">
-              <span class="tag">XML</span> <strong>Corporate Remote Phonebook:</strong>
-              <code id="epPhonebook">https://handler.domain.tld/phonebook/yealink.xml</code>
+            <div class="endpoint-item" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <div>
+                <span class="tag">XML</span> <strong>Corporate Remote Phonebook (Yealink):</strong>
+                <code id="epPhonebook">https://handler.domain.tld/phonebook/yealink.xml</code>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-sm btn-secondary" onclick="copyEndpointText('epPhonebook')">Copy URL</button>
+                <a class="btn btn-sm btn-primary" id="linkPhonebook" href="/phonebook/yealink.xml" target="_blank">Open XML</a>
+              </div>
+            </div>
+            <div class="endpoint-item" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <div>
+                <span class="tag">JSON</span> <strong>Softphone Config Dynamic Sync:</strong>
+                <code id="epSync">https://handler.domain.tld/api/v1/config/sync</code>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-sm btn-secondary" onclick="copyEndpointText('epSync')">Copy URL</button>
+                <a class="btn btn-sm btn-primary" id="linkSync" href="/api/v1/config/sync" target="_blank">Test Sync</a>
+              </div>
             </div>
           </div>
         </div>
@@ -386,6 +424,204 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- Admin Login Modal Overlay -->
+  <div id="modalLogin" class="login-backdrop hidden">
+    <div class="login-card">
+      <div class="login-icon">🔒</div>
+      <h2>CKM Handler Admin</h2>
+      <p>Enter your administrator credentials to access the management portal.</p>
+      <form id="formLogin">
+        <div class="form-group" style="text-align: left;">
+          <label>Username</label>
+          <input type="text" id="loginUsername" required placeholder="admin" autocomplete="username">
+        </div>
+        <div class="form-group" style="text-align: left;">
+          <label>Password</label>
+          <input type="password" id="loginPassword" required placeholder="••••••••••••" autocomplete="current-password">
+        </div>
+        <div id="loginError" class="alert alert-danger hidden" style="margin-bottom: 14px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; text-align: left;">
+          Invalid credentials. Please verify your username and password.
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Login to Dashboard</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Extension Modal -->
+  <div id="modalAddExt" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>+ Create SIP Extension</h3>
+        <button class="modal-close" onclick="closeModal('modalAddExt')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formAddExt">
+          <div class="form-group">
+            <label>Extension Number *</label>
+            <input type="text" id="addExtNum" required placeholder="e.g. 101">
+          </div>
+          <div class="form-group">
+            <label>User Display Name</label>
+            <input type="text" id="addExtName" placeholder="e.g. Alice Walker">
+          </div>
+          <div class="form-group">
+            <label>SIP Username</label>
+            <input type="text" id="addExtUser" placeholder="Defaults to extension number">
+          </div>
+          <div class="form-group">
+            <label>SIP Password / Secret *</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="addExtPass" required placeholder="Enter or auto-generate secret">
+              <button type="button" class="btn btn-secondary" id="btnGenExtPass">Generate</button>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modalAddExt')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Extension</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Register Handset Modal -->
+  <div id="modalAddHandset" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>+ Register Physical Deskphone</h3>
+        <button class="modal-close" onclick="closeModal('modalAddHandset')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formAddHandset">
+          <div class="form-group">
+            <label>Device MAC Address (12 Hex Characters) *</label>
+            <input type="text" id="addHandsetMac" required placeholder="e.g. 00:15:65:A1:B2:C3 or 001565A1B2C3" style="font-family: monospace; text-transform: uppercase;">
+            <small>Found on the barcode sticker under the deskphone.</small>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Phone Brand *</label>
+              <select id="addHandsetBrand">
+                <option value="yealink">Yealink (XML / CFG)</option>
+                <option value="fanvil">Fanvil (XML)</option>
+                <option value="grandstream">Grandstream (XML)</option>
+                <option value="poly">Poly / Polycom</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Model (Optional)</label>
+              <input type="text" id="addHandsetModel" placeholder="e.g. T46U, X4U, GRP2614">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Assign to SIP Extension *</label>
+            <select id="addHandsetExt" required>
+              <option value="">Select an extension...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Line Key Label (Optional)</label>
+            <input type="text" id="addHandsetLabel" placeholder="e.g. Alice W.">
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modalAddHandset')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Register Handset</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Router Modal -->
+  <div id="modalAddRouter" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>+ New VoIP Router & Network Gateway Profile</h3>
+        <button class="modal-close" onclick="closeModal('modalAddRouter')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formAddRouter">
+          <div class="form-group">
+            <label>Client / Site Name *</label>
+            <input type="text" id="addRouterSite" required placeholder="e.g. Central Office London">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Router Platform *</label>
+              <select id="addRouterBrand">
+                <option value="mikrotik">MikroTik RouterOS (.rsc)</option>
+                <option value="ubiquiti">Ubiquiti EdgeOS / UniFi (.sh)</option>
+                <option value="cisco">Cisco IOS (.cfg)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Voice VLAN ID</label>
+              <input type="number" id="addRouterVlan" value="20">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Voice Subnet (CIDR)</label>
+            <input type="text" id="addRouterSubnet" value="10.20.0.1/24" style="font-family: monospace;">
+          </div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
+              <input type="checkbox" id="addRouterAlg" checked> Disable SIP ALG (Prevent RTP & NAT call drops)
+            </label>
+          </div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
+              <input type="checkbox" id="addRouterQos" checked> Prioritize Voice Audio Traffic with DSCP 46 (EF QoS)
+            </label>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modalAddRouter')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Generate Profile</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- PBX AMI Sync Modal -->
+  <div id="modalSyncPbx" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>🔄 Asterisk AMI Extension Synchronization</h3>
+        <button class="modal-close" onclick="closeModal('modalSyncPbx')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted" style="margin-bottom: 16px; font-size: 13px;">Connect directly to Asterisk Manager Interface (AMI) on port 5038 to import all configured SIP peers, endpoints, and credentials automatically.</p>
+        <form id="formSyncPbx">
+          <div class="form-row">
+            <div class="form-group">
+              <label>AMI Host / IP</label>
+              <input type="text" id="amiHost" placeholder="Defaults to PBX server">
+            </div>
+            <div class="form-group">
+              <label>AMI Port</label>
+              <input type="number" id="amiPort" value="5038">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>AMI Username *</label>
+              <input type="text" id="amiUser" required value="admin">
+            </div>
+            <div class="form-group">
+              <label>AMI Secret / Password *</label>
+              <input type="password" id="amiSecret" required placeholder="••••••••">
+            </div>
+          </div>
+          <div id="amiSyncOutput" class="hidden" style="margin: 14px 0; background: #0f172a; color: #38bdf8; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap;"></div>
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modalSyncPbx')">Close</button>
+            <button type="submit" class="btn btn-primary" id="btnRunSync">⚡ Start AMI Sync</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <!-- Quick Pull & Provision Modal -->

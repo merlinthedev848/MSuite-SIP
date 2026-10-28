@@ -1,11 +1,102 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. Navigation Tab Switching
+  // --------------------------------------------------------------------------
+  // 1. Authentication & Session Management
+  // --------------------------------------------------------------------------
+  const modalLogin = document.getElementById('modalLogin');
+  const formLogin = document.getElementById('formLogin');
+  const loginError = document.getElementById('loginError');
+
+  function getAuthToken() {
+    return sessionStorage.getItem('ckm_admin_token') || localStorage.getItem('ckm_admin_token') || '';
+  }
+
+  function setAuthToken(token, persist = true) {
+    if (token) {
+      sessionStorage.setItem('ckm_admin_token', token);
+      if (persist) localStorage.setItem('ckm_admin_token', token);
+    } else {
+      sessionStorage.removeItem('ckm_admin_token');
+      localStorage.removeItem('ckm_admin_token');
+    }
+  }
+
+  function showLogin() {
+    if (modalLogin) modalLogin.classList.remove('hidden');
+  }
+
+  function hideLogin() {
+    if (modalLogin) modalLogin.classList.add('hidden');
+    if (loginError) loginError.classList.add('hidden');
+  }
+
+  formLogin?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const u = document.getElementById('loginUsername').value.trim();
+    const p = document.getElementById('loginPassword').value;
+    if (!u || !p) return;
+
+    const token = btoa(`${u}:${p}`);
+    const res = await fetch('/api/admin/overview', {
+      headers: { 'Authorization': `Basic ${token}` }
+    });
+
+    if (res.ok) {
+      setAuthToken(token, true);
+      hideLogin();
+      loadOverview();
+    } else {
+      if (loginError) {
+        loginError.textContent = 'Invalid administrator credentials. Access denied.';
+        loginError.classList.remove('hidden');
+      }
+    }
+  });
+
+  document.getElementById('btnLogout')?.addEventListener('click', () => {
+    if (confirm('Log out of CKM Handler Admin Portal?')) {
+      setAuthToken('', false);
+      showLogin();
+    }
+  });
+
+  // Global authenticated fetch helper
+  async function fetchJson(url, options = {}) {
+    const token = getAuthToken();
+    if (!token) {
+      showLogin();
+      return null;
+    }
+
+    options.headers = options.headers || {};
+    if (options.headers instanceof Headers) {
+      options.headers.set('Authorization', `Basic ${token}`);
+    } else {
+      options.headers['Authorization'] = `Basic ${token}`;
+    }
+
+    try {
+      const res = await fetch(url, options);
+      if (res.status === 401 || res.status === 403) {
+        setAuthToken('', false);
+        showLogin();
+        return null;
+      }
+      return await res.json();
+    } catch (e) {
+      console.error('Fetch error:', e);
+      return null;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // 2. Navigation & Tab Switching
+  // --------------------------------------------------------------------------
   const navBtns = document.querySelectorAll('.nav-btn');
   const panes = document.querySelectorAll('.tab-pane');
   const pageTitle = document.getElementById('pageTitle');
 
   const titles = {
-    overview: 'System Overview & Metrics',
+    overview: 'System Overview & Component Health',
     extensions: 'SIP Extensions & Softphone PINs',
     handsets: 'Physical IP Handset Directory',
     routers: 'VoIP Router & Network Gateway Profiles',
@@ -34,7 +125,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (activeBtn) loadTabData(activeBtn.dataset.tab);
   });
 
-  // 2. Data Loading Routing
   function loadTabData(tab) {
     if (tab === 'overview') loadOverview();
     else if (tab === 'extensions') loadExtensions();
@@ -45,22 +135,30 @@ document.addEventListener('DOMContentLoaded', () => {
     else if (tab === 'gdpr') loadGdprPolicy();
   }
 
-  // Helper fetch with credentials
-  async function fetchJson(url, options = {}) {
-    try {
-      const res = await fetch(url, options);
-      if (res.status === 401) {
-        alert('Admin authorization required. Please reload and enter admin credentials.');
-        return null;
-      }
-      return await res.json();
-    } catch (e) {
-      console.error('Fetch error:', e);
-      return null;
-    }
-  }
+  // --------------------------------------------------------------------------
+  // 3. Modal Management (Open, Close, Click Outside)
+  // --------------------------------------------------------------------------
+  window.openModal = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('hidden');
+  };
 
-  // 3. Overview Tab
+  window.closeModal = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  };
+
+  document.querySelectorAll('.modal-backdrop').forEach(modal => {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal && modal.id !== 'modalLogin') {
+        modal.classList.add('hidden');
+      }
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // 4. TAB 1: System Overview & Component Health Monitor
+  // --------------------------------------------------------------------------
   async function loadOverview() {
     const data = await fetchJson('/api/admin/overview');
     if (!data || !data.ok) return;
@@ -79,27 +177,70 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('epChat').textContent = `${host.replace(/^http/, 'ws')}/socket.io`;
     document.getElementById('epProv').textContent = `${host}/provision/`;
     document.getElementById('epPhonebook').textContent = `${host}/phonebook/yealink.xml`;
+    document.getElementById('epSync').textContent = `${host}/api/v1/config/sync`;
+
+    // Render Component Health Matrix
+    const grid = document.getElementById('componentsGrid');
+    const badge = document.getElementById('componentsSummaryBadge');
+    if (grid && data.components) {
+      grid.innerHTML = data.components.map(c => {
+        const statusClass = c.status || 'operational';
+        return `
+          <div class="component-card">
+            <div class="component-header">
+              <span class="component-name">${c.name}</span>
+              <span class="status-pill ${statusClass}">
+                <span class="status-pulse"></span> ${c.status}
+              </span>
+            </div>
+            <div class="component-details">${c.details}</div>
+            <div class="component-footer">
+              <span>Latency: <strong>${c.latency}</strong></span>
+              <span class="tag">${c.badge}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const total = data.components.length;
+      const opCount = data.components.filter(c => c.status === 'operational').length;
+      badge.textContent = `${opCount}/${total} Components Operational`;
+      badge.className = opCount === total ? 'badge badge-primary' : 'badge badge-secondary';
+    }
   }
 
-  // 4. Extensions Tab
+  window.copyEndpointText = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    navigator.clipboard.writeText(el.textContent.trim());
+    alert(`Copied endpoint URL to clipboard:\n\n${el.textContent.trim()}`);
+  };
+
+  // --------------------------------------------------------------------------
+  // 5. TAB 2: Extensions & Softphones
+  // --------------------------------------------------------------------------
+  let cachedExtensions = [];
+
   async function loadExtensions() {
     const data = await fetchJson('/api/admin/extensions');
     const tbody = document.getElementById('extTableBody');
     if (!data || !data.ok || !data.extensions.length) {
       tbody.innerHTML = '<tr><td colspan="7" class="text-center">No extensions registered yet. Click "+ New Extension" to create one.</td></tr>';
+      cachedExtensions = [];
       return;
     }
 
+    cachedExtensions = data.extensions;
     tbody.innerHTML = data.extensions.map(ext => `
       <tr>
         <td><strong>${ext.extension}</strong></td>
         <td>${ext.display_name}</td>
         <td><code>${ext.sip_username}</code></td>
-        <td>${ext.active_pin ? `<strong style="color:#0284c7;font-size:14px;">${ext.active_pin}</strong>` : '<span class="muted">None active</span>'}</td>
+        <td>${ext.active_pin ? `<strong style="color:#0284c7;font-size:15px;letter-spacing:1px;">${ext.active_pin}</strong>` : '<span class="muted">None active</span>'}</td>
         <td>${ext.bound_handsets} handset(s)</td>
         <td><span class="badge ${ext.is_active ? 'badge-primary' : 'badge-secondary'}">${ext.is_active ? 'Active' : 'Disabled'}</span></td>
         <td>
-          <button class="btn btn-sm btn-primary" onclick="generatePin('${ext.extension}')">Generate PIN</button>
+          <button class="btn btn-sm btn-secondary" onclick="generatePin('${ext.extension}')">Generate PIN</button>
           <button class="btn btn-sm btn-danger" onclick="deleteExtension('${ext.extension}')">Delete</button>
         </td>
       </tr>
@@ -113,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify({ extension: ext, expiryHours: 72 })
     });
     if (res && res.ok) {
-      alert(`Generated 8-digit PIN for Ext ${ext}: ${res.code}\n\nValid for 72 hours.`);
+      alert(`8-Digit Auto-Provisioning PIN Generated!\n\nExtension: ${ext}\nPIN: ${res.code}\nExpires: ${new Date(res.expiresAt).toLocaleString()}`);
       loadExtensions();
     }
   };
@@ -124,41 +265,135 @@ document.addEventListener('DOMContentLoaded', () => {
     if (res && res.ok) loadExtensions();
   };
 
-  document.getElementById('btnOpenAddExtModal')?.addEventListener('click', async () => {
-    const ext = prompt('Enter Extension Number (e.g. 101):');
-    if (!ext) return;
-    const name = prompt('Enter User Display Name (e.g. Alice Walker):') || `Extension ${ext}`;
-    const pwd = prompt('Enter SIP Secret Password:');
-    if (!pwd) return;
+  // + New Extension Modal & Form
+  document.getElementById('btnOpenAddExtModal')?.addEventListener('click', () => {
+    document.getElementById('formAddExt')?.reset();
+    openModal('modalAddExt');
+  });
+
+  document.getElementById('btnGenExtPass')?.addEventListener('click', () => {
+    const pass = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-6).toUpperCase();
+    document.getElementById('addExtPass').value = pass;
+  });
+
+  document.getElementById('formAddExt')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const ext = document.getElementById('addExtNum').value.trim();
+    const name = document.getElementById('addExtName').value.trim() || `Extension ${ext}`;
+    const user = document.getElementById('addExtUser').value.trim() || ext;
+    const pass = document.getElementById('addExtPass').value.trim();
 
     const res = await fetchJson('/api/admin/extensions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ extension: ext, displayName: name, password: pwd })
+      body: JSON.stringify({ extension: ext, displayName: name, username: user, password: pass })
     });
-    if (res && res.ok) loadExtensions();
+
+    if (res && res.ok) {
+      closeModal('modalAddExt');
+      loadExtensions();
+    } else if (res) {
+      alert(`Error: ${res.error || 'Failed to save extension'}`);
+    }
   });
 
-  document.getElementById('btnSyncPbx')?.addEventListener('click', async () => {
-    const amiUser = prompt('Enter Asterisk AMI Username:', 'admin') || 'admin';
-    const amiSecret = prompt('Enter Asterisk AMI Secret / Password:') || '';
-    if (!amiSecret) return;
+  // Asterisk AMI Sync Modal & Form
+  document.getElementById('btnSyncPbx')?.addEventListener('click', () => {
+    document.getElementById('formSyncPbx')?.reset();
+    document.getElementById('amiSyncOutput')?.classList.add('hidden');
+    openModal('modalSyncPbx');
+  });
+
+  document.getElementById('formSyncPbx')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const out = document.getElementById('amiSyncOutput');
+    const btn = document.getElementById('btnRunSync');
+    btn.disabled = true;
+    btn.textContent = 'Connecting to Asterisk AMI...';
+
+    const payload = {
+      amiHost: document.getElementById('amiHost').value.trim(),
+      amiPort: parseInt(document.getElementById('amiPort').value || '5038', 10),
+      amiUser: document.getElementById('amiUser').value.trim(),
+      amiSecret: document.getElementById('amiSecret').value
+    };
 
     const res = await fetchJson('/api/admin/pbx/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amiUser, amiSecret })
+      body: JSON.stringify(payload)
     });
 
+    btn.disabled = false;
+    btn.textContent = '⚡ Start AMI Sync';
+
+    if (out) {
+      out.classList.remove('hidden');
+      out.textContent = res ? (res.ok ? `✅ Success!\n${res.message}` : `❌ Failed:\n${res.error}`) : 'Network error.';
+    }
+    if (res && res.ok) loadExtensions();
+  });
+
+  // Quick Pull & Provision Modal
+  document.getElementById('btnOpenQuickProvModal')?.addEventListener('click', () => {
+    document.getElementById('formQuickProvision')?.reset();
+    document.getElementById('qpResult')?.classList.add('hidden');
+    openModal('modalQuickProvision');
+  });
+
+  document.getElementById('btnCloseModal')?.addEventListener('click', () => closeModal('modalQuickProvision'));
+  document.getElementById('btnCancelModal')?.addEventListener('click', () => closeModal('modalQuickProvision'));
+
+  document.getElementById('formQuickProvision')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('btnSubmitQuickProv');
+    btn.disabled = true;
+    btn.textContent = '⚡ Provisioning...';
+
+    const payload = {
+      extension: document.getElementById('qpExt').value.trim(),
+      displayName: document.getElementById('qpName').value.trim(),
+      sipPassword: document.getElementById('qpPass').value.trim(),
+      expiryHours: parseInt(document.getElementById('qpExpiry').value || '72', 10),
+      queryPbx: document.getElementById('qpQueryPbx').checked
+    };
+
+    const res = await fetchJson('/api/admin/extensions/quick-provision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    btn.disabled = false;
+    btn.textContent = '⚡ Provision Now';
+
     if (res && res.ok) {
-      alert(`PBX Sync Completed:\n${res.message}`);
+      document.getElementById('qpResult')?.classList.remove('hidden');
+      document.getElementById('qpResultCode').textContent = res.code;
+      document.getElementById('qpResultExt').textContent = `Extension ${res.extension} (${res.displayName})`;
+      document.getElementById('qpResultDeepLink').value = res.deepLink;
+      document.getElementById('qpResultCard').value = res.userWelcomeCard;
       loadExtensions();
     } else if (res) {
-      alert(`PBX Sync Notice:\n${res.error || 'Check AMI credentials on port 5038.'}`);
+      alert(`Provisioning failed: ${res.error || 'Check parameters'}`);
     }
   });
 
-  // 5. Handsets Tab
+  document.getElementById('btnCopyDeepLink')?.addEventListener('click', () => {
+    const val = document.getElementById('qpResultDeepLink').value;
+    navigator.clipboard.writeText(val);
+    alert('Copied 1-Click Setup Link to clipboard!');
+  });
+
+  document.getElementById('btnCopyWelcomeCard')?.addEventListener('click', () => {
+    const val = document.getElementById('qpResultCard').value;
+    navigator.clipboard.writeText(val);
+    alert('Copied Customer Welcome Card to clipboard!');
+  });
+
+  // --------------------------------------------------------------------------
+  // 6. TAB 3: Physical IP Handsets
+  // --------------------------------------------------------------------------
   async function loadHandsets() {
     const data = await fetchJson('/api/admin/handsets');
     const tbody = document.getElementById('handsetTableBody');
@@ -171,7 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <tr>
         <td><code>${h.mac_address.toUpperCase()}</code></td>
         <td><strong>${h.brand.toUpperCase()}</strong> ${h.model || ''}</td>
-        <td>Ext ${h.extension} (${h.display_name})</td>
+        <td>Ext ${h.extension} (${h.display_name || ''})</td>
         <td>${h.line_label || 'Default'}</td>
         <td>${h.last_provisioned_at ? new Date(h.last_provisioned_at).toLocaleString() : '<span class="muted">Never fetched</span>'}</td>
         <td>
@@ -187,22 +422,42 @@ document.addEventListener('DOMContentLoaded', () => {
     if (res && res.ok) loadHandsets();
   };
 
-  document.getElementById('btnOpenAddHandsetModal')?.addEventListener('click', async () => {
-    const mac = prompt('Enter Physical Handset MAC Address (12 Hex characters, e.g. 001565A1B2C3):');
-    if (!mac) return;
-    const ext = prompt('Enter Assigned Extension Number (e.g. 101):');
-    if (!ext) return;
-    const brand = prompt('Enter Phone Brand (yealink / fanvil / grandstream):', 'yealink') || 'yealink';
+  document.getElementById('btnOpenAddHandsetModal')?.addEventListener('click', () => {
+    document.getElementById('formAddHandset')?.reset();
+    const sel = document.getElementById('addHandsetExt');
+    if (sel) {
+      sel.innerHTML = '<option value="">Select an extension...</option>' + cachedExtensions.map(e => `
+        <option value="${e.extension}">Ext ${e.extension} (${e.display_name})</option>
+      `).join('');
+    }
+    openModal('modalAddHandset');
+  });
+
+  document.getElementById('formAddHandset')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const mac = document.getElementById('addHandsetMac').value.trim();
+    const brand = document.getElementById('addHandsetBrand').value;
+    const model = document.getElementById('addHandsetModel').value.trim();
+    const ext = document.getElementById('addHandsetExt').value;
+    const label = document.getElementById('addHandsetLabel').value.trim();
 
     const res = await fetchJson('/api/admin/handsets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ macAddress: mac, extension: ext, brand })
+      body: JSON.stringify({ macAddress: mac, brand, model, extension: ext, lineLabel: label })
     });
-    if (res && res.ok) loadHandsets();
+
+    if (res && res.ok) {
+      closeModal('modalAddHandset');
+      loadHandsets();
+    } else if (res) {
+      alert(`Error: ${res.error || 'Failed to register handset'}`);
+    }
   });
 
-  // 6. Routers & Voice Gateways Tab
+  // --------------------------------------------------------------------------
+  // 7. TAB 4: Routers & Network Gateways
+  // --------------------------------------------------------------------------
   async function loadRouters() {
     const data = await fetchJson('/api/admin/routers');
     const tbody = document.getElementById('routerTableBody');
@@ -220,13 +475,35 @@ document.addEventListener('DOMContentLoaded', () => {
         <td><span class="badge ${r.disable_sip_alg ? 'badge-primary' : 'badge-secondary'}">${r.disable_sip_alg ? 'Disabled' : 'Active'}</span></td>
         <td><span class="badge ${r.enable_qos ? 'badge-primary' : 'badge-secondary'}">${r.enable_qos ? 'DSCP 46 / EF' : 'Off'}</span></td>
         <td>
-          <a class="btn btn-sm btn-primary" href="/api/admin/routers/${r.id}/script" download>Download Script</a>
-          <button class="btn btn-sm" onclick="copyRouterUrl(${r.id})">Copy Boot URL</button>
+          <button class="btn btn-sm btn-primary" onclick="downloadRouterScript(${r.id}, '${r.site_name.replace(/'/g, "\\'")}', '${r.brand}')">Download Script</button>
+          <button class="btn btn-sm btn-secondary" onclick="copyRouterUrl(${r.id})">Copy Boot URL</button>
           <button class="btn btn-sm btn-danger" onclick="deleteRouter(${r.id})">Delete</button>
         </td>
       </tr>
     `).join('');
   }
+
+  window.downloadRouterScript = async (id, siteName, brand) => {
+    const token = getAuthToken();
+    try {
+      const res = await fetch(`/api/admin/routers/${id}/script?token=${encodeURIComponent(token)}`, {
+        headers: { 'Authorization': `Basic ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to download script');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const ext = brand === 'ubiquiti' ? 'sh' : (brand === 'cisco' ? 'cfg' : 'rsc');
+      a.download = `${siteName.replace(/[^a-zA-Z0-9_-]/g, '_')}_voip.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Failed to download router script. Please ensure you are authenticated.');
+    }
+  };
 
   window.copyRouterUrl = (id) => {
     const url = `${window.location.origin}/provision/router/${id}.rsc`;
@@ -240,12 +517,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (res && res.ok) loadRouters();
   };
 
-  document.getElementById('btnOpenAddRouterModal')?.addEventListener('click', async () => {
-    const site = prompt('Enter Client / Site Name (e.g. Branch Office London):');
-    if (!site) return;
-    const brand = prompt('Enter Router Platform (mikrotik / ubiquiti / cisco):', 'mikrotik') || 'mikrotik';
-    const vlan = prompt('Enter Voice VLAN ID (Default 20):', '20') || '20';
-    const subnet = prompt('Enter Voice Subnet (Default 10.20.0.1/24):', '10.20.0.1/24') || '10.20.0.1/24';
+  document.getElementById('btnOpenAddRouterModal')?.addEventListener('click', () => {
+    document.getElementById('formAddRouter')?.reset();
+    openModal('modalAddRouter');
+  });
+
+  document.getElementById('formAddRouter')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const site = document.getElementById('addRouterSite').value.trim();
+    const brand = document.getElementById('addRouterBrand').value;
+    const vlan = parseInt(document.getElementById('addRouterVlan').value || '20', 10);
+    const subnet = document.getElementById('addRouterSubnet').value.trim() || '10.20.0.1/24';
+    const alg = document.getElementById('addRouterAlg').checked;
+    const qos = document.getElementById('addRouterQos').checked;
 
     const res = await fetchJson('/api/admin/routers', {
       method: 'POST',
@@ -253,91 +537,83 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify({
         siteName: site,
         brand,
-        voiceVlanId: parseInt(vlan, 10),
+        voiceVlanId: vlan,
         voiceSubnet: subnet,
-        disableSipAlg: true,
-        enableQos: true
+        disableSipAlg: alg,
+        enableQos: qos
       })
     });
-    if (res && res.ok) loadRouters();
+
+    if (res && res.ok) {
+      closeModal('modalAddRouter');
+      loadRouters();
+    } else if (res) {
+      alert(`Error: ${res.error || 'Failed to generate router profile'}`);
+    }
   });
 
-  // 6b. Branding & Customization Tab
+  // --------------------------------------------------------------------------
+  // 8. TAB 5: Branding & Customization
+  // --------------------------------------------------------------------------
   async function loadBranding() {
     const data = await fetchJson('/api/admin/branding');
-    if (!data || !data.ok || !data.branding) return;
+    if (!data || !data.ok) return;
+
     const b = data.branding;
     document.getElementById('brandName').value = b.brandName || 'MerlinSIP';
-    document.getElementById('primaryColorText').value = b.primaryColor || '#2563EB';
     document.getElementById('primaryColorPicker').value = b.primaryColor || '#2563eb';
-    document.getElementById('accentColorText').value = b.accentColor || '#38BDF8';
+    document.getElementById('primaryColorText').value = (b.primaryColor || '#2563EB').toUpperCase();
     document.getElementById('accentColorPicker').value = b.accentColor || '#38bdf8';
+    document.getElementById('accentColorText').value = (b.accentColor || '#38BDF8').toUpperCase();
     document.getElementById('logoUrl').value = b.logoUrl || '';
 
-    updateBrandingPreview();
+    updateLivePreview(b.brandName, b.primaryColor, b.accentColor, b.logoUrl);
   }
 
-  function updateBrandingPreview() {
-    const brandName = document.getElementById('brandName')?.value.trim() || 'MerlinSIP';
-    const primary = document.getElementById('primaryColorText')?.value.trim() || '#2563EB';
-    const accent = document.getElementById('accentColorText')?.value.trim() || '#38BDF8';
-    const logoUrl = document.getElementById('logoUrl')?.value.trim();
-
-    const titleEl = document.getElementById('previewBrandTitle');
-    if (titleEl) titleEl.textContent = brandName;
-
-    const logoBox = document.getElementById('previewLogoBox');
-    if (logoBox) logoBox.style.backgroundColor = primary;
-
-    const callBtn = document.getElementById('previewCallBtn');
-    if (callBtn) callBtn.style.backgroundColor = primary;
-
-    const accentBadge = document.getElementById('previewAccentBadge');
-    if (accentBadge) accentBadge.style.backgroundColor = accent;
-
+  function updateLivePreview(name, primary, accent, logo) {
+    if (name) document.getElementById('previewBrandTitle').textContent = name;
+    if (primary) {
+      document.getElementById('previewLogoBox').style.backgroundColor = primary;
+      document.getElementById('previewCallBtn').style.backgroundColor = primary;
+    }
+    if (accent) {
+      document.getElementById('previewAccentBadge').style.backgroundColor = accent;
+    }
     const img = document.getElementById('previewLogoImg');
     const fallback = document.getElementById('previewLogoFallback');
-    if (logoUrl && img && fallback) {
-      img.src = logoUrl;
+    if (logo) {
+      img.src = logo;
       img.style.display = 'block';
       fallback.style.display = 'none';
-      img.onerror = () => {
-        img.style.display = 'none';
-        fallback.style.display = 'block';
-        fallback.textContent = brandName.charAt(0).toUpperCase() || 'M';
-      };
-    } else if (fallback && img) {
+    } else {
       img.style.display = 'none';
       fallback.style.display = 'block';
-      fallback.textContent = brandName.charAt(0).toUpperCase() || 'M';
     }
   }
 
-  // Color picker sync
+  // Color picker sync listeners
   document.getElementById('primaryColorPicker')?.addEventListener('input', (e) => {
     document.getElementById('primaryColorText').value = e.target.value.toUpperCase();
-    updateBrandingPreview();
+    updateLivePreview(null, e.target.value, null, null);
   });
   document.getElementById('primaryColorText')?.addEventListener('input', (e) => {
-    if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
-      document.getElementById('primaryColorPicker').value = e.target.value;
-      updateBrandingPreview();
-    }
+    document.getElementById('primaryColorPicker').value = e.target.value;
+    updateLivePreview(null, e.target.value, null, null);
   });
-
   document.getElementById('accentColorPicker')?.addEventListener('input', (e) => {
     document.getElementById('accentColorText').value = e.target.value.toUpperCase();
-    updateBrandingPreview();
+    updateLivePreview(null, null, e.target.value, null);
   });
   document.getElementById('accentColorText')?.addEventListener('input', (e) => {
-    if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
-      document.getElementById('accentColorPicker').value = e.target.value;
-      updateBrandingPreview();
-    }
+    document.getElementById('accentColorPicker').value = e.target.value;
+    updateLivePreview(null, null, e.target.value, null);
   });
-
-  document.getElementById('brandName')?.addEventListener('input', updateBrandingPreview);
-  document.getElementById('logoUrl')?.addEventListener('input', updateBrandingPreview);
+  document.getElementById('brandName')?.addEventListener('input', (e) => {
+    updateLivePreview(e.target.value, null, null, null);
+  });
+  document.getElementById('logoUrl')?.addEventListener('input', (e) => {
+    updateLivePreview(null, null, null, e.target.value);
+  });
 
   // Logo file upload
   document.getElementById('btnUploadLogo')?.addEventListener('click', () => {
@@ -345,40 +621,40 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('logoFileInput')?.addEventListener('change', async (e) => {
-    const file = e.target.files?.[0];
+    const file = e.target.files[0];
     if (!file) return;
 
     document.getElementById('logoFileName').textContent = file.name;
     const formData = new FormData();
     formData.append('logo', file);
 
+    const token = getAuthToken();
     try {
       const res = await fetch('/api/admin/branding/logo', {
         method: 'POST',
+        headers: { 'Authorization': `Basic ${token}` },
         body: formData
       });
       const data = await res.json();
       if (data && data.ok) {
         document.getElementById('logoUrl').value = data.logoUrl;
-        updateBrandingPreview();
-        alert('Logo uploaded successfully! Click "Save Branding" to apply.');
+        updateLivePreview(null, null, null, data.logoUrl);
+        alert('Logo uploaded successfully and applied to softphone preview!');
       } else {
-        alert(data?.error || 'Failed to upload logo.');
+        alert(`Logo upload failed: ${data.error || 'Server rejected file'}`);
       }
     } catch (err) {
-      console.error('Logo upload error:', err);
-      alert('Upload failed: ' + err.message);
+      alert('Error uploading logo image.');
     }
   });
 
-  // Save Branding Form
   document.getElementById('formBranding')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const payload = {
-      brandName: document.getElementById('brandName')?.value.trim(),
-      primaryColor: document.getElementById('primaryColorText')?.value.trim(),
-      accentColor: document.getElementById('accentColorText')?.value.trim(),
-      logoUrl: document.getElementById('logoUrl')?.value.trim()
+      brandName: document.getElementById('brandName').value.trim(),
+      primaryColor: document.getElementById('primaryColorText').value.trim(),
+      accentColor: document.getElementById('accentColorText').value.trim(),
+      logoUrl: document.getElementById('logoUrl').value.trim()
     };
 
     const res = await fetchJson('/api/admin/branding', {
@@ -388,68 +664,47 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (res && res.ok) {
-      alert(res.message || 'Branding updated successfully!');
+      alert('Custom branding and colors saved successfully! Softphones will pull these on registration & sync.');
+      loadBranding();
+    } else if (res) {
+      alert(`Error saving branding: ${res.error}`);
     }
   });
 
-  // 7. PBX Config Tab & API Key Management
+  // --------------------------------------------------------------------------
+  // 9. TAB 6: PBX & Gateways Config
+  // --------------------------------------------------------------------------
   async function loadConfig() {
     const data = await fetchJson('/api/admin/config');
-    if (!data || !data.ok || !data.config) return;
+    if (!data || !data.ok) return;
+
     const c = data.config;
     document.getElementById('cfgPbxServer').value = c.pbx_server;
     document.getElementById('cfgPbxPort').value = c.pbx_port;
     document.getElementById('cfgPbxTransport').value = c.pbx_transport;
     document.getElementById('cfgDataHandlerUrl').value = c.data_handler_url;
+    document.getElementById('cfgApiKey').value = c.api_key || '';
 
-    const apiKeyInput = document.getElementById('cfgApiKey');
-    if (apiKeyInput) apiKeyInput.value = c.api_key || '';
-
-    updateCurlExample(c.api_key, c.data_handler_url);
+    updateCurlExample(c.data_handler_url, c.api_key);
   }
 
-  function updateCurlExample(key, handlerUrl) {
-    const pre = document.getElementById('curlExample');
-    if (!pre) return;
-    const domain = handlerUrl || window.location.origin;
-    const cleanKey = key || 'ckm_live_xxxxxxxxxxxxxxxxxxxxxxxx';
-    pre.textContent = `# 1. Pull extension details from PBX and generate 8-digit provisioning PIN
-curl -X POST "${domain}/api/v1/integrations/provision-user" \\
-  -H "X-API-Key: ${cleanKey}" \\
+  function updateCurlExample(url, key) {
+    const curlEl = document.getElementById('curlExample');
+    if (!curlEl) return;
+    const base = url || window.location.origin;
+    curlEl.textContent = `curl -X POST "${base}/api/v1/integrations/provision-user" \\
+  -H "X-API-Key: ${key || 'YOUR_API_KEY'}" \\
   -H "Content-Type: application/json" \\
-  -d '{"extension": "101", "displayName": "Alice Walker", "queryPbx": true}'
-
-# 2. Query active PIN code and deep-link for extension 101
-curl -X GET "${domain}/api/v1/integrations/extension/101/code" \\
-  -H "X-API-Key: ${cleanKey}"`;
+  -d '{"extension":"101","displayName":"Alice Walker","queryPbx":true}'`;
   }
-
-  document.getElementById('btnCopyApiKey')?.addEventListener('click', () => {
-    const key = document.getElementById('cfgApiKey')?.value;
-    if (key) {
-      navigator.clipboard.writeText(key);
-      alert('API Key copied to clipboard!');
-    }
-  });
-
-  document.getElementById('btnRegenApiKey')?.addEventListener('click', async () => {
-    if (!confirm('CAUTION: Regenerating the API Key will immediately invalidate the current key for all external systems.\n\nProceed?')) return;
-    const res = await fetchJson('/api/admin/config/regenerate-api-key', { method: 'POST' });
-    if (res && res.ok && res.apiKey) {
-      document.getElementById('cfgApiKey').value = res.apiKey;
-      const handlerUrl = document.getElementById('cfgDataHandlerUrl')?.value;
-      updateCurlExample(res.apiKey, handlerUrl);
-      alert('New API Key generated successfully!');
-    }
-  });
 
   document.getElementById('formConfig')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const payload = {
-      pbxServer: document.getElementById('cfgPbxServer').value,
-      pbxPort: document.getElementById('cfgPbxPort').value,
+      pbxServer: document.getElementById('cfgPbxServer').value.trim(),
+      pbxPort: parseInt(document.getElementById('cfgPbxPort').value, 10),
       pbxTransport: document.getElementById('cfgPbxTransport').value,
-      dataHandlerUrl: document.getElementById('cfgDataHandlerUrl').value
+      dataHandlerUrl: document.getElementById('cfgDataHandlerUrl').value.trim()
     };
 
     const res = await fetchJson('/api/admin/config', {
@@ -457,149 +712,97 @@ curl -X GET "${domain}/api/v1/integrations/extension/101/code" \\
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+
     if (res && res.ok) {
-      alert(res.message || 'Configuration saved successfully.');
+      alert('PBX Gateway configuration updated successfully!');
+      loadConfig();
     }
   });
 
-  // 8. Quick Pull & Provision Modal
-  const modalQuickProv = document.getElementById('modalQuickProvision');
-  const btnOpenQuickProv = document.getElementById('btnOpenQuickProvModal');
-  const btnCloseModal = document.getElementById('btnCloseModal');
-  const btnCancelModal = document.getElementById('btnCancelModal');
-  const formQuickProv = document.getElementById('formQuickProvision');
-  const qpResult = document.getElementById('qpResult');
-
-  function openQuickProvModal() {
-    if (!modalQuickProv) return;
-    formQuickProv.reset();
-    document.getElementById('qpExpiry').value = '72';
-    document.getElementById('qpQueryPbx').checked = true;
-    qpResult.classList.add('hidden');
-    formQuickProv.classList.remove('hidden');
-    modalQuickProv.classList.remove('hidden');
-    document.getElementById('qpExt')?.focus();
-  }
-
-  function closeQuickProvModal() {
-    if (modalQuickProv) modalQuickProv.classList.add('hidden');
-  }
-
-  btnOpenQuickProv?.addEventListener('click', openQuickProvModal);
-  btnCloseModal?.addEventListener('click', closeQuickProvModal);
-  btnCancelModal?.addEventListener('click', closeQuickProvModal);
-
-  modalQuickProv?.addEventListener('click', (e) => {
-    if (e.target === modalQuickProv) closeQuickProvModal();
+  document.getElementById('btnCopyApiKey')?.addEventListener('click', () => {
+    const key = document.getElementById('cfgApiKey').value;
+    navigator.clipboard.writeText(key);
+    alert('API Key copied to clipboard!');
   });
 
-  formQuickProv?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const ext = document.getElementById('qpExt')?.value.trim();
-    if (!ext) return;
-
-    const btnSubmit = document.getElementById('btnSubmitQuickProv');
-    if (btnSubmit) {
-      btnSubmit.disabled = true;
-      btnSubmit.textContent = 'Provisioning...';
-    }
-
-    const payload = {
-      extension: ext,
-      displayName: document.getElementById('qpName')?.value.trim() || undefined,
-      sipPassword: document.getElementById('qpPass')?.value.trim() || undefined,
-      expiryHours: parseInt(document.getElementById('qpExpiry')?.value || '72', 10),
-      queryPbx: document.getElementById('qpQueryPbx')?.checked ?? true
-    };
-
-    try {
-      const res = await fetchJson('/api/admin/extensions/quick-provision', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (res && res.ok) {
-        document.getElementById('qpResultCode').textContent = res.code;
-        document.getElementById('qpResultExt').textContent = `Extension ${res.extension} (${res.displayName || 'Active'}) — Expires in ${payload.expiryHours}h`;
-        document.getElementById('qpResultDeepLink').value = res.deepLink || '';
-        document.getElementById('qpResultCard').value = res.userWelcomeCard || '';
-        qpResult.classList.remove('hidden');
-        loadExtensions();
-      } else {
-        alert(res?.error || 'Failed to provision extension.');
-      }
-    } finally {
-      if (btnSubmit) {
-        btnSubmit.disabled = false;
-        btnSubmit.textContent = '⚡ Provision Now';
-      }
+  document.getElementById('btnRegenApiKey')?.addEventListener('click', async () => {
+    if (!confirm('Regenerate server API key? Any existing billing/CRM integration using the old key will need to be updated.')) return;
+    const res = await fetchJson('/api/admin/api-key/regenerate', { method: 'POST' });
+    if (res && res.ok) {
+      document.getElementById('cfgApiKey').value = res.apiKey;
+      updateCurlExample(document.getElementById('cfgDataHandlerUrl').value, res.apiKey);
+      alert('New API Key generated successfully!');
     }
   });
 
-  document.getElementById('btnCopyDeepLink')?.addEventListener('click', () => {
-    const link = document.getElementById('qpResultDeepLink')?.value;
-    if (link) {
-      navigator.clipboard.writeText(link);
-      alert('MerlinSIP Auto-Setup deep link copied to clipboard!');
-    }
-  });
-
-  document.getElementById('btnCopyWelcomeCard')?.addEventListener('click', () => {
-    const card = document.getElementById('qpResultCard')?.value;
-    if (card) {
-      navigator.clipboard.writeText(card);
-      alert('Welcome card instructions copied to clipboard! You can paste this in an email or message to the user.');
-    }
-  });
-
-  // 7. GDPR Tab
+  // --------------------------------------------------------------------------
+  // 10. TAB 7: GDPR Compliance & Retention Vault
+  // --------------------------------------------------------------------------
   async function loadGdprPolicy() {
-    const data = await fetchJson('/api/v1/gdpr/policy');
-    if (!data || !data.ok || !data.policy) return;
-    document.getElementById('gdprChatDays').value = data.policy.chat_retention_days;
-    document.getElementById('gdprMediaDays').value = data.policy.media_retention_days;
-    document.getElementById('gdprAutoPrune').checked = data.policy.auto_prune_enabled === 1;
+    const data = await fetchJson('/api/admin/gdpr/policy');
+    if (!data || !data.ok) return;
+
+    const p = data.policy;
+    document.getElementById('gdprChatDays').value = p.chat_retention_days;
+    document.getElementById('gdprMediaDays').value = p.media_retention_days;
+    document.getElementById('gdprAutoPrune').checked = !!p.auto_prune_enabled;
   }
 
   document.getElementById('formGdprPolicy')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const payload = {
-      chatDays: document.getElementById('gdprChatDays').value,
-      mediaDays: document.getElementById('gdprMediaDays').value,
+      chatDays: parseInt(document.getElementById('gdprChatDays').value, 10),
+      mediaDays: parseInt(document.getElementById('gdprMediaDays').value, 10),
       autoPrune: document.getElementById('gdprAutoPrune').checked
     };
-    const res = await fetchJson('/api/v1/gdpr/policy', {
+
+    const res = await fetchJson('/api/admin/gdpr/policy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    if (res && res.ok) alert('GDPR retention policy updated.');
+
+    if (res && res.ok) {
+      alert('GDPR Retention Policy saved successfully!');
+      loadGdprPolicy();
+    }
   });
 
   document.getElementById('btnExecutePurge')?.addEventListener('click', async () => {
-    const ext = document.getElementById('purgeExt')?.value.trim();
+    const ext = document.getElementById('purgeExt').value.trim();
     if (!ext) {
-      alert('Please enter an extension to purge.');
+      alert('Please enter an extension number to purge.');
       return;
     }
-    if (!confirm(`CAUTION: This will permanently purge all chat messages, contact details, and media files for Extension ${ext} under GDPR Article 17.\n\nProceed?`)) {
-      return;
-    }
+    if (!confirm(`CAUTION: Permanently erase all GDPR communications records and files for Extension ${ext}? This action is irreversible.`)) return;
 
     const res = await fetchJson(`/api/v1/gdpr/user/${ext}`, { method: 'DELETE' });
     const resultBox = document.getElementById('purgeResult');
     if (res && res.ok) {
       resultBox.classList.remove('hidden');
-      resultBox.innerHTML = `
-        <strong>Right to Erasure Completed for Extension ${ext}</strong><br>
-        - Messages Scrubbed: ${res.messagesRemoved}<br>
-        - Media Files Removed: ${res.filesRemoved}<br>
-        - Audit Certificate SHA-256: <code>${res.certificateHash}</code>
-      `;
+      resultBox.innerHTML = `<strong>Article 17 Erasure Executed!</strong><br>SHA-256 Audit Certificate: <code>${res.certificateHash || 'Generated'}</code>`;
+      loadOverview();
+    } else if (res) {
+      alert(`Purge failed: ${res.error || 'Check extension'}`);
     }
   });
 
-  // Initial Load
-  loadOverview();
+  // --------------------------------------------------------------------------
+  // 11. Initial Application Boot
+  // --------------------------------------------------------------------------
+  const initialToken = getAuthToken();
+  if (!initialToken) {
+    showLogin();
+  } else {
+    hideLogin();
+    loadOverview();
+  }
+
+  // Periodic Telemetry Auto-Refresh (Every 15 Seconds)
+  setInterval(() => {
+    const activeBtn = document.querySelector('.nav-btn.active');
+    if (activeBtn && activeBtn.dataset.tab === 'overview' && getAuthToken()) {
+      loadOverview();
+    }
+  }, 15000);
 });

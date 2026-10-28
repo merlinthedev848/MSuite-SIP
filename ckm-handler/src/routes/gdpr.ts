@@ -111,12 +111,12 @@ router.get('/api/v1/gdpr/user/:extension/export', (req: Request, res: Response) 
 });
 
 // 3. Get / Set Retention Policy
-router.get('/api/v1/gdpr/policy', (req: Request, res: Response) => {
+router.get(['/api/v1/gdpr/policy', '/api/admin/gdpr/policy'], (req: Request, res: Response) => {
   const policy = vaultDb.prepare('SELECT * FROM gdpr_retention_policy WHERE id = 1').get();
   return res.json({ ok: true, policy });
 });
 
-router.post('/api/v1/gdpr/policy', (req: Request, res: Response) => {
+router.post(['/api/v1/gdpr/policy', '/api/admin/gdpr/policy'], (req: Request, res: Response) => {
   const { chatDays, mediaDays, autoPrune } = req.body;
   vaultDb.prepare(`
     UPDATE gdpr_retention_policy 
