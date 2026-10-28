@@ -275,6 +275,32 @@ export const ROUTER_CATALOG: DeviceBrandMeta[] = [
     ]
   },
   {
+    id: 'ubiquiti',
+    name: 'Ubiquiti EdgeRouter (EdgeOS / Vyatta .sh)',
+    configExt: '.sh',
+    vendorDocUrl: 'https://ui.com/download/edgemax',
+    models: [
+      { id: 'er-x', name: 'Ubiquiti EdgeRouter X (ER-X 5-Port Gigabit)', series: 'EdgeRouter Series', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7', firmwareUrl: 'https://ui.com/download/edgemax', firmwareFilename: 'ER-e50.v2.0.9-hotfix.7.tar', firmwareNotes: 'Hardware NAT offloading, SIP ALG helper removal, and Voice QoS' },
+      { id: 'er-4', name: 'Ubiquiti EdgeRouter 4 (ER-4 4-Port Gigabit & SFP)', series: 'EdgeRouter Series', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7', firmwareUrl: 'https://ui.com/download/edgemax', firmwareFilename: 'ER-e300.v2.0.9-hotfix.7.tar' },
+      { id: 'er-6p', name: 'Ubiquiti EdgeRouter 6P (ER-6P 6-Port PoE+ SFP)', series: 'EdgeRouter Series', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7', firmwareUrl: 'https://ui.com/download/edgemax', firmwareFilename: 'ER-e300.v2.0.9-hotfix.7.tar' },
+      { id: 'er-12', name: 'Ubiquiti EdgeRouter 12 (ER-12 10-Port GbE & Dual SFP)', series: 'EdgeRouter Series', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7', firmwareUrl: 'https://ui.com/download/edgemax', firmwareFilename: 'ER-e1000.v2.0.9-hotfix.7.tar' },
+      { id: 'er-8-xg', name: 'Ubiquiti EdgeRouter Infinity (ER-8-XG 8-Port 10G SFP+)', series: 'EdgeRouter Carrier', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7', firmwareUrl: 'https://ui.com/download/edgemax', firmwareFilename: 'ER-e1000.v2.0.9-hotfix.7.tar' }
+    ]
+  },
+  {
+    id: 'unifi',
+    name: 'Ubiquiti UniFi Gateway (UDM / UXG / UCG)',
+    configExt: '.sh',
+    vendorDocUrl: 'https://ui.com/download/unifi-switching-routing',
+    models: [
+      { id: 'udm-pro', name: 'UniFi Dream Machine Pro / SE (UDM-Pro / SE 10G)', series: 'UniFi OS Gateway', firmwareVersion: 'UniFi OS 3.2.12', firmwareUrl: 'https://ui.com/download', firmwareFilename: 'al3240.v3.2.12.bin', firmwareNotes: 'UniFi Network SIP ALG inspection disable & DSCP audio rule' },
+      { id: 'uxg-pro', name: 'UniFi Next-Gen Gateway Pro (UXG-Pro 10G SFP+)', series: 'UniFi OS Gateway', firmwareVersion: 'UniFi OS 3.1.16', firmwareUrl: 'https://ui.com/download', firmwareFilename: 'uxgpro.v3.1.16.bin' },
+      { id: 'uxg-lite', name: 'UniFi Gateway Lite (UXG-Lite Compact Gigabit)', series: 'UniFi Gateway', firmwareVersion: 'UniFi OS 3.1.16', firmwareUrl: 'https://ui.com/download', firmwareFilename: 'uxglite.v3.1.16.bin' },
+      { id: 'ucg-ultra', name: 'UniFi Cloud Gateway Ultra (UCG-Ultra 2.5G)', series: 'UniFi Gateway', firmwareVersion: 'UniFi OS 3.2.12', firmwareUrl: 'https://ui.com/download', firmwareFilename: 'ucgultra.v3.2.12.bin' },
+      { id: 'udr', name: 'UniFi Dream Router (UDR Wi-Fi 6 & PoE)', series: 'UniFi Gateway', firmwareVersion: 'UniFi OS 3.2.12', firmwareUrl: 'https://ui.com/download', firmwareFilename: 'udr.v3.2.12.bin' }
+    ]
+  },
+  {
     id: 'pfsense',
     name: 'pfSense / Netgate (Static Port NAT & QoS)',
     configExt: '.txt',

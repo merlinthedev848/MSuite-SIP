@@ -202,6 +202,14 @@ document.addEventListener('DOMContentLoaded', () => {
           btn.classList.add('active');
           parentPane.querySelectorAll('.subview-content').forEach(c => c.classList.remove('active'));
           parentPane.querySelector(`#${targetId}`)?.classList.add('active');
+
+          if (targetId === 'subviewHandsetExplorer') {
+            updateHandsetModelsDropdown();
+            updateHandsetExplorerPreview();
+          } else if (targetId === 'subviewRouterExplorer') {
+            updateRouterModelsDropdown();
+            updateRouterExplorerPreview();
+          }
         });
       });
     });
@@ -1027,14 +1035,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (data && data.ok) {
         deviceCatalogs = { handsets: data.handsets || [], routers: data.routers || [] };
-        updateHandsetModelsDropdown();
-        updateRouterModelsDropdown();
-        updateHandsetExplorerPreview();
-        updateRouterExplorerPreview();
       }
     } catch (err) {
       console.warn('Failed to fetch catalogs from server:', err);
     }
+    // Refresh models dropdowns and previews for both handsets & routers
+    updateHandsetModelsDropdown();
+    updateRouterModelsDropdown();
+    updateHandsetExplorerPreview();
+    updateRouterExplorerPreview();
   }
 
   function updateHandsetModelsDropdown() {
@@ -1042,8 +1051,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const brandSel = document.getElementById('addHandsetBrand');
     const modelSel = document.getElementById('addHandsetModel');
     if (brandSel && modelSel) {
-      const brandId = brandSel.value;
-      const brandObj = deviceCatalogs.handsets.find(b => b.id === brandId);
+      const brandId = (brandSel.value || 'yealink').toLowerCase();
+      const brandObj = deviceCatalogs.handsets.find(b => (b.id || '').toLowerCase() === brandId);
       if (brandObj && brandObj.models && brandObj.models.length) {
         modelSel.innerHTML = brandObj.models.map(m => `
           <option value="${m.id}">${m.name} (${m.series || 'Desktop'})</option>
@@ -1057,12 +1066,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const expBrandSel = document.getElementById('explorerHandsetBrand');
     const expModelSel = document.getElementById('explorerHandsetModel');
     if (expBrandSel && expModelSel) {
-      const brandId = expBrandSel.value;
-      const brandObj = deviceCatalogs.handsets.find(b => b.id === brandId);
+      const brandId = (expBrandSel.value || 'yealink').toLowerCase();
+      const brandObj = deviceCatalogs.handsets.find(b => (b.id || '').toLowerCase() === brandId);
       if (brandObj && brandObj.models && brandObj.models.length) {
+        const curVal = expModelSel.value;
         expModelSel.innerHTML = brandObj.models.map(m => `
           <option value="${m.id}">${m.name} — ${m.firmwareVersion || ''}</option>
         `).join('');
+        if (curVal && brandObj.models.some(m => m.id === curVal)) {
+          expModelSel.value = curVal;
+        } else {
+          expModelSel.value = brandObj.models[0].id;
+        }
       } else {
         expModelSel.innerHTML = '<option value="">Standard Model</option>';
       }
@@ -1074,8 +1089,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const brandSel = document.getElementById('addRouterBrand');
     const modelSel = document.getElementById('addRouterModel');
     if (brandSel && modelSel) {
-      const brandId = brandSel.value;
-      const brandObj = deviceCatalogs.routers.find(b => b.id === brandId);
+      const brandId = (brandSel.value || 'mikrotik').toLowerCase();
+      const brandObj = deviceCatalogs.routers.find(b => (b.id || '').toLowerCase() === brandId);
       if (brandObj && brandObj.models && brandObj.models.length) {
         modelSel.innerHTML = brandObj.models.map(m => `
           <option value="${m.id}">${m.name} (${m.series || 'Gateway'})</option>
@@ -1089,12 +1104,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const expBrandSel = document.getElementById('explorerRouterBrand');
     const expModelSel = document.getElementById('explorerRouterModel');
     if (expBrandSel && expModelSel) {
-      const brandId = expBrandSel.value;
-      const brandObj = deviceCatalogs.routers.find(b => b.id === brandId);
+      const brandId = (expBrandSel.value || 'mikrotik').toLowerCase();
+      const brandObj = deviceCatalogs.routers.find(b => (b.id || '').toLowerCase() === brandId);
       if (brandObj && brandObj.models && brandObj.models.length) {
+        const curVal = expModelSel.value;
         expModelSel.innerHTML = brandObj.models.map(m => `
           <option value="${m.id}">${m.name} — ${m.firmwareVersion || ''}</option>
         `).join('');
+        if (curVal && brandObj.models.some(m => m.id === curVal)) {
+          expModelSel.value = curVal;
+        } else {
+          expModelSel.value = brandObj.models[0].id;
+        }
       } else {
         expModelSel.innerHTML = '<option value="">Standard Model</option>';
       }
@@ -1111,7 +1132,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const purgeBtn = document.getElementById('btnPurgeHandsetFw');
     const autoBtn = document.getElementById('btnAutoDownloadHandsetFw');
 
-    if (pathTag) pathTag.textContent = `data/firmware/${brand.toLowerCase()}/${model.toUpperCase().replace(/[^a-zA-Z0-9_-]/g, '_')}/`;
+    const safeBrand = (brand || 'yealink').toLowerCase();
+    const safeModel = (model || 'standard').toUpperCase().replace(/[^a-zA-Z0-9_-]/g, '_');
+    if (pathTag) pathTag.textContent = `data/firmware/${safeBrand}/${safeModel}/`;
 
     try {
       const res = await fetchJson('/api/admin/firmware/status');
@@ -1152,7 +1175,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const purgeBtn = document.getElementById('btnPurgeRouterFw');
     const autoBtn = document.getElementById('btnAutoDownloadRouterFw');
 
-    if (pathTag) pathTag.textContent = `data/firmware/${brand.toLowerCase()}/${model.toUpperCase().replace(/[^a-zA-Z0-9_-]/g, '_')}/`;
+    const safeBrand = (brand || 'mikrotik').toLowerCase();
+    const safeModel = (model || 'standard').toUpperCase().replace(/[^a-zA-Z0-9_-]/g, '_');
+    if (pathTag) pathTag.textContent = `data/firmware/${safeBrand}/${safeModel}/`;
 
     try {
       const res = await fetchJson('/api/admin/firmware/status');
@@ -1217,7 +1242,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/admin/catalogs/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'handset', brand, model, extension: ext, displayName: label })
+        body: JSON.stringify({ type: 'handset', brand, model: targetModelId, extension: ext, displayName: label })
       });
       const data = await res.json();
       if (data && data.ok) {
@@ -1260,7 +1285,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/admin/catalogs/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'router', brand, model, vlan, subnet, alg, qos })
+        body: JSON.stringify({ type: 'router', brand, model: targetModelId, vlan, subnet, alg, qos })
       });
       const data = await res.json();
       if (data && data.ok) {
@@ -1701,14 +1726,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  document.getElementById('btnOpenAddHandsetModal')?.addEventListener('click', () => {
+  document.getElementById('btnOpenAddHandsetModal')?.addEventListener('click', async () => {
     document.getElementById('formAddHandset')?.reset();
     updateHandsetModelsDropdown();
+    
+    // Ensure extensions are fetched and populated in dropdown
+    if (!cachedExtensions || !cachedExtensions.length) {
+      const extData = await fetchJson('/api/admin/extensions');
+      if (extData && extData.ok && extData.extensions) {
+        cachedExtensions = extData.extensions;
+      }
+    }
+
     const sel = document.getElementById('addHandsetExt');
     if (sel) {
-      sel.innerHTML = '<option value="">Select an extension...</option>' + cachedExtensions.map(e => `
-        <option value="${e.extension}">Ext ${e.extension} (${e.display_name})</option>
-      `).join('');
+      if (cachedExtensions && cachedExtensions.length) {
+        sel.innerHTML = '<option value="">Select an extension...</option>' + cachedExtensions.map(e => `
+          <option value="${e.extension}">Ext ${e.extension} (${e.display_name})</option>
+        `).join('');
+      } else {
+        sel.innerHTML = '<option value="">No extensions found - create one first</option>';
+      }
     }
     openModal('modalAddHandset');
   });

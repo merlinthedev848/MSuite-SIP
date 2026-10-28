@@ -1104,7 +1104,6 @@ code, kbd, samp, pre {
 .form-group input[type="text"],
 .form-group input[type="password"],
 .form-group input[type="number"],
-.form-group select,
 .form-group textarea {
   width: 100%;
   padding: 9px 12px;
@@ -1116,6 +1115,46 @@ code, kbd, samp, pre {
   outline: none;
   transition: var(--transition-fast);
   box-shadow: var(--shadow-xs);
+}
+
+/* Corporate Enterprise Select Dropdown Styling */
+select,
+.form-group select {
+  width: 100%;
+  padding: 9px 36px 9px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--text-main);
+  background-color: #ffffff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px 14px;
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  transition: var(--transition-fast);
+  box-shadow: var(--shadow-xs);
+  line-height: 1.4;
+  pointer-events: auto;
+}
+
+select:hover,
+.form-group select:hover {
+  border-color: #94a3b8;
+}
+
+select option,
+.form-group select option {
+  background: #ffffff;
+  color: #0f172a;
+  padding: 8px 12px;
+  font-size: 13.5px;
 }
 
 .form-group input:focus,
