@@ -2,6 +2,7 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { APP_SECRET_KEY } from '../config';
 import { VaultStore } from '../database/vaultDb';
+import { broadcastDeviceLog } from './telemetryStream';
 
 let activeIo: SocketIOServer | null = null;
 
@@ -36,13 +37,23 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
   });
 
   io.on('connection', (socket: Socket) => {
+    const clientIp = socket.handshake.address || '127.0.0.1';
     console.log(`[Socket.IO] Client connected: ${socket.id}`);
+    broadcastDeviceLog('SOCKET', 'INFO', `Softphone client WebSocket connected (ID: ${socket.id}, transport: ${socket.conn.transport.name})`, {
+      deviceIdentifier: socket.id,
+      ipAddress: clientIp,
+      userAgent: socket.handshake.headers['user-agent'] as string
+    });
 
     // Join room for a 1-to-1 or group conversation
     socket.on('join_conversation', (conversationId: string) => {
       const room = `conv_${conversationId}`;
       socket.join(room);
       console.log(`[Socket.IO] Socket ${socket.id} joined room ${room}`);
+      broadcastDeviceLog('SOCKET', 'INFO', `Socket ${socket.id} joined conversation room [${conversationId}]`, {
+        deviceIdentifier: socket.id,
+        ipAddress: clientIp
+      });
     });
 
     // Fetch Decrypted Conversation History (Last 50 messages)
@@ -126,6 +137,10 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
 
     socket.on('disconnect', () => {
       console.log(`[Socket.IO] Client disconnected: ${socket.id}`);
+      broadcastDeviceLog('SOCKET', 'INFO', `Softphone client WebSocket disconnected (ID: ${socket.id})`, {
+        deviceIdentifier: socket.id,
+        ipAddress: socket.handshake.address || '127.0.0.1'
+      });
     });
   });
 

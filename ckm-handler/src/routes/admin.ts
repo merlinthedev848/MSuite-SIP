@@ -14,6 +14,7 @@ import { HandsetAccountConfig } from '../templates/yealink';
 import { licenseState } from '../services/licenseGuard';
 import { syncExtensionsFromAsterisk, AmiConfig } from '../services/pbxSyncService';
 import { getSocketStats } from '../services/socketService';
+import { registerSseClient, getRecentDeviceLogs, clearDeviceLogs, broadcastDeviceLog } from '../services/telemetryStream';
 import { performance } from 'perf_hooks';
 
 const router = Router();
@@ -465,6 +466,22 @@ router.post('/api/admin/pbx/ping', adminAuth, async (req: Request, res: Response
       }
     });
   }
+});
+
+// Live Shell Streaming Endpoints (Server-Sent Events + Buffer History)
+router.get('/api/admin/shell/stream', adminAuth, (req: Request, res: Response) => {
+  registerSseClient(res);
+});
+
+router.get('/api/admin/shell/history', adminAuth, (req: Request, res: Response) => {
+  const limit = parseInt(req.query.limit as string || '250', 10);
+  const logs = getRecentDeviceLogs(limit);
+  return res.json({ ok: true, logs });
+});
+
+router.post('/api/admin/shell/clear', adminAuth, (req: Request, res: Response) => {
+  clearDeviceLogs();
+  return res.json({ ok: true, message: 'Shell connectivity log buffer cleared.' });
 });
 
 // 1. Dashboard Overview Stats & Component Health

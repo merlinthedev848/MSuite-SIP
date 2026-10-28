@@ -169,6 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
     extensions: 'SIP Extensions & Softphone PINs',
     handsets: 'Physical IP Handset Directory',
     routers: 'VoIP Router & Network Gateway Profiles',
+    shell: 'Live Device Connectivity & Telemetry Shell',
     branding: 'Softphone Custom Branding, Logo & Colors',
     config: 'PBX Integration & Gateway Settings',
     gdpr: 'GDPR Compliance & Data Retention Vault',
@@ -200,6 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
     else if (tab === 'extensions') loadExtensions();
     else if (tab === 'handsets') loadHandsets();
     else if (tab === 'routers') loadRouters();
+    else if (tab === 'shell') loadShellHistory();
     else if (tab === 'branding') loadBranding();
     else if (tab === 'config') loadConfig();
     else if (tab === 'gdpr') loadGdprPolicy();
@@ -1525,8 +1527,191 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // ==============================================================================
+  // 12. Real-Time Device Connectivity Shell & Live SSE Telemetry Engine
+  // ==============================================================================
+  let shellLogs = [];
+  let activeShellFilter = 'ALL';
+  let isShellPaused = false;
+  let shellEventSource = null;
+
+  function initShellStream() {
+    const token = getAuthToken();
+    if (!token || shellEventSource) return;
+
+    try {
+      shellEventSource = new EventSource(`/api/admin/shell/stream?token=${encodeURIComponent(token)}`);
+
+      shellEventSource.onmessage = (e) => {
+        if (!e.data || e.data.startsWith(':')) return;
+        try {
+          const event = JSON.parse(e.data);
+          appendShellLog(event);
+        } catch {}
+      };
+
+      shellEventSource.onerror = () => {
+        // EventSource will automatically retry connection
+      };
+    } catch (err) {
+      console.warn('Could not initialize SSE shell stream:', err);
+    }
+  }
+
+  function appendShellLog(event) {
+    shellLogs.push(event);
+    if (shellLogs.length > 1000) shellLogs.shift();
+
+    if (!isShellPaused) {
+      renderShellEvents();
+    }
+  }
+
+  function renderShellEvents() {
+    const term = document.getElementById('shellTerminal');
+    const drawer = document.getElementById('drawerTerminal');
+    const searchVal = document.getElementById('shellSearchInput')?.value.toLowerCase().trim() || '';
+
+    const filtered = shellLogs.filter(item => {
+      if (activeShellFilter !== 'ALL' && item.category !== activeShellFilter) {
+        return false;
+      }
+      if (searchVal) {
+        const text = `${item.timestamp} ${item.category} ${item.level} ${item.deviceIdentifier} ${item.ipAddress} ${item.message}`.toLowerCase();
+        if (!text.includes(searchVal)) return false;
+      }
+      return true;
+    });
+
+    const html = filtered.map(item => {
+      const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+      const catClass = `shell-cat-${(item.category || 'system').toLowerCase()}`;
+      const lvlClass = `shell-lvl-${item.level || 'INFO'}`;
+      const devBadge = item.deviceIdentifier ? `<span class="shell-dev">[${item.deviceIdentifier}]</span> ` : '';
+
+      return `
+        <div class="shell-entry">
+          <span class="shell-time">${time}</span>
+          <span class="shell-cat ${catClass}">${item.category}</span>
+          <span class="${lvlClass}">${devBadge}${item.message}</span>
+          <span class="shell-ip">${item.ipAddress}</span>
+        </div>
+      `;
+    }).join('');
+
+    if (term) {
+      term.innerHTML = html || '<div class="shell-entry"><span class="shell-time">--:--:--.---</span><span class="shell-cat shell-cat-system">SYSTEM</span><span class="shell-lvl-INFO">No connectivity events match current filter.</span></div>';
+      if (document.getElementById('shellAutoScroll')?.checked) {
+        term.scrollTop = term.scrollHeight;
+      }
+    }
+
+    if (drawer) {
+      drawer.innerHTML = html || '<div class="shell-entry"><span class="shell-time">--:--:--.---</span><span class="shell-cat shell-cat-system">SYSTEM</span><span class="shell-lvl-INFO">Waiting for device events...</span></div>';
+      drawer.scrollTop = drawer.scrollHeight;
+    }
+
+    // Update stats bar
+    const statsEl = document.getElementById('shellStats');
+    if (statsEl) {
+      statsEl.textContent = `Stream: ${isShellPaused ? 'PAUSED' : 'LIVE'} | Showing ${filtered.length} of ${shellLogs.length} events | Buffer: ${shellLogs.length}/1000`;
+    }
+
+    const drawerCount = document.getElementById('drawerEventCounter');
+    if (drawerCount) {
+      drawerCount.textContent = `${shellLogs.length} events`;
+    }
+  }
+
+  async function loadShellHistory() {
+    initShellStream();
+    const data = await fetchJson('/api/admin/shell/history?limit=300');
+    if (data && data.ok && data.logs) {
+      shellLogs = data.logs;
+      renderShellEvents();
+    }
+  }
+
+  // Filter Buttons
+  document.querySelectorAll('.shell-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.shell-filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeShellFilter = btn.dataset.filter;
+      renderShellEvents();
+    });
+  });
+
+  // Search grep filter
+  document.getElementById('shellSearchInput')?.addEventListener('input', () => {
+    renderShellEvents();
+  });
+
+  // Pause / Resume
+  document.getElementById('btnPauseShell')?.addEventListener('click', () => {
+    isShellPaused = !isShellPaused;
+    const btn = document.getElementById('btnPauseShell');
+    if (isShellPaused) {
+      btn.textContent = '▶ Resume';
+      btn.className = 'btn btn-sm btn-primary';
+    } else {
+      btn.textContent = '⏸ Pause';
+      btn.className = 'btn btn-sm btn-secondary';
+      renderShellEvents();
+    }
+  });
+
+  // Clear Console
+  document.getElementById('btnClearShell')?.addEventListener('click', async () => {
+    if (confirm('Clear the in-memory device connectivity log buffer?')) {
+      await fetchJson('/api/admin/shell/clear', { method: 'POST' });
+      shellLogs = [];
+      renderShellEvents();
+    }
+  });
+
+  // Export .log file
+  document.getElementById('btnExportShellLogs')?.addEventListener('click', () => {
+    if (!shellLogs.length) {
+      alert('No log events to export.');
+      return;
+    }
+    const lines = shellLogs.map(l => `[${l.timestamp}] [${l.category}] [${l.level}] [${l.ipAddress}] ${l.deviceIdentifier ? `(${l.deviceIdentifier}) ` : ''}${l.message}`);
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ckm-handler-device-connectivity-${Date.now()}.log`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  });
+
+  // Global Drawer Terminal Controls
+  const shellDrawer = document.getElementById('shellDrawer');
+  document.getElementById('btnToggleShellDrawer')?.addEventListener('click', () => {
+    if (!shellDrawer) return;
+    initShellStream();
+    shellDrawer.classList.toggle('hidden');
+    if (!shellDrawer.classList.contains('hidden')) {
+      renderShellEvents();
+    }
+  });
+
+  document.getElementById('btnCloseDrawer')?.addEventListener('click', () => {
+    shellDrawer?.classList.add('hidden');
+  });
+
+  document.getElementById('btnMinimizeDrawer')?.addEventListener('click', () => {
+    if (!shellDrawer) return;
+    shellDrawer.classList.toggle('minimized');
+    const btn = document.getElementById('btnMinimizeDrawer');
+    btn.textContent = shellDrawer.classList.contains('minimized') ? '▲ Expand' : '_ Minimize';
+  });
+
   // --------------------------------------------------------------------------
-  // 12. Initial Application Boot & Telemetry Loop
+  // 13. Initial Application Boot & Telemetry Loop
   // --------------------------------------------------------------------------
   async function loadMe() {
     const data = await fetchJson('/api/admin/me');
@@ -1546,6 +1731,7 @@ document.addEventListener('DOMContentLoaded', () => {
     applyUserPermissions();
     loadMe();
     loadCatalogs();
+    initShellStream();
     loadOverview();
   }
 

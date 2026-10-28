@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import systemDb, { logActivity } from '../database/systemDb';
+import { broadcastDeviceLog } from '../services/telemetryStream';
 import { generateYealinkConfig, HandsetAccountConfig } from '../templates/yealink';
 import { generateFanvilConfig } from '../templates/fanvil';
 import { generateGrandstreamConfig } from '../templates/grandstream';
@@ -45,10 +46,12 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
 
   // 1. Check for vendor generic/common model bootstrap configs
   if (filename.startsWith('y0000000000') && filename.endsWith('.cfg')) {
+    broadcastDeviceLog('DESKPHONE', 'INFO', `Yealink common bootstrap configuration fetched (${filename})`, { ipAddress: req.ip, userAgent: req.headers['user-agent'] as string });
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.send(`#!version:1.0.0.1\r\n# Common Yealink Configuration Template\r\n`);
   }
   if (filename === '000000000000.cfg' || filename === '000000000000-phone.cfg') {
+    broadcastDeviceLog('DESKPHONE', 'INFO', `Poly common bootstrap template fetched (${filename})`, { ipAddress: req.ip, userAgent: req.headers['user-agent'] as string });
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     return res.send(`<?xml version="1.0" standalone="yes"?><PHONE_CONFIG><ALL/></PHONE_CONFIG>`);
   }
@@ -62,6 +65,7 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     .replace(/[^0-9a-f]/gi, '');
 
   if (cleanMac.length !== 12) {
+    broadcastDeviceLog('SECURITY', 'WARN', `Invalid MAC address length request: [${filename}] from IP ${req.ip}`, { ipAddress: req.ip, userAgent: req.headers['user-agent'] as string });
     return res.status(404).send('# Error: Invalid MAC address length.');
   }
 
@@ -69,16 +73,24 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
   const handset = getHandsetStmt.get(cleanMac) as any;
 
   if (!handset) {
+    broadcastDeviceLog('DESKPHONE', 'WARN', `Unregistered deskphone attempted provision with MAC [${cleanMac.toUpperCase()}] (File: ${filename})`, { deviceIdentifier: cleanMac.toUpperCase(), ipAddress: req.ip, userAgent: req.headers['user-agent'] as string });
     return res.status(404).send(`# Error: Handset MAC [${cleanMac}] is not registered in CKM Handler.`);
   }
 
   if (handset.is_active !== 1) {
+    broadcastDeviceLog('DESKPHONE', 'WARN', `Deskphone MAC [${cleanMac.toUpperCase()}] blocked: Extension ${handset.extension} is deactivated`, { deviceIdentifier: cleanMac.toUpperCase(), ipAddress: req.ip });
     return res.status(403).send('# Error: Assigned extension has been deactivated.');
   }
 
   // Update last provisioned timestamp
   updateHandsetProvisionedStmt.run(cleanMac);
   logActivity('HANDSET_PROVISIONED', `Handset [${cleanMac.toUpperCase()}] (${(handset.brand || 'deskphone').toUpperCase()} ${handset.model || ''}) fetched config for Ext ${handset.extension}`, req.ip);
+  broadcastDeviceLog('DESKPHONE', 'SUCCESS', `Deskphone [${cleanMac.toUpperCase()}] (${(handset.brand || 'deskphone').toUpperCase()} ${handset.model || ''}) fetched configuration for Ext ${handset.extension}`, {
+    deviceIdentifier: cleanMac.toUpperCase(),
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'] as string,
+    metadata: { extension: handset.extension, brand: handset.brand, model: handset.model, customized: !!(handset.custom_config && handset.custom_config.trim()) }
+  });
 
   // 4. If user has customized their provisioning profile directly, serve it!
   if (handset.custom_config && handset.custom_config.trim().length > 0) {
@@ -133,6 +145,13 @@ router.get('/provision/router/:identifier', (req: Request, res: Response) => {
   if (!routerRec) {
     return res.status(404).send('# Error: Router configuration profile not found.');
   }
+
+  broadcastDeviceLog('ROUTER', 'INFO', `Router #${routerRec.id} (${routerRec.site_name} / ${routerRec.brand.toUpperCase()}) fetched bootstrap configuration`, {
+    deviceIdentifier: routerRec.site_name,
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'] as string,
+    metadata: { siteName: routerRec.site_name, brand: routerRec.brand, customized: !!(routerRec.custom_script && routerRec.custom_script.trim()) }
+  });
 
   // If user has customized the script in the UI, serve the customized script!
   if (routerRec.custom_script && routerRec.custom_script.trim().length > 0) {

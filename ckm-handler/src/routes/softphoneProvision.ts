@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import systemDb, { logActivity } from '../database/systemDb';
+import { broadcastDeviceLog } from '../services/telemetryStream';
 
 const router = Router();
 
@@ -47,6 +48,7 @@ const handlePinProvision = (req: Request, res: Response) => {
   if (attemptRec) {
     if (now < attemptRec.resetAt && attemptRec.count >= 5) {
       const waitSec = Math.ceil((attemptRec.resetAt - now) / 1000);
+      broadcastDeviceLog('SECURITY', 'ERROR', `Blocked brute-force PIN provisioning flood from ${clientIp} (Rate limited for ${waitSec}s)`, { ipAddress: clientIp });
       return res.status(429).json({
         ok: false,
         error: `Too many failed provisioning PIN attempts. Rate limited for ${waitSec} seconds.`
@@ -76,6 +78,7 @@ const handlePinProvision = (req: Request, res: Response) => {
     } else {
       cur.count++;
     }
+    broadcastDeviceLog('SECURITY', 'WARN', `Failed softphone PIN attempt [${cleanedCode}] from ${clientIp}`, { ipAddress: clientIp });
     return res.status(404).json({ ok: false, error: 'Invalid or expired provisioning PIN.' });
   }
 
@@ -83,6 +86,7 @@ const handlePinProvision = (req: Request, res: Response) => {
   failedPinAttempts.delete(clientIp);
 
   if (pinRecord.is_active !== 1) {
+    broadcastDeviceLog('SOFTPHONE', 'WARN', `Extension ${pinRecord.extension} blocked: Account deactivated`, { deviceIdentifier: `Ext ${pinRecord.extension}`, ipAddress: clientIp });
     return res.status(403).json({ ok: false, error: 'This extension has been deactivated.' });
   }
 
@@ -90,6 +94,7 @@ const handlePinProvision = (req: Request, res: Response) => {
   if (pinRecord.expires_at) {
     const expires = new Date(pinRecord.expires_at).getTime();
     if (Date.now() > expires) {
+      broadcastDeviceLog('SOFTPHONE', 'WARN', `PIN [${cleanedCode}] for Ext ${pinRecord.extension} expired at ${pinRecord.expires_at}`, { deviceIdentifier: `Ext ${pinRecord.extension}`, ipAddress: clientIp });
       return res.status(410).json({ ok: false, error: 'This provisioning PIN has expired.' });
     }
   }
@@ -97,6 +102,12 @@ const handlePinProvision = (req: Request, res: Response) => {
   // Mark PIN as claimed
   claimPinStmt.run(cleanedCode);
   logActivity('PIN_CLAIMED', `Extension ${pinRecord.extension} provisioned via PIN [${cleanedCode}]`, clientIp);
+  broadcastDeviceLog('SOFTPHONE', 'SUCCESS', `Softphone provisioned successfully via 8-digit PIN for Ext ${pinRecord.extension} (${pinRecord.display_name})`, {
+    deviceIdentifier: `Ext ${pinRecord.extension}`,
+    ipAddress: clientIp,
+    userAgent: req.headers['user-agent'] as string,
+    metadata: { extension: pinRecord.extension, username: pinRecord.sip_username, code: cleanedCode }
+  });
 
   // Fetch current server config
   const config = getServerConfigStmt.get() as any;
