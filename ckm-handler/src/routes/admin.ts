@@ -50,6 +50,8 @@ const firmwareUpload = multer({
   limits: { fileSize: 350 * 1024 * 1024 }
 });
 
+const getServerConfigStmt = systemDb.prepare('SELECT * FROM server_config WHERE id = 1');
+
 export interface AuthenticatedAdmin {
   id: number;
   username: string;
@@ -824,7 +826,7 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
         filename: modelMeta.firmwareFilename,
         notes: modelMeta.firmwareNotes || 'Standard tested vendor release',
         isCached: !!localFwPath,
-        localServingUrl: `${serverCfg.dataHandlerUrl}/firmware/${brandMeta?.id}/${modelMeta.id}/${modelMeta.firmwareFilename}`
+        localServingUrl: `${serverCfg.data_handler_url || serverCfg.dataHandlerUrl || ''}/firmware/${brandMeta?.id}/${modelMeta.id}/${modelMeta.firmwareFilename}`
       } : null,
       content: gen.content
     });
@@ -840,7 +842,7 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
       sipServer: serverCfg.pbx_server,
       sipPort: serverCfg.pbx_port,
       sipTransport: serverCfg.pbx_transport || 'UDP',
-      dataHandlerUrl: serverCfg.data_handler_url
+      dataHandlerUrl: serverCfg.data_handler_url || serverCfg.dataHandlerUrl || ''
     }, model);
 
     const localFwPath = (brandMeta && modelMeta) ? findFirmwareFile(brandMeta.id, modelMeta.firmwareFilename, modelMeta.id) : null;
@@ -857,7 +859,7 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
         filename: modelMeta.firmwareFilename,
         notes: modelMeta.firmwareNotes || 'Standard tested vendor release',
         isCached: !!localFwPath,
-        localServingUrl: `${serverCfg.dataHandlerUrl}/firmware/${brandMeta?.id}/${modelMeta.id}/${modelMeta.firmwareFilename}`
+        localServingUrl: `${serverCfg.data_handler_url || serverCfg.dataHandlerUrl || ''}/firmware/${brandMeta?.id}/${modelMeta.id}/${modelMeta.firmwareFilename}`
       } : null,
       content: conf
     });
