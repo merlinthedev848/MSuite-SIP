@@ -1564,21 +1564,20 @@ select option,
 .shell-terminal {
   flex: 1;
   overflow-y: auto;
-  padding: 14px 18px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: #f8fafc;
-  background: #040814;
-  white-space: pre-wrap;
-  word-break: break-word;
+  padding: 10px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.42;
+  color: #f1f5f9;
+  background: #060913;
+  white-space: normal;
 }
 
 .shell-terminal::-webkit-scrollbar {
   width: 8px;
 }
 .shell-terminal::-webkit-scrollbar-track {
-  background: #040814;
+  background: #060913;
 }
 .shell-terminal::-webkit-scrollbar-thumb {
   background: #1e293b;
@@ -1589,29 +1588,41 @@ select option,
 }
 
 .shell-entry {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 3px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  display: grid;
+  grid-template-columns: 88px 92px 1fr 110px;
+  align-items: baseline;
+  gap: 12px;
+  padding: 3px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  transition: background 0.1s ease;
+}
+
+.shell-entry:hover {
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .shell-time {
   color: #64748b;
   font-size: 11px;
-  min-width: 80px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   user-select: none;
+  font-family: inherit;
 }
 
 .shell-cat {
   font-weight: 700;
-  font-size: 9.5px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 3px;
   text-transform: uppercase;
   user-select: none;
-  min-width: 78px;
+  white-space: nowrap;
   text-align: center;
+  display: inline-block;
+  line-height: 1.35;
 }
 
 .shell-cat-deskphone { background: #0369a1; color: #e0f2fe; }
@@ -1621,22 +1632,44 @@ select option,
 .shell-cat-security  { background: #991b1b; color: #fee2e2; }
 .shell-cat-pbx       { background: #1e40af; color: #dbeafe; }
 .shell-cat-system    { background: #334155; color: #cbd5e1; }
+.shell-cat-firmware  { background: #312e81; color: #e0e7ff; border: 1px solid rgba(129, 140, 248, 0.35); }
+
+.shell-msg {
+  min-width: 0;
+  word-break: break-word;
+  white-space: pre-wrap;
+  line-height: 1.42;
+}
 
 .shell-lvl-INFO    { color: #f8fafc; }
 .shell-lvl-SUCCESS { color: #4ade80; }
 .shell-lvl-WARN    { color: #facc15; }
-.shell-lvl-ERROR   { color: #f87171; font-weight: 700; }
+.shell-lvl-ERROR   { color: #f87171; font-weight: 600; }
 
 .shell-dev {
   color: #38bdf8;
   font-weight: 600;
+  margin-right: 4px;
 }
 
 .shell-ip {
   color: #64748b;
   font-size: 11px;
-  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
   user-select: none;
+  font-family: inherit;
+}
+
+@media (max-width: 900px) {
+  .shell-entry {
+    grid-template-columns: 84px 84px 1fr;
+    gap: 8px;
+  }
+  .shell-ip {
+    display: none;
+  }
 }
 
 .shell-statusbar {

@@ -2633,7 +2633,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const html = filtered.map(item => {
-      const time = new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+      const d = new Date(item.timestamp);
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const seconds = String(d.getSeconds()).padStart(2, '0');
+      const ms = String(d.getMilliseconds()).padStart(3, '0');
+      const time = `${hours}:${minutes}:${seconds}.${ms}`;
       const catClass = `shell-cat-${(item.category || 'system').toLowerCase()}`;
       const lvlClass = `shell-lvl-${item.level || 'INFO'}`;
       const devBadge = item.deviceIdentifier ? `<span class="shell-dev">[${item.deviceIdentifier}]</span> ` : '';
@@ -2642,21 +2647,21 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="shell-entry">
           <span class="shell-time">${time}</span>
           <span class="shell-cat ${catClass}">${item.category}</span>
-          <span class="${lvlClass}">${devBadge}${item.message}</span>
-          <span class="shell-ip">${item.ipAddress}</span>
+          <span class="shell-msg ${lvlClass}">${devBadge}${item.message}</span>
+          <span class="shell-ip">${item.ipAddress || ''}</span>
         </div>
       `;
     }).join('');
 
     if (term) {
-      term.innerHTML = html || '<div class="shell-entry"><span class="shell-time">--:--:--.---</span><span class="shell-cat shell-cat-system">SYSTEM</span><span class="shell-lvl-INFO">No connectivity events match current filter.</span></div>';
+      term.innerHTML = html || '<div class="shell-entry"><span class="shell-time">--:--:--.---</span><span class="shell-cat shell-cat-system">SYSTEM</span><span class="shell-msg shell-lvl-INFO">No connectivity events match current filter.</span><span class="shell-ip"></span></div>';
       if (document.getElementById('shellAutoScroll')?.checked) {
         term.scrollTop = term.scrollHeight;
       }
     }
 
     if (drawer) {
-      drawer.innerHTML = html || '<div class="shell-entry"><span class="shell-time">--:--:--.---</span><span class="shell-cat shell-cat-system">SYSTEM</span><span class="shell-lvl-INFO">Waiting for device events...</span></div>';
+      drawer.innerHTML = html || '<div class="shell-entry"><span class="shell-time">--:--:--.---</span><span class="shell-cat shell-cat-system">SYSTEM</span><span class="shell-msg shell-lvl-INFO">Waiting for device events...</span><span class="shell-ip"></span></div>';
       drawer.scrollTop = drawer.scrollHeight;
     }
 
