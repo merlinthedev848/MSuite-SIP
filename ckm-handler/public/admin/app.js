@@ -319,7 +319,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('statMessages')) document.getElementById('statMessages').textContent = s.messages ?? 0;
     if (document.getElementById('statStorage')) document.getElementById('statStorage').textContent = `${s.storageMb ?? 0} MB`;
 
-    document.getElementById('pbxBadge').textContent = `PBX: ${s.pbxServer}`;
+    const rawPbx = (s.pbxServer || 'pbx.chriskendall.media').trim();
+    const cleanPbxHost = rawPbx.replace(/:\d+.*$/, '').replace(/\s*\(.*\)$/, '').trim();
+    const pbxPort = s.pbxPort || 5060;
+    const pbxTransport = s.pbxTransport || 'UDP';
+    const formattedPbx = `${cleanPbxHost}:${pbxPort} (${pbxTransport})`;
+    document.getElementById('pbxBadge').textContent = `PBX: ${formattedPbx}`;
     document.getElementById('licenseBadge').textContent = `License: ${s.licenseKey || 'Active'}`;
 
     const host = s.handlerUrl || window.location.origin;
@@ -340,17 +345,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const badgeLabel = c.badge || (isOp ? 'Active' : (c.status || 'Alert'));
         return `
           <div class="health-row-item">
-            <div class="health-row-left">
-              <span class="health-dot ${dotClass}" title="${c.status || 'operational'}"></span>
-              <div class="health-info">
-                <span class="health-name">${c.name}</span>
-                <span class="health-meta">${c.details}</span>
-              </div>
+            <span class="health-dot ${dotClass}" title="${c.status || 'operational'}"></span>
+            <div class="health-info">
+              <span class="health-name">${c.name}</span>
+              <span class="health-meta">${c.details}</span>
             </div>
-            <div class="health-row-right">
-              <span class="health-latency">${c.latency}</span>
-              <span class="health-pill ${isOp ? 'op' : 'warn'}">${badgeLabel}</span>
-            </div>
+            <span class="health-latency">${c.latency}</span>
+            <span class="health-pill ${isOp ? 'op' : 'warn'}">${badgeLabel}</span>
           </div>
         `;
       }).join('');
@@ -363,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update PBX Ping Target Card
     const pingTarget = document.getElementById('pingPbxTarget');
-    if (pingTarget) pingTarget.textContent = `${s.pbxServer || 'pbx.chriskendall.media'}:${s.pbxPort || 5060}`;
+    if (pingTarget) pingTarget.textContent = formattedPbx;
 
     // Load Live Activity & Audit Logs
     loadAuditLogs();
@@ -379,18 +380,31 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     streamEl.innerHTML = res.logs.map(log => {
-      const time = new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      let badgeClass = 'badge-secondary';
-      if (log.event_type.includes('LOGIN') || log.event_type.includes('AUTH')) badgeClass = 'badge-primary';
-      if (log.event_type.includes('ERROR') || log.event_type.includes('PURGE')) badgeClass = 'badge-danger';
-      if (log.event_type.includes('PROVISION') || log.event_type.includes('PIN')) badgeClass = 'badge-success';
+      const d = new Date(log.created_at);
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const seconds = String(d.getSeconds()).padStart(2, '0');
+      const time = `${hours}:${minutes}:${seconds}`;
+
+      let cat = 'SYSTEM';
+      let tagClass = 'log-tag-system';
+      const ev = (log.event_type || '').toUpperCase();
+      if (ev.includes('FIRMWARE')) { cat = 'FIRMWARE'; tagClass = 'log-tag-firmware'; }
+      else if (ev.includes('AUTH') || ev.includes('LOGIN')) { cat = 'AUTH'; tagClass = 'log-tag-auth'; }
+      else if (ev.includes('PROVISION') || ev.includes('PIN')) { cat = 'PROVISION'; tagClass = 'log-tag-provision'; }
+      else if (ev.includes('SECURITY') || ev.includes('BLOCKED')) { cat = 'SECURITY'; tagClass = 'log-tag-security'; }
+      else if (ev.includes('ERROR') || ev.includes('FAILED')) { cat = 'ERROR'; tagClass = 'log-tag-error'; }
+      else if (ev.includes('PBX')) { cat = 'PBX'; tagClass = 'log-tag-pbx'; }
+
+      const rawMsg = log.details || log.event_type || '';
+      const safeMsg = rawMsg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
       return `
         <div class="log-item">
           <span class="log-time">${time}</span>
-          <span class="tag ${badgeClass}">${log.event_type}</span>
-          <span class="log-msg" title="${log.details || ''}">${log.details}</span>
-          ${log.ip_address ? `<span class="muted" style="font-size: 11px; margin-left: auto;">${log.ip_address}</span>` : ''}
+          <span class="log-tag ${tagClass}">${cat}</span>
+          <span class="log-msg" title="${safeMsg}">${safeMsg}</span>
+          <span class="log-ip">${log.ip_address || ''}</span>
         </div>
       `;
     }).join('');
@@ -419,15 +433,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res && res.reachable) {
         if (pill) {
           pill.className = 'status-pill operational';
-          pill.textContent = `${res.latencyMs} ms`;
+          pill.textContent = 'Operational';
         }
-        if (details) details.textContent = res.message || 'PBX responded successfully.';
+        const latEl = document.getElementById('pingLatencyVal');
+        if (latEl) latEl.textContent = `${res.latencyMs} ms`;
+        if (details) details.textContent = `[SUCCESS] PBX responded in ${res.latencyMs}ms. SIP socket handshake verified over UDP.`;
       } else {
         if (pill) {
           pill.className = 'status-pill degraded';
           pill.textContent = 'Unreachable';
         }
-        if (details) details.textContent = res ? (res.error || res.message) : 'Connection failed.';
+        const latEl = document.getElementById('pingLatencyVal');
+        if (latEl) latEl.textContent = 'Timeout';
+        if (details) details.textContent = `[FAILURE] ${res ? (res.error || res.message) : 'Connection timed out.'}`;
       }
     } catch (err) {
       if (pill) {

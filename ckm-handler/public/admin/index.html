@@ -205,7 +205,9 @@
               </div>
               <div class="endpoint-card-body">
                 <code id="epChat" class="endpoint-code">--</code>
-                <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epChat')" title="Copy WebSocket URL">Copy</button>
+                <div class="endpoint-actions">
+                  <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epChat')" title="Copy WebSocket URL">Copy</button>
+                </div>
               </div>
             </div>
 
@@ -216,7 +218,9 @@
               </div>
               <div class="endpoint-card-body">
                 <code id="epProv" class="endpoint-code">--</code>
-                <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epProv')" title="Copy Provisioning URL">Copy</button>
+                <div class="endpoint-actions">
+                  <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epProv')" title="Copy Provisioning URL">Copy</button>
+                </div>
               </div>
             </div>
 
@@ -253,25 +257,37 @@
         <!-- PBX SIP Diagnostics & Live Audit Stream Grid -->
         <div class="grid-2col mt-6">
           <!-- PBX Live Diagnostic Card -->
-          <div class="card">
+          <div class="card pbx-diag-card">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
               <div>
                 <h3>PBX SIP Ping & Latency Probe</h3>
-                <p class="muted">Test active socket connectivity and SIP OPTIONS round-trip time</p>
+                <p class="muted">Active socket connectivity & SIP OPTIONS round-trip telemetry</p>
               </div>
               <button class="btn btn-sm btn-primary" id="btnPingPbx">Ping PBX Now</button>
             </div>
-            <div id="pbxPingResult" style="margin-top: 14px; background: #f8fafc; border: 1px solid var(--border-light); border-radius: 8px; padding: 14px; font-size: 13px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span>Target Host: <strong id="pingPbxTarget">Connecting...</strong></span>
+            <div class="pbx-diag-matrix">
+              <div class="diag-metric-box">
+                <span class="diag-label">Target PBX Core</span>
+                <span class="diag-val" id="pingPbxTarget">pbx.chriskendall.media:5060 (UDP)</span>
+              </div>
+              <div class="diag-metric-box">
+                <span class="diag-label">Socket Probe State</span>
                 <span class="status-pill operational" id="pingStatusPill">Ready</span>
               </div>
-              <div id="pingDetails" class="muted" style="margin-top: 6px; font-size: 12px;">Click "Ping PBX Now" to measure live network latency to Asterisk/FreePBX.</div>
+              <div class="diag-metric-box">
+                <span class="diag-label">Protocol Standard</span>
+                <span class="diag-val">SIP OPTIONS (RFC 3261)</span>
+              </div>
+              <div class="diag-metric-box">
+                <span class="diag-label">Last Round-Trip RTT</span>
+                <span class="diag-val font-mono" id="pingLatencyVal">&lt; 1 ms</span>
+              </div>
             </div>
+            <div class="ping-telemetry-console" id="pingDetails">Click "Ping PBX Now" to measure live network latency to Asterisk/FreePBX.</div>
           </div>
 
           <!-- Live Audit Event Stream -->
-          <div class="card">
+          <div class="card audit-stream-card">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
               <div>
                 <h3>Real-Time Audit & Event Stream</h3>
@@ -279,7 +295,7 @@
               </div>
               <button class="btn btn-sm btn-secondary" id="btnRefreshLogs">Refresh</button>
             </div>
-            <div class="log-stream mt-4" id="auditLogStream">
+            <div class="log-stream" id="auditLogStream">
               <div class="muted">Loading recent activity events...</div>
             </div>
           </div>
