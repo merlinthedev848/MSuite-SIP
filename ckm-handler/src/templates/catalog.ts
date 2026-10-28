@@ -460,7 +460,7 @@ export function generateDefaultHandsetConfig(brand: string, cfg: HandsetAccountC
     conf += `firmware.url = ${cfg.dataHandlerUrl}/firmware/yealink/${modelMeta.firmwareFilename}\r\n`;
   }
 
-  const mId = (model || '').toUpperCase();
+  const mId = (modelId || '').toUpperCase();
   if (mId.startsWith('T7') || mId.startsWith('T8')) {
     conf += `\r\n## Yealink Next-Gen ${mId.startsWith('T7') ? 'T7X Productivity' : 'T8X Executive'} Telephony Engine\r\n`;
     conf += `features.noise_filter.enable = 1\r\n`;
