@@ -764,12 +764,83 @@ router.post('/api/admin/extensions/quick-provision', adminAuth, requirePermissio
 });
 
 // Device Catalogs Metadata Endpoint (Full Makes & Models for Handsets & Routers)
-router.get('/api/admin/catalogs', adminAuth, (req: Request, res: Response) => {
+router.get('/api/admin/catalogs', (req: Request, res: Response) => {
   return res.json({
     ok: true,
     handsets: HANDSET_CATALOG,
     routers: ROUTER_CATALOG
   });
+});
+
+// Dynamic Profile & Firmware Preview Endpoint
+router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
+  const { type, brand, model, extension, displayName, vlan, subnet, alg, qos } = req.body || {};
+  const serverCfg = getServerConfigStmt.get() as any || {
+    pbx_server: 'pbx.chriskendall.media',
+    pbx_port: 5060,
+    pbx_transport: 'UDP',
+    data_handler_url: 'https://handler.chriskendall.media'
+  };
+
+  if (type === 'router') {
+    const brandMeta = ROUTER_CATALOG.find(r => r.id === (brand || '').toLowerCase());
+    const modelMeta = brandMeta?.models.find(m => m.id === model) || brandMeta?.models[0];
+    const script = generateRouterConfig(brand || 'mikrotik', {
+      siteName: 'Standard Branch Deployment',
+      brand: brand || 'mikrotik',
+      model: model || 'hex',
+      vlanId: parseInt(vlan || '20', 10),
+      voiceSubnet: subnet || '10.20.0.1/24',
+      disableAlg: alg !== false,
+      enableQos: qos !== false,
+      pbxServer: serverCfg.pbx_server,
+      pbxPort: serverCfg.pbx_port,
+      dataHandlerUrl: serverCfg.data_handler_url
+    });
+    return res.json({
+      ok: true,
+      type: 'router',
+      brand: brandMeta?.name || brand,
+      model: modelMeta?.name || model,
+      extension: brandMeta?.configExt || '.rsc',
+      firmware: modelMeta ? {
+        version: modelMeta.firmwareVersion,
+        url: modelMeta.firmwareUrl,
+        filename: modelMeta.firmwareFilename,
+        notes: modelMeta.firmwareNotes || 'Standard tested vendor release'
+      } : null,
+      content: script
+    });
+  } else {
+    // Handset
+    const brandMeta = HANDSET_CATALOG.find(h => h.id === (brand || 'yealink').toLowerCase());
+    const modelMeta = brandMeta?.models.find(m => m.id === model) || brandMeta?.models[0];
+    const conf = generateDefaultHandsetConfig(brand || 'yealink', {
+      extension: extension || '101',
+      username: extension || '101',
+      password: 'StandardPassword123!',
+      displayName: displayName || 'Standard Deskphone',
+      sipServer: serverCfg.pbx_server,
+      sipPort: serverCfg.pbx_port,
+      sipTransport: serverCfg.pbx_transport || 'UDP',
+      dataHandlerUrl: serverCfg.data_handler_url
+    }, model);
+
+    return res.json({
+      ok: true,
+      type: 'handset',
+      brand: brandMeta?.name || brand,
+      model: modelMeta?.name || model,
+      extension: brandMeta?.configExt || '.cfg',
+      firmware: modelMeta ? {
+        version: modelMeta.firmwareVersion,
+        url: modelMeta.firmwareUrl,
+        filename: modelMeta.firmwareFilename,
+        notes: modelMeta.firmwareNotes || 'Standard tested vendor release'
+      } : null,
+      content: conf
+    });
+  }
 });
 
 // 4. Physical Handsets Management

@@ -626,47 +626,562 @@ document.addEventListener('DOMContentLoaded', () => {
   // 6. TAB 3: Physical IP Handsets & Provisioning Profiles
   // --------------------------------------------------------------------------
   let cachedHandsets = [];
-  let deviceCatalogs = { handsets: [], routers: [] };
+  let deviceCatalogs = {
+    handsets: [
+      {
+        id: 'yealink',
+        name: 'Yealink (CFG)',
+        configExt: '.cfg',
+        models: [
+          { id: 'T30P', name: 'Yealink T30P', firmwareVersion: '124.86.0.40', firmwareFilename: 'T30P-124.86.0.40.rom' },
+          { id: 'T31P', name: 'Yealink T31P', firmwareVersion: '124.86.0.40', firmwareFilename: 'T31P-124.86.0.40.rom' },
+          { id: 'T31G', name: 'Yealink T31G', firmwareVersion: '124.86.0.40', firmwareFilename: 'T31G-124.86.0.40.rom' },
+          { id: 'T33G', name: 'Yealink T33G', firmwareVersion: '124.86.0.40', firmwareFilename: 'T33G-124.86.0.40.rom' },
+          { id: 'T41S', name: 'Yealink T41S', firmwareVersion: '66.86.0.15', firmwareFilename: 'T41S-66.86.0.15.rom' },
+          { id: 'T42S', name: 'Yealink T42S', firmwareVersion: '66.86.0.15', firmwareFilename: 'T42S-66.86.0.15.rom' },
+          { id: 'T42U', name: 'Yealink T42U', firmwareVersion: '108.86.0.70', firmwareFilename: 'T42U-108.86.0.70.rom' },
+          { id: 'T43U', name: 'Yealink T43U', firmwareVersion: '108.86.0.70', firmwareFilename: 'T43U-108.86.0.70.rom' },
+          { id: 'T46S', name: 'Yealink T46S', firmwareVersion: '66.86.0.15', firmwareFilename: 'T46S-66.86.0.15.rom' },
+          { id: 'T46U', name: 'Yealink T46U', firmwareVersion: '108.86.0.70', firmwareFilename: 'T46U-108.86.0.70.rom' },
+          { id: 'T48S', name: 'Yealink T48S', firmwareVersion: '66.86.0.15', firmwareFilename: 'T48S-66.86.0.15.rom' },
+          { id: 'T48U', name: 'Yealink T48U', firmwareVersion: '108.86.0.70', firmwareFilename: 'T48U-108.86.0.70.rom' },
+          { id: 'T53', name: 'Yealink T53', firmwareVersion: '96.86.0.75', firmwareFilename: 'T53-96.86.0.75.rom' },
+          { id: 'T53W', name: 'Yealink T53W', firmwareVersion: '96.86.0.75', firmwareFilename: 'T53W-96.86.0.75.rom' },
+          { id: 'T54W', name: 'Yealink T54W', firmwareVersion: '96.86.0.75', firmwareFilename: 'T54W-96.86.0.75.rom' },
+          { id: 'T57W', name: 'Yealink T57W', firmwareVersion: '96.86.0.75', firmwareFilename: 'T57W-96.86.0.75.rom' },
+          { id: 'T58W', name: 'Yealink T58W', firmwareVersion: '150.86.0.35', firmwareFilename: 'T58W-150.86.0.35.rom' },
+          { id: 'W60B', name: 'Yealink W60B DECT', firmwareVersion: '77.85.0.35', firmwareFilename: 'W60B-77.85.0.35.rom' },
+          { id: 'W70B', name: 'Yealink W70B DECT', firmwareVersion: '146.85.0.35', firmwareFilename: 'W70B-146.85.0.35.rom' },
+          { id: 'W73P', name: 'Yealink W73P DECT', firmwareVersion: '146.85.0.35', firmwareFilename: 'W73P-146.85.0.35.rom' },
+          { id: 'CP920', name: 'Yealink CP920', firmwareVersion: '78.86.0.15', firmwareFilename: 'CP920-78.86.0.15.rom' },
+          { id: 'CP960', name: 'Yealink CP960', firmwareVersion: '73.86.0.30', firmwareFilename: 'CP960-73.86.0.30.rom' }
+        ]
+      },
+      {
+        id: 'grandstream',
+        name: 'Grandstream (XML)',
+        configExt: '.xml',
+        models: [
+          { id: 'GXP1610', name: 'Grandstream GXP1610 / 1615', firmwareVersion: '1.0.7.53', firmwareFilename: 'gxp1600fw.bin' },
+          { id: 'GXP1625', name: 'Grandstream GXP1625', firmwareVersion: '1.0.7.53', firmwareFilename: 'gxp1600fw.bin' },
+          { id: 'GXP2130', name: 'Grandstream GXP2130', firmwareVersion: '1.0.11.64', firmwareFilename: 'gxp2100fw.bin' },
+          { id: 'GXP2135', name: 'Grandstream GXP2135', firmwareVersion: '1.0.11.64', firmwareFilename: 'gxp2100fw.bin' },
+          { id: 'GXP2140', name: 'Grandstream GXP2140', firmwareVersion: '1.0.11.64', firmwareFilename: 'gxp2100fw.bin' },
+          { id: 'GXP2160', name: 'Grandstream GXP2160', firmwareVersion: '1.0.11.64', firmwareFilename: 'gxp2100fw.bin' },
+          { id: 'GXP2170', name: 'Grandstream GXP2170', firmwareVersion: '1.0.11.64', firmwareFilename: 'gxp2100fw.bin' },
+          { id: 'GRP2601', name: 'Grandstream GRP2601', firmwareVersion: '1.0.9.103', firmwareFilename: 'grp2600fw.bin' },
+          { id: 'GRP2602', name: 'Grandstream GRP2602', firmwareVersion: '1.0.9.103', firmwareFilename: 'grp2600fw.bin' },
+          { id: 'GRP2612', name: 'Grandstream GRP2612', firmwareVersion: '1.0.9.103', firmwareFilename: 'grp2610fw.bin' },
+          { id: 'GRP2614', name: 'Grandstream GRP2614', firmwareVersion: '1.0.9.103', firmwareFilename: 'grp2610fw.bin' },
+          { id: 'GRP2615', name: 'Grandstream GRP2615', firmwareVersion: '1.0.9.103', firmwareFilename: 'grp2610fw.bin' },
+          { id: 'GRP2616', name: 'Grandstream GRP2616', firmwareVersion: '1.0.9.103', firmwareFilename: 'grp2610fw.bin' },
+          { id: 'WP810', name: 'Grandstream WP810 Wi-Fi', firmwareVersion: '1.0.11.20', firmwareFilename: 'wp810fw.bin' },
+          { id: 'DP750', name: 'Grandstream DP750 DECT', firmwareVersion: '1.0.17.4', firmwareFilename: 'dp750fw.bin' },
+          { id: 'DP752', name: 'Grandstream DP752 DECT', firmwareVersion: '1.0.21.9', firmwareFilename: 'dp752fw.bin' }
+        ]
+      },
+      {
+        id: 'fanvil',
+        name: 'Fanvil (XML)',
+        configExt: '.xml',
+        models: [
+          { id: 'X1S', name: 'Fanvil X1S / X1SG', firmwareVersion: '2.12.16', firmwareFilename: 'fanvil_x1sg_v2.bin' },
+          { id: 'X3S', name: 'Fanvil X3S / X3SG', firmwareVersion: '2.12.16', firmwareFilename: 'fanvil_x3sg_v2.bin' },
+          { id: 'X3U', name: 'Fanvil X3U', firmwareVersion: '2.12.16', firmwareFilename: 'fanvil_x3u_v2.bin' },
+          { id: 'X4U', name: 'Fanvil X4U', firmwareVersion: '2.12.16', firmwareFilename: 'fanvil_x4u_v2.bin' },
+          { id: 'X5U', name: 'Fanvil X5U', firmwareVersion: '2.12.16', firmwareFilename: 'fanvil_x5u_v2.bin' },
+          { id: 'X6U', name: 'Fanvil X6U', firmwareVersion: '2.12.16', firmwareFilename: 'fanvil_x6u_v2.bin' },
+          { id: 'X7', name: 'Fanvil X7 Touch', firmwareVersion: '2.12.16', firmwareFilename: 'fanvil_x7_v2.bin' },
+          { id: 'X7C', name: 'Fanvil X7C Color', firmwareVersion: '2.12.16', firmwareFilename: 'fanvil_x7c_v2.bin' },
+          { id: 'X210', name: 'Fanvil X210 Enterprise', firmwareVersion: '2.12.16', firmwareFilename: 'fanvil_x210_v2.bin' },
+          { id: 'V62', name: 'Fanvil V62 Gigabit', firmwareVersion: '2.14.3', firmwareFilename: 'fanvil_v62_v2.bin' },
+          { id: 'V64', name: 'Fanvil V64 Wi-Fi/BT', firmwareVersion: '2.14.3', firmwareFilename: 'fanvil_v64_v2.bin' },
+          { id: 'V65', name: 'Fanvil V65 Flagship', firmwareVersion: '2.14.3', firmwareFilename: 'fanvil_v65_v2.bin' },
+          { id: 'H3', name: 'Fanvil H3 Hotel', firmwareVersion: '2.12.15', firmwareFilename: 'fanvil_h3_v2.bin' },
+          { id: 'PA2', name: 'Fanvil PA2 Intercom Gateway', firmwareVersion: '2.12.15', firmwareFilename: 'fanvil_pa2_v2.bin' }
+        ]
+      },
+      {
+        id: 'poly',
+        name: 'Poly / Polycom (CFG)',
+        configExt: '.cfg',
+        models: [
+          { id: 'VVX-150', name: 'Poly VVX 150', firmwareVersion: '6.4.5.0118', firmwareFilename: '3111-48810-001.sip.ld' },
+          { id: 'VVX-250', name: 'Poly VVX 250 Color', firmwareVersion: '6.4.5.0118', firmwareFilename: '3111-48820-001.sip.ld' },
+          { id: 'VVX-350', name: 'Poly VVX 350 Gigabit', firmwareVersion: '6.4.5.0118', firmwareFilename: '3111-48830-001.sip.ld' },
+          { id: 'VVX-450', name: 'Poly VVX 450 Executive', firmwareVersion: '6.4.5.0118', firmwareFilename: '3111-48840-001.sip.ld' },
+          { id: 'VVX-300', name: 'Poly VVX 300 / 310', firmwareVersion: '5.9.8.5959', firmwareFilename: '3111-46157-001.sip.ld' },
+          { id: 'VVX-400', name: 'Poly VVX 400 / 410', firmwareVersion: '5.9.8.5959', firmwareFilename: '3111-46162-001.sip.ld' },
+          { id: 'VVX-500', name: 'Poly VVX 500 / 501', firmwareVersion: '5.9.8.5959', firmwareFilename: '3111-44500-001.sip.ld' },
+          { id: 'VVX-600', name: 'Poly VVX 600 / 601', firmwareVersion: '5.9.8.5959', firmwareFilename: '3111-44600-001.sip.ld' },
+          { id: 'Edge-E100', name: 'Poly Edge E100', firmwareVersion: '8.1.3.1328', firmwareFilename: 'poly-edge-e100.bin' },
+          { id: 'Edge-E220', name: 'Poly Edge E220', firmwareVersion: '8.1.3.1328', firmwareFilename: 'poly-edge-e220.bin' },
+          { id: 'Edge-E320', name: 'Poly Edge E320', firmwareVersion: '8.1.3.1328', firmwareFilename: 'poly-edge-e320.bin' },
+          { id: 'Edge-E450', name: 'Poly Edge E450 Dual LCD', firmwareVersion: '8.1.3.1328', firmwareFilename: 'poly-edge-e450.bin' },
+          { id: 'Trio-8500', name: 'Poly Trio 8500 Conference', firmwareVersion: '7.2.5.0085', firmwareFilename: '3111-66700-001.sip.ld' }
+        ]
+      },
+      {
+        id: 'cisco',
+        name: 'Cisco / Linksys (SPA & MPP)',
+        configExt: '.cfg',
+        models: [
+          { id: 'SPA504G', name: 'Cisco SPA504G', firmwareVersion: '7.6.2e', firmwareFilename: 'spa50x-30x-7-6-2e.bin' },
+          { id: 'SPA525G2', name: 'Cisco SPA525G2 Wi-Fi', firmwareVersion: '7.6.2e', firmwareFilename: 'spa525g-7-6-2e.bin' },
+          { id: 'SPA112', name: 'Cisco SPA112 2-Port ATA', firmwareVersion: '1.4.1.SR5', firmwareFilename: 'spa112-1-4-1-SR5.bin' },
+          { id: 'SPA122', name: 'Cisco SPA122 ATA Router', firmwareVersion: '1.4.1.SR5', firmwareFilename: 'spa122-1-4-1-SR5.bin' },
+          { id: 'MPP-6821', name: 'Cisco MPP 6821', firmwareVersion: '12.0.2', firmwareFilename: 'sip68xx.12-0-2MPP.loads' },
+          { id: 'MPP-6851', name: 'Cisco MPP 6851 Gigabit', firmwareVersion: '12.0.2', firmwareFilename: 'sip68xx.12-0-2MPP.loads' },
+          { id: 'MPP-7821', name: 'Cisco MPP 7821', firmwareVersion: '14.2.1-0101', firmwareFilename: 'sip78xx.14-2-1-0101-44MPP.loads' },
+          { id: 'MPP-7841', name: 'Cisco MPP 7841 Gigabit', firmwareVersion: '14.2.1-0101', firmwareFilename: 'sip78xx.14-2-1-0101-44MPP.loads' },
+          { id: 'MPP-8841', name: 'Cisco MPP 8841 Color', firmwareVersion: '14.2.1-0101', firmwareFilename: 'sip88xx.14-2-1-0101-44MPP.loads' },
+          { id: 'MPP-8851', name: 'Cisco MPP 8851 Executive', firmwareVersion: '14.2.1-0101', firmwareFilename: 'sip88xx.14-2-1-0101-44MPP.loads' },
+          { id: 'MPP-8861', name: 'Cisco MPP 8861 Wi-Fi/BT', firmwareVersion: '14.2.1-0101', firmwareFilename: 'sip88xx.14-2-1-0101-44MPP.loads' }
+        ]
+      },
+      {
+        id: 'snom',
+        name: 'Snom (XML)',
+        configExt: '.xml',
+        models: [
+          { id: 'D712', name: 'Snom D712', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD712-10.1.127.10-SIP-r.bin' },
+          { id: 'D717', name: 'Snom D717 Color', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD717-10.1.127.10-SIP-r.bin' },
+          { id: 'D735', name: 'Snom D735 Sensor', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD735-10.1.127.10-SIP-r.bin' },
+          { id: 'D785', name: 'Snom D785 Dual Display', firmwareVersion: '10.1.127.10', firmwareFilename: 'snomD785-10.1.127.10-SIP-r.bin' },
+          { id: 'D862', name: 'Snom D862 5" LCD', firmwareVersion: '10.1.141.0', firmwareFilename: 'snomD862-10.1.141.0-SIP-r.bin' },
+          { id: 'D865', name: 'Snom D865 Wi-Fi/BT', firmwareVersion: '10.1.141.0', firmwareFilename: 'snomD865-10.1.141.0-SIP-r.bin' },
+          { id: 'M300', name: 'Snom M300 DECT Base', firmwareVersion: '05.30.0002', firmwareFilename: 'snomM300-05.30.0002.bin' },
+          { id: 'M900', name: 'Snom M900 Multi-Cell DECT', firmwareVersion: '06.10.0001', firmwareFilename: 'snomM900-06.10.0001.bin' }
+        ]
+      },
+      {
+        id: 'gigaset',
+        name: 'Gigaset pro (XML)',
+        configExt: '.xml',
+        models: [
+          { id: 'Maxwell-2', name: 'Gigaset Maxwell 2', firmwareVersion: '2.24.4', firmwareFilename: 'maxwell2-2.24.4.bin' },
+          { id: 'Maxwell-3', name: 'Gigaset Maxwell 3', firmwareVersion: '2.24.4', firmwareFilename: 'maxwell3-2.24.4.bin' },
+          { id: 'Maxwell-4', name: 'Gigaset Maxwell 4 Touch', firmwareVersion: '2.24.4', firmwareFilename: 'maxwell4-2.24.4.bin' },
+          { id: 'N510', name: 'Gigaset N510 IP Pro DECT', firmwareVersion: '42.259', firmwareFilename: 'n510-42.259.bin' },
+          { id: 'N670', name: 'Gigaset N670 IP Pro DECT', firmwareVersion: '2.53.0', firmwareFilename: 'n670-2.53.0.bin' },
+          { id: 'N870', name: 'Gigaset N870 Enterprise DECT', firmwareVersion: '2.53.0', firmwareFilename: 'n870-2.53.0.bin' }
+        ]
+      }
+    ],
+    routers: [
+      {
+        id: 'mikrotik',
+        name: 'MikroTik RouterOS (v6/v7 .rsc)',
+        configExt: '.rsc',
+        models: [
+          { id: 'hex', name: 'MikroTik hEX (RB750Gr3 / RB760iGS)', firmwareVersion: 'RouterOS v7.16.1' },
+          { id: 'rb3011', name: 'MikroTik RB3011UiAS-RM (10-Port GbE)', firmwareVersion: 'RouterOS v7.16.1' },
+          { id: 'rb4011', name: 'MikroTik RB4011iGS+ (10G SFP+)', firmwareVersion: 'RouterOS v7.16.1' },
+          { id: 'rb5009', name: 'MikroTik RB5009UG+S+IN (Heavy Duty 2.5G)', firmwareVersion: 'RouterOS v7.16.1' },
+          { id: 'ccr2004', name: 'MikroTik CCR2004-16G-2S+ Cloud Core', firmwareVersion: 'RouterOS v7.16.1' },
+          { id: 'ccr2116', name: 'MikroTik CCR2116-12G-4S+ Carrier', firmwareVersion: 'RouterOS v7.16.1' },
+          { id: 'hap-ax3', name: 'MikroTik hAP ax3 / ax2 Wi-Fi 6', firmwareVersion: 'RouterOS v7.16.1' },
+          { id: 'chr', name: 'MikroTik Cloud Hosted Router (CHR x86 VM)', firmwareVersion: 'RouterOS v7.16.1' }
+        ]
+      },
+      {
+        id: 'ubiquiti',
+        name: 'Ubiquiti EdgeRouter (EdgeOS .sh)',
+        configExt: '.sh',
+        models: [
+          { id: 'er-x', name: 'Ubiquiti EdgeRouter X (ER-X / SFP)', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7' },
+          { id: 'er-4', name: 'Ubiquiti EdgeRouter 4 (ER-4)', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7' },
+          { id: 'er-6p', name: 'Ubiquiti EdgeRouter 6P (ER-6P PoE)', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7' },
+          { id: 'er-12', name: 'Ubiquiti EdgeRouter 12 (ER-12 10-Port)', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7' },
+          { id: 'er-8-xg', name: 'Ubiquiti EdgeRouter Infinity (ER-8-XG 10G)', firmwareVersion: 'EdgeOS v2.0.9-hotfix.7' }
+        ]
+      },
+      {
+        id: 'unifi',
+        name: 'Ubiquiti UniFi Gateway (UDM / UXG)',
+        configExt: '.sh',
+        models: [
+          { id: 'udm-pro', name: 'UniFi Dream Machine Pro (UDM-Pro)', firmwareVersion: 'UniFi OS v3.2.12' },
+          { id: 'udm-se', name: 'UniFi Dream Machine Special Edition (UDM-SE)', firmwareVersion: 'UniFi OS v3.2.12' },
+          { id: 'uxg-pro', name: 'UniFi Next-Gen Gateway Pro (UXG-Pro)', firmwareVersion: 'UniFi OS v3.2.12' },
+          { id: 'uxg-lite', name: 'UniFi Next-Gen Gateway Lite (UXG-Lite)', firmwareVersion: 'UniFi OS v3.2.12' },
+          { id: 'ucg-ultra', name: 'UniFi Cloud Gateway Ultra (UCG-Ultra)', firmwareVersion: 'UniFi OS v3.2.12' }
+        ]
+      },
+      {
+        id: 'pfsense',
+        name: 'pfSense / Netgate (Static Port & QoS)',
+        configExt: '.txt',
+        models: [
+          { id: 'netgate-1100', name: 'Netgate 1100 (SOHO Appliance)', firmwareVersion: 'pfSense Plus 23.09.1 / CE 2.7.2' },
+          { id: 'netgate-2100', name: 'Netgate 2100 (Branch Appliance)', firmwareVersion: 'pfSense Plus 23.09.1' },
+          { id: 'netgate-4100', name: 'Netgate 4100 (Enterprise Appliance)', firmwareVersion: 'pfSense Plus 23.09.1' },
+          { id: 'netgate-6100', name: 'Netgate 6100 (10G SFP+ Appliance)', firmwareVersion: 'pfSense Plus 23.09.1' },
+          { id: 'netgate-8200', name: 'Netgate 8200 (1U Rackmount Enterprise)', firmwareVersion: 'pfSense Plus 23.09.1' },
+          { id: 'pfsense-custom', name: 'pfSense Community Edition (x86 Bare Metal / VM)', firmwareVersion: 'pfSense CE 2.7.2-RELEASE' }
+        ]
+      },
+      {
+        id: 'opnsense',
+        name: 'OPNsense Firewall (Static Port NAT)',
+        configExt: '.txt',
+        models: [
+          { id: 'dec600', name: 'Deciso DEC600 Series', firmwareVersion: 'OPNsense 24.7 Business Edition' },
+          { id: 'dec700', name: 'Deciso DEC700 Series Desktop SFP+', firmwareVersion: 'OPNsense 24.7 Business Edition' },
+          { id: 'dec800', name: 'Deciso DEC800 Series', firmwareVersion: 'OPNsense 24.7 Business Edition' },
+          { id: 'dec2600', name: 'Deciso DEC2600 Series 1U Rackmount', firmwareVersion: 'OPNsense 24.7 Business Edition' },
+          { id: 'opnsense-custom', name: 'OPNsense Community (Custom Appliance / VM)', firmwareVersion: 'OPNsense 24.7.4-amd64' }
+        ]
+      },
+      {
+        id: 'cisco',
+        name: 'Cisco IOS & ISR Gateway (.cfg)',
+        configExt: '.cfg',
+        models: [
+          { id: 'isr-1100', name: 'Cisco ISR 1100 (1100-4P / 1100-8P)', firmwareVersion: 'Cisco IOS XE 17.9.5' },
+          { id: 'isr-4321', name: 'Cisco ISR 4321 Modular Router', firmwareVersion: 'Cisco IOS XE 17.9.5' },
+          { id: 'isr-4331', name: 'Cisco ISR 4331 Voice Gateway', firmwareVersion: 'Cisco IOS XE 17.9.5' },
+          { id: 'isr-4451', name: 'Cisco ISR 4451-X High-Performance', firmwareVersion: 'Cisco IOS XE 17.9.5' },
+          { id: 'c8200', name: 'Cisco Catalyst 8200 Edge Platform', firmwareVersion: 'Cisco IOS XE 17.12.3' },
+          { id: 'c8300', name: 'Cisco Catalyst 8300 Edge Platform', firmwareVersion: 'Cisco IOS XE 17.12.3' }
+        ]
+      },
+      {
+        id: 'switch',
+        name: 'Cisco Catalyst Switch (Voice VLAN .cfg)',
+        configExt: '.cfg',
+        models: [
+          { id: 'c2960x', name: 'Cisco Catalyst 2960-X / 2960-XR PoE+', firmwareVersion: 'Cisco IOS 15.2(7)E10' },
+          { id: 'c3560cx', name: 'Cisco Catalyst 3560-CX Compact Gigabit', firmwareVersion: 'Cisco IOS 15.2(7)E10' },
+          { id: 'c3650', name: 'Cisco Catalyst 3650 / 3850 Multi-Gigabit', firmwareVersion: 'Cisco IOS XE 16.12.10a' },
+          { id: 'c9200', name: 'Cisco Catalyst 9200 / 9200L Enterprise', firmwareVersion: 'Cisco IOS XE 17.9.5' },
+          { id: 'c9300', name: 'Cisco Catalyst 9300 Stackable Enterprise', firmwareVersion: 'Cisco IOS XE 17.9.5' }
+        ]
+      },
+      {
+        id: 'meraki',
+        name: 'Cisco Meraki MX Security Appliance',
+        configExt: '.txt',
+        models: [
+          { id: 'mx67', name: 'Cisco Meraki MX67 / MX67W', firmwareVersion: 'Meraki MX 18.211' },
+          { id: 'mx68', name: 'Cisco Meraki MX68 / MX68W PoE', firmwareVersion: 'Meraki MX 18.211' },
+          { id: 'mx85', name: 'Cisco Meraki MX85 Gigabit Mid-Market', firmwareVersion: 'Meraki MX 18.211' },
+          { id: 'mx95', name: 'Cisco Meraki MX95 Multi-Gigabit 10G', firmwareVersion: 'Meraki MX 18.211' },
+          { id: 'mx105', name: 'Cisco Meraki MX105 Campus', firmwareVersion: 'Meraki MX 18.211' }
+        ]
+      },
+      {
+        id: 'draytek',
+        name: 'DrayTek Vigor Series',
+        configExt: '.txt',
+        models: [
+          { id: 'vigor-2865', name: 'DrayTek Vigor 2865 / 2865ac', firmwareVersion: 'Firmware 4.4.5' },
+          { id: 'vigor-2866', name: 'DrayTek Vigor 2866 / 2866Lac G.Fast', firmwareVersion: 'Firmware 4.4.5' },
+          { id: 'vigor-2927', name: 'DrayTek Vigor 2927 Dual-WAN GbE', firmwareVersion: 'Firmware 4.4.5' },
+          { id: 'vigor-2962', name: 'DrayTek Vigor 2962 2.5G Multi-WAN', firmwareVersion: 'Firmware 4.4.5' },
+          { id: 'vigor-3910', name: 'DrayTek Vigor 3910 10G Multi-WAN', firmwareVersion: 'Firmware 4.4.5' }
+        ]
+      },
+      {
+        id: 'fortinet',
+        name: 'Fortinet FortiGate (FortiOS)',
+        configExt: '.conf',
+        models: [
+          { id: 'fg-40f', name: 'Fortinet FortiGate 40F', firmwareVersion: 'FortiOS v7.4.4 / v7.2.8' },
+          { id: 'fg-60f', name: 'Fortinet FortiGate 60F SMB', firmwareVersion: 'FortiOS v7.4.4 / v7.2.8' },
+          { id: 'fg-70f', name: 'Fortinet FortiGate 70F Branch', firmwareVersion: 'FortiOS v7.4.4 / v7.2.8' },
+          { id: 'fg-80f', name: 'Fortinet FortiGate 80F Dual Power', firmwareVersion: 'FortiOS v7.4.4 / v7.2.8' },
+          { id: 'fg-100f', name: 'Fortinet FortiGate 100F 10G SFP+', firmwareVersion: 'FortiOS v7.4.4 / v7.2.8' }
+        ]
+      },
+      {
+        id: 'sonicwall',
+        name: 'SonicWall TZ & NSA Series',
+        configExt: '.txt',
+        models: [
+          { id: 'tz270', name: 'SonicWall TZ270 Gen 7', firmwareVersion: 'SonicOS 7.1.1-7058' },
+          { id: 'tz370', name: 'SonicWall TZ370 Gen 7', firmwareVersion: 'SonicOS 7.1.1-7058' },
+          { id: 'tz470', name: 'SonicWall TZ470 Multi-Gigabit', firmwareVersion: 'SonicOS 7.1.1-7058' },
+          { id: 'tz570', name: 'SonicWall TZ570 5GbE SFP+', firmwareVersion: 'SonicOS 7.1.1-7058' },
+          { id: 'tz670', name: 'SonicWall TZ670 10GbE', firmwareVersion: 'SonicOS 7.1.1-7058' },
+          { id: 'nsa2700', name: 'SonicWall NSA 2700 Enterprise', firmwareVersion: 'SonicOS 7.1.1-7058' }
+        ]
+      },
+      {
+        id: 'sophos',
+        name: 'Sophos XGS Firewall',
+        configExt: '.txt',
+        models: [
+          { id: 'xgs-87', name: 'Sophos XGS 87 Small Office', firmwareVersion: 'SFOS v20.0 MR2' },
+          { id: 'xgs-107', name: 'Sophos XGS 107 Branch Office', firmwareVersion: 'SFOS v20.0 MR2' },
+          { id: 'xgs-116', name: 'Sophos XGS 116 GbE & SFP', firmwareVersion: 'SFOS v20.0 MR2' },
+          { id: 'xgs-126', name: 'Sophos XGS 126 Multi-Port', firmwareVersion: 'SFOS v20.0 MR2' },
+          { id: 'xgs-136', name: 'Sophos XGS 136 Dual SFP+ 2.5G', firmwareVersion: 'SFOS v20.0 MR2' }
+        ]
+      },
+      {
+        id: 'omada',
+        name: 'TP-Link Omada SDN Gateway',
+        configExt: '.txt',
+        models: [
+          { id: 'er605', name: 'TP-Link Omada ER605 Gigabit VPN', firmwareVersion: 'Firmware v2.2.4' },
+          { id: 'er7206', name: 'TP-Link Omada ER7206 SFP Gigabit', firmwareVersion: 'Firmware v1.4.1' },
+          { id: 'er707-m2', name: 'TP-Link Omada ER707-M2 Multi-Gig 2.5G', firmwareVersion: 'Firmware v1.2.2' },
+          { id: 'er8411', name: 'TP-Link Omada ER8411 Enterprise 10G', firmwareVersion: 'Firmware v1.2.0' }
+        ]
+      },
+      {
+        id: 'linux',
+        name: 'Generic Linux / Dnsmasq (Option 66)',
+        configExt: '.sh',
+        models: [
+          { id: 'dnsmasq', name: 'Debian / Ubuntu dnsmasq Gateway', firmwareVersion: 'dnsmasq 2.90+' },
+          { id: 'isc-dhcp', name: 'ISC DHCP Server (dhcpd.conf)', firmwareVersion: 'isc-dhcp-server 4.4.3+' },
+          { id: 'kea-dhcp', name: 'ISC Kea Modern DHCP Server', firmwareVersion: 'Kea 2.6.1 LTS' }
+        ]
+      }
+    ]
+  };
+
+  // Populate dropdowns immediately with built-in catalog
+  setTimeout(() => {
+    updateHandsetModelsDropdown();
+    updateRouterModelsDropdown();
+    updateHandsetExplorerPreview();
+    updateRouterExplorerPreview();
+  }, 50);
+
+  function downloadTextFile(filename, content) {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
   async function loadCatalogs() {
-    const data = await fetchJson('/api/admin/catalogs');
-    if (data && data.ok) {
-      deviceCatalogs = { handsets: data.handsets || [], routers: data.routers || [] };
-      updateHandsetModelsDropdown();
-      updateRouterModelsDropdown();
+    try {
+      const res = await fetch('/api/admin/catalogs');
+      const data = await res.json();
+      if (data && data.ok) {
+        deviceCatalogs = { handsets: data.handsets || [], routers: data.routers || [] };
+        updateHandsetModelsDropdown();
+        updateRouterModelsDropdown();
+        updateHandsetExplorerPreview();
+        updateRouterExplorerPreview();
+      }
+    } catch (err) {
+      console.warn('Failed to fetch catalogs from server:', err);
     }
   }
 
   function updateHandsetModelsDropdown() {
+    // 1. Modal Select
     const brandSel = document.getElementById('addHandsetBrand');
     const modelSel = document.getElementById('addHandsetModel');
-    if (!brandSel || !modelSel) return;
-    const brandId = brandSel.value;
-    const brandObj = deviceCatalogs.handsets.find(b => b.id === brandId);
-    if (!brandObj || !brandObj.models || !brandObj.models.length) {
-      modelSel.innerHTML = '<option value="">Standard / Generic Model</option>';
-      return;
+    if (brandSel && modelSel) {
+      const brandId = brandSel.value;
+      const brandObj = deviceCatalogs.handsets.find(b => b.id === brandId);
+      if (brandObj && brandObj.models && brandObj.models.length) {
+        modelSel.innerHTML = brandObj.models.map(m => `
+          <option value="${m.id}">${m.name} (${m.series || 'Desktop'})</option>
+        `).join('') + '<option value="Custom">Custom / Other Model</option>';
+      } else {
+        modelSel.innerHTML = '<option value="">Standard / Generic Model</option>';
+      }
     }
-    modelSel.innerHTML = brandObj.models.map(m => `
-      <option value="${m.id}">${m.name} (${m.series || 'Desktop'})</option>
-    `).join('') + '<option value="Custom">Custom / Other Model</option>';
+
+    // 2. Explorer Select
+    const expBrandSel = document.getElementById('explorerHandsetBrand');
+    const expModelSel = document.getElementById('explorerHandsetModel');
+    if (expBrandSel && expModelSel) {
+      const brandId = expBrandSel.value;
+      const brandObj = deviceCatalogs.handsets.find(b => b.id === brandId);
+      if (brandObj && brandObj.models && brandObj.models.length) {
+        expModelSel.innerHTML = brandObj.models.map(m => `
+          <option value="${m.id}">${m.name} — ${m.firmwareVersion || ''}</option>
+        `).join('');
+      } else {
+        expModelSel.innerHTML = '<option value="">Standard Model</option>';
+      }
+    }
   }
 
   function updateRouterModelsDropdown() {
+    // 1. Modal Select
     const brandSel = document.getElementById('addRouterBrand');
     const modelSel = document.getElementById('addRouterModel');
-    if (!brandSel || !modelSel) return;
-    const brandId = brandSel.value;
-    const brandObj = deviceCatalogs.routers.find(b => b.id === brandId);
-    if (!brandObj || !brandObj.models || !brandObj.models.length) {
-      modelSel.innerHTML = '<option value="">Standard / Generic Model</option>';
-      return;
+    if (brandSel && modelSel) {
+      const brandId = brandSel.value;
+      const brandObj = deviceCatalogs.routers.find(b => b.id === brandId);
+      if (brandObj && brandObj.models && brandObj.models.length) {
+        modelSel.innerHTML = brandObj.models.map(m => `
+          <option value="${m.id}">${m.name} (${m.series || 'Gateway'})</option>
+        `).join('') + '<option value="Custom">Custom / Other Model</option>';
+      } else {
+        modelSel.innerHTML = '<option value="">Standard / Generic Model</option>';
+      }
     }
-    modelSel.innerHTML = brandObj.models.map(m => `
-      <option value="${m.id}">${m.name} (${m.series || 'Gateway'})</option>
-    `).join('') + '<option value="Custom">Custom / Other Model</option>';
+
+    // 2. Explorer Select
+    const expBrandSel = document.getElementById('explorerRouterBrand');
+    const expModelSel = document.getElementById('explorerRouterModel');
+    if (expBrandSel && expModelSel) {
+      const brandId = expBrandSel.value;
+      const brandObj = deviceCatalogs.routers.find(b => b.id === brandId);
+      if (brandObj && brandObj.models && brandObj.models.length) {
+        expModelSel.innerHTML = brandObj.models.map(m => `
+          <option value="${m.id}">${m.name} — ${m.firmwareVersion || ''}</option>
+        `).join('');
+      } else {
+        expModelSel.innerHTML = '<option value="">Standard Model</option>';
+      }
+    }
   }
 
+  async function updateHandsetExplorerPreview() {
+    const brand = document.getElementById('explorerHandsetBrand')?.value || 'yealink';
+    const model = document.getElementById('explorerHandsetModel')?.value || '';
+    const ext = document.getElementById('explorerHandsetExt')?.value.trim() || '101';
+    const label = document.getElementById('explorerHandsetLabel')?.value.trim() || 'Demo User';
+
+    const brandMeta = deviceCatalogs.handsets.find(b => b.id === brand);
+    const modelMeta = brandMeta?.models.find(m => m.id === model) || brandMeta?.models[0];
+
+    // Update Firmware Banner
+    const fwVer = document.getElementById('explorerHandsetFwVer');
+    const fwFile = document.getElementById('explorerHandsetFwFile');
+    const fwNotes = document.getElementById('explorerHandsetFwNotes');
+    const fwLink = document.getElementById('explorerHandsetFwLink');
+    if (modelMeta) {
+      if (fwVer) fwVer.textContent = `Firmware: ${modelMeta.firmwareVersion || 'Latest Stable'}`;
+      if (fwFile) fwFile.textContent = modelMeta.firmwareFilename || 'standard.rom';
+      if (fwNotes) fwNotes.textContent = modelMeta.firmwareNotes ? `(${modelMeta.firmwareNotes})` : '';
+      if (fwLink) {
+        fwLink.href = modelMeta.firmwareUrl || brandMeta?.vendorDocUrl || '#';
+        fwLink.style.display = 'inline-flex';
+      }
+    }
+
+    try {
+      const res = await fetch('/api/admin/catalogs/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'handset', brand, model, extension: ext, displayName: label })
+      });
+      const data = await res.json();
+      if (data && data.ok) {
+        const txt = document.getElementById('explorerHandsetConfig');
+        if (txt) txt.value = data.content;
+      }
+    } catch (e) {
+      console.error('Error fetching handset preview:', e);
+    }
+  }
+
+  async function updateRouterExplorerPreview() {
+    const brand = document.getElementById('explorerRouterBrand')?.value || 'mikrotik';
+    const model = document.getElementById('explorerRouterModel')?.value || '';
+    const vlan = document.getElementById('explorerRouterVlan')?.value || '20';
+    const subnet = document.getElementById('explorerRouterSubnet')?.value || '10.20.0.1/24';
+    const alg = document.getElementById('explorerRouterAlg')?.checked ?? true;
+    const qos = document.getElementById('explorerRouterQos')?.checked ?? true;
+
+    const brandMeta = deviceCatalogs.routers.find(b => b.id === brand);
+    const modelMeta = brandMeta?.models.find(m => m.id === model) || brandMeta?.models[0];
+
+    // Update Firmware Banner
+    const fwVer = document.getElementById('explorerRouterFwVer');
+    const fwLink = document.getElementById('explorerRouterFwLink');
+    if (modelMeta) {
+      if (fwVer) fwVer.textContent = `Recommended OS: ${modelMeta.firmwareVersion || 'Latest Release'}`;
+      if (fwLink) {
+        fwLink.href = modelMeta.firmwareUrl || brandMeta?.vendorDocUrl || '#';
+        fwLink.style.display = 'inline-flex';
+      }
+    }
+
+    try {
+      const res = await fetch('/api/admin/catalogs/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'router', brand, model, vlan, subnet, alg, qos })
+      });
+      const data = await res.json();
+      if (data && data.ok) {
+        const txt = document.getElementById('explorerRouterConfig');
+        if (txt) txt.value = data.content;
+      }
+    } catch (e) {
+      console.error('Error fetching router preview:', e);
+    }
+  }
+
+  // Bind Handset Explorer Events
+  document.getElementById('explorerHandsetBrand')?.addEventListener('change', () => {
+    updateHandsetModelsDropdown();
+    updateHandsetExplorerPreview();
+  });
+  document.getElementById('explorerHandsetModel')?.addEventListener('change', updateHandsetExplorerPreview);
+  document.getElementById('explorerHandsetExt')?.addEventListener('input', updateHandsetExplorerPreview);
+  document.getElementById('explorerHandsetLabel')?.addEventListener('input', updateHandsetExplorerPreview);
+
+  document.getElementById('btnCopyHandsetExplorerConfig')?.addEventListener('click', () => {
+    const content = document.getElementById('explorerHandsetConfig')?.value;
+    if (content) {
+      navigator.clipboard.writeText(content);
+      window.showToast('Handset configuration copied to clipboard!', 'success');
+    }
+  });
+
+  document.getElementById('btnDownloadHandsetExplorerConfig')?.addEventListener('click', () => {
+    const content = document.getElementById('explorerHandsetConfig')?.value;
+    const brand = document.getElementById('explorerHandsetBrand')?.value || 'handset';
+    const model = document.getElementById('explorerHandsetModel')?.value || 'config';
+    const brandMeta = deviceCatalogs.handsets.find(b => b.id === brand);
+    const ext = brandMeta?.configExt || '.cfg';
+    if (content) {
+      downloadTextFile(`${brand}_${model}_profile${ext}`, content);
+      window.showToast(`Downloaded ${brand}_${model}_profile${ext}`, 'success');
+    }
+  });
+
+  // Bind Router Explorer Events
+  document.getElementById('explorerRouterBrand')?.addEventListener('change', () => {
+    updateRouterModelsDropdown();
+    updateRouterExplorerPreview();
+  });
+  document.getElementById('explorerRouterModel')?.addEventListener('change', updateRouterExplorerPreview);
+  document.getElementById('explorerRouterVlan')?.addEventListener('input', updateRouterExplorerPreview);
+  document.getElementById('explorerRouterSubnet')?.addEventListener('input', updateRouterExplorerPreview);
+  document.getElementById('explorerRouterAlg')?.addEventListener('change', updateRouterExplorerPreview);
+  document.getElementById('explorerRouterQos')?.addEventListener('change', updateRouterExplorerPreview);
+
+  document.getElementById('btnCopyRouterExplorerConfig')?.addEventListener('click', () => {
+    const content = document.getElementById('explorerRouterConfig')?.value;
+    if (content) {
+      navigator.clipboard.writeText(content);
+      window.showToast('Router script copied to clipboard!', 'success');
+    }
+  });
+
+  document.getElementById('btnDownloadRouterExplorerConfig')?.addEventListener('click', () => {
+    const content = document.getElementById('explorerRouterConfig')?.value;
+    const brand = document.getElementById('explorerRouterBrand')?.value || 'router';
+    const model = document.getElementById('explorerRouterModel')?.value || 'script';
+    const brandMeta = deviceCatalogs.routers.find(b => b.id === brand);
+    const ext = brandMeta?.configExt || '.rsc';
+    if (content) {
+      downloadTextFile(`${brand}_${model}_script${ext}`, content);
+      window.showToast(`Downloaded ${brand}_${model}_script${ext}`, 'success');
+    }
+  });
+
+  // Modal Brand Listeners
   document.getElementById('addHandsetBrand')?.addEventListener('change', updateHandsetModelsDropdown);
   document.getElementById('addRouterBrand')?.addEventListener('change', updateRouterModelsDropdown);
 

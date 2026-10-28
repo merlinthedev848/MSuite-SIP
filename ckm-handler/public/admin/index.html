@@ -318,6 +318,68 @@
 
       <!-- TAB 3: PHYSICAL HANDSETS -->
       <section class="tab-pane" id="pane-handsets">
+        <!-- Interactive Handset Provisioning Profile & Firmware Explorer -->
+        <div class="card" style="margin-bottom: 24px; border-left: 4px solid var(--primary);">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <h3>📱 Universal SIP Handset Provisioning & Firmware Explorer</h3>
+              <p class="muted">Live configuration compiler, official firmware release manager, and downloadable provisioning profiles for all makes and models.</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-sm btn-secondary" id="btnCopyHandsetExplorerConfig">📋 Copy Config</button>
+              <button class="btn btn-sm btn-primary" id="btnDownloadHandsetExplorerConfig">💾 Download Template</button>
+            </div>
+          </div>
+
+          <!-- Selectors Grid -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 10px; background: #f8fafc; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-light);">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Manufacturer / Brand</label>
+              <select id="explorerHandsetBrand">
+                <option value="yealink">Yealink (CFG)</option>
+                <option value="grandstream">Grandstream (XML)</option>
+                <option value="fanvil">Fanvil (XML)</option>
+                <option value="poly">Poly / Polycom (CFG)</option>
+                <option value="cisco">Cisco / Linksys (SPA & MPP)</option>
+                <option value="snom">Snom (XML)</option>
+                <option value="gigaset">Gigaset pro (XML)</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Hardware Model</label>
+              <select id="explorerHandsetModel">
+                <!-- Dynamically populated from catalog -->
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Demo Extension</label>
+              <input type="text" id="explorerHandsetExt" value="101" placeholder="101">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Line Display Label</label>
+              <input type="text" id="explorerHandsetLabel" value="Demo User" placeholder="Display Label">
+            </div>
+          </div>
+
+          <!-- Live Firmware Information Banner -->
+          <div id="explorerHandsetFwBanner" style="margin-top: 12px; background: #090e1a; border: 1px solid #1e293b; border-radius: var(--radius-md); padding: 12px 16px; color: #f8fafc; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <span class="badge badge-primary" id="explorerHandsetFwVer">Firmware: Loading...</span>
+              <span style="font-size: 12px; color: #94a3b8;">Binary: <code id="explorerHandsetFwFile" style="color: #38bdf8; background: transparent; border: none; padding: 0;">--</code></span>
+              <span id="explorerHandsetFwNotes" class="muted" style="font-size: 11.5px; color: #cbd5e1;"></span>
+            </div>
+            <a id="explorerHandsetFwLink" class="btn btn-sm btn-secondary" href="#" target="_blank" style="font-size: 11px; padding: 4px 10px;">⬇ Official Firmware Download</a>
+          </div>
+
+          <!-- Live Compiled Configuration Editor -->
+          <div style="margin-top: 12px;">
+            <textarea id="explorerHandsetConfig" class="code-editor" style="height: 260px;" spellcheck="false"></textarea>
+          </div>
+        </div>
+
         <div class="section-header-panel">
           <div class="section-header-info">
             <h2>Physical IP Deskphone Directory</h2>
@@ -358,6 +420,79 @@
 
       <!-- TAB 4: ROUTERS & GATEWAYS -->
       <section class="tab-pane" id="pane-routers">
+        <!-- Interactive VoIP Router Script & Firmware Explorer -->
+        <div class="card" style="margin-bottom: 24px; border-left: 4px solid #0284c7;">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <h3>🌐 Universal VoIP Router & Network Gateway Profile Explorer</h3>
+              <p class="muted">Live deployment script compiler, firmware OS versions, Voice VLAN setups, and SIP ALG mitigations across 14 router platforms.</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-sm btn-secondary" id="btnCopyRouterExplorerConfig">📋 Copy Script</button>
+              <button class="btn btn-sm btn-primary" id="btnDownloadRouterExplorerConfig">💾 Download Script</button>
+            </div>
+          </div>
+
+          <!-- Selectors Grid -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 10px; background: #f8fafc; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-light);">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Router / Firewall Platform</label>
+              <select id="explorerRouterBrand">
+                <option value="mikrotik">MikroTik RouterOS (v6/v7 .rsc)</option>
+                <option value="ubiquiti">Ubiquiti EdgeRouter (EdgeOS .sh)</option>
+                <option value="unifi">Ubiquiti UniFi Gateway (UDM / UXG)</option>
+                <option value="pfsense">pfSense Firewall (Static Port NAT & QoS)</option>
+                <option value="opnsense">OPNsense Firewall (Static Port NAT)</option>
+                <option value="cisco">Cisco IOS & ISR Gateway (.cfg)</option>
+                <option value="switch">Cisco Catalyst Switch (Voice VLAN .cfg)</option>
+                <option value="meraki">Cisco Meraki MX Security Appliance</option>
+                <option value="draytek">DrayTek Vigor Series</option>
+                <option value="fortinet">Fortinet FortiGate (FortiOS)</option>
+                <option value="sonicwall">SonicWall TZ & NSA Series</option>
+                <option value="sophos">Sophos XGS Firewall</option>
+                <option value="omada">TP-Link Omada SDN Gateway</option>
+                <option value="linux">Generic Linux / Dnsmasq (Option 66)</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Hardware Model</label>
+              <select id="explorerRouterModel">
+                <!-- Dynamically populated from catalog -->
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Voice VLAN ID</label>
+              <input type="number" id="explorerRouterVlan" value="20">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Voice Subnet (CIDR)</label>
+              <input type="text" id="explorerRouterSubnet" value="10.20.0.1/24" style="font-family: monospace;">
+            </div>
+          </div>
+
+          <!-- Options & Firmware Banner -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; background: #090e1a; border: 1px solid #1e293b; border-radius: var(--radius-md); padding: 10px 16px; color: #f8fafc; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+              <span class="badge badge-primary" id="explorerRouterFwVer">Firmware: Loading...</span>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;">
+                <input type="checkbox" id="explorerRouterAlg" checked> Disable SIP ALG
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;">
+                <input type="checkbox" id="explorerRouterQos" checked> Prioritize Voice Audio Traffic (DSCP 46 EF)
+              </label>
+            </div>
+            <a id="explorerRouterFwLink" class="btn btn-sm btn-secondary" href="#" target="_blank" style="font-size: 11px; padding: 4px 10px;">⬇ Vendor Firmware Download</a>
+          </div>
+
+          <!-- Live Compiled Script Editor -->
+          <div style="margin-top: 12px;">
+            <textarea id="explorerRouterConfig" class="code-editor" style="height: 260px;" spellcheck="false"></textarea>
+          </div>
+        </div>
+
         <div class="section-header-panel">
           <div class="section-header-info">
             <h2>VoIP Router & Network Gateway Profiles</h2>
