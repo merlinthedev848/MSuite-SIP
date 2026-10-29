@@ -14,6 +14,7 @@ export interface PbxSyncConfig {
   secret: string;
   protocol?: 'http' | 'https';
   apiPath?: string;
+  verifySsl?: boolean;
 }
 
 // Backwards-compatible alias for existing callers
@@ -57,7 +58,8 @@ function pbxHttpRequest(
   path: string,
   method: string,
   payload?: any,
-  token?: string
+  token?: string,
+  verifySsl: boolean = false
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     const isHttps = protocol === 'https';
@@ -77,10 +79,11 @@ function pbxHttpRequest(
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        ...(token ? { 'token': token, 'Authorization': `Bearer ${token}` } : {}),
         ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {})
       },
-      timeout: 12000,
-      rejectUnauthorized: false // Support on-prem self-signed PBX certificates
+      timeout: 15000,
+      rejectUnauthorized: verifySsl
     };
 
     const req = lib.request(options, (res) => {
@@ -102,7 +105,7 @@ function pbxHttpRequest(
 
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error(`Connection to PBX at ${host}:${port} timed out after 12 seconds.`));
+      reject(new Error(`Connection to PBX at ${host}:${port} timed out after 15 seconds.`));
     });
 
     if (bodyStr) {
@@ -123,6 +126,7 @@ export async function syncExtensionsFromYeastarApi(
   const port = config.port || 8260;
   const rawPath = config.apiPath ? config.apiPath.trim() : 'api/v2.0.0';
   const basePath = '/' + rawPath.replace(/^\/+|\/+$/g, '');
+  const verifySsl = Boolean(config.verifySsl);
 
   // Yeastar requires MD5 of password (in lowercase)
   let pw = config.secret.trim();
@@ -141,7 +145,7 @@ export async function syncExtensionsFromYeastarApi(
       username: config.username,
       password: pw,
       version: '2.0.0'
-    });
+    }, undefined, verifySsl);
   } catch (err: any) {
     // If HTTPS failed, try HTTP as graceful fallback
     if (activeProto === 'https') {
@@ -150,7 +154,7 @@ export async function syncExtensionsFromYeastarApi(
           username: config.username,
           password: pw,
           version: '2.0.0'
-        });
+        }, undefined, verifySsl);
         activeProto = 'http';
       } catch {
         return { success: false, count: 0, message: `Failed to connect to Yeastar API at ${host}:${port}: ${err.message}` };
@@ -162,32 +166,59 @@ export async function syncExtensionsFromYeastarApi(
 
   // Check login status
   if (!loginRes || (loginRes.status !== 'Success' && !loginRes.token)) {
-    const errMsg = loginRes?.error || loginRes?.message || loginRes?.raw || 'Invalid username or password.';
+    const errMsg = loginRes?.error || loginRes?.message || loginRes?.errmsg || loginRes?.raw || 'Invalid username or password.';
     return { success: false, count: 0, message: `Yeastar API login failed: ${errMsg}` };
   }
 
   const token = loginRes.token;
 
   // 2. Fetch Extension List
-  let extRes: any;
+  // Yeastar S-Series & P-Series support extension/query with number: 'all', returning extinfos
+  let extlist: any[] = [];
   try {
-    extRes = await pbxHttpRequest(activeProto, host, port, `${basePath}/extension/list`, 'POST', {}, token);
-  } catch (err: any) {
-    return { success: false, count: 0, message: `Failed to fetch extension list from Yeastar PBX: ${err.message}` };
+    const queryRes = await pbxHttpRequest(activeProto, host, port, `${basePath}/extension/query`, 'POST', { number: 'all' }, token, verifySsl);
+    if (queryRes && Array.isArray(queryRes.extinfos) && queryRes.extinfos.length > 0) {
+      extlist = queryRes.extinfos;
+    } else if (queryRes && Array.isArray(queryRes.extlist) && queryRes.extlist.length > 0) {
+      extlist = queryRes.extlist;
+    } else if (queryRes && Array.isArray(queryRes.data) && queryRes.data.length > 0) {
+      extlist = queryRes.data;
+    }
+  } catch {
+    // fallback
   }
 
-  const extlist = extRes?.extlist || extRes?.data || [];
+  // Fallback 1: extension/list
+  if (extlist.length === 0) {
+    try {
+      const listRes = await pbxHttpRequest(activeProto, host, port, `${basePath}/extension/list`, 'POST', {}, token, verifySsl);
+      extlist = listRes?.extlist || listRes?.extinfos || listRes?.data || [];
+    } catch {
+      // fallback
+    }
+  }
+
+  // Fallback 2: OpenAPI v1 extensions endpoint
+  if (extlist.length === 0) {
+    try {
+      const v1Res = await pbxHttpRequest(activeProto, host, port, '/api/v1.0/extensions', 'GET', undefined, token, verifySsl);
+      extlist = v1Res?.data || v1Res?.extensions || [];
+    } catch {
+      // ignore
+    }
+  }
+
   if (!Array.isArray(extlist) || extlist.length === 0) {
     return { success: true, count: 0, message: 'Connected to Yeastar PBX via REST API, but no extensions were returned.' };
   }
 
   const extensions: SyncedExtension[] = [];
   for (const item of extlist) {
-    const extNumber = String(item.number || item.extid || item.extension || '').trim();
+    const extNumber = String(item.number || item.extnumber || item.extid || item.extension || '').trim();
     if (!extNumber || !/^\d{2,8}$/.test(extNumber)) continue;
 
-    const displayName = String(item.username || item.name || item.callerid || `Extension ${extNumber}`).trim();
-    const sipPassword = String(item.user_password || item.password || item.registration_password || 'ExtPassword123!').trim();
+    const displayName = String(item.username || item.displayname || item.name || item.callerid || `Extension ${extNumber}`).trim();
+    const sipPassword = String(item.user_password || item.password || item.registration_password || item.registerpassword || 'ExtPassword123!').trim();
 
     extensions.push({
       extension: extNumber,
@@ -207,7 +238,8 @@ export async function syncExtensionsFromYeastarApi(
       INSERT INTO extensions (extension, sip_username, sip_password, display_name)
       VALUES (?, ?, ?, ?)
       ON CONFLICT(extension) DO UPDATE SET
-        display_name = excluded.display_name
+        display_name = excluded.display_name,
+        sip_password = CASE WHEN excluded.sip_password != 'ExtPassword123!' THEN excluded.sip_password ELSE extensions.sip_password END
     `);
     for (const ext of exts) {
       stmt.run(ext.extension, ext.username, ext.password || 'ExtPassword123!', ext.displayName);
@@ -252,7 +284,7 @@ export async function syncExtensionsFromAsterisk(
       cleanup();
 
       if (found.length === 0) {
-        resolve({ success: true, count: 0, message: 'Connected to PBX via AMI, but no SIP extensions were returned.' });
+        resolve({ success: true, count: 0, message: 'Connected to PBX via AMI, but no SIP extensions were returned. Check AMI user permissions or switch to Yeastar REST API.' });
         return;
       }
 
@@ -293,10 +325,10 @@ export async function syncExtensionsFromAsterisk(
     socket.on('data', (data) => {
       buffer += data.toString('utf-8');
 
-      // 1. Initial Greeting: Send Login
+      // 1. Initial Greeting: Send Login WITH Events: on
       if (buffer.includes('Asterisk Call Manager') && !loggedIn) {
         loggedIn = true;
-        socket.write(`Action: Login\r\nUsername: ${ami.username}\r\nSecret: ${ami.secret}\r\nEvents: off\r\n\r\n`);
+        socket.write(`Action: Login\r\nUsername: ${ami.username}\r\nSecret: ${ami.secret}\r\nEvents: on\r\n\r\n`);
         buffer = '';
         return;
       }
@@ -304,26 +336,36 @@ export async function syncExtensionsFromAsterisk(
       // 2. Login Response
       if (buffer.includes('Response: Success') && buffer.includes('Message: Authentication accepted')) {
         buffer = '';
-        // Send queries for PJSIP, SIP peers, and CLI command fallback
+        // Send queries for ExtensionState, PJSIP, SIP peers, Status, and CLI command fallbacks
+        socket.write(`Action: ExtensionStateList\r\n\r\n`);
         socket.write(`Action: SIPpeers\r\n\r\n`);
         socket.write(`Action: PJSIPShowEndpoints\r\n\r\n`);
-        socket.write(`Action: ExtensionStateList\r\n\r\n`);
+        socket.write(`Action: Status\r\n\r\n`);
         socket.write(`Action: Command\r\nCommand: sip show peers\r\n\r\n`);
         socket.write(`Action: Command\r\nCommand: pjsip show endpoints\r\n\r\n`);
+        socket.write(`Action: Command\r\nCommand: core show hints\r\n\r\n`);
 
-        // Debounce timer: wait 1.2s to collect all incoming event chunks
+        // Debounce timer: wait 1.8s to collect all incoming event chunks
         if (collectTimer) clearTimeout(collectTimer);
-        collectTimer = setTimeout(finish, 1500);
+        collectTimer = setTimeout(finish, 1800);
+        return;
+      }
+
+      // If login error received
+      if (buffer.includes('Response: Error')) {
+        const errorLine = buffer.split(/\r?\n/).find(l => l.startsWith('Message:')) || 'AMI authentication failed';
+        cleanup();
+        resolve({ success: false, count: 0, message: errorLine.replace('Message:', '').trim() });
         return;
       }
 
       // If we are logged in, extend collection timer slightly on new packets
       if (loggedIn) {
         if (collectTimer) clearTimeout(collectTimer);
-        collectTimer = setTimeout(finish, 1200);
+        collectTimer = setTimeout(finish, 1400);
 
-        // Immediate complete if both peer and endpoint detail complete
-        if (buffer.includes('Event: PeerlistComplete') && buffer.includes('Event: EndpointDetailComplete')) {
+        // Immediate complete if peerlist or endpoint list complete
+        if (buffer.includes('Event: PeerlistComplete') || buffer.includes('Event: EndpointDetailComplete') || buffer.includes('Event: ExtensionStatusComplete')) {
           finish();
         }
       }
@@ -345,7 +387,7 @@ function parseAmiOutput(raw: string): SyncedExtension[] {
   let currentName = '';
 
   const addExt = (ext: string, name: string) => {
-    const cleanExt = ext.trim().replace(/^SIP\//, '').replace(/^PJSIP\//, '');
+    const cleanExt = ext.trim().replace(/^SIP\//i, '').replace(/^PJSIP\//i, '');
     if (/^\d{2,8}$/.test(cleanExt)) {
       if (!extensions.some(e => e.extension === cleanExt)) {
         extensions.push({
@@ -363,11 +405,15 @@ function parseAmiOutput(raw: string): SyncedExtension[] {
     // 1. Structured AMI Header Fields
     if (trimmed.startsWith('ObjectName:') || trimmed.startsWith('Peer:')) {
       const parts = trimmed.split(':');
-      currentExt = parts[1]?.trim().replace(/^SIP\//, '') || '';
+      currentExt = parts[1]?.trim().replace(/^SIP\//i, '').replace(/^PJSIP\//i, '') || '';
     } else if (trimmed.startsWith('Callerid:') || trimmed.startsWith('Description:')) {
       const parts = trimmed.split(':');
       currentName = parts.slice(1).join(':').trim().replace(/["<>]/g, '') || '';
     } else if (trimmed.startsWith('Exten:')) {
+      const parts = trimmed.split(':');
+      const ext = parts[1]?.trim() || '';
+      addExt(ext, `Extension ${ext}`);
+    } else if (trimmed.startsWith('CallerIDNum:')) {
       const parts = trimmed.split(':');
       const ext = parts[1]?.trim() || '';
       addExt(ext, `Extension ${ext}`);
@@ -384,7 +430,6 @@ function parseAmiOutput(raw: string): SyncedExtension[] {
     const cliPeerMatch = trimmed.match(/^(\d{2,8})(?:\/\d+)?\s+/);
     if (cliPeerMatch) {
       const ext = cliPeerMatch[1];
-      // Try extracting name from trailing text if present
       const tokens = trimmed.split(/\s+/);
       const possibleName = tokens.length > 5 ? tokens.slice(6).join(' ') : '';
       addExt(ext, possibleName || `Extension ${ext}`);
@@ -396,6 +441,13 @@ function parseAmiOutput(raw: string): SyncedExtension[] {
     if (cliEndpointMatch) {
       const ext = cliEndpointMatch[1];
       addExt(ext, `Extension ${ext}`);
+    }
+
+    // 4. Asterisk CLI "core show hints" parsing
+    // e.g.: "101@ext-local   : PJSIP/101  State:Idle"
+    const hintMatch = trimmed.match(/^(\d{2,8})@/);
+    if (hintMatch) {
+      addExt(hintMatch[1], `Extension ${hintMatch[1]}`);
     }
   }
 
@@ -442,14 +494,19 @@ export async function runAutoPbxSync(): Promise<void> {
   try {
     const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;
     if (!config || config.auto_sync_enabled === 0) return;
-    if (!config.pbx_server || config.pbx_server === '127.0.0.1' || config.pbx_server === 'localhost') return;
+    const targetHost = config.api_host || config.pbx_server;
+    if (!targetHost || targetHost === '127.0.0.1' || targetHost === 'localhost') return;
 
+    const syncType = (config.pbx_type || 'yeastar_api') as any;
     const syncConfig: PbxSyncConfig = {
-      type: 'asterisk_ami',
-      host: config.pbx_server,
-      port: 5038,
-      username: 'admin',
-      secret: ''
+      type: syncType,
+      host: targetHost,
+      port: config.api_port || (syncType === 'yeastar_api' ? 8260 : 5038),
+      username: config.api_user || 'perfexapi',
+      secret: config.api_secret || '',
+      protocol: (config.api_protocol || 'https') as any,
+      apiPath: config.api_path || 'api/v2.0.0',
+      verifySsl: Boolean(config.verify_ssl)
     };
 
     const res = await syncExtensionsFromPbx(syncConfig);
@@ -462,7 +519,7 @@ export async function runAutoPbxSync(): Promise<void> {
 
     if (res.success) {
       broadcastDeviceLog('PBX', 'SUCCESS', `Autonomous PBX sync completed: ${res.count} extension(s) synchronized.`, {
-        deviceIdentifier: config.pbx_server,
+        deviceIdentifier: targetHost,
         metadata: { count: res.count }
       });
       if (res.count > 0) {
@@ -470,7 +527,7 @@ export async function runAutoPbxSync(): Promise<void> {
       }
     } else {
       broadcastDeviceLog('PBX', 'WARN', `Autonomous PBX sync check: ${res.message || 'No new extensions discovered'}`, {
-        deviceIdentifier: config.pbx_server
+        deviceIdentifier: targetHost
       });
     }
   } catch (err: any) {

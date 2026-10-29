@@ -79,6 +79,14 @@ systemDb.exec(`
     primary_color TEXT DEFAULT '#2563EB',
     accent_color TEXT DEFAULT '#38BDF8',
     logo_url TEXT DEFAULT '',
+    pbx_type TEXT DEFAULT 'yeastar_api',
+    api_host TEXT DEFAULT '',
+    api_port INTEGER DEFAULT 8260,
+    api_protocol TEXT DEFAULT 'https',
+    api_path TEXT DEFAULT 'api/v2.0.0',
+    api_user TEXT DEFAULT '',
+    api_secret TEXT DEFAULT '',
+    verify_ssl INTEGER DEFAULT 0,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -239,6 +247,16 @@ try { systemDb.exec('ALTER TABLE server_config ADD COLUMN auto_sync_enabled INTE
 try { systemDb.exec('ALTER TABLE server_config ADD COLUMN auto_sync_interval_mins INTEGER DEFAULT 5;'); } catch {}
 try { systemDb.exec('ALTER TABLE server_config ADD COLUMN last_sync_at DATETIME;'); } catch {}
 try { systemDb.exec("ALTER TABLE server_config ADD COLUMN last_sync_status TEXT DEFAULT 'IDLE';"); } catch {}
+
+// PBX Integration & Universal Credentials Columns (Persistent Global Settings)
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN pbx_type TEXT DEFAULT 'yeastar_api';"); } catch {}
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN api_host TEXT DEFAULT '';"); } catch {}
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN api_port INTEGER DEFAULT 8260;"); } catch {}
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN api_protocol TEXT DEFAULT 'https';"); } catch {}
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN api_path TEXT DEFAULT 'api/v2.0.0';"); } catch {}
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN api_user TEXT DEFAULT '';"); } catch {}
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN api_secret TEXT DEFAULT '';"); } catch {}
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN verify_ssl INTEGER DEFAULT 0;"); } catch {}
 
 // Ensure editable custom configuration columns exist for Handsets & Routers
 try { systemDb.exec("ALTER TABLE physical_handsets ADD COLUMN custom_config TEXT DEFAULT '';"); } catch {}

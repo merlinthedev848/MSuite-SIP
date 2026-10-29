@@ -1138,28 +1138,44 @@ router.get('/api/admin/config', adminAuth, (req: Request, res: Response) => {
 });
 
 router.post('/api/admin/config', adminAuth, requirePermission('manage_pbx'), (req: Request, res: Response) => {
-  const { pbxServer, pbxPort, pbxTransport, dataHandlerUrl } = req.body;
+  const {
+    pbxServer, pbxPort, pbxTransport, dataHandlerUrl,
+    pbxType, apiHost, apiPort, apiProtocol, apiPath, apiUser, apiSecret, verifySsl
+  } = req.body;
   if (!pbxServer) {
     return res.status(400).json({ ok: false, error: 'PBX server domain or IP is required.' });
   }
 
+  const existing = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;
+  const effectiveSecret = (apiSecret !== undefined && apiSecret !== '') ? String(apiSecret) : (existing?.api_secret || '');
+
   systemDb.prepare(`
     UPDATE server_config
-    SET pbx_server = ?, pbx_port = ?, pbx_transport = ?, data_handler_url = ?, updated_at = CURRENT_TIMESTAMP
+    SET pbx_server = ?, pbx_port = ?, pbx_transport = ?, data_handler_url = ?,
+        pbx_type = ?, api_host = ?, api_port = ?, api_protocol = ?, api_path = ?, api_user = ?, api_secret = ?, verify_ssl = ?,
+        updated_at = CURRENT_TIMESTAMP
     WHERE id = 1
   `).run(
     String(pbxServer).trim(),
     parseInt(pbxPort || '5060', 10),
     String(pbxTransport || 'UDP').toUpperCase(),
-    String(dataHandlerUrl || '').trim()
+    String(dataHandlerUrl || '').trim(),
+    String(pbxType || existing?.pbx_type || 'yeastar_api'),
+    String(apiHost || pbxServer).trim(),
+    parseInt(apiPort || (pbxType === 'yeastar_api' ? '8260' : '5038'), 10),
+    String(apiProtocol || 'https').toLowerCase(),
+    String(apiPath || 'api/v2.0.0').trim(),
+    String(apiUser || existing?.api_user || 'perfexapi').trim(),
+    effectiveSecret,
+    verifySsl ? 1 : 0
   );
 
-  broadcastDeviceLog('PBX', 'INFO', `[PBX Config Updated] Primary PBX set to ${pbxServer}:${pbxPort} (${pbxTransport}), Handler: ${dataHandlerUrl}`, {
+  broadcastDeviceLog('PBX', 'INFO', `[PBX Config Updated] Primary PBX set to ${pbxServer}:${pbxPort} (${pbxTransport}), API Integration: ${pbxType} (${apiHost}:${apiPort})`, {
     ipAddress: req.ip,
-    metadata: { pbxServer, pbxPort, pbxTransport, dataHandlerUrl }
+    metadata: { pbxServer, pbxPort, pbxTransport, dataHandlerUrl, pbxType, apiHost, apiPort, apiUser }
   });
 
-  return res.json({ ok: true, message: 'Server configuration updated. Connected softphones will sync within 10 minutes.' });
+  return res.json({ ok: true, message: 'Server and PBX integration configuration updated. Settings saved globally.' });
 });
 
 router.post('/api/admin/config/regenerate-api-key', adminAuth, requirePermission('manage_pbx'), (req: Request, res: Response) => {
@@ -1316,16 +1332,37 @@ router.get('/api/admin/routers/:id/script', adminAuth, (req: Request, res: Respo
 // 7. PBX Extension Auto-Sync (Yeastar API & Asterisk AMI)
 router.post('/api/admin/pbx/sync', adminAuth, requirePermission('manage_pbx'), async (req: Request, res: Response) => {
   const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow;
-  const { pbxType, amiHost, amiPort, amiUser, amiSecret, apiProtocol, apiPath } = req.body;
+  const { pbxType, amiHost, amiPort, amiUser, amiSecret, apiProtocol, apiPath, verifySsl, saveAsDefault } = req.body;
+
+  const effectiveType = pbxType || config.pbx_type || (parseInt(amiPort || '5038', 10) === 5038 ? 'asterisk_ami' : 'yeastar_api');
+  const effectiveHost = (amiHost && amiHost.trim()) || config.api_host || config.pbx_server;
+  const effectivePort = parseInt(amiPort || (effectiveType === 'yeastar_api' ? String(config.api_port || 8260) : String(config.api_port || 5038)), 10);
+  const effectiveUser = (amiUser && amiUser.trim()) || config.api_user || 'perfexapi';
+  const effectiveSecret = (amiSecret !== undefined && amiSecret !== '') ? amiSecret : (config.api_secret || '');
+  const effectiveProto = apiProtocol || config.api_protocol || 'https';
+  const effectivePath = apiPath || config.api_path || 'api/v2.0.0';
+  const effectiveVerifySsl = verifySsl !== undefined ? Boolean(verifySsl) : Boolean(config.verify_ssl);
+
+  // If saveAsDefault requested OR credentials provided, automatically persist to server_config
+  if (saveAsDefault || (amiHost && amiUser)) {
+    try {
+      systemDb.prepare(`
+        UPDATE server_config
+        SET pbx_type = ?, api_host = ?, api_port = ?, api_user = ?, api_secret = ?, api_protocol = ?, api_path = ?, verify_ssl = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1
+      `).run(effectiveType, effectiveHost, effectivePort, effectiveUser, effectiveSecret, effectiveProto, effectivePath, effectiveVerifySsl ? 1 : 0);
+    } catch {}
+  }
 
   const syncConfig: PbxSyncConfig = {
-    type: pbxType || (parseInt(amiPort || '5038', 10) === 5038 ? 'asterisk_ami' : 'yeastar_api'),
-    host: amiHost || config.pbx_server,
-    port: parseInt(amiPort || (pbxType === 'yeastar_api' ? '8260' : '5038'), 10),
-    username: amiUser || 'admin',
-    secret: amiSecret || '',
-    protocol: apiProtocol || 'https',
-    apiPath: apiPath || 'api/v2.0.0'
+    type: effectiveType as any,
+    host: effectiveHost,
+    port: effectivePort,
+    username: effectiveUser,
+    secret: effectiveSecret,
+    protocol: effectiveProto as any,
+    apiPath: effectivePath,
+    verifySsl: effectiveVerifySsl
   };
 
   const syncResult = await syncExtensionsFromPbx(syncConfig);
@@ -1334,6 +1371,32 @@ router.post('/api/admin/pbx/sync', adminAuth, requirePermission('manage_pbx'), a
   }
 
   return res.json({ ok: true, count: syncResult.count, message: syncResult.message });
+});
+
+router.post('/api/admin/pbx/save-credentials', adminAuth, requirePermission('manage_pbx'), (req: Request, res: Response) => {
+  const { pbxType, amiHost, amiPort, amiUser, amiSecret, apiProtocol, apiPath, verifySsl } = req.body;
+  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow;
+
+  const effectiveType = pbxType || config.pbx_type || 'yeastar_api';
+  const effectiveHost = (amiHost && amiHost.trim()) || config.api_host || config.pbx_server;
+  const effectivePort = parseInt(amiPort || (effectiveType === 'yeastar_api' ? '8260' : '5038'), 10);
+  const effectiveUser = (amiUser && amiUser.trim()) || config.api_user || 'perfexapi';
+  const effectiveSecret = (amiSecret !== undefined && amiSecret !== '') ? amiSecret : (config.api_secret || '');
+  const effectiveProto = apiProtocol || config.api_protocol || 'https';
+  const effectivePath = apiPath || config.api_path || 'api/v2.0.0';
+  const effectiveVerifySsl = verifySsl !== undefined ? (verifySsl ? 1 : 0) : (config.verify_ssl || 0);
+
+  systemDb.prepare(`
+    UPDATE server_config
+    SET pbx_type = ?, api_host = ?, api_port = ?, api_user = ?, api_secret = ?, api_protocol = ?, api_path = ?, verify_ssl = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = 1
+  `).run(effectiveType, effectiveHost, effectivePort, effectiveUser, effectiveSecret, effectiveProto, effectivePath, effectiveVerifySsl);
+
+  broadcastDeviceLog('PBX', 'INFO', `[PBX Credentials Saved] Saved default ${effectiveType} integration for ${effectiveHost}:${effectivePort} (${effectiveUser})`, {
+    ipAddress: req.ip
+  });
+
+  return res.json({ ok: true, message: 'PBX integration credentials saved successfully to global configuration.' });
 });
 
 // ==============================================================================

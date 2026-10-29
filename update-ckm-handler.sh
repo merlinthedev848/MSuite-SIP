@@ -8,11 +8,11 @@ set -euo pipefail
 
 REPO_DIR="/root/MSuite-SIP"
 APP_DIR="/var/www/ckm-handler"
-BRANCH="${GIT_BRANCH:-beta/provisioning-and-contractor-licensing}"
+BRANCH="${GIT_BRANCH:-main}"
 GIT_REPO="https://github.com/merlinthedev848/MSuite-SIP.git"
 
 echo "=============================================================================="
-echo "[*] Updating CKM Handler (${BRANCH})..."
+echo "[*] Updating CKM Handler (Branch: ${BRANCH})..."
 echo "=============================================================================="
 
 # Ensure Git repository exists on host
@@ -24,6 +24,7 @@ else
   echo "[*] Fetching and pulling latest changes from origin/${BRANCH}..."
   cd "${REPO_DIR}"
   git fetch origin "${BRANCH}"
+  git checkout "${BRANCH}" 2>/dev/null || git checkout -b "${BRANCH}" "origin/${BRANCH}" 2>/dev/null || true
   git reset --hard "origin/${BRANCH}"
 fi
 
@@ -49,7 +50,7 @@ echo "[*] Building application with TypeScript..."
 npm run build
 
 echo "[*] Restarting PM2 process..."
-pm2 restart ckm-handler
+pm2 restart ckm-handler 2>/dev/null || pm2 restart all 2>/dev/null || systemctl restart ckm-handler 2>/dev/null || true
 
 echo "=============================================================================="
 echo "[+] CKM Handler successfully updated & restarted!"

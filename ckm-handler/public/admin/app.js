@@ -705,70 +705,76 @@ function initApp() {
     }
   });
 
-  // PBX Platform & Type Dropdown Change Handler
-  function updatePbxTypeFields() {
-    const pbxType = document.getElementById('pbxType')?.value || 'yeastar_api';
-    const portInput = document.getElementById('amiPort');
-    const lblPort = document.getElementById('lblPbxPort');
-    const lblUser = document.getElementById('lblPbxUser');
-    const lblSecret = document.getElementById('lblPbxSecret');
-    const rowProtocol = document.getElementById('rowProtocol');
-    const btnSync = document.getElementById('btnRunSync');
-    const helpHint = document.getElementById('pbxHelpHint');
+  // Cached Global PBX Configuration
+  let cachedPbxConfig = null;
 
-    if (pbxType === 'yeastar_api') {
-      if (portInput) portInput.value = '8260';
-      if (lblPort) lblPort.textContent = 'API Port';
-      if (lblUser) lblUser.textContent = 'API Username *';
-      if (lblSecret) lblSecret.textContent = 'API Password / Secret *';
-      if (rowProtocol) rowProtocol.style.display = 'flex';
-      if (btnSync) btnSync.textContent = 'Start Yeastar API Sync';
-      if (helpHint) helpHint.innerHTML = 'Yeastar S-Series / P-Series REST API connects over port 8260 (or 443/80) using <code>/api/v2.0.0/login</code> to authenticate and pull all active extensions.';
-    } else if (pbxType === 'yeastar_ami') {
-      if (portInput) portInput.value = '5038';
-      if (lblPort) lblPort.textContent = 'AMI Port';
-      if (lblUser) lblUser.textContent = 'AMI Username *';
-      if (lblSecret) lblSecret.textContent = 'AMI Secret / Password *';
-      if (rowProtocol) rowProtocol.style.display = 'none';
-      if (btnSync) btnSync.textContent = 'Start Yeastar AMI Sync';
-      if (helpHint) helpHint.innerHTML = 'Connects to Yeastar PBX via Asterisk Manager Interface (AMI) on port 5038 using ExtensionState and CLI fallback.';
-    } else {
-      if (portInput) portInput.value = '5038';
-      if (lblPort) lblPort.textContent = 'AMI Port';
-      if (lblUser) lblUser.textContent = 'AMI Username *';
-      if (lblSecret) lblSecret.textContent = 'AMI Secret *';
-      if (rowProtocol) rowProtocol.style.display = 'none';
-      if (btnSync) btnSync.textContent = 'Start Asterisk AMI Sync';
-      if (helpHint) helpHint.innerHTML = 'Connects directly to Asterisk / FreePBX Manager Interface (AMI) on port 5038 to import all configured SIP peers.';
+  // Populate Sync Modal Status Card from Global Settings (Zero value entry fields in modal)
+  async function populateSyncModalCard() {
+    if (!cachedPbxConfig) {
+      const data = await fetchJson('/api/admin/config');
+      if (data && data.ok) cachedPbxConfig = data.config;
+    }
+    const c = cachedPbxConfig || {};
+    const hostEl = document.getElementById('syncCardHost');
+    const engineEl = document.getElementById('syncCardEngine');
+    const userEl = document.getElementById('syncCardUser');
+    const secEl = document.getElementById('syncCardSecurity');
+
+    const host = c.api_host || c.pbx_server || 'pbx.chriskendall.media';
+    const pbxType = c.pbx_type || 'yeastar_api';
+    const port = c.api_port || (pbxType === 'yeastar_api' ? 8260 : 5038);
+    const user = c.api_user || 'perfexapi';
+    const proto = (c.api_protocol || 'https').toUpperCase();
+
+    if (hostEl) hostEl.textContent = host;
+    if (engineEl) {
+      if (pbxType === 'yeastar_api') engineEl.textContent = `Yeastar REST API v2.0.0 (Port ${port})`;
+      else if (pbxType === 'yeastar_ami') engineEl.textContent = `Yeastar Asterisk AMI (Port ${port})`;
+      else engineEl.textContent = `Asterisk AMI (Port ${port})`;
+    }
+    if (userEl) userEl.textContent = user;
+    if (secEl) {
+      secEl.textContent = proto + (c.verify_ssl ? ' (Verified Certificate)' : ' (Self-Signed / Internal PBX)');
     }
   }
 
-  document.getElementById('pbxType')?.addEventListener('change', updatePbxTypeFields);
+  // Quick navigation link from Sync Modal to Global Settings
+  document.getElementById('linkEditGlobalPbx')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    closeModal('modalSyncPbx');
+    const tabBtn = document.querySelector('[data-tab="settings"]');
+    if (tabBtn) tabBtn.click();
+    const subBtn = document.querySelector('[data-subpane="settings-pbx"]');
+    if (subBtn) subBtn.click();
+  });
 
-  // PBX Sync Modal Open
-  document.getElementById('btnSyncPbx')?.addEventListener('click', () => {
+  // PBX Sync Modal Open - Displays current Global Profile and Options
+  document.getElementById('btnSyncPbx')?.addEventListener('click', async () => {
     document.getElementById('amiSyncOutput')?.classList.add('hidden');
-    updatePbxTypeFields();
+    await populateSyncModalCard();
     openModal('modalSyncPbx');
   });
 
+  // Sync Form Submit - Uses Stored Global Credentials with User's Chosen Options
   document.getElementById('formSyncPbx')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const out = document.getElementById('amiSyncOutput');
     const btn = document.getElementById('btnRunSync');
-    const pbxType = document.getElementById('pbxType')?.value || 'yeastar_api';
+    const engineChoice = document.getElementById('syncEngineOption')?.value || 'global';
+    const pbxType = (engineChoice === 'global' ? (cachedPbxConfig?.pbx_type || 'yeastar_api') : engineChoice);
+    const strategy = document.getElementById('syncStrategyOption')?.value || 'merge';
+    const importVault = document.getElementById('syncImportVault')?.checked ?? true;
+    const autoPin = document.getElementById('syncAutoPin')?.checked ?? false;
 
     btn.disabled = true;
-    btn.textContent = 'Connecting & Synchronizing...';
+    btn.textContent = '⚡ Synchronizing with PBX...';
 
+    // Dispatches request using stored global credentials
     const payload = {
       pbxType: pbxType,
-      amiHost: document.getElementById('amiHost').value.trim(),
-      amiPort: parseInt(document.getElementById('amiPort').value || (pbxType === 'yeastar_api' ? '8260' : '5038'), 10),
-      amiUser: document.getElementById('amiUser').value.trim(),
-      amiSecret: document.getElementById('amiSecret').value,
-      apiProtocol: document.getElementById('apiProtocol')?.value || 'https',
-      apiPath: document.getElementById('apiPath')?.value?.trim() || 'api/v2.0.0'
+      strategy: strategy,
+      importVault: importVault,
+      autoPin: autoPin
     };
 
     const res = await fetchJson('/api/admin/pbx/sync', {
@@ -778,7 +784,7 @@ function initApp() {
     });
 
     btn.disabled = false;
-    updatePbxTypeFields();
+    btn.textContent = '⚡ Start PBX Synchronization';
 
     if (out) {
       out.classList.remove('hidden');
@@ -2336,17 +2342,55 @@ function initApp() {
   // --------------------------------------------------------------------------
   // 9. TAB 6: PBX & Gateways Config
   // --------------------------------------------------------------------------
+  function updateCfgPbxTypeFields() {
+    const pbxType = document.getElementById('cfgPbxType')?.value || 'yeastar_api';
+    const portInput = document.getElementById('cfgApiPort');
+    const rowProtocol = document.getElementById('rowCfgProtocol');
+    const lblPort = document.getElementById('lblCfgApiPort');
+    const lblUser = document.getElementById('lblCfgApiUser');
+    const lblSecret = document.getElementById('lblCfgApiSecret');
+
+    if (pbxType === 'yeastar_api') {
+      if (portInput && (!portInput.value || portInput.value === '5038')) portInput.value = '8260';
+      if (lblPort) lblPort.textContent = 'API Port';
+      if (lblUser) lblUser.textContent = 'API Username *';
+      if (lblSecret) lblSecret.textContent = 'API Password / Secret *';
+      if (rowProtocol) rowProtocol.style.display = 'flex';
+    } else {
+      if (portInput && (!portInput.value || portInput.value === '8260')) portInput.value = '5038';
+      if (lblPort) lblPort.textContent = 'AMI Port';
+      if (lblUser) lblUser.textContent = 'AMI Username *';
+      if (lblSecret) lblSecret.textContent = 'AMI Secret *';
+      if (rowProtocol) rowProtocol.style.display = 'none';
+    }
+  }
+
+  document.getElementById('cfgPbxType')?.addEventListener('change', updateCfgPbxTypeFields);
+
   async function loadConfig() {
     const data = await fetchJson('/api/admin/config');
     if (!data || !data.ok) return;
 
     const c = data.config;
-    document.getElementById('cfgPbxServer').value = c.pbx_server;
-    document.getElementById('cfgPbxPort').value = c.pbx_port;
-    document.getElementById('cfgPbxTransport').value = c.pbx_transport;
-    document.getElementById('cfgDataHandlerUrl').value = c.data_handler_url;
-    document.getElementById('cfgApiKey').value = c.api_key || '';
+    cachedPbxConfig = c;
 
+    if (document.getElementById('cfgPbxServer')) document.getElementById('cfgPbxServer').value = c.pbx_server || '';
+    if (document.getElementById('cfgPbxPort')) document.getElementById('cfgPbxPort').value = c.pbx_port || 5060;
+    if (document.getElementById('cfgPbxTransport')) document.getElementById('cfgPbxTransport').value = c.pbx_transport || 'UDP';
+    if (document.getElementById('cfgDataHandlerUrl')) document.getElementById('cfgDataHandlerUrl').value = c.data_handler_url || '';
+    if (document.getElementById('cfgApiKey')) document.getElementById('cfgApiKey').value = c.api_key || '';
+
+    // Master PBX Integration & Credentials
+    if (document.getElementById('cfgPbxType')) document.getElementById('cfgPbxType').value = c.pbx_type || 'yeastar_api';
+    if (document.getElementById('cfgApiHost')) document.getElementById('cfgApiHost').value = c.api_host || c.pbx_server || '';
+    if (document.getElementById('cfgApiPort')) document.getElementById('cfgApiPort').value = c.api_port || (c.pbx_type === 'yeastar_api' ? 8260 : 5038);
+    if (document.getElementById('cfgApiProtocol')) document.getElementById('cfgApiProtocol').value = c.api_protocol || 'https';
+    if (document.getElementById('cfgApiPath')) document.getElementById('cfgApiPath').value = c.api_path || 'api/v2.0.0';
+    if (document.getElementById('cfgApiUser')) document.getElementById('cfgApiUser').value = c.api_user || 'perfexapi';
+    if (document.getElementById('cfgApiSecret')) document.getElementById('cfgApiSecret').value = c.api_secret || '';
+    if (document.getElementById('cfgVerifySsl')) document.getElementById('cfgVerifySsl').checked = !!c.verify_ssl;
+
+    updateCfgPbxTypeFields();
     updateCurlExample(c.data_handler_url, c.api_key);
   }
 
@@ -2366,7 +2410,15 @@ function initApp() {
       pbxServer: document.getElementById('cfgPbxServer').value.trim(),
       pbxPort: parseInt(document.getElementById('cfgPbxPort').value, 10),
       pbxTransport: document.getElementById('cfgPbxTransport').value,
-      dataHandlerUrl: document.getElementById('cfgDataHandlerUrl').value.trim()
+      dataHandlerUrl: document.getElementById('cfgDataHandlerUrl').value.trim(),
+      pbxType: document.getElementById('cfgPbxType')?.value || 'yeastar_api',
+      apiHost: document.getElementById('cfgApiHost')?.value?.trim() || document.getElementById('cfgPbxServer').value.trim(),
+      apiPort: parseInt(document.getElementById('cfgApiPort')?.value || '8260', 10),
+      apiProtocol: document.getElementById('cfgApiProtocol')?.value || 'https',
+      apiPath: document.getElementById('cfgApiPath')?.value?.trim() || 'api/v2.0.0',
+      apiUser: document.getElementById('cfgApiUser')?.value?.trim() || '',
+      apiSecret: document.getElementById('cfgApiSecret')?.value || '',
+      verifySsl: document.getElementById('cfgVerifySsl')?.checked ? 1 : 0
     };
 
     const res = await fetchJson('/api/admin/config', {
@@ -2376,8 +2428,61 @@ function initApp() {
     });
 
     if (res && res.ok) {
-      window.showToast('PBX Gateway configuration updated successfully!', 'success');
+      window.showToast('Global PBX & VoIP configuration saved successfully!', 'success');
       loadConfig();
+    } else {
+      window.showToast(res?.error || 'Failed to save configuration', 'error');
+    }
+  });
+
+  // Test PBX Connection from Global Settings
+  document.getElementById('btnTestPbxConfig')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnTestPbxConfig');
+    const out = document.getElementById('cfgPbxTestOutput');
+    if (!out) return;
+
+    btn.disabled = true;
+    btn.textContent = '⚡ Testing Connection...';
+    out.classList.remove('hidden');
+    out.style.background = '#f8fafc';
+    out.style.borderColor = '#cbd5e1';
+    out.style.color = '#334155';
+    out.textContent = 'Connecting to PBX and querying extension status...';
+
+    const payload = {
+      pbxType: document.getElementById('cfgPbxType')?.value || 'yeastar_api',
+      amiHost: document.getElementById('cfgApiHost')?.value?.trim() || document.getElementById('cfgPbxServer')?.value?.trim() || 'pbx.chriskendall.media',
+      amiPort: parseInt(document.getElementById('cfgApiPort')?.value || '8260', 10),
+      amiUser: document.getElementById('cfgApiUser')?.value?.trim() || 'perfexapi',
+      amiSecret: document.getElementById('cfgApiSecret')?.value || '',
+      apiProtocol: document.getElementById('cfgApiProtocol')?.value || 'https',
+      apiPath: document.getElementById('cfgApiPath')?.value?.trim() || 'api/v2.0.0',
+      verifySsl: document.getElementById('cfgVerifySsl')?.checked ? 1 : 0,
+      saveAsDefault: true
+    };
+
+    const res = await fetchJson('/api/admin/pbx/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    btn.disabled = false;
+    btn.textContent = '⚡ Test PBX Connection';
+
+    if (res && res.ok) {
+      out.style.background = '#f0fdf4';
+      out.style.borderColor = '#bbf7d0';
+      out.style.color = '#15803d';
+      out.textContent = `Success: ${res.message}`;
+      window.showToast?.(res.message, 'success');
+      loadExtensions();
+    } else {
+      out.style.background = '#fef2f2';
+      out.style.borderColor = '#fecaca';
+      out.style.color = '#991b1b';
+      out.textContent = `Connection Error: ${res?.error || 'Failed to connect to PBX.'}`;
+      window.showToast?.(res?.error || 'Connection failed', 'error');
     }
   });
 

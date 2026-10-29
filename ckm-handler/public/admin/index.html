@@ -622,44 +622,110 @@
 
         <!-- SUBTAB 1: PBX & VOIP CORE NETWORKING -->
         <div class="settings-subpane active" id="subpane-settings-pbx">
-          <div class="card form-card">
-            <div class="card-header">
-              <h3>Core PBX Server & Public Provisioning Domain</h3>
-              <p class="muted">These master parameters populate the <code>{\$PbxAddress}</code> and <code>{\$domain}</code> template variables used across all deskphone and softphone provisioning files.</p>
-            </div>
-            <form id="formConfig" class="mt-4">
-              <div class="form-group">
-                <label>Target PBX Server Hostname / IP (<code>{\$PbxAddress}</code>) *</label>
-                <input type="text" id="cfgPbxServer" required placeholder="pbx.chriskendall.media">
-                <small>The hostname or IP address of your primary Asterisk / FreePBX core.</small>
+          <form id="formConfig">
+            <div class="card form-card">
+              <div class="card-header">
+                <h3>Core PBX Server & Public Provisioning Domain</h3>
+                <p class="muted">These master parameters populate the <code>{\$PbxAddress}</code> and <code>{\$domain}</code> template variables used across all deskphone and softphone provisioning files.</p>
               </div>
-
-              <div class="form-row">
+              <div class="mt-4">
                 <div class="form-group">
-                  <label>SIP Signaling Port (<code>{\$sipPort}</code>) *</label>
-                  <input type="number" id="cfgPbxPort" required value="5060">
+                  <label>Target PBX Server Hostname / IP (<code>{\$PbxAddress}</code>) *</label>
+                  <input type="text" id="cfgPbxServer" required placeholder="pbx.chriskendall.media">
+                  <small>The hostname or IP address of your primary Asterisk / FreePBX core.</small>
                 </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>SIP Signaling Port (<code>{\$sipPort}</code>) *</label>
+                    <input type="number" id="cfgPbxPort" required value="5060">
+                  </div>
+                  <div class="form-group">
+                    <label>Signaling Transport (<code>{\$sipTransport}</code>) *</label>
+                    <select id="cfgPbxTransport">
+                      <option value="UDP">UDP (Standard VoIP)</option>
+                      <option value="TCP">TCP</option>
+                      <option value="TLS">TLS (Encrypted SIP)</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div class="form-group">
-                  <label>Signaling Transport (<code>{\$sipTransport}</code>) *</label>
-                  <select id="cfgPbxTransport">
-                    <option value="UDP">UDP (Standard VoIP)</option>
-                    <option value="TCP">TCP</option>
-                    <option value="TLS">TLS (Encrypted SIP)</option>
+                  <label>Public Provisioning & Data Handler URL (<code>{\$domain}</code>) *</label>
+                  <input type="text" id="cfgDataHandlerUrl" required placeholder="https://handler.chriskendall.media">
+                  <small>Public URL where deskphones request Option 66 files and softphones connect for chat, signaling, and directory sync.</small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Global PBX Integration & Credentials -->
+            <div class="card form-card mt-4">
+              <div class="card-header">
+                <h3>PBX Integration & API / AMI Master Credentials</h3>
+                <p class="muted">Global PBX credentials stored permanently in handler database. Every page, modal dialog, and background daemon automatically pulls these credentials so you never have to re-enter them.</p>
+              </div>
+              <div class="mt-4">
+                <div class="form-group">
+                  <label>PBX Platform / Integration Engine</label>
+                  <select id="cfgPbxType" class="form-select">
+                    <option value="yeastar_api" selected>Yeastar S-Series / P-Series (REST API v2.0.0 / OpenAPI)</option>
+                    <option value="yeastar_ami">Yeastar PBX (Asterisk AMI Port 5038)</option>
+                    <option value="asterisk_ami">Asterisk / FreePBX (Standard AMI Port 5038)</option>
                   </select>
                 </div>
-              </div>
 
-              <div class="form-group">
-                <label>Public Provisioning & Data Handler URL (<code>{\$domain}</code>) *</label>
-                <input type="text" id="cfgDataHandlerUrl" required placeholder="https://handler.chriskendall.media">
-                <small>Public URL where deskphones request Option 66 files and softphones connect for chat, signaling, and directory sync.</small>
-              </div>
+                <div class="form-row">
+                  <div class="form-group" style="flex: 2;">
+                    <label id="lblCfgApiHost">API / AMI Hostname or IP</label>
+                    <input type="text" id="cfgApiHost" placeholder="pbx.chriskendall.media">
+                    <small>Defaults to Core PBX Server if left blank.</small>
+                  </div>
+                  <div class="form-group" style="flex: 1;">
+                    <label id="lblCfgApiPort">API / AMI Port</label>
+                    <input type="number" id="cfgApiPort" value="8260">
+                  </div>
+                </div>
 
-              <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
-                <button type="submit" class="btn btn-primary">Save Global VoIP Configuration</button>
+                <div class="form-row" id="rowCfgProtocol" style="display: flex;">
+                  <div class="form-group" style="flex: 1;">
+                    <label>Protocol / SSL</label>
+                    <select id="cfgApiProtocol" class="form-select">
+                      <option value="https" selected>HTTPS (Secure / SSL)</option>
+                      <option value="http">HTTP (Standard)</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="flex: 1;">
+                    <label>API Path Prefix</label>
+                    <input type="text" id="cfgApiPath" value="api/v2.0.0" placeholder="api/v2.0.0">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label id="lblCfgApiUser">API / AMI Username *</label>
+                    <input type="text" id="cfgApiUser" value="perfexapi" placeholder="e.g. perfexapi">
+                  </div>
+                  <div class="form-group">
+                    <label id="lblCfgApiSecret">API / AMI Secret / Password *</label>
+                    <input type="password" id="cfgApiSecret" placeholder="Enter PBX API / AMI password">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
+                    <input type="checkbox" id="cfgVerifySsl"> Verify SSL Certificate (leave unchecked for self-signed PBX certificates)
+                  </label>
+                </div>
+
+                <div id="cfgPbxTestOutput" class="hidden" style="margin-top: 14px; padding: 12px 14px; border-radius: 6px; font-size: 12.5px; font-family: ui-monospace, monospace; white-space: pre-wrap; border: 1px solid #e2e8f0;"></div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+                  <button type="button" class="btn btn-secondary" id="btnTestPbxConfig">⚡ Test PBX Connection</button>
+                  <button type="submit" class="btn btn-primary" id="btnSaveGlobalPbxConfig">💾 Save Global PBX Configuration</button>
+                </div>
               </div>
-            </form>
-          </div>
+            </div>
+          </form>
         </div>
 
         <!-- SUBTAB 2: AUTOMATION & BACKGROUND DAEMONS -->
@@ -1156,62 +1222,74 @@
         <button class="modal-close" onclick="closeModal('modalSyncPbx')">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="muted" id="syncModalDesc" style="margin-bottom: 16px; font-size: 13px;">Select your PBX platform below to automatically import configured SIP extensions, display names, and credentials.</p>
+        <!-- Global PBX Connection Profile Read-Only Card -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 18px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b;">
+              Active PBX Profile (From Global Settings)
+            </div>
+            <a href="#" id="linkEditGlobalPbx" style="font-size: 12px; color: #2563eb; text-decoration: none; font-weight: 600;">
+              ⚙️ Manage in Global Settings
+            </a>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12.5px;">
+            <div>
+              <span class="muted" style="font-size: 11px;">PBX Target:</span><br>
+              <strong id="syncCardHost" style="color: #0f172a;">pbx.chriskendall.media</strong>
+            </div>
+            <div>
+              <span class="muted" style="font-size: 11px;">Integration Engine:</span><br>
+              <strong id="syncCardEngine" style="color: #0f172a;">Yeastar REST API (Port 8260)</strong>
+            </div>
+            <div>
+              <span class="muted" style="font-size: 11px;">API / AMI Account:</span><br>
+              <strong id="syncCardUser" style="color: #0f172a;">perfexapi</strong>
+            </div>
+            <div>
+              <span class="muted" style="font-size: 11px;">Connection Security:</span><br>
+              <strong id="syncCardSecurity" style="color: #0f172a;">HTTPS (Encrypted)</strong>
+            </div>
+          </div>
+        </div>
+
         <form id="formSyncPbx">
+          <!-- OPTIONS ONLY -->
           <div class="form-group">
-            <label>PBX Platform / Integration Engine</label>
-            <select id="pbxType" class="form-select">
-              <option value="yeastar_api" selected>Yeastar S-Series / P-Series (REST API v2.0.0 / OpenAPI)</option>
-              <option value="yeastar_ami">Yeastar PBX (Asterisk AMI Port 5038)</option>
-              <option value="asterisk_ami">Asterisk / FreePBX (Standard AMI Port 5038)</option>
+            <label>Synchronization Engine</label>
+            <select id="syncEngineOption" class="form-select">
+              <option value="global" selected>Use Configured Global Profile (Recommended)</option>
+              <option value="yeastar_api">Force Yeastar S/P-Series (REST API v2.0.0)</option>
+              <option value="yeastar_ami">Force Yeastar PBX (Asterisk AMI Port 5038)</option>
+              <option value="asterisk_ami">Force Asterisk / FreePBX (Standard AMI Port 5038)</option>
             </select>
           </div>
 
-          <div class="form-row">
-            <div class="form-group" style="flex: 2;">
-              <label id="lblPbxHost">PBX Host / IP</label>
-              <input type="text" id="amiHost" placeholder="e.g. pbx.chriskendall.media" required>
-            </div>
-            <div class="form-group" style="flex: 1;">
-              <label id="lblPbxPort">API Port</label>
-              <input type="number" id="amiPort" value="8260" required>
-            </div>
+          <div class="form-group">
+            <label>Extension Import Strategy</label>
+            <select id="syncStrategyOption" class="form-select">
+              <option value="merge" selected>Merge & Update (Import new & update existing extension names)</option>
+              <option value="new_only">Add New Only (Preserve local customizations)</option>
+              <option value="replace">Full Sync (Synchronize active PBX directory)</option>
+            </select>
           </div>
 
-          <div class="form-row" id="rowProtocol" style="display: flex;">
-            <div class="form-group" style="flex: 1;">
-              <label>Protocol / SSL</label>
-              <select id="apiProtocol" class="form-select">
-                <option value="https" selected>HTTPS (Secure / SSL)</option>
-                <option value="http">HTTP (Standard)</option>
-              </select>
-            </div>
-            <div class="form-group" style="flex: 1;">
-              <label>API Path Prefix</label>
-              <input type="text" id="apiPath" value="api/v2.0.0" placeholder="api/v2.0.0">
-            </div>
+          <div class="form-group" style="margin-top: 14px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 12.5px; cursor: pointer;">
+              <input type="checkbox" id="syncImportVault" checked> Import & synchronize SIP secrets into secure softphone vault
+            </label>
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label id="lblPbxUser">API Username *</label>
-              <input type="text" id="amiUser" required value="perfexapi" placeholder="e.g. perfexapi">
-            </div>
-            <div class="form-group">
-              <label id="lblPbxSecret">API Password / Secret *</label>
-              <input type="password" id="amiSecret" required placeholder="Enter API password or secret">
-            </div>
-          </div>
-
-          <div class="form-group" id="pbxHelpHint" style="font-size: 11.5px; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; margin-top: 4px;">
-            Yeastar S-Series / P-Series REST API connects over port 8260 (or 443) using <code>/api/v2.0.0/login</code> to authenticate and sync all extensions.
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; font-size: 12.5px; cursor: pointer;">
+              <input type="checkbox" id="syncAutoPin"> Generate 8-digit auto-provisioning PINs for newly discovered extensions
+            </label>
           </div>
 
           <div id="amiSyncOutput" class="hidden" style="margin-top: 14px; padding: 12px 14px; border-radius: 6px; font-size: 12.5px; font-family: ui-monospace, monospace; white-space: pre-wrap; border: 1px solid #e2e8f0;"></div>
 
           <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
             <button type="button" class="btn btn-secondary" onclick="closeModal('modalSyncPbx')">Close</button>
-            <button type="submit" class="btn btn-primary" id="btnRunSync">Start Yeastar API Sync</button>
+            <button type="submit" class="btn btn-primary" id="btnRunSync">⚡ Start PBX Synchronization</button>
           </div>
         </form>
       </div>

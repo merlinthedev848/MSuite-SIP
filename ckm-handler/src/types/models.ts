@@ -33,6 +33,14 @@ export interface ServerConfigRow {
   last_sync_status?: string | null;
   webhook_crm_url?: string | null;
   webhook_crm_secret?: string | null;
+  pbx_type?: string;
+  api_host?: string;
+  api_port?: number;
+  api_protocol?: string;
+  api_path?: string;
+  api_user?: string;
+  api_secret?: string;
+  verify_ssl?: number;
   updated_at?: string;
 }
 
@@ -219,6 +227,13 @@ export const defaultServerConfig: ServerConfigRow = {
   logo_url: '/assets/logo.png',
   auto_adopt_enabled: 1,
   auto_sync_enabled: 1,
-  auto_sync_interval_mins: 5
+  auto_sync_interval_mins: 5,
+  pbx_type: 'yeastar_api',
+  api_host: '',
+  api_port: 8260,
+  api_protocol: 'https',
+  api_path: 'api/v2.0.0',
+  api_user: 'perfexapi',
+  api_secret: '',
+  verify_ssl: 0
 };
-
