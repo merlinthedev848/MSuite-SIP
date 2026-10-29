@@ -122,7 +122,7 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
   };
 
   const brand = (handset.brand || '').toLowerCase();
-  const content = generateDefaultHandsetConfig(brand, accountCfg);
+  const content = generateDefaultHandsetConfig(brand, accountCfg, handset.model);
   const isXml = content.trim().startsWith('<') || filename.endsWith('.xml');
 
   res.setHeader('Content-Type', `${isXml ? 'application/xml' : 'text/plain'}; charset=utf-8`);
