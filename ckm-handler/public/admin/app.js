@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+function initApp() {
   // --------------------------------------------------------------------------
   // Elegant Non-Intrusive Toast System
   // --------------------------------------------------------------------------
@@ -34,34 +34,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let currentUser = null;
 
+  let inMemoryStorage = {};
+
   function getAuthToken() {
-    return sessionStorage.getItem('ckm_admin_token') || localStorage.getItem('ckm_admin_token') || '';
+    try {
+      return sessionStorage.getItem('ckm_admin_token') || localStorage.getItem('ckm_admin_token') || inMemoryStorage['ckm_admin_token'] || '';
+    } catch {
+      return inMemoryStorage['ckm_admin_token'] || '';
+    }
   }
 
   function getStoredUser() {
     try {
-      const u = sessionStorage.getItem('ckm_admin_user') || localStorage.getItem('ckm_admin_user');
+      const u = sessionStorage.getItem('ckm_admin_user') || localStorage.getItem('ckm_admin_user') || inMemoryStorage['ckm_admin_user'];
       return u ? JSON.parse(u) : null;
-    } catch { return null; }
+    } catch {
+      try {
+        const u = inMemoryStorage['ckm_admin_user'];
+        return u ? JSON.parse(u) : null;
+      } catch { return null; }
+    }
   }
 
   function setAuthSession(token, user, persist = true) {
     if (token) {
-      sessionStorage.setItem('ckm_admin_token', token);
-      if (user) sessionStorage.setItem('ckm_admin_user', JSON.stringify(user));
+      try { sessionStorage.setItem('ckm_admin_token', token); } catch {}
+      try { if (user) sessionStorage.setItem('ckm_admin_user', JSON.stringify(user)); } catch {}
       if (persist) {
-        localStorage.setItem('ckm_admin_token', token);
-        if (user) localStorage.setItem('ckm_admin_user', JSON.stringify(user));
+        try { localStorage.setItem('ckm_admin_token', token); } catch {}
+        try { if (user) localStorage.setItem('ckm_admin_user', JSON.stringify(user)); } catch {}
       }
+      inMemoryStorage['ckm_admin_token'] = token;
+      if (user) inMemoryStorage['ckm_admin_user'] = JSON.stringify(user);
     } else {
-      sessionStorage.removeItem('ckm_admin_token');
-      sessionStorage.removeItem('ckm_admin_user');
-      localStorage.removeItem('ckm_admin_token');
-      localStorage.removeItem('ckm_admin_user');
+      try { sessionStorage.removeItem('ckm_admin_token'); } catch {}
+      try { sessionStorage.removeItem('ckm_admin_user'); } catch {}
+      try { localStorage.removeItem('ckm_admin_token'); } catch {}
+      try { localStorage.removeItem('ckm_admin_user'); } catch {}
+      delete inMemoryStorage['ckm_admin_token'];
+      delete inMemoryStorage['ckm_admin_user'];
     }
     currentUser = user || null;
     applyUserPermissions();
   }
+  window.setAuthSession = setAuthSession;
 
   function showLogin() {
     if (modalLogin) modalLogin.classList.remove('hidden');
@@ -78,6 +94,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentUser.role === 'superadmin') return true;
     const p = currentUser.permissions || [];
     return p.includes('*') || p.includes(perm);
+  };
+
+  window.escapeHtml = function(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   };
 
   function applyUserPermissions() {
@@ -399,6 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <span class="health-latency">${c.latency}</span>
             <span class="health-pill ${isOp ? 'op' : 'warn'}">${badgeLabel}</span>
+            <button class="btn btn-xs btn-outline" onclick="window.viewServiceLogs('${c.id}')" title="Filter live terminal to ${c.name} logs" style="font-size:11px; padding:3px 8px; margin-left:6px; cursor:pointer;">Logs</button>
           </div>
         `;
       }).join('');
@@ -576,10 +603,13 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${ext.bound_handsets} handset(s)</td>
         <td><span class="badge ${ext.is_active ? 'badge-primary' : 'badge-secondary'}">${ext.is_active ? 'Active' : 'Disabled'}</span></td>
         <td>
-          ${canManage ? `
-            <button class="btn btn-sm btn-secondary" onclick="generatePin('${ext.extension}')">Generate PIN</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteExtension('${ext.extension}')">Delete</button>
-          ` : '<span class="muted">Read Only</span>'}
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('Ext ${ext.extension}', 'softphone', { ext: '${ext.extension}', name: '${(ext.display_name || '').replace(/'/g, "\\'")}', sip: '${ext.sip_username}', ip: '${ext.last_ip || ''}' })" title="View device telemetry & logs">Logs</button>
+            ${canManage ? `
+              <button class="btn btn-sm btn-secondary" onclick="generatePin('${ext.extension}')">Generate PIN</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteExtension('${ext.extension}')">Delete</button>
+            ` : '<span class="muted">Read Only</span>'}
+          </div>
         </td>
       </tr>
     `).join('');
@@ -1749,9 +1779,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><strong>${h.brand.toUpperCase()}</strong> ${h.model || ''}</td>
           <td>Ext ${h.extension} (${h.display_name || ''})</td>
           <td>${h.line_label || 'Default'}</td>
-          <td>${h.last_provisioned_at ? new Date(h.last_provisioned_at).toLocaleString() : '<span class="muted">Never fetched</span>'}</td>
+          <td>${h.last_provisioned_at ? new Date(h.last_provisioned_at).toLocaleString() : '<span class="muted">Never fetched</span>'}${h.ip_address ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">IP: <code>${h.ip_address}</code></div>` : ''}</td>
           <td>
             <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+              <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${cleanMac}', 'handset', { mac: '${cleanMac.toUpperCase()}', brand: '${h.brand}', model: '${h.model || ''}', ext: '${h.extension}', ip: '${h.ip_address || ''}' })" title="Live Telemetry & Logs">Logs</button>
               <button class="btn btn-sm btn-primary" onclick="editHandsetConfig('${cleanMac}')">Edit Config</button>
               <a class="btn btn-sm btn-secondary" href="${provUrl}" target="_blank" title="Test Fetch Profile">Test</a>
               ${canManage ? `
@@ -1958,6 +1989,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td>
             <strong>${r.site_name}</strong>
             ${isCustom ? '<span class="tag badge-primary" style="margin-left:6px;font-size:10px;">Custom Script</span>' : ''}
+            ${r.last_fetched_at ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">Booted: ${new Date(r.last_fetched_at).toLocaleDateString()} ${r.last_ip ? `(${r.last_ip})` : ''}</div>` : ''}
           </td>
           <td><strong>${r.brand.toUpperCase()}</strong> ${r.model || ''}</td>
           <td>VLAN ${r.voice_vlan_id}</td>
@@ -1966,6 +1998,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><span class="badge ${r.enable_qos ? 'badge-primary' : 'badge-secondary'}">${r.enable_qos ? 'DSCP 46 / EF' : 'Off'}</span></td>
           <td>
             <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+              <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${r.site_name.replace(/'/g, "\\'")}', 'router', { site: '${r.site_name.replace(/'/g, "\\'")}', brand: '${r.brand}', id: ${r.id} })" title="Live Telemetry & Logs">Logs</button>
               <button class="btn btn-sm btn-primary" onclick="editRouterScript(${r.id})">Edit Script</button>
               <button class="btn btn-sm btn-secondary" onclick="downloadRouterScript(${r.id}, '${r.site_name.replace(/'/g, "\\'")}', '${r.brand}')">Download</button>
               <button class="btn btn-sm btn-secondary" onclick="copyRouterUrl(${r.id})">Boot URL</button>
@@ -2687,6 +2720,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeShellFilter = 'ALL';
   let isShellPaused = false;
   let shellEventSource = null;
+  let activeDeviceModalFilter = '';
+  let activeDeviceLogs = [];
+
+  function isDeviceModalOpen() {
+    const modal = document.getElementById('modalDeviceTelemetry');
+    return modal && !modal.classList.contains('hidden');
+  }
 
   function initShellStream() {
     const token = getAuthToken();
@@ -2717,6 +2757,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!isShellPaused) {
       renderShellEvents();
+    }
+
+    if (activeDeviceModalFilter && isDeviceModalOpen()) {
+      const matchMac = (event.deviceIdentifier || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const matchMsg = (event.message || '').toLowerCase();
+      const matchIp = (event.ipAddress || '').toLowerCase();
+      if (matchMac.includes(activeDeviceModalFilter) || matchMsg.includes(activeDeviceModalFilter) || matchIp.includes(activeDeviceModalFilter)) {
+        activeDeviceLogs.push(event);
+        if (activeDeviceLogs.length > 500) activeDeviceLogs.shift();
+        renderDeviceModalEvents();
+      }
     }
   }
 
@@ -2867,6 +2918,174 @@ document.addEventListener('DOMContentLoaded', () => {
     shellDrawer.classList.toggle('minimized');
     const btn = document.getElementById('btnMinimizeDrawer');
     btn.textContent = shellDrawer.classList.contains('minimized') ? '▲ Expand' : '_ Minimize';
+  });
+
+  // --------------------------------------------------------------------------
+  // Dedicated Device Telemetry Modal & Service Logs Direct Filtering
+  // --------------------------------------------------------------------------
+  function renderDeviceModalEvents() {
+    const term = document.getElementById('devTelemTerminal');
+    if (!term) return;
+
+    const searchVal = document.getElementById('devTelemSearch')?.value.toLowerCase().trim() || '';
+    const filtered = activeDeviceLogs.filter(item => {
+      if (!searchVal) return true;
+      const text = `${item.timestamp} ${item.category} ${item.level} ${item.deviceIdentifier} ${item.ipAddress} ${item.message}`.toLowerCase();
+      return text.includes(searchVal);
+    });
+
+    if (!filtered.length) {
+      term.innerHTML = `
+        <div class="shell-entry" style="opacity: 0.75; font-style: italic;">
+          <span class="shell-time">--:--:--.---</span>
+          <span class="shell-cat shell-cat-system">STREAM</span>
+          <span class="shell-lvl-INFO">No events recorded for this device yet. Listening for Option 66 requests, SIP registrations, or admin events...</span>
+        </div>
+      `;
+    } else {
+      term.innerHTML = filtered.map(item => {
+        const d = new Date(item.timestamp);
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        const seconds = String(d.getSeconds()).padStart(2, '0');
+        const ms = String(d.getMilliseconds()).padStart(3, '0');
+        const time = `${hours}:${minutes}:${seconds}.${ms}`;
+        const catClass = `shell-cat-${(item.category || 'system').toLowerCase()}`;
+        const lvlClass = `shell-lvl-${item.level || 'INFO'}`;
+        const devBadge = item.deviceIdentifier ? `<span class="shell-dev">[${item.deviceIdentifier}]</span> ` : '';
+
+        return `
+          <div class="shell-entry">
+            <span class="shell-time">${time}</span>
+            <span class="shell-cat ${catClass}">${item.category}</span>
+            <span class="shell-msg ${lvlClass}">${devBadge}${escapeHtml(item.message)}</span>
+            <span class="shell-ip">${item.ipAddress || ''}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    const autoScroll = document.getElementById('devTelemAutoScroll')?.checked;
+    if (autoScroll !== false) {
+      term.scrollTop = term.scrollHeight;
+    }
+
+    const countElem = document.getElementById('devTelemEventCount');
+    if (countElem) {
+      countElem.textContent = `${filtered.length} event${filtered.length === 1 ? '' : 's'}`;
+    }
+  }
+
+  window.viewDeviceLogs = async function(identifier, type, extraMeta = {}) {
+    initShellStream();
+    activeDeviceModalFilter = String(identifier).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    const title = document.getElementById('devTelemTitle');
+    const brandBadge = document.getElementById('devTelemBadgeBrand');
+    const idElem = document.getElementById('devTelemIdentifier');
+    const metaElem = document.getElementById('devTelemMetaExtra');
+    const termHeader = document.getElementById('devTelemTerminalHeader');
+    const fetchDirectBtn = document.getElementById('btnDevTelemFetchDirect');
+
+    const brand = (extraMeta.brand || type || 'Device').toUpperCase();
+    if (title) title.innerHTML = `<span class="status-pulse" style="background: #22c55e;"></span><span>Live Telemetry: ${escapeHtml(extraMeta.name || extraMeta.mac || identifier)}</span>`;
+    if (brandBadge) brandBadge.textContent = brand;
+    if (idElem) idElem.textContent = identifier;
+    if (metaElem) {
+      const parts = [];
+      if (extraMeta.ext) parts.push(`Ext ${extraMeta.ext}`);
+      if (extraMeta.model) parts.push(extraMeta.model);
+      if (extraMeta.ip) parts.push(`IP: ${extraMeta.ip}`);
+      if (extraMeta.sip) parts.push(`SIP: ${extraMeta.sip}`);
+      if (extraMeta.site) parts.push(`Site: ${extraMeta.site}`);
+      metaElem.textContent = parts.length ? `• ${parts.join(' | ')}` : '';
+    }
+    if (termHeader) termHeader.textContent = `telemetry@ckm-handler: live stream [${identifier}]`;
+
+    if (fetchDirectBtn) {
+      if (type === 'handset' || extraMeta.mac) {
+        const cleanMac = (extraMeta.mac || identifier).toLowerCase().replace(/[^0-9a-f]/g, '');
+        fetchDirectBtn.href = getHandsetProvisionUrl(extraMeta.brand || 'yealink', cleanMac);
+        fetchDirectBtn.style.display = 'inline-block';
+        fetchDirectBtn.textContent = 'Fetch Config (Option 66)';
+      } else if (type === 'router' || extraMeta.id) {
+        fetchDirectBtn.href = `/provision/router/${extraMeta.id || identifier}`;
+        fetchDirectBtn.style.display = 'inline-block';
+        fetchDirectBtn.textContent = 'Test Router Boot Script';
+      } else {
+        fetchDirectBtn.style.display = 'none';
+      }
+    }
+
+    activeDeviceLogs = shellLogs.filter(item => {
+      const matchMac = (item.deviceIdentifier || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const matchMsg = (item.message || '').toLowerCase();
+      const matchIp = (item.ipAddress || '').toLowerCase();
+      return matchMac.includes(activeDeviceModalFilter) || matchMsg.includes(activeDeviceModalFilter) || matchIp.includes(activeDeviceModalFilter);
+    });
+
+    renderDeviceModalEvents();
+    openModal('modalDeviceTelemetry');
+
+    try {
+      const data = await fetchJson(`/api/admin/telemetry/device/${encodeURIComponent(identifier)}?limit=100`);
+      if (data && data.logs && Array.isArray(data.logs)) {
+        const existingIds = new Set(activeDeviceLogs.map(l => l.id));
+        for (const log of data.logs) {
+          if (!existingIds.has(log.id)) {
+            activeDeviceLogs.push(log);
+          }
+        }
+        activeDeviceLogs.sort((a, b) => (a.id || 0) - (b.id || 0));
+        renderDeviceModalEvents();
+      }
+    } catch (err) {
+      console.warn('Could not fetch server-side device telemetry history:', err);
+    }
+  };
+
+  window.clearDeviceModalLogs = function() {
+    activeDeviceLogs = [];
+    renderDeviceModalEvents();
+  };
+
+  window.copyDeviceLogs = function() {
+    if (!activeDeviceLogs.length) {
+      window.showToast('No device logs to copy.', 'info');
+      return;
+    }
+    const lines = activeDeviceLogs.map(l => `[${l.timestamp}] [${l.category}] [${l.level}] [${l.ipAddress}] ${l.deviceIdentifier ? `(${l.deviceIdentifier}) ` : ''}${l.message}`);
+    navigator.clipboard.writeText(lines.join('\r\n')).then(() => {
+      window.showToast('Device telemetry copied to clipboard.', 'success');
+    }).catch(() => {
+      window.showToast('Failed to copy to clipboard.', 'error');
+    });
+  };
+
+  window.viewServiceLogs = function(serviceId) {
+    const catMap = {
+      'api': 'SYSTEM',
+      'socket': 'SOCKET',
+      'system_db': 'SYSTEM',
+      'vault_db': 'SYSTEM',
+      'softphone_prov': 'SOFTPHONE',
+      'deskphone_prov': 'DESKPHONE',
+      'router_engine': 'ROUTER',
+      'firmware_repo': 'FIRMWARE',
+      'pbx_sip': 'PBX',
+      'gdpr_daemon': 'SYSTEM'
+    };
+    const category = catMap[serviceId] || 'ALL';
+    initShellStream();
+    window.switchTab('shell');
+    const filterBtn = document.querySelector(`.shell-filter-btn[data-filter="${category}"]`);
+    if (filterBtn) {
+      filterBtn.click();
+    }
+  };
+
+  document.getElementById('devTelemSearch')?.addEventListener('input', () => {
+    renderDeviceModalEvents();
   });
 
   // --------------------------------------------------------------------------
@@ -3323,8 +3542,11 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">Pending Adoption</span></td>
           <td>${new Date(d.last_seen_at).toLocaleTimeString()}</td>
           <td style="text-align: right;">
-            <button class="btn btn-sm btn-primary" onclick="window.openAdoptModal('${d.mac_address}', '${d.brand}', '${d.model}')">Adopt Device</button>
-            <button class="btn btn-sm btn-secondary" onclick="window.ignoreDiscoveredDevice('${d.mac_address}')" style="margin-left: 4px;">Dismiss</button>
+            <div style="display: inline-flex; gap: 4px;">
+              <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${d.mac_address}', 'discovered', { mac: '${d.mac_address}', brand: '${d.brand}', ip: '${d.ip_address}' })">Logs</button>
+              <button class="btn btn-sm btn-primary" onclick="window.openAdoptModal('${d.mac_address}', '${d.brand}', '${d.model}')">Adopt Device</button>
+              <button class="btn btn-sm btn-secondary" onclick="window.ignoreDiscoveredDevice('${d.mac_address}')">Dismiss</button>
+            </div>
           </td>
         </tr>
       `).join('');
@@ -3739,4 +3961,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}

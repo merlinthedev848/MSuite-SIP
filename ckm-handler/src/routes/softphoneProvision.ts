@@ -116,8 +116,13 @@ const handlePinProvision = (req: Request, res: Response) => {
     }
   }
 
-  // Mark PIN as claimed
+  // Mark PIN as claimed and update extension telemetry
   claimPinStmt.run(cleanedCode);
+  systemDb.prepare(`
+    UPDATE extensions 
+    SET last_registered_at = CURRENT_TIMESTAMP, last_ip = ?, user_agent = ? 
+    WHERE extension = ?
+  `).run(clientIp, (req.headers['user-agent'] as string) || 'MerlinSIP Softphone', pinRecord.extension);
   logActivity('PIN_CLAIMED', `Extension ${pinRecord.extension} provisioned via PIN [${cleanedCode}]`, clientIp);
   broadcastDeviceLog('SOFTPHONE', 'SUCCESS', `Softphone provisioned successfully via 8-digit PIN for Ext ${pinRecord.extension} (${pinRecord.display_name})`, {
     deviceIdentifier: `Ext ${pinRecord.extension}`,

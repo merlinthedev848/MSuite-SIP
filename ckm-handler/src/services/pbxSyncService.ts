@@ -4,6 +4,7 @@ import https from 'https';
 import crypto from 'crypto';
 import systemDb, { logActivity } from '../database/systemDb';
 import { ServerConfigRow } from '../types/models';
+import { broadcastDeviceLog } from './telemetryStream';
 
 export interface PbxSyncConfig {
   type?: 'yeastar_api' | 'yeastar_ami' | 'asterisk_ami' | 'freepbx_ami' | 'grandstream_api';
@@ -33,6 +34,10 @@ export async function syncExtensionsFromPbx(
   config: PbxSyncConfig
 ): Promise<{ success: boolean; count: number; message: string }> {
   const pbxType = config.type || (config.port === 5038 ? 'asterisk_ami' : 'yeastar_api');
+  broadcastDeviceLog('PBX', 'INFO', `PBX extension sync triggered for ${config.host}:${config.port} (${pbxType})`, {
+    deviceIdentifier: config.host,
+    metadata: { pbxType, port: config.port }
+  });
 
   if (pbxType === 'yeastar_api') {
     return syncExtensionsFromYeastarApi(config);
@@ -455,10 +460,22 @@ export async function runAutoPbxSync(): Promise<void> {
       WHERE id = 1
     `).run(now, res.success ? 'SUCCESS' : 'FAILED');
 
-    if (res.success && res.count > 0) {
-      logActivity('PBX_AUTO_SYNC', `Autonomous PBX sync completed: ${res.count} extension(s) synchronized.`, '127.0.0.1');
+    if (res.success) {
+      broadcastDeviceLog('PBX', 'SUCCESS', `Autonomous PBX sync completed: ${res.count} extension(s) synchronized.`, {
+        deviceIdentifier: config.pbx_server,
+        metadata: { count: res.count }
+      });
+      if (res.count > 0) {
+        logActivity('PBX_AUTO_SYNC', `Autonomous PBX sync completed: ${res.count} extension(s) synchronized.`, '127.0.0.1');
+      }
+    } else {
+      broadcastDeviceLog('PBX', 'WARN', `Autonomous PBX sync check: ${res.message || 'No new extensions discovered'}`, {
+        deviceIdentifier: config.pbx_server
+      });
     }
-  } catch {
-    // Silent catch to ensure daemon stability
+  } catch (err: any) {
+    broadcastDeviceLog('PBX', 'ERROR', `Autonomous PBX sync failed: ${err?.message || 'Connection error'}`, {
+      deviceIdentifier: 'PBX Core'
+    });
   }
 }

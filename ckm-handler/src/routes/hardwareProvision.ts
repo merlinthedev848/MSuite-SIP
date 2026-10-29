@@ -58,8 +58,17 @@ const getHandsetStmt = systemDb.prepare(`
 
 const updateHandsetProvisionedStmt = systemDb.prepare(`
   UPDATE physical_handsets 
-  SET last_provisioned_at = CURRENT_TIMESTAMP 
+  SET last_provisioned_at = CURRENT_TIMESTAMP,
+      ip_address = ?,
+      user_agent = ?
   WHERE LOWER(REPLACE(mac_address, ':', '')) = ?
+`);
+
+const updateRouterFetchedStmt = systemDb.prepare(`
+  UPDATE routers 
+  SET last_fetched_at = CURRENT_TIMESTAMP,
+      last_ip = ?
+  WHERE id = ?
 `);
 
 const getServerConfigStmt = systemDb.prepare(`
@@ -211,8 +220,8 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     return res.status(403).send('# Error: Assigned extension has been deactivated.');
   }
 
-  // Update last provisioned timestamp
-  updateHandsetProvisionedStmt.run(cleanMac);
+  // Update last provisioned timestamp and connection metadata
+  updateHandsetProvisionedStmt.run(req.ip, (req.headers['user-agent'] as string) || '', cleanMac);
   logActivity('HANDSET_PROVISIONED', `Handset [${cleanMac.toUpperCase()}] (${(handset.brand || 'deskphone').toUpperCase()} ${handset.model || ''}) fetched config for Ext ${handset.extension}`, req.ip);
   broadcastDeviceLog('DESKPHONE', 'SUCCESS', `Deskphone [${cleanMac.toUpperCase()}] (${(handset.brand || 'deskphone').toUpperCase()} ${handset.model || ''}) fetched configuration for Ext ${handset.extension}`, {
     deviceIdentifier: cleanMac.toUpperCase(),
@@ -281,6 +290,8 @@ router.get('/provision/router/:identifier', (req: Request, res: Response) => {
   if (!routerRec) {
     return res.status(404).send('# Error: Router configuration profile not found.');
   }
+
+  updateRouterFetchedStmt.run(req.ip, routerRec.id);
 
   broadcastDeviceLog('ROUTER', 'INFO', `Router #${routerRec.id} (${routerRec.site_name} / ${routerRec.brand.toUpperCase()}) fetched bootstrap configuration`, {
     deviceIdentifier: routerRec.site_name,

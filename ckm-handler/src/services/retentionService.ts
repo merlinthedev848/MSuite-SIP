@@ -1,5 +1,6 @@
 import fs from 'fs';
 import vaultDb from '../database/vaultDb';
+import { broadcastDeviceLog } from './telemetryStream';
 
 export function runRetentionPruning() {
   try {
@@ -41,6 +42,10 @@ export function runRetentionPruning() {
 
     // Update last pruned timestamp
     vaultDb.prepare('UPDATE gdpr_retention_policy SET last_pruned_at = CURRENT_TIMESTAMP WHERE id = 1').run();
+
+    broadcastDeviceLog('SECURITY', 'INFO', `Automated GDPR retention daemon: purged ${chatResult.changes} expired message(s) and ${unlinkedFiles} media file(s).`, {
+      metadata: { prunedMessages: chatResult.changes, prunedFiles: unlinkedFiles }
+    });
 
     console.log(`[GDPR Pruner] Pruning complete: Removed ${chatResult.changes} expired messages and ${unlinkedFiles} media files.`);
   } catch (err) {

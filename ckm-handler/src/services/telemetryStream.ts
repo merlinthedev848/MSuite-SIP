@@ -107,6 +107,40 @@ export function getRecentDeviceLogs(limit: number = 200): DeviceLogEvent[] {
   return logRingBuffer.toArray(n);
 }
 
+export function getFilteredDeviceLogs(filter: {
+  category?: string;
+  device?: string;
+  search?: string;
+  limit?: number;
+}): DeviceLogEvent[] {
+  const all = logRingBuffer.toArray();
+  const maxLimit = Math.min(Math.max(1, filter.limit || 250), MAX_RING_BUFFER);
+
+  return all.filter(ev => {
+    if (filter.category && filter.category !== 'ALL' && ev.category.toUpperCase() !== filter.category.toUpperCase()) {
+      return false;
+    }
+    if (filter.device) {
+      const target = filter.device.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const dev = (ev.deviceIdentifier || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const ip = (ev.ipAddress || '').toLowerCase();
+      if (!dev.includes(target) && !ip.includes(filter.device.toLowerCase())) {
+        return false;
+      }
+    }
+    if (filter.search) {
+      const q = filter.search.toLowerCase();
+      const msg = ev.message.toLowerCase();
+      const dev = (ev.deviceIdentifier || '').toLowerCase();
+      const ip = (ev.ipAddress || '').toLowerCase();
+      if (!msg.includes(q) && !dev.includes(q) && !ip.includes(q)) {
+        return false;
+      }
+    }
+    return true;
+  }).slice(-maxLimit);
+}
+
 export function clearDeviceLogs(): void {
   logRingBuffer.clear();
   broadcastDeviceLog('SYSTEM', 'INFO', 'Device connectivity shell buffer cleared by administrator.');

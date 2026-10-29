@@ -244,6 +244,16 @@ try { systemDb.exec("ALTER TABLE server_config ADD COLUMN last_sync_status TEXT 
 try { systemDb.exec("ALTER TABLE physical_handsets ADD COLUMN custom_config TEXT DEFAULT '';"); } catch {}
 try { systemDb.exec("ALTER TABLE routers ADD COLUMN custom_script TEXT DEFAULT '';"); } catch {}
 
+// Ensure real-time telemetry and monitoring columns exist
+try { systemDb.exec("ALTER TABLE physical_handsets ADD COLUMN ip_address TEXT DEFAULT '';"); } catch {}
+try { systemDb.exec("ALTER TABLE physical_handsets ADD COLUMN user_agent TEXT DEFAULT '';"); } catch {}
+try { systemDb.exec("ALTER TABLE physical_handsets ADD COLUMN firmware_version TEXT DEFAULT '';"); } catch {}
+try { systemDb.exec("ALTER TABLE routers ADD COLUMN last_fetched_at DATETIME;"); } catch {}
+try { systemDb.exec("ALTER TABLE routers ADD COLUMN last_ip TEXT DEFAULT '';"); } catch {}
+try { systemDb.exec("ALTER TABLE extensions ADD COLUMN last_registered_at DATETIME;"); } catch {}
+try { systemDb.exec("ALTER TABLE extensions ADD COLUMN last_ip TEXT DEFAULT '';"); } catch {}
+try { systemDb.exec("ALTER TABLE extensions ADD COLUMN user_agent TEXT DEFAULT '';"); } catch {}
+
 // Generate default secure API key if not set
 const cfgRow = systemDb.prepare('SELECT api_key FROM server_config WHERE id = 1').get() as { api_key: string | null } | undefined;
 if (!cfgRow?.api_key) {

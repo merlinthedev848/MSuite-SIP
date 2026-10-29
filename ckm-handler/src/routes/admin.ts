@@ -16,7 +16,7 @@ import { licenseState } from '../services/licenseGuard';
 import { syncExtensionsFromAsterisk, syncExtensionsFromPbx, PbxSyncConfig, AmiConfig, updatePbxSyncSchedule } from '../services/pbxSyncService';
 import { AdminRequest, AdminRole, ServerConfigRow, AdminUserRow, AdminSessionRow, CountRow, TotalBytesRow, RouterRow, DiscoveredDeviceRow, GdprRetentionPolicyRow, PhysicalHandsetRow, HandsetWithExtensionRow, ExtensionRow, defaultServerConfig } from '../types/models';
 import { getSocketStats } from '../services/socketService';
-import { registerSseClient, getRecentDeviceLogs, clearDeviceLogs, broadcastDeviceLog } from '../services/telemetryStream';
+import { registerSseClient, getRecentDeviceLogs, getFilteredDeviceLogs, clearDeviceLogs, broadcastDeviceLog } from '../services/telemetryStream';
 import { 
   getFirmwareCatalogStatus, 
   downloadFirmwareForModel, 
@@ -493,8 +493,32 @@ router.get('/api/admin/shell/stream', adminAuth, (req: Request, res: Response) =
 
 router.get('/api/admin/shell/history', adminAuth, (req: Request, res: Response) => {
   const limit = parseInt(req.query.limit as string || '250', 10);
+  const category = req.query.category as string | undefined;
+  const device = req.query.device as string | undefined;
+  const search = req.query.search as string | undefined;
+
+  if (category || device || search) {
+    const logs = getFilteredDeviceLogs({ category, device, search, limit });
+    return res.json({ ok: true, logs });
+  }
+
   const logs = getRecentDeviceLogs(limit);
   return res.json({ ok: true, logs });
+});
+
+// Dedicated Filtered Telemetry Endpoints for Individual Devices & Services
+router.get('/api/admin/telemetry/device/:identifier', adminAuth, (req: Request, res: Response) => {
+  const identifier = req.params.identifier;
+  const limit = parseInt(req.query.limit as string || '100', 10);
+  const logs = getFilteredDeviceLogs({ device: identifier, limit });
+  return res.json({ ok: true, identifier, count: logs.length, logs });
+});
+
+router.get('/api/admin/telemetry/service/:category', adminAuth, (req: Request, res: Response) => {
+  const category = req.params.category;
+  const limit = parseInt(req.query.limit as string || '100', 10);
+  const logs = getFilteredDeviceLogs({ category, limit });
+  return res.json({ ok: true, category, count: logs.length, logs });
 });
 
 router.post('/api/admin/shell/clear', adminAuth, (req: Request, res: Response) => {
@@ -654,6 +678,7 @@ router.post('/api/admin/vault/purge', adminAuth, (req: Request, res: Response) =
 router.get('/api/admin/extensions', adminAuth, (req: Request, res: Response) => {
   const rows = systemDb.prepare(`
     SELECT e.extension, e.sip_username, e.display_name, e.is_active, e.created_at,
+           e.last_registered_at, e.last_ip, e.user_agent,
            (SELECT p.code FROM softphone_pins p WHERE p.extension = e.extension AND p.claimed = 0 LIMIT 1) as active_pin,
            (SELECT COUNT(*) FROM physical_handsets h WHERE h.extension = e.extension) as bound_handsets
     FROM extensions e
@@ -681,12 +706,21 @@ router.post('/api/admin/extensions', adminAuth, requirePermission('manage_extens
       display_name = excluded.display_name
   `).run(cleanExt, cleanUser, password, cleanName);
 
+  broadcastDeviceLog('SOFTPHONE', 'INFO', `[Extension Managed] Extension ${cleanExt} (${cleanName}) configured`, {
+    deviceIdentifier: `Ext ${cleanExt}`,
+    ipAddress: req.ip
+  });
+
   return res.json({ ok: true, message: `Extension ${cleanExt} saved successfully.` });
 });
 
 router.delete('/api/admin/extensions/:ext', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
   const ext = req.params.ext;
   systemDb.prepare('DELETE FROM extensions WHERE extension = ?').run(ext);
+  broadcastDeviceLog('SOFTPHONE', 'WARN', `[Extension Removed] Extension ${ext} deleted from directory`, {
+    deviceIdentifier: `Ext ${ext}`,
+    ipAddress: req.ip
+  });
   return res.json({ ok: true, message: `Extension ${ext} removed.` });
 });
 
@@ -710,6 +744,12 @@ router.post('/api/admin/pins', adminAuth, requirePermission('manage_extensions')
     INSERT INTO softphone_pins (code, extension, expires_at)
     VALUES (?, ?, ?)
   `).run(pin, extension, expiresAt);
+
+  broadcastDeviceLog('SOFTPHONE', 'SUCCESS', `[PIN Generated] 8-digit setup PIN [${pin}] issued for Ext ${extension}`, {
+    deviceIdentifier: `Ext ${extension}`,
+    ipAddress: req.ip,
+    metadata: { code: pin, expiresAt }
+  });
 
   return res.json({
     ok: true,
@@ -954,6 +994,7 @@ router.delete('/api/admin/firmware/:brand/:model', adminAuth, (req: Request, res
 router.get('/api/admin/handsets', adminAuth, (req: Request, res: Response) => {
   const rows = systemDb.prepare(`
     SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json, h.custom_config, h.last_provisioned_at,
+           h.ip_address, h.user_agent, h.firmware_version,
            e.extension, e.display_name
     FROM physical_handsets h
     JOIN extensions e ON h.extension = e.extension
@@ -1022,6 +1063,10 @@ router.put('/api/admin/handsets/:mac/config', adminAuth, requirePermission('mana
   `).run(customConfig || '', cleanMac);
 
   logActivity('HANDSET_CONFIG_UPDATED', `Custom provisioning profile updated for Handset [${cleanMac.toUpperCase()}]`, req.ip);
+  broadcastDeviceLog('DESKPHONE', 'INFO', `[Profile Updated] Custom provisioning template saved for Handset [${cleanMac.toUpperCase()}]`, {
+    deviceIdentifier: cleanMac.toUpperCase(),
+    ipAddress: req.ip
+  });
   return res.json({ ok: true, message: 'Handset provisioning configuration saved.' });
 });
 
@@ -1051,12 +1096,22 @@ router.post('/api/admin/handsets', adminAuth, requirePermission('manage_handsets
       custom_config = COALESCE(excluded.custom_config, physical_handsets.custom_config)
   `).run(cleanMac, brand || 'yealink', model || '', extension, lineLabel || '', blfJson, customConfig || '');
 
+  broadcastDeviceLog('DESKPHONE', 'INFO', `[Fleet Registration] Handset MAC [${cleanMac.toUpperCase()}] registered to Ext ${extension} (${(brand || 'yealink').toUpperCase()} ${model || ''})`, {
+    deviceIdentifier: cleanMac.toUpperCase(),
+    ipAddress: req.ip,
+    metadata: { extension, brand: brand || 'yealink', model: model || '' }
+  });
+
   return res.json({ ok: true, message: `Handset MAC [${cleanMac}] bound to extension ${extension}.` });
 });
 
 router.delete('/api/admin/handsets/:mac', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
   const cleanMac = req.params.mac.toLowerCase().replace(/[^0-9a-f]/g, '');
   systemDb.prepare("DELETE FROM physical_handsets WHERE LOWER(REPLACE(mac_address, ':', '')) = ?").run(cleanMac);
+  broadcastDeviceLog('DESKPHONE', 'WARN', `[Fleet Removed] Handset MAC [${cleanMac.toUpperCase()}] removed from directory`, {
+    deviceIdentifier: cleanMac.toUpperCase(),
+    ipAddress: req.ip
+  });
   return res.json({ ok: true, message: `Handset MAC [${cleanMac}] removed.` });
 });
 
@@ -1149,6 +1204,10 @@ router.put('/api/admin/routers/:id/script', adminAuth, requirePermission('manage
   `).run(customScript || '', id);
 
   logActivity('ROUTER_SCRIPT_UPDATED', `Custom deployment script updated for Router profile #${id}`, req.ip);
+  broadcastDeviceLog('ROUTER', 'INFO', `[Script Updated] Custom bootstrap script saved for Router #${id}`, {
+    deviceIdentifier: `Router #${id}`,
+    ipAddress: req.ip
+  });
   return res.json({ ok: true, message: 'Router configuration script saved.' });
 });
 
@@ -1175,12 +1234,22 @@ router.post('/api/admin/routers', adminAuth, requirePermission('manage_routers')
     String(customScript || '').trim()
   );
 
+  broadcastDeviceLog('ROUTER', 'INFO', `[Gateway Provisioned] Voice gateway profile created for site '${siteName}' (${brand.toUpperCase()} ${model || ''})`, {
+    deviceIdentifier: siteName,
+    ipAddress: req.ip,
+    metadata: { siteName, brand, model, lanSubnet, voiceVlanId }
+  });
+
   return res.json({ ok: true, id: result.lastInsertRowid, message: `Router for site '${siteName}' created successfully.` });
 });
 
 router.delete('/api/admin/routers/:id', adminAuth, requirePermission('manage_routers'), (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   systemDb.prepare('DELETE FROM routers WHERE id = ?').run(id);
+  broadcastDeviceLog('ROUTER', 'WARN', `[Gateway Removed] Router profile #${id} deleted`, {
+    deviceIdentifier: `Router #${id}`,
+    ipAddress: req.ip
+  });
   return res.json({ ok: true, message: 'Router profile removed.' });
 });
 
@@ -1302,6 +1371,10 @@ router.delete('/api/admin/discovered-devices/:mac', adminAuth, requirePermission
   const mac = req.params.mac.toUpperCase().replace(/[^0-9A-F]/g, '');
   systemDb.prepare("UPDATE discovered_devices SET status = 'IGNORED' WHERE UPPER(REPLACE(mac_address, ':', '')) = ?").run(mac);
   logActivity('DEVICE_IGNORED', `Discovered device [${mac}] dismissed by admin.`, req.ip);
+  broadcastDeviceLog('DESKPHONE', 'WARN', `[Device Dismissed] Discovered device [${mac}] ignored`, {
+    deviceIdentifier: mac,
+    ipAddress: req.ip
+  });
   return res.json({ ok: true, message: 'Device dismissed from pending adoption queue.' });
 });
 

@@ -42,6 +42,9 @@ export interface ExtensionRow {
   sip_password: string;
   display_name: string;
   is_active: number;
+  last_registered_at?: string | null;
+  last_ip?: string | null;
+  user_agent?: string | null;
   created_at?: string;
 }
 
@@ -62,6 +65,7 @@ export interface PhysicalHandsetRow {
   blf_keys_json?: string | null;
   custom_config?: string | null;
   ip_address?: string | null;
+  user_agent?: string | null;
   firmware_version?: string | null;
   last_provisioned_at?: string | null;
   created_at?: string;
@@ -87,6 +91,8 @@ export interface RouterRow {
   enable_qos: number;
   notes?: string | null;
   custom_script?: string | null;
+  last_fetched_at?: string | null;
+  last_ip?: string | null;
   created_at?: string;
 }
 
