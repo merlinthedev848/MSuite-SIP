@@ -2811,11 +2811,379 @@ document.addEventListener('DOMContentLoaded', () => {
     loadOverview();
   }
 
-  // Periodic Telemetry Auto-Refresh (Every 15 Seconds)
-  setInterval(() => {
-    const activeBtn = document.querySelector('.nav-btn.active');
-    if (activeBtn && activeBtn.dataset.tab === 'overview' && getAuthToken()) {
-      loadOverview();
+// Periodic telemetry managed via initTelemetryLoop()
+
+  // ==============================================================================
+  // 14. Command Palette (Ctrl+K) & Instant Global Search
+  // ==============================================================================
+  const modalPalette = document.getElementById('modalCommandPalette');
+  const paletteInput = document.getElementById('paletteSearchInput');
+  const paletteResults = document.getElementById('paletteResults');
+  let activePaletteIndex = 0;
+  let paletteItemsList = [];
+
+  function openCommandPalette() {
+    if (!modalPalette) return;
+    openModal('modalCommandPalette');
+    if (paletteInput) {
+      paletteInput.value = '';
+      paletteInput.focus();
     }
-  }, 15000);
+    renderPaletteResults('');
+  }
+
+  function closeCommandPalette() {
+    closeModal('modalCommandPalette');
+  }
+
+  document.getElementById('btnOpenCommandPalette')?.addEventListener('click', openCommandPalette);
+  document.getElementById('btnClosePalette')?.addEventListener('click', closeCommandPalette);
+
+  // Global Ctrl+K / Cmd+K listener
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      if (modalPalette && !modalPalette.classList.contains('hidden')) {
+        closeCommandPalette();
+      } else {
+        openCommandPalette();
+      }
+    } else if (e.key === 'Escape' && modalPalette && !modalPalette.classList.contains('hidden')) {
+      closeCommandPalette();
+    }
+  });
+
+  function renderPaletteResults(query) {
+    if (!paletteResults) return;
+    const q = (query || '').toLowerCase().trim();
+
+    const staticCommands = [
+      { type: 'nav', id: 'overview', title: 'System Overview & Telemetry', tag: 'Navigation', icon: '📊' },
+      { type: 'nav', id: 'extensions', title: 'SIP Extensions & Softphone PINs', tag: 'Navigation', icon: '📱' },
+      { type: 'nav', id: 'handsets', title: 'Physical Deskphone Fleet & Profiles', tag: 'Navigation', icon: '☎️' },
+      { type: 'nav', id: 'routers', title: 'Network Gateways & Firewall Scripts', tag: 'Navigation', icon: '🌐' },
+      { type: 'nav', id: 'shell', title: 'Live Device Connectivity Stream', tag: 'Navigation', icon: '💻' },
+      { type: 'nav', id: 'users', title: 'Administrator Accounts & RBAC', tag: 'Navigation', icon: '👥' },
+      { type: 'nav', id: 'branding', title: 'Whitelabel Branding & Assets', tag: 'Navigation', icon: '🎨' },
+      { type: 'nav', id: 'config', title: 'PBX Core & Integration Settings', tag: 'Navigation', icon: '⚙️' },
+      { type: 'nav', id: 'gdpr', title: 'GDPR Compliance & Storage Vault', tag: 'Navigation', icon: '🔒' },
+      { type: 'action', action: 'addExt', title: 'Create New SIP Extension', tag: 'Action', icon: '➕' },
+      { type: 'action', action: 'addHandset', title: 'Register Physical Deskphone MAC', tag: 'Action', icon: '➕' },
+      { type: 'action', action: 'addRouter', title: 'Create New Router Profile', tag: 'Action', icon: '➕' },
+      { type: 'action', action: 'syncPbx', title: 'Synchronize All PBX Accounts', tag: 'Action', icon: '🔄' },
+      { type: 'action', action: 'clearShell', title: 'Clear Device Log Buffer', tag: 'Action', icon: '🗑️' },
+      { type: 'action', action: 'exportLogs', title: 'Export Device Connectivity Logs', tag: 'Action', icon: '📥' }
+    ];
+
+    // Filter static commands
+    let filtered = staticCommands.filter(c => c.title.toLowerCase().includes(q) || c.tag.toLowerCase().includes(q));
+
+    // Append dynamic extension records
+    if (cachedExtensions && cachedExtensions.length) {
+      const extMatches = cachedExtensions
+        .filter(e => String(e.extension).includes(q) || (e.display_name && e.display_name.toLowerCase().includes(q)))
+        .slice(0, 5)
+        .map(e => ({
+          type: 'record',
+          recordType: 'extension',
+          id: e.extension,
+          title: `Ext ${e.extension} — ${e.display_name || 'Extension'}`,
+          tag: 'Extension',
+          icon: '📱'
+        }));
+      filtered = filtered.concat(extMatches);
+    }
+
+    // Append dynamic handset records
+    if (cachedHandsets && cachedHandsets.length) {
+      const handsetMatches = cachedHandsets
+        .filter(h => (h.mac_address && h.mac_address.toLowerCase().includes(q)) || (h.brand && h.brand.toLowerCase().includes(q)))
+        .slice(0, 5)
+        .map(h => ({
+          type: 'record',
+          recordType: 'handset',
+          id: h.mac_address,
+          title: `${h.mac_address} (${(h.brand || '').toUpperCase()} ${h.model || ''})`,
+          tag: 'Handset',
+          icon: '☎️'
+        }));
+      filtered = filtered.concat(handsetMatches);
+    }
+
+    // Append dynamic router records
+    if (cachedRouters && cachedRouters.length) {
+      const routerMatches = cachedRouters
+        .filter(r => (r.site_name && r.site_name.toLowerCase().includes(q)) || (r.brand && r.brand.toLowerCase().includes(q)))
+        .slice(0, 5)
+        .map(r => ({
+          type: 'record',
+          recordType: 'router',
+          id: r.id,
+          title: `${r.site_name} (${(r.brand || '').toUpperCase()} ${r.model || ''})`,
+          tag: 'Router',
+          icon: '🌐'
+        }));
+      filtered = filtered.concat(routerMatches);
+    }
+
+    paletteItemsList = filtered;
+    activePaletteIndex = 0;
+
+    if (!filtered.length) {
+      paletteResults.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-muted);">No commands or records match your search.</div>';
+      return;
+    }
+
+    paletteResults.innerHTML = filtered.map((item, idx) => `
+      <div class="palette-item ${idx === 0 ? 'active' : ''}" data-idx="${idx}">
+        <div class="palette-item-left">
+          <span class="palette-item-icon">${item.icon}</span>
+          <span>${item.title}</span>
+        </div>
+        <span class="palette-item-tag">${item.tag}</span>
+      </div>
+    `).join('');
+
+    paletteResults.querySelectorAll('.palette-item').forEach(el => {
+      el.addEventListener('click', () => {
+        executePaletteItem(parseInt(el.dataset.idx, 10));
+      });
+    });
+  }
+
+  function executePaletteItem(index) {
+    const item = paletteItemsList[index];
+    if (!item) return;
+    closeCommandPalette();
+
+    if (item.type === 'nav') {
+      const btn = document.querySelector(`.nav-btn[data-tab="${item.id}"]`);
+      btn?.click();
+    } else if (item.type === 'action') {
+      if (item.action === 'addExt') document.getElementById('btnOpenAddExtModal')?.click();
+      else if (item.action === 'addHandset') document.getElementById('btnOpenAddHandsetModal')?.click();
+      else if (item.action === 'addRouter') document.getElementById('btnOpenAddRouterModal')?.click();
+      else if (item.action === 'syncPbx') document.getElementById('btnSyncPbx')?.click();
+      else if (item.action === 'clearShell') document.getElementById('btnClearShell')?.click();
+      else if (item.action === 'exportLogs') document.getElementById('btnExportShellLogs')?.click();
+    } else if (item.type === 'record') {
+      if (item.recordType === 'extension') {
+        document.querySelector('.nav-btn[data-tab="extensions"]')?.click();
+        const search = document.getElementById('searchExt');
+        if (search) {
+          search.value = item.id;
+          search.dispatchEvent(new Event('input'));
+        }
+      } else if (item.recordType === 'handset') {
+        document.querySelector('.nav-btn[data-tab="handsets"]')?.click();
+        const search = document.getElementById('searchHandset');
+        if (search) {
+          search.value = item.id;
+          search.dispatchEvent(new Event('input'));
+        }
+      } else if (item.recordType === 'router') {
+        document.querySelector('.nav-btn[data-tab="routers"]')?.click();
+        const search = document.getElementById('searchRouter');
+        if (search) {
+          search.value = item.id;
+          search.dispatchEvent(new Event('input'));
+        }
+      }
+    }
+  }
+
+  paletteInput?.addEventListener('input', (e) => {
+    renderPaletteResults(e.target.value);
+  });
+
+  paletteInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (paletteItemsList.length > 0) {
+        activePaletteIndex = (activePaletteIndex + 1) % paletteItemsList.length;
+        updatePaletteActiveState();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (paletteItemsList.length > 0) {
+        activePaletteIndex = (activePaletteIndex - 1 + paletteItemsList.length) % paletteItemsList.length;
+        updatePaletteActiveState();
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      executePaletteItem(activePaletteIndex);
+    }
+  });
+
+  function updatePaletteActiveState() {
+    paletteResults?.querySelectorAll('.palette-item').forEach((el, idx) => {
+      el.classList.toggle('active', idx === activePaletteIndex);
+      if (idx === activePaletteIndex) {
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  }
+
+  // ==============================================================================
+  // 15. CSV Export Engine for Extensions, Handsets, Routers, and Audit Logs
+  // ==============================================================================
+  function exportToCsv(filename, headers, rows) {
+    if (!rows || !rows.length) {
+      window.showToast('No records available to export.', 'info');
+      return;
+    }
+
+    const escapeCsv = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const csvContent = [
+      headers.map(escapeCsv).join(','),
+      ...rows.map(row => row.map(escapeCsv).join(','))
+    ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    window.showToast(`Successfully exported ${rows.length} records to ${filename}`, 'success');
+  }
+
+  // Extensions CSV Export
+  document.getElementById('btnExportExtCsv')?.addEventListener('click', () => {
+    if (!cachedExtensions || !cachedExtensions.length) {
+      window.showToast('No extensions available to export.', 'info');
+      return;
+    }
+    const headers = ['Extension', 'Display Name', 'SIP Username', 'Assigned PIN', 'Bound Handsets', 'Status', 'Created At'];
+    const rows = cachedExtensions.map(e => [
+      e.extension,
+      e.display_name || '',
+      e.sip_username || '',
+      e.assigned_pin || '',
+      e.bound_handsets_count || 0,
+      e.is_active ? 'Active' : 'Deactivated',
+      e.created_at || ''
+    ]);
+    exportToCsv(`ckm-extensions-${Date.now()}.csv`, headers, rows);
+  });
+
+  // Handsets CSV Export
+  document.getElementById('btnExportHandsetCsv')?.addEventListener('click', () => {
+    if (!cachedHandsets || !cachedHandsets.length) {
+      window.showToast('No physical handsets registered to export.', 'info');
+      return;
+    }
+    const headers = ['MAC Address', 'Brand', 'Model', 'Assigned Extension', 'Line Label', 'Last Provisioned', 'Created At'];
+    const rows = cachedHandsets.map(h => [
+      h.mac_address,
+      (h.brand || '').toUpperCase(),
+      h.model || '',
+      h.extension || '',
+      h.line_label || '',
+      h.last_provisioned_at || 'Never',
+      h.created_at || ''
+    ]);
+    exportToCsv(`ckm-handsets-${Date.now()}.csv`, headers, rows);
+  });
+
+  // Routers CSV Export
+  document.getElementById('btnExportRouterCsv')?.addEventListener('click', () => {
+    if (!cachedRouters || !cachedRouters.length) {
+      window.showToast('No router profiles available to export.', 'info');
+      return;
+    }
+    const headers = ['ID', 'Site Name', 'Platform', 'Model', 'Voice VLAN', 'Voice Subnet', 'SIP ALG Disabled', 'QoS Enabled', 'Provision URL'];
+    const rows = cachedRouters.map(r => [
+      r.id,
+      r.site_name,
+      (r.brand || '').toUpperCase(),
+      r.model || '',
+      r.voice_vlan_id || 20,
+      r.voice_subnet || '10.20.0.1/24',
+      r.disable_sip_alg ? 'Yes' : 'No',
+      r.enable_qos ? 'Yes' : 'No',
+      `${window.location.origin}/provision/router/${r.id}.rsc`
+    ]);
+    exportToCsv(`ckm-routers-${Date.now()}.csv`, headers, rows);
+  });
+
+  // Audit Logs CSV Export
+  document.getElementById('btnExportAuditCsv')?.addEventListener('click', async () => {
+    const data = await fetchJson('/api/admin/audit-logs');
+    if (!data || !data.ok || !data.logs || !data.logs.length) {
+      window.showToast('No audit logs available to export.', 'info');
+      return;
+    }
+    const headers = ['ID', 'Action', 'Details', 'IP Address', 'Timestamp'];
+    const rows = data.logs.map(l => [
+      l.id,
+      l.action,
+      l.details || '',
+      l.ip_address || '',
+      l.created_at || ''
+    ]);
+    exportToCsv(`ckm-audit-log-${Date.now()}.csv`, headers, rows);
+  });
+
+  // ==============================================================================
+  // 16. Console & Telemetry Preferences Management
+  // ==============================================================================
+  let telemetryIntervalMs = parseInt(localStorage.getItem('ckm_pref_poll_rate') || '15000', 10);
+  let telemetryTimer = null;
+
+  function initTelemetryLoop() {
+    if (telemetryTimer) clearInterval(telemetryTimer);
+    if (telemetryIntervalMs > 0) {
+      telemetryTimer = setInterval(() => {
+        const activeBtn = document.querySelector('.nav-btn.active');
+        if (activeBtn && activeBtn.dataset.tab === 'overview' && getAuthToken()) {
+          loadOverview();
+        }
+      }, telemetryIntervalMs);
+    }
+  }
+
+  // Open & Close Preferences Modal
+  document.getElementById('btnOpenPreferences')?.addEventListener('click', () => {
+    const rateSel = document.getElementById('prefPollRate');
+    const bufSel = document.getElementById('prefShellBuffer');
+    const autoScroll = document.getElementById('prefShellAutoScroll');
+
+    if (rateSel) rateSel.value = String(telemetryIntervalMs);
+    if (bufSel) bufSel.value = localStorage.getItem('ckm_pref_shell_buf') || '300';
+    if (autoScroll) autoScroll.checked = localStorage.getItem('ckm_pref_auto_scroll') !== 'false';
+
+    openModal('modalPreferences');
+  });
+
+  document.getElementById('btnClosePreferences')?.addEventListener('click', () => closeModal('modalPreferences'));
+  document.getElementById('btnCancelPreferences')?.addEventListener('click', () => closeModal('modalPreferences'));
+
+  document.getElementById('formPreferences')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const rateVal = parseInt(document.getElementById('prefPollRate')?.value || '15000', 10);
+    const bufVal = document.getElementById('prefShellBuffer')?.value || '300';
+    const autoScroll = document.getElementById('prefShellAutoScroll')?.checked;
+
+    telemetryIntervalMs = rateVal;
+    localStorage.setItem('ckm_pref_poll_rate', String(rateVal));
+    localStorage.setItem('ckm_pref_shell_buf', bufVal);
+    localStorage.setItem('ckm_pref_auto_scroll', String(autoScroll));
+
+    initTelemetryLoop();
+    closeModal('modalPreferences');
+    window.showToast('Preferences updated and applied successfully.', 'success');
+  });
+
+  // Start telemetry loop with user preference
+  initTelemetryLoop();
+
 });
