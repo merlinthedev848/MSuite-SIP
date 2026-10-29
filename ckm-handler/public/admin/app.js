@@ -2351,7 +2351,7 @@ function initApp() {
     const lblSecret = document.getElementById('lblCfgApiSecret');
 
     if (pbxType === 'yeastar_api') {
-      if (portInput && (!portInput.value || portInput.value === '5038')) portInput.value = '8260';
+      if (portInput && (!portInput.value || portInput.value === '5038')) portInput.value = '8088';
       if (lblPort) lblPort.textContent = 'API Port';
       if (lblUser) lblUser.textContent = 'API Username *';
       if (lblSecret) lblSecret.textContent = 'API Password / Secret *';
@@ -2383,7 +2383,7 @@ function initApp() {
     // Master PBX Integration & Credentials
     if (document.getElementById('cfgPbxType')) document.getElementById('cfgPbxType').value = c.pbx_type || 'yeastar_api';
     if (document.getElementById('cfgApiHost')) document.getElementById('cfgApiHost').value = c.api_host || c.pbx_server || '';
-    if (document.getElementById('cfgApiPort')) document.getElementById('cfgApiPort').value = c.api_port || (c.pbx_type === 'yeastar_api' ? 8260 : 5038);
+    if (document.getElementById('cfgApiPort')) document.getElementById('cfgApiPort').value = c.api_port || (c.pbx_type === 'yeastar_api' ? 8088 : 5038);
     if (document.getElementById('cfgApiProtocol')) document.getElementById('cfgApiProtocol').value = c.api_protocol || 'https';
     if (document.getElementById('cfgApiPath')) document.getElementById('cfgApiPath').value = c.api_path || 'api/v2.0.0';
     if (document.getElementById('cfgApiUser')) document.getElementById('cfgApiUser').value = c.api_user || 'perfexapi';
@@ -2413,7 +2413,7 @@ function initApp() {
       dataHandlerUrl: document.getElementById('cfgDataHandlerUrl').value.trim(),
       pbxType: document.getElementById('cfgPbxType')?.value || 'yeastar_api',
       apiHost: document.getElementById('cfgApiHost')?.value?.trim() || document.getElementById('cfgPbxServer').value.trim(),
-      apiPort: parseInt(document.getElementById('cfgApiPort')?.value || '8260', 10),
+      apiPort: parseInt(document.getElementById('cfgApiPort')?.value || '8088', 10),
       apiProtocol: document.getElementById('cfgApiProtocol')?.value || 'https',
       apiPath: document.getElementById('cfgApiPath')?.value?.trim() || 'api/v2.0.0',
       apiUser: document.getElementById('cfgApiUser')?.value?.trim() || '',

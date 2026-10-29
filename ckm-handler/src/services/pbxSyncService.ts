@@ -79,11 +79,16 @@ function pbxHttpRequest(
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        'Host': host,
         ...(token ? { 'token': token, 'Authorization': `Bearer ${token}` } : {}),
         ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {})
       },
       timeout: 15000,
-      rejectUnauthorized: verifySsl
+      rejectUnauthorized: verifySsl,
+      ...(isHttps ? {
+        ciphers: 'DEFAULT:@SECLEVEL=1:ALL',
+        minVersion: 'TLSv1'
+      } : {})
     };
 
     const req = lib.request(options, (res) => {
@@ -136,38 +141,52 @@ export async function syncExtensionsFromYeastarApi(
     pw = pw.toLowerCase();
   }
 
-  // 1. Authenticate with Yeastar API
+  // 1. Authenticate with Yeastar API with smart port & protocol auto-detection
   let loginRes: any;
   let activeProto = protocol;
+  let activePort = port;
 
-  try {
-    loginRes = await pbxHttpRequest(activeProto, host, port, `${basePath}/login`, 'POST', {
-      username: config.username,
-      password: pw,
-      version: '2.0.0'
-    }, undefined, verifySsl);
-  } catch (err: any) {
-    // If HTTPS failed, try HTTP as graceful fallback
-    if (activeProto === 'https') {
-      try {
-        loginRes = await pbxHttpRequest('http', host, port, `${basePath}/login`, 'POST', {
-          username: config.username,
-          password: pw,
-          version: '2.0.0'
-        }, undefined, verifySsl);
-        activeProto = 'http';
-      } catch {
-        return { success: false, count: 0, message: `Failed to connect to Yeastar API at ${host}:${port}: ${err.message}` };
+  const candidatePorts = [port];
+  if (port === 8260) candidatePorts.push(8088, 443);
+  else if (port === 8088) candidatePorts.push(8260, 443);
+  else if (port === 443) candidatePorts.push(8088, 8260);
+
+  let lastErr: any = null;
+  for (const p of candidatePorts) {
+    try {
+      loginRes = await pbxHttpRequest(activeProto, host, p, `${basePath}/login`, 'POST', {
+        username: config.username,
+        password: pw,
+        version: '2.0.0'
+      }, undefined, verifySsl);
+      activePort = p;
+      lastErr = null;
+      break;
+    } catch (err: any) {
+      lastErr = err;
+      if (activeProto === 'https') {
+        try {
+          loginRes = await pbxHttpRequest('http', host, p, `${basePath}/login`, 'POST', {
+            username: config.username,
+            password: pw,
+            version: '2.0.0'
+          }, undefined, verifySsl);
+          activeProto = 'http';
+          activePort = p;
+          lastErr = null;
+          break;
+        } catch {}
       }
-    } else {
-      return { success: false, count: 0, message: `Failed to connect to Yeastar API at ${host}:${port}: ${err.message}` };
     }
   }
 
   // Check login status
   if (!loginRes || (loginRes.status !== 'Success' && !loginRes.token)) {
+    if (lastErr) {
+      return { success: false, count: 0, message: `Failed to connect to Yeastar API at ${host}:${activePort}: ${lastErr.message}` };
+    }
     const errMsg = loginRes?.error || loginRes?.message || loginRes?.errmsg || loginRes?.raw || 'Invalid username or password.';
-    return { success: false, count: 0, message: `Yeastar API login failed: ${errMsg}` };
+    return { success: false, count: 0, message: `Yeastar API login failed on ${host}:${activePort}: ${errMsg}` };
   }
 
   const token = loginRes.token;
@@ -176,7 +195,7 @@ export async function syncExtensionsFromYeastarApi(
   // Yeastar S-Series & P-Series support extension/query with number: 'all', returning extinfos
   let extlist: any[] = [];
   try {
-    const queryRes = await pbxHttpRequest(activeProto, host, port, `${basePath}/extension/query`, 'POST', { number: 'all' }, token, verifySsl);
+    const queryRes = await pbxHttpRequest(activeProto, host, activePort, `${basePath}/extension/query`, 'POST', { number: 'all' }, token, verifySsl);
     if (queryRes && Array.isArray(queryRes.extinfos) && queryRes.extinfos.length > 0) {
       extlist = queryRes.extinfos;
     } else if (queryRes && Array.isArray(queryRes.extlist) && queryRes.extlist.length > 0) {
@@ -191,7 +210,7 @@ export async function syncExtensionsFromYeastarApi(
   // Fallback 1: extension/list
   if (extlist.length === 0) {
     try {
-      const listRes = await pbxHttpRequest(activeProto, host, port, `${basePath}/extension/list`, 'POST', {}, token, verifySsl);
+      const listRes = await pbxHttpRequest(activeProto, host, activePort, `${basePath}/extension/list`, 'POST', {}, token, verifySsl);
       extlist = listRes?.extlist || listRes?.extinfos || listRes?.data || [];
     } catch {
       // fallback
