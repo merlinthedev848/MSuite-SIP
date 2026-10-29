@@ -7,6 +7,7 @@ import { URL } from 'url';
 import { FIRMWARE_DIR } from '../config';
 import systemDb, { logActivity } from '../database/systemDb';
 import { broadcastDeviceLog } from './telemetryStream';
+import { FirmwareBinaryRow } from '../types/models';
 import { HANDSET_CATALOG, ROUTER_CATALOG, DeviceModelMeta } from '../templates/catalog';
 
 export interface FirmwareRecord {
@@ -169,8 +170,9 @@ export function reconcileFirmwareStorage(): void {
         }
       }
     }
-  } catch (err: any) {
-    console.error('[FirmwareService] Error reconciling firmware storage:', err?.message || err);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('[FirmwareService] Error reconciling firmware storage:', errMsg);
   }
 }
 
@@ -179,8 +181,8 @@ export function reconcileFirmwareStorage(): void {
 // --------------------------------------------------------------------------
 export function getFirmwareCatalogStatus() {
   reconcileFirmwareStorage();
-  const dbRows = getAllFirmwaresStmt.all() as any[];
-  const cacheMap = new Map<string, any>();
+  const dbRows = getAllFirmwaresStmt.all() as FirmwareBinaryRow[];
+  const cacheMap = new Map<string, FirmwareBinaryRow>();
   dbRows.forEach(r => {
     cacheMap.set(`${r.brand.toLowerCase()}_${r.model.toLowerCase()}`, r);
   });
@@ -401,8 +403,8 @@ export async function downloadFirmwareForModel(
       filename: meta.firmwareFilename,
       path: destPath
     };
-  } catch (err: any) {
-    const errorMsg = err?.message || 'Failed to download firmware package.';
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Failed to download firmware package.';
     upsertFirmwareStmt.run(
       category,
       brand.toLowerCase(),
@@ -576,7 +578,7 @@ export async function syncAllStableFirmwares(): Promise<{ queued: number; messag
       try {
         await downloadFirmwareForModel(t.brand, t.model, t.directUrl);
         successCount++;
-      } catch (err: any) {
+      } catch (err) {
         failCount++;
       }
     }

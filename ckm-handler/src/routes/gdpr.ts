@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import crypto from 'crypto';
 import vaultDb from '../database/vaultDb';
+import { MediaVaultFileRow, GdprRetentionPolicyRow } from '../types/models';
 import { decryptVaultText } from '../database/cryptoVault';
 import { adminAuth, requirePermission } from './admin';
 
@@ -19,7 +20,7 @@ router.delete('/api/v1/gdpr/user/:extension', adminAuth, requirePermission('mana
   // A. Find and delete physical media files uploaded by user
   const userFiles = vaultDb.prepare(`
     SELECT file_id, stored_path FROM media_vault_files WHERE uploaded_by = ?
-  `).all(extension) as any[];
+  `).all(extension) as MediaVaultFileRow[];
 
   let filesDeleted = 0;
   for (const f of userFiles) {

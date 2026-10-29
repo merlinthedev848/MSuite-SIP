@@ -1,8 +1,25 @@
 import { Router, Request, Response } from 'express';
 import systemDb, { logActivity } from '../database/systemDb';
+import { ServerConfigRow, SoftphonePinRow, ExtensionRow } from '../types/models';
+
+type PinWithExtensionRow = SoftphonePinRow & Pick<ExtensionRow, 'sip_username' | 'sip_password' | 'display_name' | 'is_active'>;
 import { broadcastDeviceLog } from '../services/telemetryStream';
 
 const router = Router();
+
+const defaultServerConfig: ServerConfigRow = {
+  id: 1,
+  pbx_server: '127.0.0.1',
+  pbx_port: 5060,
+  pbx_transport: 'UDP',
+  data_handler_url: 'https://handler.chriskendall.media',
+  license_key: null,
+  api_key: null,
+  brand_name: 'MerlinSIP',
+  primary_color: '#2563EB',
+  accent_color: '#38BDF8',
+  logo_url: ''
+};
 
 // Anti-Brute-Force Rate Limiter: Max 5 failed attempts per IP per minute
 interface FailedAttempt {
@@ -69,7 +86,7 @@ const handlePinProvision = (req: Request, res: Response) => {
   }
 
   // Look up PIN using pre-compiled statement
-  const pinRecord = getPinRecordStmt.get(cleanedCode) as any;
+  const pinRecord = getPinRecordStmt.get(cleanedCode) as PinWithExtensionRow | undefined;
 
   if (!pinRecord) {
     const cur = failedPinAttempts.get(clientIp);
@@ -110,7 +127,7 @@ const handlePinProvision = (req: Request, res: Response) => {
   });
 
   // Fetch current server config
-  const config = getServerConfigStmt.get() as any;
+  const config = (getServerConfigStmt.get() as ServerConfigRow | undefined) || defaultServerConfig;
 
   const baseHandlerUrl = (config.data_handler_url || '').trim().replace(/\/$/, '');
   const branding = {
@@ -154,7 +171,7 @@ router.get('/api/v1/provision', handlePinProvision);
 // 2. Dynamic 10-Minute Config Sync Endpoint
 router.get('/api/v1/config/sync', (req: Request, res: Response) => {
   res.set('Cache-Control', 'public, max-age=300');
-  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  const config = (systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined) || defaultServerConfig;
 
   const baseHandlerUrl = (config.data_handler_url || '').trim().replace(/\/$/, '');
   const branding = {

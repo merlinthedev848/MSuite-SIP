@@ -32,6 +32,8 @@ export function substituteTemplateVariables(raw: string, config: any, accountCfg
 
 import { Router, Request, Response } from 'express';
 import systemDb, { logActivity } from '../database/systemDb';
+import { SERVER_DOMAIN } from '../config';
+import { ServerConfigRow, HandsetWithExtensionRow, RouterRow, ExtensionRow } from '../types/models';
 import { broadcastDeviceLog } from '../services/telemetryStream';
 import { generateYealinkConfig, HandsetAccountConfig } from '../templates/yealink';
 import { generateFanvilConfig } from '../templates/fanvil';
@@ -168,15 +170,15 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
   }
 
   // 3. Look up MAC address using pre-compiled statement
-  let handset = getHandsetStmt.get(cleanMac) as any;
+  let handset = getHandsetStmt.get(cleanMac) as HandsetWithExtensionRow | undefined;
 
   if (!handset) {
     const meta = detectDeviceMetadata(cleanMac, filename, req.headers['user-agent'] as string);
-    const serverCfg = getServerConfigStmt.get() as any;
+    const serverCfg = getServerConfigStmt.get() as ServerConfigRow | undefined;
 
     // Check if Zero-Touch Auto-Adoption is enabled (Omada / GenieACS style)
     if (serverCfg?.auto_adopt_enabled === 1) {
-      const freeExt = findAvailableExtensionStmt.get() as any;
+      const freeExt = findAvailableExtensionStmt.get() as ExtensionRow | undefined;
       if (freeExt) {
         autoAdoptHandsetStmt.run(cleanMac.toUpperCase(), meta.brand, meta.model, freeExt.extension, freeExt.display_name || `Ext ${freeExt.extension}`);
         markDeviceAdoptedStmt.run(cleanMac.toUpperCase());
@@ -187,7 +189,7 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
           userAgent: req.headers['user-agent'] as string,
           metadata: { extension: freeExt.extension, brand: meta.brand, model: meta.model }
         });
-        handset = getHandsetStmt.get(cleanMac) as any;
+        handset = getHandsetStmt.get(cleanMac) as HandsetWithExtensionRow | undefined;
       }
     }
 
@@ -219,7 +221,7 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     metadata: { extension: handset.extension, brand: handset.brand, model: handset.model, customized: !!(handset.custom_config && handset.custom_config.trim()) }
   });
 
-  const config = getServerConfigStmt.get() as any;
+  const config = getServerConfigStmt.get() as ServerConfigRow | undefined;
 
   let blfKeys: Array<{ key: number; extension: string; label: string }> = [];
   if (handset.blf_keys_json) {
@@ -228,15 +230,20 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     } catch {}
   }
 
+  const pbxServer = config?.pbx_server || '127.0.0.1';
+  const pbxPort = config?.pbx_port || 5060;
+  const pbxTransport = config?.pbx_transport || 'UDP';
+  const dataHandlerUrl = config?.data_handler_url || 'https://handler.chriskendall.media';
+
   const accountCfg: HandsetAccountConfig = {
     extension: handset.extension,
     username: handset.sip_username,
     password: handset.sip_password,
     displayName: handset.line_label || handset.display_name,
-    sipServer: config.pbx_server,
-    sipPort: config.pbx_port,
-    sipTransport: config.pbx_transport,
-    dataHandlerUrl: config.data_handler_url,
+    sipServer: pbxServer,
+    sipPort: pbxPort,
+    sipTransport: pbxTransport,
+    dataHandlerUrl: dataHandlerUrl,
     blfKeys
   };
 
@@ -266,9 +273,9 @@ router.get('/provision/router/:identifier', (req: Request, res: Response) => {
 
   let routerRec = null;
   if (/^\d+$/.test(cleanId)) {
-    routerRec = getRouterByIdStmt.get(parseInt(cleanId, 10)) as any;
+    routerRec = getRouterByIdStmt.get(parseInt(cleanId, 10)) as RouterRow | undefined;
   } else {
-    routerRec = getRouterByMacStmt.get(cleanId) as any;
+    routerRec = getRouterByMacStmt.get(cleanId) as RouterRow | undefined;
   }
 
   if (!routerRec) {
@@ -288,18 +295,18 @@ router.get('/provision/router/:identifier', (req: Request, res: Response) => {
     return res.send(routerRec.custom_script);
   }
 
-  const config = getServerConfigStmt.get() as any;
+  const config = getServerConfigStmt.get() as ServerConfigRow | undefined;
 
   const params: RouterConfigParams = {
     siteName: routerRec.site_name,
     brand: routerRec.brand,
-    model: routerRec.model,
-    macAddress: routerRec.mac_address,
-    lanSubnet: routerRec.lan_subnet,
-    voiceVlanId: routerRec.voice_vlan_id,
-    voiceSubnet: routerRec.voice_subnet,
-    pbxServer: config.pbx_server,
-    dataHandlerUrl: config.data_handler_url,
+    model: routerRec.model || undefined,
+    macAddress: routerRec.mac_address || undefined,
+    lanSubnet: routerRec.lan_subnet || undefined,
+    voiceVlanId: routerRec.voice_vlan_id || 20,
+    voiceSubnet: routerRec.voice_subnet || '10.20.0.1/24',
+    pbxServer: config?.pbx_server || '127.0.0.1',
+    dataHandlerUrl: config?.data_handler_url || 'https://handler.chriskendall.media',
     disableSipAlg: routerRec.disable_sip_alg === 1,
     enableQos: routerRec.enable_qos === 1
   };

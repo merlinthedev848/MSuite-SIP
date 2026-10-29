@@ -1,6 +1,15 @@
 import { Router, Request, Response } from 'express';
 import vaultDb from '../database/vaultDb';
 import systemDb from '../database/systemDb';
+import { ExtensionRow } from '../types/models';
+
+interface VaultContactRow {
+  extension: string;
+  full_name?: string;
+  mobile?: string;
+  email?: string;
+  department?: string;
+}
 
 const router = Router();
 
@@ -21,8 +30,8 @@ function escapeXml(unsafe: string): string {
 // Helper to get unified contact entries
 function getUnifiedContacts() {
   // Pull from vaultDb contacts first, then fallback to systemDb extensions
-  const vaultContacts = vaultDb.prepare('SELECT extension, full_name, mobile, email, department FROM contacts').all() as any[];
-  const extensions = systemDb.prepare('SELECT extension, display_name FROM extensions WHERE is_active = 1').all() as any[];
+  const vaultContacts = vaultDb.prepare('SELECT extension, full_name, mobile, email, department FROM contacts').all() as VaultContactRow[];
+  const extensions = systemDb.prepare('SELECT extension, display_name FROM extensions WHERE is_active = 1').all() as Pick<ExtensionRow, 'extension' | 'display_name'>[];
 
   const map = new Map<string, { extension: string; name: string; email?: string; mobile?: string }>();
   

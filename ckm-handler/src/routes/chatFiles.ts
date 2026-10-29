@@ -5,6 +5,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { UPLOADS_DIR } from '../config';
 import vaultDb from '../database/vaultDb';
+import { MediaVaultFileRow } from '../types/models';
 
 const router = Router();
 
@@ -73,7 +74,7 @@ router.get('/files/:fileId', (req: Request, res: Response) => {
     SELECT file_id, original_name, mime_type, file_size, stored_path
     FROM media_vault_files
     WHERE file_id = ?
-  `).get(fileId) as any;
+  `).get(fileId) as MediaVaultFileRow | undefined;
 
   if (!record || !fs.existsSync(record.stored_path)) {
     return res.status(404).json({ success: false, error: 'File not found or has expired.' });

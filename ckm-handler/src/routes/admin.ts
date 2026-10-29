@@ -13,7 +13,8 @@ import { HANDSET_CATALOG, ROUTER_CATALOG, generateDefaultHandsetConfig } from '.
 import { substituteTemplateVariables } from './hardwareProvision';
 import { HandsetAccountConfig } from '../templates/yealink';
 import { licenseState } from '../services/licenseGuard';
-import { syncExtensionsFromAsterisk, syncExtensionsFromPbx, PbxSyncConfig, AmiConfig } from '../services/pbxSyncService';
+import { syncExtensionsFromAsterisk, syncExtensionsFromPbx, PbxSyncConfig, AmiConfig, updatePbxSyncSchedule } from '../services/pbxSyncService';
+import { AdminRequest, AdminRole, ServerConfigRow, AdminUserRow, AdminSessionRow, CountRow, TotalBytesRow, RouterRow, DiscoveredDeviceRow, GdprRetentionPolicyRow, PhysicalHandsetRow, HandsetWithExtensionRow, ExtensionRow, defaultServerConfig } from '../types/models';
 import { getSocketStats } from '../services/socketService';
 import { registerSseClient, getRecentDeviceLogs, clearDeviceLogs, broadcastDeviceLog } from '../services/telemetryStream';
 import { 
@@ -79,12 +80,12 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
       FROM admin_sessions s
       JOIN admin_users u ON s.user_id = u.id
       WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP AND u.is_active = 1
-    `).get(token) as any;
+    `).get(token) as (AdminSessionRow & { id: number; username: string; display_name: string; role: AdminRole; permissions: string; is_active: number }) | undefined;
 
     if (session) {
       let perms: string[] = [];
       try { perms = JSON.parse(session.permissions || '[]'); } catch {}
-      (req as any).adminUser = {
+      (req as AdminRequest).adminUser = {
         id: session.id,
         username: session.username,
         displayName: session.display_name,
@@ -103,11 +104,11 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
       const [user, pass] = credentials.split(':');
       if (user && pass) {
         // Query database for admin user
-        const uRow = systemDb.prepare('SELECT * FROM admin_users WHERE username = ? AND is_active = 1').get(user) as any;
+        const uRow = systemDb.prepare('SELECT * FROM admin_users WHERE username = ? AND is_active = 1').get(user) as AdminUserRow | undefined;
         if (uRow && verifyPassword(pass, uRow.password_hash, uRow.salt)) {
           let perms: string[] = [];
           try { perms = JSON.parse(uRow.permissions || '[]'); } catch {}
-          (req as any).adminUser = {
+          (req as AdminRequest).adminUser = {
             id: uRow.id,
             username: uRow.username,
             displayName: uRow.display_name,
@@ -124,7 +125,7 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
         const adminPassBuf = Buffer.from(ADMIN_PASS);
         if (userBuf.length === adminUserBuf.length && passBuf.length === adminPassBuf.length &&
             crypto.timingSafeEqual(userBuf, adminUserBuf) && crypto.timingSafeEqual(passBuf, adminPassBuf)) {
-          (req as any).adminUser = {
+          (req as AdminRequest).adminUser = {
             id: 0,
             username: ADMIN_USER,
             displayName: 'Root Administrator',
@@ -143,7 +144,7 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
 // RBAC Granular Permission Guard Middleware
 export const requirePermission = (permission: string) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const user = (req as any).adminUser as AuthenticatedAdmin | undefined;
+    const user = (req as AdminRequest).adminUser as AuthenticatedAdmin | undefined;
     if (!user) {
       return res.status(401).json({ ok: false, error: 'Authentication required' });
     }
@@ -239,7 +240,7 @@ router.post('/api/admin/login', (req: Request, res: Response) => {
 });
 
 router.get('/api/admin/me', adminAuth, (req: Request, res: Response) => {
-  const user = (req as any).adminUser;
+  const user = (req as AdminRequest).adminUser;
   return res.json({ ok: true, user });
 });
 
@@ -300,7 +301,7 @@ router.post('/api/admin/users', adminAuth, requirePermission('manage_users'), (r
 
 router.put('/api/admin/users/:id', adminAuth, requirePermission('manage_users'), (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
-  const targetUser = systemDb.prepare('SELECT * FROM admin_users WHERE id = ?').get(id) as any;
+  const targetUser = systemDb.prepare('SELECT * FROM admin_users WHERE id = ?').get(id) as AdminUserRow | undefined;
   if (!targetUser) {
     return res.status(404).json({ ok: false, error: 'User not found.' });
   }
@@ -309,7 +310,7 @@ router.put('/api/admin/users/:id', adminAuth, requirePermission('manage_users'),
 
   // Prevent demoting the last active superadmin
   if (targetUser.role === 'superadmin' && (role && role !== 'superadmin' || isActive === 0)) {
-    const superCount = (systemDb.prepare("SELECT COUNT(*) as count FROM admin_users WHERE role = 'superadmin' AND is_active = 1 AND id != ?").get(id) as any).count;
+    const superCount = (systemDb.prepare("SELECT COUNT(*) as count FROM admin_users WHERE role = 'superadmin' AND is_active = 1 AND id != ?").get(id) as CountRow).count;
     if (superCount === 0) {
       return res.status(400).json({ ok: false, error: 'Cannot demote or disable the only active Superadmin account.' });
     }
@@ -338,7 +339,7 @@ router.put('/api/admin/users/:id', adminAuth, requirePermission('manage_users'),
 
 router.delete('/api/admin/users/:id', adminAuth, requirePermission('manage_users'), (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
-  const curUser = (req as any).adminUser as AuthenticatedAdmin;
+  const curUser = (req as AdminRequest).adminUser as AuthenticatedAdmin;
 
   if (curUser && curUser.id === id) {
     return res.status(400).json({ ok: false, error: 'You cannot delete your own active administrator account.' });
@@ -365,7 +366,7 @@ router.delete('/api/admin/users/:id', adminAuth, requirePermission('manage_users
 // Self Password Change Endpoint
 router.post('/api/admin/change-password', adminAuth, (req: Request, res: Response) => {
   const { currentPassword, newPassword } = req.body;
-  const user = (req as any).adminUser as AuthenticatedAdmin;
+  const user = (req as AdminRequest).adminUser as AuthenticatedAdmin;
   if (!user || !user.id) {
     return res.status(400).json({ ok: false, error: 'Cannot change password for unmanaged root user.' });
   }
@@ -373,7 +374,7 @@ router.post('/api/admin/change-password', adminAuth, (req: Request, res: Respons
     return res.status(400).json({ ok: false, error: 'New password must be at least 6 characters.' });
   }
 
-  const uRow = systemDb.prepare('SELECT * FROM admin_users WHERE id = ?').get(user.id) as any;
+  const uRow = systemDb.prepare('SELECT * FROM admin_users WHERE id = ?').get(user.id) as AdminUserRow | undefined;
   if (!uRow || !verifyPassword(currentPassword, uRow.password_hash, uRow.salt)) {
     return res.status(400).json({ ok: false, error: 'Current password is incorrect.' });
   }
@@ -397,9 +398,9 @@ router.get('/api/admin/audit-logs', adminAuth, (req: Request, res: Response) => 
 
 // Live SIP OPTIONS & PBX Connection Latency Probe
 router.post('/api/admin/pbx/ping', adminAuth, async (req: Request, res: Response) => {
-  const config = systemDb.prepare('SELECT pbx_server, pbx_port, pbx_transport FROM server_config WHERE id = 1').get() as any;
+  const config = systemDb.prepare('SELECT pbx_server, pbx_port, pbx_transport FROM server_config WHERE id = 1').get() as Pick<ServerConfigRow, 'pbx_server' | 'pbx_port' | 'pbx_transport'>;
   const host = config?.pbx_server || 'pbx.chriskendall.media';
-  const port = parseInt(config?.pbx_port || '5060', 10);
+  const port = parseInt(String(config?.pbx_port || 5060), 10);
   const transport = (config?.pbx_transport || 'UDP').toUpperCase();
   const t0 = performance.now();
 
@@ -504,25 +505,25 @@ router.post('/api/admin/shell/clear', adminAuth, (req: Request, res: Response) =
 // 1. Dashboard Overview Stats & Component Health
 router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
   const tSys0 = performance.now();
-  const extCount = (systemDb.prepare('SELECT COUNT(*) as count FROM extensions').get() as any).count;
-  const handsetCount = (systemDb.prepare('SELECT COUNT(*) as count FROM physical_handsets').get() as any).count;
-  const pinCount = (systemDb.prepare('SELECT COUNT(*) as count FROM softphone_pins WHERE claimed = 0').get() as any).count;
-  const routerCount = (systemDb.prepare('SELECT COUNT(*) as count FROM routers').get() as any).count;
-  const discoveredCount = (systemDb.prepare("SELECT COUNT(*) as count FROM discovered_devices WHERE status = 'PENDING_ADOPTION'").get() as any).count;
-  const firmwareCount = (systemDb.prepare("SELECT COUNT(*) as count FROM firmware_binaries WHERE status = 'DOWNLOADED'").get() as any).count;
+  const extCount = (systemDb.prepare('SELECT COUNT(*) as count FROM extensions').get() as CountRow).count;
+  const handsetCount = (systemDb.prepare('SELECT COUNT(*) as count FROM physical_handsets').get() as CountRow).count;
+  const pinCount = (systemDb.prepare('SELECT COUNT(*) as count FROM softphone_pins WHERE claimed = 0').get() as CountRow).count;
+  const routerCount = (systemDb.prepare('SELECT COUNT(*) as count FROM routers').get() as CountRow).count;
+  const discoveredCount = (systemDb.prepare("SELECT COUNT(*) as count FROM discovered_devices WHERE status = 'PENDING_ADOPTION'").get() as CountRow).count;
+  const firmwareCount = (systemDb.prepare("SELECT COUNT(*) as count FROM firmware_binaries WHERE status = 'DOWNLOADED'").get() as CountRow).count;
   const sysPages = systemDb.pragma('page_count', { simple: true });
   const tSys = performance.now() - tSys0;
 
   const tVault0 = performance.now();
-  const msgCount = (vaultDb.prepare('SELECT COUNT(*) as count FROM messages').get() as any).count;
-  const fileCount = (vaultDb.prepare('SELECT COUNT(*) as count FROM media_vault_files').get() as any).count;
-  const policy = vaultDb.prepare('SELECT * FROM gdpr_retention_policy WHERE id = 1').get() as any;
+  const msgCount = (vaultDb.prepare('SELECT COUNT(*) as count FROM messages').get() as CountRow).count;
+  const fileCount = (vaultDb.prepare('SELECT COUNT(*) as count FROM media_vault_files').get() as CountRow).count;
+  const policy = vaultDb.prepare('SELECT * FROM gdpr_retention_policy WHERE id = 1').get() as GdprRetentionPolicyRow | undefined;
   const tVault = performance.now() - tVault0;
 
-  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow;
   const socketStats = getSocketStats();
 
-  const storageRow = vaultDb.prepare('SELECT COALESCE(SUM(file_size), 0) as totalBytes FROM media_vault_files').get() as any;
+  const storageRow = vaultDb.prepare('SELECT COALESCE(SUM(file_size), 0) as totalBytes FROM media_vault_files').get() as TotalBytesRow | undefined;
   const totalBytes = storageRow?.totalBytes || 0;
 
   const mem = process.memoryUsage();
@@ -727,10 +728,10 @@ router.post('/api/admin/extensions/quick-provision', adminAuth, requirePermissio
   }
 
   const cleanExt = String(extension).trim();
-  const serverCfg = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  const serverCfg = (systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined) || defaultServerConfig;
 
   // 1. Check if extension exists, or query PBX if requested
-  let extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as any;
+  let extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as ExtensionRow | undefined;
 
   if (!extRecord && queryPbx) {
     const ami: AmiConfig = {
@@ -740,7 +741,7 @@ router.post('/api/admin/extensions/quick-provision', adminAuth, requirePermissio
       secret: amiConfig?.secret || 'amp111'
     };
     await syncExtensionsFromAsterisk(ami);
-    extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as any;
+    extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as ExtensionRow | undefined;
   }
 
   // 2. If still doesn't exist, register with provided or auto-generated SIP password
@@ -757,7 +758,8 @@ router.post('/api/admin/extensions/quick-provision', adminAuth, requirePermissio
       extension: cleanExt,
       sip_username: cleanExt,
       sip_password: generatedPwd,
-      display_name: name
+      display_name: name,
+      is_active: 1
     };
   } else if (displayName || sipPassword) {
     if (displayName) extRecord.display_name = displayName;
@@ -809,7 +811,7 @@ router.get('/api/admin/catalogs', (req: Request, res: Response) => {
 // Dynamic Profile & Firmware Preview Endpoint
 router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
   const { type, brand, model, extension, displayName, vlan, subnet, alg, qos } = req.body || {};
-  const serverCfg = getServerConfigStmt.get() as any || {
+  const serverCfg = (getServerConfigStmt.get() as ServerConfigRow | undefined) || {
     pbx_server: 'pbx.chriskendall.media',
     pbx_port: 5060,
     pbx_transport: 'UDP',
@@ -844,7 +846,7 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
         filename: modelMeta.firmwareFilename,
         notes: modelMeta.firmwareNotes || 'Standard tested vendor release',
         isCached: !!localFwPath,
-        localServingUrl: `${serverCfg.data_handler_url || serverCfg.dataHandlerUrl || ''}/firmware/${brandMeta?.id}/${modelMeta.id}/${modelMeta.firmwareFilename}`
+        localServingUrl: `${serverCfg.data_handler_url || ''}/firmware/${brandMeta?.id}/${modelMeta.id}/${modelMeta.firmwareFilename}`
       } : null,
       content: gen.content
     });
@@ -860,7 +862,7 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
       sipServer: serverCfg.pbx_server,
       sipPort: serverCfg.pbx_port,
       sipTransport: serverCfg.pbx_transport || 'UDP',
-      dataHandlerUrl: serverCfg.data_handler_url || serverCfg.dataHandlerUrl || ''
+      dataHandlerUrl: serverCfg.data_handler_url || ''
     }, model);
 
     const localFwPath = (brandMeta && modelMeta) ? findFirmwareFile(brandMeta.id, modelMeta.firmwareFilename, modelMeta.id) : null;
@@ -877,7 +879,7 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
         filename: modelMeta.firmwareFilename,
         notes: modelMeta.firmwareNotes || 'Standard tested vendor release',
         isCached: !!localFwPath,
-        localServingUrl: `${serverCfg.data_handler_url || serverCfg.dataHandlerUrl || ''}/firmware/${brandMeta?.id}/${modelMeta.id}/${modelMeta.firmwareFilename}`
+        localServingUrl: `${serverCfg.data_handler_url || ''}/firmware/${brandMeta?.id}/${modelMeta.id}/${modelMeta.firmwareFilename}`
       } : null,
       content: conf
     });
@@ -964,17 +966,17 @@ router.get('/api/admin/handsets/:mac/preview', adminAuth, (req: Request, res: Re
   const cleanMac = req.params.mac.toLowerCase().replace(/[^0-9a-f]/g, '');
   const handset = systemDb.prepare(`
     SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json, h.custom_config,
-           e.extension, e.sip_username, e.sip_password, e.display_name
+           e.extension, e.sip_username, e.sip_password, e.display_name, e.is_active
     FROM physical_handsets h
     JOIN extensions e ON h.extension = e.extension
     WHERE LOWER(REPLACE(h.mac_address, ':', '')) = ?
-  `).get(cleanMac) as any;
+  `).get(cleanMac) as HandsetWithExtensionRow | undefined;
 
   if (!handset) {
     return res.status(404).json({ ok: false, error: 'Handset not found.' });
   }
 
-  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  const config = (systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined) || defaultServerConfig;
   let blfKeys = [];
   try { if (handset.blf_keys_json) blfKeys = JSON.parse(handset.blf_keys_json); } catch {}
 
@@ -992,7 +994,7 @@ router.get('/api/admin/handsets/:mac/preview', adminAuth, (req: Request, res: Re
 
   const defaultContent = generateDefaultHandsetConfig(handset.brand, accountCfg, handset.model);
   const isCustomized = !!(handset.custom_config && handset.custom_config.trim().length > 0);
-  const rawContent = isCustomized ? handset.custom_config : defaultContent;
+  const rawContent = (isCustomized ? handset.custom_config : defaultContent) || defaultContent;
   const resolvedContent = substituteTemplateVariables(rawContent, config, accountCfg);
 
   return res.json({
@@ -1220,7 +1222,7 @@ router.get('/api/admin/routers/:id/script', adminAuth, (req: Request, res: Respo
 
 // 7. PBX Extension Auto-Sync (Yeastar API & Asterisk AMI)
 router.post('/api/admin/pbx/sync', adminAuth, requirePermission('manage_pbx'), async (req: Request, res: Response) => {
-  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow;
   const { pbxType, amiHost, amiPort, amiUser, amiSecret, apiProtocol, apiPath } = req.body;
 
   const syncConfig: PbxSyncConfig = {
@@ -1263,7 +1265,7 @@ router.post('/api/admin/discovered-devices/:mac/adopt', adminAuth, requirePermis
   }
 
   // Verify extension exists
-  const extRec = systemDb.prepare('SELECT extension, display_name FROM extensions WHERE extension = ?').get(extension) as any;
+  const extRec = systemDb.prepare('SELECT extension, display_name FROM extensions WHERE extension = ?').get(extension) as Pick<ExtensionRow, 'extension' | 'display_name'> | undefined;
   if (!extRec) {
     return res.status(400).json({ ok: false, error: `Extension ${extension} does not exist.` });
   }
@@ -1316,13 +1318,14 @@ router.post('/api/admin/auto-sync/toggle', adminAuth, requirePermission('manage_
   const val = enabled !== undefined ? (enabled ? 1 : 0) : 1;
   const interval = Math.max(1, Math.min(60, parseInt(intervalMins || '5', 10)));
   systemDb.prepare('UPDATE server_config SET auto_sync_enabled = ?, auto_sync_interval_mins = ? WHERE id = 1').run(val, interval);
+  updatePbxSyncSchedule(interval, val === 1);
   logActivity('AUTO_SYNC_TOGGLE', `PBX Auto-Sync changed to: ${val === 1 ? 'ENABLED' : 'DISABLED'} (${interval}m interval)`, req.ip);
   return res.json({ ok: true, autoSyncEnabled: val === 1, intervalMins: interval });
 });
 
 // 8. Custom Branding & Theme Configuration
 router.get('/api/admin/branding', adminAuth, (req: Request, res: Response) => {
-  const config = systemDb.prepare('SELECT brand_name, primary_color, accent_color, logo_url FROM server_config WHERE id = 1').get() as any;
+  const config = systemDb.prepare('SELECT brand_name, primary_color, accent_color, logo_url FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;
   return res.json({
     ok: true,
     branding: {

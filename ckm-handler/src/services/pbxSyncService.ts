@@ -3,6 +3,7 @@ import http from 'http';
 import https from 'https';
 import crypto from 'crypto';
 import systemDb, { logActivity } from '../database/systemDb';
+import { ServerConfigRow } from '../types/models';
 
 export interface PbxSyncConfig {
   type?: 'yeastar_api' | 'yeastar_ami' | 'asterisk_ami' | 'freepbx_ami' | 'grandstream_api';
@@ -403,15 +404,38 @@ let pbxSyncTimer: NodeJS.Timeout | null = null;
 
 export function startPbxSyncDaemon(): void {
   if (pbxSyncTimer) return;
-  // Initial run after 15s to allow server to boot cleanly, then every 5 minutes
+  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;
+  const mins = config?.auto_sync_interval_mins || 5;
+  const isEnabled = config?.auto_sync_enabled !== 0;
+
   setTimeout(runAutoPbxSync, 15000);
-  pbxSyncTimer = setInterval(runAutoPbxSync, 5 * 60 * 1000);
-  console.log('[PBX Sync Engine] Autonomous background synchronization daemon active (5m interval)');
+  if (isEnabled) {
+    pbxSyncTimer = setInterval(runAutoPbxSync, mins * 60 * 1000);
+    console.log(`[PBX Sync Engine] Autonomous background synchronization daemon active (${mins}m interval)`);
+  }
+}
+
+export function updatePbxSyncSchedule(intervalMins?: number, enabled?: boolean): void {
+  if (pbxSyncTimer) {
+    clearInterval(pbxSyncTimer);
+    pbxSyncTimer = null;
+  }
+  const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;
+  const isEnabled = enabled !== undefined ? enabled : (config?.auto_sync_enabled === 1);
+  const mins = intervalMins && intervalMins > 0 ? intervalMins : (config?.auto_sync_interval_mins || 5);
+
+  if (isEnabled) {
+    const ms = Math.max(1, Math.min(1440, mins)) * 60 * 1000;
+    pbxSyncTimer = setInterval(runAutoPbxSync, ms);
+    console.log(`[PBX Sync Engine] Autonomous background sync rescheduled to ${mins}m interval.`);
+  } else {
+    console.log('[PBX Sync Engine] Autonomous background sync paused.');
+  }
 }
 
 export async function runAutoPbxSync(): Promise<void> {
   try {
-    const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+    const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;
     if (!config || config.auto_sync_enabled === 0) return;
     if (!config.pbx_server || config.pbx_server === '127.0.0.1' || config.pbx_server === 'localhost') return;
 

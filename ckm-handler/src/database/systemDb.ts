@@ -1,3 +1,4 @@
+import { ServerConfigRow } from '../types/models';
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -203,7 +204,7 @@ export function logActivity(eventType: string, details: string, ipAddress: strin
 }
 
 // Seed default server config if missing
-const checkConfig = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+const checkConfig = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;
 if (!checkConfig) {
   systemDb.prepare(`
     INSERT INTO server_config (id, pbx_server, pbx_port, pbx_transport, data_handler_url, license_key)
@@ -244,14 +245,14 @@ try { systemDb.exec("ALTER TABLE physical_handsets ADD COLUMN custom_config TEXT
 try { systemDb.exec("ALTER TABLE routers ADD COLUMN custom_script TEXT DEFAULT '';"); } catch {}
 
 // Generate default secure API key if not set
-const cfgRow = systemDb.prepare('SELECT api_key FROM server_config WHERE id = 1').get() as any;
+const cfgRow = systemDb.prepare('SELECT api_key FROM server_config WHERE id = 1').get() as { api_key: string | null } | undefined;
 if (!cfgRow?.api_key) {
   const newKey = `ckm_live_${crypto.randomBytes(16).toString('hex')}`;
   systemDb.prepare('UPDATE server_config SET api_key = ? WHERE id = 1').run(newKey);
 }
 
 // Seed default superadmin if admin_users is empty
-const adminUserCount = (systemDb.prepare('SELECT COUNT(*) as count FROM admin_users').get() as any).count;
+const adminUserCount = (systemDb.prepare('SELECT COUNT(*) as count FROM admin_users').get() as { count: number }).count;
 if (adminUserCount === 0) {
   const initialUser = (ADMIN_USER || 'admin').trim();
   const initialPass = ADMIN_PASS || 'ChangeMeImmediately123!';

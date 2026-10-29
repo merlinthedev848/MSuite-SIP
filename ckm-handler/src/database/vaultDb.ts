@@ -1,3 +1,4 @@
+import { MessageRow } from '../types/models';
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import { VAULT_DB_PATH } from '../config';
@@ -135,15 +136,15 @@ export const VaultStore = {
     
     const info = insertMessageStmt.run(conversationId, senderId, messageType || 'text', encryptedContent, fileId || null, fileName || null, fileSize || null);
     
-    const row = getMessageByIdStmt.get(info.lastInsertRowid) as any;
+    const row = getMessageByIdStmt.get(info.lastInsertRowid) as MessageRow | undefined;
     if (row) {
-      row.content = content; // Return plaintext to active memory caller
+      row.content = content;
     }
     return row;
   },
 
   getRecentMessages: (conversationId: string, limit = 50) => {
-    const rows = getRecentMessagesStmt.all(conversationId, limit) as any[];
+    const rows = getRecentMessagesStmt.all(conversationId, limit) as MessageRow[];
 
     // Decrypt content transparently
     return rows.map(r => ({

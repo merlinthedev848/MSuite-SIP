@@ -1,9 +1,24 @@
+import { ServerConfigRow, ExtensionRow, SoftphonePinRow } from '../types/models';
 import { Router, Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import systemDb from '../database/systemDb';
 import { syncExtensionsFromAsterisk, AmiConfig } from '../services/pbxSyncService';
 
 const router = Router();
+
+const defaultServerConfig: ServerConfigRow = {
+  id: 1,
+  pbx_server: '127.0.0.1',
+  pbx_port: 5060,
+  pbx_transport: 'UDP',
+  data_handler_url: 'https://handler.chriskendall.media',
+  license_key: null,
+  api_key: null,
+  brand_name: 'MerlinSIP',
+  primary_color: '#2563EB',
+  accent_color: '#38BDF8',
+  logo_url: ''
+};
 
 // API Key Validation Middleware
 export const apiKeyAuth = (req: Request, res: Response, next: NextFunction) => {
@@ -12,7 +27,7 @@ export const apiKeyAuth = (req: Request, res: Response, next: NextFunction) => {
     return res.status(401).json({ ok: false, error: 'API key required. Provide via X-API-Key header.' });
   }
 
-  const config = systemDb.prepare('SELECT api_key FROM server_config WHERE id = 1').get() as any;
+  const config = systemDb.prepare('SELECT api_key FROM server_config WHERE id = 1').get() as Pick<ServerConfigRow, 'api_key'> | undefined;
   if (!config?.api_key) {
     return res.status(500).json({ ok: false, error: 'Server API key has not been configured.' });
   }
@@ -36,10 +51,10 @@ router.post('/api/v1/integrations/provision-user', apiKeyAuth, async (req: Reque
   }
 
   const cleanExt = String(extension).trim();
-  const serverCfg = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  const serverCfg = (systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined) || defaultServerConfig;
 
   // 1. Check if extension exists, or query PBX if requested
-  let extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as any;
+  let extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as ExtensionRow | undefined;
 
   if (!extRecord && queryPbx) {
     const ami: AmiConfig = {
@@ -49,7 +64,7 @@ router.post('/api/v1/integrations/provision-user', apiKeyAuth, async (req: Reque
       secret: amiConfig?.secret || 'amp111'
     };
     await syncExtensionsFromAsterisk(ami);
-    extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as any;
+    extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as ExtensionRow | undefined;
   }
 
   // 2. If still doesn't exist, register with provided or auto-generated SIP password
@@ -66,7 +81,8 @@ router.post('/api/v1/integrations/provision-user', apiKeyAuth, async (req: Reque
       extension: cleanExt,
       sip_username: cleanExt,
       sip_password: generatedPwd,
-      display_name: name
+      display_name: name,
+      is_active: 1
     };
   } else if (displayName || sipPassword) {
     // Update existing if new parameters provided
@@ -111,19 +127,19 @@ router.post('/api/v1/integrations/provision-user', apiKeyAuth, async (req: Reque
 // GET /api/v1/integrations/extension/:ext/code
 router.get('/api/v1/integrations/extension/:ext/code', apiKeyAuth, (req: Request, res: Response) => {
   const cleanExt = String(req.params.ext).trim();
-  const extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as any;
+  const extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as ExtensionRow | undefined;
   if (!extRecord) {
     return res.status(404).json({ ok: false, error: `Extension ${cleanExt} not found.` });
   }
 
-  const serverCfg = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+  const serverCfg = (systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined) || defaultServerConfig;
 
   // Check for active unclaimed PIN first
   let pinRecord = systemDb.prepare(`
     SELECT * FROM softphone_pins 
     WHERE extension = ? AND claimed = 0 AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
     ORDER BY created_at DESC LIMIT 1
-  `).get(cleanExt) as any;
+  `).get(cleanExt) as SoftphonePinRow | undefined;
 
   let pin = pinRecord?.code;
   let expiresAt = pinRecord?.expires_at;
