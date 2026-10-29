@@ -3449,9 +3449,29 @@ function initApp() {
     if (telemetryTimer) clearInterval(telemetryTimer);
     if (telemetryIntervalMs > 0) {
       telemetryTimer = setInterval(() => {
+        if (!getAuthToken()) return;
         const activeBtn = document.querySelector('.nav-btn.active');
-        if (activeBtn && activeBtn.dataset.tab === 'overview' && getAuthToken()) {
+        const currentTab = activeBtn?.dataset?.tab;
+
+        if (currentTab === 'overview') {
           loadOverview();
+        } else if (currentTab === 'handsets') {
+          loadDiscoveredDevices();
+        }
+
+        // Always check discovered devices in real-time to update top nav badge
+        if (currentTab !== 'handsets') {
+          fetchJson('/api/admin/discovered-devices').then(data => {
+            if (data && data.devices) {
+              const count = data.devices.length;
+              const navBadge = document.getElementById('navBadgeDiscovered');
+              if (navBadge) {
+                navBadge.textContent = `${count} New`;
+                if (count > 0) navBadge.classList.remove('hidden');
+                else navBadge.classList.add('hidden');
+              }
+            }
+          }).catch(() => {});
         }
       }, telemetryIntervalMs);
     }

@@ -16,6 +16,7 @@ import gdprRouter from './routes/gdpr';
 import adminRouter from './routes/admin';
 import integrationApiRouter from './routes/integrationApi';
 import firmwareRouter from './routes/firmwareRoute';
+import cwmpRouter from './routes/cwmpRoute';
 import { reconcileFirmwareStorage } from './services/firmwareService';
 import { startPbxSyncDaemon } from './services/pbxSyncService';
 
@@ -24,6 +25,7 @@ const server = http.createServer(app);
 
 // 1. Core Middleware
 app.use(cors({ origin: '*' }));
+app.use(express.text({ type: ['text/*', 'application/xml', 'text/xml', 'application/soap+xml'] }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -41,6 +43,7 @@ app.get('/api/health', (req, res) => {
 app.use(licenseGateMiddleware);
 
 // 4. Mount Route Engines
+app.use(cwmpRouter);
 app.use(softphoneProvisionRouter);
 app.use(hardwareProvisionRouter);
 app.use(firmwareRouter);
