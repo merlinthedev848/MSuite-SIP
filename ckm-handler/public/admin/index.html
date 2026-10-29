@@ -670,45 +670,47 @@
               <p class="muted">Configure background synchronization, zero-touch network adoption, and automated maintenance timers.</p>
             </div>
             
-            <div class="settings-toggle-group mt-4">
-              <div class="settings-toggle-row">
-                <div>
-                  <strong>Zero-Touch Hardware Auto-Adoption</strong>
-                  <p class="muted">Automatically bind newly discovered deskphones to available extensions on first Option 66 boot without manual approval.</p>
+            <form id="formAutomationDaemons" class="mt-4">
+              <div class="settings-toggle-group">
+                <div class="settings-toggle-row">
+                  <div>
+                    <strong>Zero-Touch Hardware Auto-Adoption</strong>
+                    <p class="muted">Automatically bind newly discovered deskphones to available extensions on first Option 66 boot without manual approval.</p>
+                  </div>
+                  <label class="switch-control">
+                    <input type="checkbox" id="settingsAutoAdoptToggle">
+                    <span class="switch-slider"></span>
+                  </label>
                 </div>
-                <label class="switch-control">
-                  <input type="checkbox" id="settingsAutoAdoptToggle">
-                  <span class="switch-slider"></span>
-                </label>
-              </div>
 
-              <div class="settings-toggle-row mt-4">
-                <div>
-                  <strong>Autonomous PBX Extension Auto-Sync</strong>
-                  <p class="muted">Continuously query the Asterisk/FreePBX core to discover newly added extensions and issue 8-digit softphone PINs.</p>
+                <div class="settings-toggle-row mt-4">
+                  <div>
+                    <strong>Autonomous PBX Extension Auto-Sync</strong>
+                    <p class="muted">Continuously query the Asterisk/FreePBX core to discover newly added extensions and issue 8-digit softphone PINs.</p>
+                  </div>
+                  <label class="switch-control">
+                    <input type="checkbox" id="settingsAutoSyncToggle" checked>
+                    <span class="switch-slider"></span>
+                  </label>
                 </div>
-                <label class="switch-control">
-                  <input type="checkbox" id="settingsAutoSyncToggle" checked>
-                  <span class="switch-slider"></span>
-                </label>
-              </div>
 
-              <div class="form-group mt-4" style="max-width: 320px;">
-                <label>Auto-Sync Polling Interval</label>
-                <select id="settingsSyncInterval">
-                  <option value="1">Every 1 Minute (High Frequency)</option>
-                  <option value="5" selected>Every 5 Minutes (Recommended)</option>
-                  <option value="15">Every 15 Minutes</option>
-                  <option value="30">Every 30 Minutes</option>
-                  <option value="60">Every 1 Hour</option>
-                </select>
-              </div>
+                <div class="form-group mt-4" style="max-width: 320px;">
+                  <label>Auto-Sync Polling Interval</label>
+                  <select id="settingsSyncInterval">
+                    <option value="1">Every 1 Minute (High Frequency)</option>
+                    <option value="5" selected>Every 5 Minutes (Recommended)</option>
+                    <option value="15">Every 15 Minutes</option>
+                    <option value="30">Every 30 Minutes</option>
+                    <option value="60">Every 1 Hour</option>
+                  </select>
+                </div>
 
-              <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <button type="button" class="btn btn-primary" id="btnSaveAutomationSettings">Apply Daemon Settings</button>
-                <button type="button" class="btn btn-secondary" id="btnForcePbxSyncFromSettings">Force PBX Sync Now</button>
+                <div style="display: flex; gap: 10px; margin-top: 24px;">
+                  <button type="submit" class="btn btn-primary" id="btnSaveAutomationSettings">Save Daemon Settings</button>
+                  <button type="button" class="btn btn-secondary" id="btnForcePbxSyncFromSettings">Force PBX Sync Now</button>
+                </div>
               </div>
-            </div>
+            </form>
           </div>
         </div>
 

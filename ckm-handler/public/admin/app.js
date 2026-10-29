@@ -3273,8 +3273,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Start telemetry loop with user preference
   initTelemetryLoop();
 
-});
-
   // ==========================================================================
   // Omada / GenieACS Zero-Touch Device Discovery & Adoption Engine
   // ==========================================================================
@@ -3654,33 +3652,70 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Apply Daemon Settings Button Handler
-  document.getElementById('btnSaveAutomationSettings')?.addEventListener('click', async () => {
+  // Save Daemon Settings (Form Submission & Button Click Handler)
+  async function saveAutomationDaemonSettings(e) {
+    if (e && e.preventDefault) e.preventDefault();
     const btn = document.getElementById('btnSaveAutomationSettings');
-    btn.textContent = 'Applying...';
-    btn.disabled = true;
+    if (btn) {
+      btn.textContent = 'Saving...';
+      btn.disabled = true;
+    }
     try {
-      const autoAdopt = document.getElementById('settingsAutoAdoptToggle')?.checked || false;
-      const autoSync = document.getElementById('settingsAutoSyncToggle')?.checked || false;
+      const autoAdopt = !!document.getElementById('settingsAutoAdoptToggle')?.checked;
+      const autoSync = !!document.getElementById('settingsAutoSyncToggle')?.checked;
       const intervalMins = document.getElementById('settingsSyncInterval')?.value || '5';
 
-      await fetchJson('/api/admin/auto-adopt/toggle', {
+      const res = await fetchJson('/api/admin/automation/settings', {
         method: 'POST',
-        body: JSON.stringify({ enabled: autoAdopt })
+        body: JSON.stringify({
+          autoAdoptEnabled: autoAdopt,
+          autoSyncEnabled: autoSync,
+          autoSyncIntervalMins: intervalMins
+        })
       });
 
-      await fetchJson('/api/admin/auto-sync/toggle', {
-        method: 'POST',
-        body: JSON.stringify({ enabled: autoSync, intervalMins })
-      });
+      if (!res || !res.ok) {
+        window.showToast(res?.error || 'Failed to save autonomous daemon settings.', 'error');
+        return;
+      }
 
-      window.showToast('Global automation and daemon settings saved!', 'success');
+      window.showToast('Autonomous daemon and background settings saved successfully!', 'success');
+
+      // Synchronize badges & chips across dashboard
+      const chkPolicy = document.getElementById('chkAutoAdoptPolicy');
+      if (chkPolicy) chkPolicy.checked = autoAdopt;
+
+      const engineAdoptBadge = document.getElementById('engineAutoAdoptBadge');
+      if (engineAdoptBadge) {
+        engineAdoptBadge.textContent = autoAdopt ? 'Zero-Touch Active' : 'Approval Required';
+        engineAdoptBadge.className = autoAdopt ? 'badge badge-success' : 'badge';
+      }
+
+      const chipAdopt = document.getElementById('chipAutoAdoptStatus');
+      if (chipAdopt) chipAdopt.textContent = `Auto-Adopt: ${autoAdopt ? 'Active' : 'Disabled'}`;
+
+      const engineSyncBadge = document.getElementById('enginePbxSyncBadge');
+      if (engineSyncBadge) {
+        engineSyncBadge.textContent = autoSync ? `Automated (${intervalMins}m)` : 'Manual Only';
+        engineSyncBadge.className = autoSync ? 'badge badge-success' : 'badge badge-secondary';
+      }
+
+      const chipSync = document.getElementById('chipAutoSyncStatus');
+      if (chipSync) chipSync.textContent = `Auto-Sync: ${autoSync ? `Active (${intervalMins}m)` : 'Disabled'}`;
+
       loadOverview();
+    } catch (err) {
+      window.showToast('Failed to save daemon settings: ' + (err.message || 'Network error'), 'error');
     } finally {
-      btn.textContent = 'Apply Daemon Settings';
-      btn.disabled = false;
+      if (btn) {
+        btn.textContent = 'Save Daemon Settings';
+        btn.disabled = false;
+      }
     }
-  });
+  }
+
+  document.getElementById('formAutomationDaemons')?.addEventListener('submit', saveAutomationDaemonSettings);
+  document.getElementById('btnSaveAutomationSettings')?.addEventListener('click', saveAutomationDaemonSettings);
 
   // Force PBX Sync From Settings Button Handler
   document.getElementById('btnForcePbxSyncFromSettings')?.addEventListener('click', async () => {
@@ -3703,3 +3738,5 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.disabled = false;
     }
   });
+
+});

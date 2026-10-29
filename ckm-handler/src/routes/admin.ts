@@ -1305,7 +1305,19 @@ router.delete('/api/admin/discovered-devices/:mac', adminAuth, requirePermission
   return res.json({ ok: true, message: 'Device dismissed from pending adoption queue.' });
 });
 
-router.post('/api/admin/auto-adopt/toggle', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
+router.post('/api/admin/auto-adopt/toggle', adminAuth, (req: Request, res: Response) => {
+  const user = (req as AdminRequest).adminUser;
+  if (!user) return res.status(401).json({ ok: false, error: 'Authentication required' });
+  const hasPerm = user.role === 'superadmin' || 
+    (user.permissions && (
+      user.permissions.includes('*') || 
+      user.permissions.includes('manage_settings') || 
+      user.permissions.includes('manage_handsets')
+    ));
+  if (!hasPerm) {
+    return res.status(403).json({ ok: false, error: 'Forbidden: Missing required permission.' });
+  }
+
   const { enabled } = req.body;
   const val = enabled ? 1 : 0;
   systemDb.prepare('UPDATE server_config SET auto_adopt_enabled = ? WHERE id = 1').run(val);
@@ -1313,7 +1325,19 @@ router.post('/api/admin/auto-adopt/toggle', adminAuth, requirePermission('manage
   return res.json({ ok: true, autoAdoptEnabled: val === 1 });
 });
 
-router.post('/api/admin/auto-sync/toggle', adminAuth, requirePermission('manage_pbx'), (req: Request, res: Response) => {
+router.post('/api/admin/auto-sync/toggle', adminAuth, (req: Request, res: Response) => {
+  const user = (req as AdminRequest).adminUser;
+  if (!user) return res.status(401).json({ ok: false, error: 'Authentication required' });
+  const hasPerm = user.role === 'superadmin' || 
+    (user.permissions && (
+      user.permissions.includes('*') || 
+      user.permissions.includes('manage_settings') || 
+      user.permissions.includes('manage_pbx')
+    ));
+  if (!hasPerm) {
+    return res.status(403).json({ ok: false, error: 'Forbidden: Missing required permission.' });
+  }
+
   const { enabled, intervalMins } = req.body;
   const val = enabled !== undefined ? (enabled ? 1 : 0) : 1;
   const interval = Math.max(1, Math.min(60, parseInt(intervalMins || '5', 10)));
@@ -1321,6 +1345,44 @@ router.post('/api/admin/auto-sync/toggle', adminAuth, requirePermission('manage_
   updatePbxSyncSchedule(interval, val === 1);
   logActivity('AUTO_SYNC_TOGGLE', `PBX Auto-Sync changed to: ${val === 1 ? 'ENABLED' : 'DISABLED'} (${interval}m interval)`, req.ip);
   return res.json({ ok: true, autoSyncEnabled: val === 1, intervalMins: interval });
+});
+
+// Atomic Autonomous Daemons Settings Save Endpoint
+router.post('/api/admin/automation/settings', adminAuth, (req: Request, res: Response) => {
+  const user = (req as AdminRequest).adminUser;
+  if (!user) return res.status(401).json({ ok: false, error: 'Authentication required' });
+  const hasPerm = user.role === 'superadmin' || 
+    (user.permissions && (
+      user.permissions.includes('*') || 
+      user.permissions.includes('manage_settings') || 
+      user.permissions.includes('manage_pbx') || 
+      user.permissions.includes('manage_handsets')
+    ));
+  if (!hasPerm) {
+    return res.status(403).json({ ok: false, error: 'Forbidden: Insufficient administrative privileges.' });
+  }
+
+  const { autoAdoptEnabled, autoSyncEnabled, autoSyncIntervalMins } = req.body;
+  const adoptVal = autoAdoptEnabled ? 1 : 0;
+  const syncVal = autoSyncEnabled !== undefined ? (autoSyncEnabled ? 1 : 0) : 1;
+  const interval = Math.max(1, Math.min(60, parseInt(autoSyncIntervalMins || '5', 10)));
+
+  systemDb.prepare(`
+    UPDATE server_config 
+    SET auto_adopt_enabled = ?, auto_sync_enabled = ?, auto_sync_interval_mins = ?
+    WHERE id = 1
+  `).run(adoptVal, syncVal, interval);
+
+  updatePbxSyncSchedule(interval, syncVal === 1);
+  logActivity('AUTOMATION_SETTINGS_UPDATED', `Autonomous daemons updated: Auto-Adopt=${adoptVal === 1 ? 'ON' : 'OFF'}, Auto-Sync=${syncVal === 1 ? 'ON' : 'OFF'} (${interval}m interval)`, req.ip);
+
+  return res.json({
+    ok: true,
+    message: 'Autonomous daemon settings saved successfully.',
+    autoAdoptEnabled: adoptVal === 1,
+    autoSyncEnabled: syncVal === 1,
+    autoSyncIntervalMins: interval
+  });
 });
 
 // 8. Custom Branding & Theme Configuration
