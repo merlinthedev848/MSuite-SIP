@@ -1,0 +1,19 @@
+{
+  "pbx_server": "pbx.chriskendall.media",
+  "pbx_port": 5060,
+  "pbx_transport": "UDP",
+  "domain": "pbx.chriskendall.media",
+  "extension": "101",
+  "sip_username": "101",
+  "sip_password": "YourSecureSipPassword123!",
+  "display_name": "MerlinSIP Beta Tester",
+  "data_handler_url": "https://handler.chriskendall.media",
+  "license_key": "BUYOUT-BETA-TEST",
+  "app_secret_token": "UClDFZpFu1gj7I8oGmKVsOvzGTqSFwq3jpcgLoC2ApmkyZTjpq1ftIZmJ5EMoshE",
+  "branding": {
+    "brand_name": "MerlinSIP Beta",
+    "primary_color": "#2563EB",
+    "accent_color": "#38BDF8",
+    "logo_url": "https://handler.chriskendall.media/branding/logo"
+  }
+}

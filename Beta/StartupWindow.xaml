@@ -1,0 +1,154 @@
+<Window x:Class="MerlinSip.StartupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Merlin SIP Setup"
+        Icon="Assets/CKMedia-Icon.ico"
+        Width="560"
+        Height="780"
+        MinWidth="520"
+        MinHeight="660"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
+        Background="Transparent">
+    <Border Background="#F4F7FB" CornerRadius="22" BorderBrush="#D7E1EC" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="32" ShadowDepth="10" Opacity="0.18" Color="#07111E" />
+        </Border.Effect>
+        <Grid Margin="20" MaxWidth="620" HorizontalAlignment="Center">
+            <Border Style="{StaticResource PanelStyle}" CornerRadius="18">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Margin="0,0,0,18">
+                    <Grid Margin="0,0,0,14">
+                        <Border Width="54"
+                                Height="54"
+                                CornerRadius="14"
+                                Background="#101622"
+                                HorizontalAlignment="Left">
+                            <Image Source="Assets/CKMedia-Icon.png" Width="34" Height="34" Stretch="Uniform" />
+                        </Border>
+                        <Button Content="Close"
+                                HorizontalAlignment="Right"
+                                Width="80"
+                                Padding="10,7"
+                                Click="CancelButton_Click" />
+                    </Grid>
+                    <TextBlock Text="Merlin SIP"
+                               Foreground="{StaticResource InkBrush}"
+                               FontSize="30"
+                               FontWeight="SemiBold" />
+                    <TextBlock x:Name="SubtitleText"
+                               Text="Enter your licence key to activate this installation."
+                               Foreground="{StaticResource MutedBrush}"
+                               FontSize="13"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              CanContentScroll="False">
+                    <StackPanel>
+                        <StackPanel x:Name="LicenseStepPanel">
+                            <TextBlock Text="License key" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                        <TextBox x:Name="LicenseKeyTextBox"
+                                 Margin="0,6,0,8"
+                                 CharacterCasing="Upper" />
+                            <TextBlock Text="Use the license key provided with your account."
+                                       Foreground="{StaticResource MutedBrush}"
+                                       FontSize="12"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="CredentialsStepPanel" Visibility="Collapsed">
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <RadioButton Grid.Column="0"
+                                             x:Name="ProvisionCodeRadioButton"
+                                             Content="Setup code"
+                                             IsChecked="True"
+                                             Checked="AuthenticationMode_Checked"
+                                             Margin="0,0,8,0" />
+                                <RadioButton Grid.Column="1"
+                                             x:Name="ManualSipRadioButton"
+                                             Content="Manual SIP details"
+                                             Checked="AuthenticationMode_Checked" />
+                            </Grid>
+
+                            <StackPanel x:Name="ProvisionCodePanel">
+                                <TextBlock Text="Setup code" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                                <TextBox x:Name="ProvisioningCodeTextBox"
+                                         Margin="0,6,0,12"
+                                         MaxLength="8" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="ManualSipPanel" Visibility="Collapsed">
+                                <StackPanel x:Name="PrivatePbxPanel" Visibility="Collapsed">
+                                    <TextBlock Text="SIP server" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                                    <TextBox x:Name="PrivatePbxTextBox" Margin="0,6,0,12" />
+                                </StackPanel>
+
+                                <TextBlock Text="Extension or user ID" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                                <TextBox x:Name="ExtensionTextBox" Margin="0,6,0,12" />
+
+                                <TextBlock Text="Authentication username" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                                <TextBox x:Name="UsernameTextBox" Margin="0,6,0,12" />
+
+                                <TextBlock Text="Password" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                                <PasswordBox x:Name="PasswordBox" Margin="0,6,0,12" />
+                            </StackPanel>
+
+                            <TextBlock Text="Audio input" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                            <ComboBox x:Name="AudioInputComboBox"
+                                      Margin="0,6,0,12"
+                                      BorderBrush="#D4C9B3"
+                                      DisplayMemberPath="Name" />
+
+                            <TextBlock Text="Audio output" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                            <ComboBox x:Name="AudioOutputComboBox"
+                                      Margin="0,6,0,12"
+                                      BorderBrush="#D4C9B3"
+                                      DisplayMemberPath="Name" />
+                        </StackPanel>
+
+                        <TextBlock x:Name="ErrorText"
+                                   Foreground="#B82F2F"
+                                   FontWeight="Medium"
+                                   Margin="0,14,0,0"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Grid Grid.Row="2" Margin="0,18,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0"
+                            Content="Cancel"
+                            Click="CancelButton_Click"
+                            Margin="0,0,8,0" />
+                    <Button Grid.Column="1"
+                            x:Name="ContinueButton"
+                            Content="Complete setup"
+                            Background="{StaticResource AmberBrush}"
+                            Foreground="White"
+                            Click="ContinueButton_Click" />
+                </Grid>
+            </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

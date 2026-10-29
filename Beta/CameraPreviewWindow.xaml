@@ -1,0 +1,38 @@
+<Window x:Class="MerlinSip.CameraPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Camera preview"
+        Icon="Assets/CKMedia-Icon.ico"
+        Width="760"
+        Height="560"
+        MinWidth="480"
+        MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        Background="#0F172A"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
+        Loaded="Window_Loaded"
+        Closing="Window_Closing">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock x:Name="CameraNameText" Foreground="#F8FAFC" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12" />
+        <Border Grid.Row="1" Background="#111827" CornerRadius="10" ClipToBounds="True">
+            <Grid>
+                <Image x:Name="PreviewImage" Stretch="Uniform" />
+                <TextBlock x:Name="StatusText"
+                           Text="Starting camera..."
+                           Foreground="#94A3B8"
+                           FontSize="14"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Margin="24" />
+            </Grid>
+        </Border>
+        <Button Grid.Row="2" Content="Close" Width="110" Height="36" HorizontalAlignment="Right" Margin="0,12,0,0" Click="CloseButton_Click" />
+    </Grid>
+</Window>

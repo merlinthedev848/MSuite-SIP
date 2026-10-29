@@ -1,0 +1,146 @@
+<Window x:Class="MerlinSip.CallQualityDetailsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Call Quality Analysis"
+        Width="520"
+        SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
+        KeyDown="Window_KeyDown">
+    <Border CornerRadius="18"
+            Background="#FCFEFF"
+            BorderBrush="#D8E1EE"
+            BorderThickness="1"
+            Padding="24">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="32" ShadowDepth="10" Opacity="0.18" Color="#07111E" />
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <DockPanel Grid.Row="0">
+<Button DockPanel.Dock="Right"
+                        Width="32"
+                        Height="32"
+                        Cursor="Hand"
+                        Background="#F1F5F9"
+                        BorderBrush="#CBD5E1"
+                        BorderThickness="1"
+                        Click="CloseButton_Click"
+                        ToolTip="Close"
+                        AutomationProperties.Name="Close Window">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="CloseCircle" Width="32" Height="32" CornerRadius="16" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                                <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11" Foreground="#475569" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="CloseCircle" Property="Background" Value="#E2E8F0" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+                <StackPanel>
+                    <TextBlock x:Name="TitleTextBlock"
+                               Text="Call Quality Analysis"
+                               FontSize="21"
+                               FontWeight="SemiBold"
+                               Foreground="#111827" />
+                    <TextBlock x:Name="SubtitleTextBlock"
+                               Text="Real-time RTP Stream &amp; Network Health"
+                               FontSize="12.5"
+                               Foreground="#64748B"
+                               Margin="0,3,0,0" />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Hero Score Card -->
+            <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,16,0,14">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,20,0">
+                        <TextBlock x:Name="MosScoreTextBlock" Text="4.4" FontSize="36" FontWeight="Black" Foreground="#0E987E" HorizontalAlignment="Center" />
+                        <TextBlock Text="MOS SCORE" FontSize="10" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <DockPanel Margin="0,0,0,6">
+                            <Border x:Name="QualityLevelBadge" Background="#DEF7EC" CornerRadius="6" Padding="8,3" HorizontalAlignment="Left">
+                                <TextBlock x:Name="QualityLevelTextBlock" Text="Excellent Quality" Foreground="#03543F" FontWeight="Bold" FontSize="12" />
+                            </Border>
+                            <TextBlock x:Name="RFactorTextBlock" Text="R-Factor: 92.5 / 100" Foreground="#64748B" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        </DockPanel>
+                        
+                        <ProgressBar x:Name="MosProgressBar" Height="8" Minimum="1" Maximum="5" Value="4.4" Foreground="#10B981" Background="#E2E8F0" BorderThickness="0" Margin="0,4,0,6" />
+                        <TextBlock x:Name="QualityAssessmentTextBlock" Text="No audio measurement for this call." Foreground="#64748B" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Metrics Grid -->
+            <UniformGrid Grid.Row="2" Columns="2" Margin="0,0,0,14">
+                <!-- Packet Loss -->
+                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,5,8">
+                    <StackPanel>
+                        <TextBlock Text="Packet Loss" FontSize="11" Foreground="#64748B" FontWeight="Medium" />
+                        <TextBlock x:Name="PacketLossTextBlock" Text="0.0 %" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,2,0,0" />
+                        <TextBlock Text="Target: &lt; 1.0%" FontSize="10" Foreground="#94A3B8" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Jitter -->
+                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="5,0,0,8">
+                    <StackPanel>
+                        <TextBlock Text="Jitter" FontSize="11" Foreground="#64748B" FontWeight="Medium" />
+                        <TextBlock x:Name="JitterTextBlock" Text="1.8 ms" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,2,0,0" />
+                        <TextBlock Text="Target: &lt; 20 ms" FontSize="10" Foreground="#94A3B8" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Round-Trip Latency -->
+                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,5,8">
+                    <StackPanel>
+                        <TextBlock Text="Round-trip Latency" FontSize="11" Foreground="#64748B" FontWeight="Medium" />
+                        <TextBlock x:Name="LatencyTextBlock" Text="22 ms" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,2,0,0" />
+                        <TextBlock Text="Target: &lt; 150 ms" FontSize="10" Foreground="#94A3B8" />
+                    </StackPanel>
+                </Border>
+
+                <!-- RTP Bitrate -->
+                <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="5,0,0,8">
+                    <StackPanel>
+                        <TextBlock Text="RTP Bitrate (Tx / Rx)" FontSize="11" Foreground="#64748B" FontWeight="Medium" />
+                        <TextBlock x:Name="BitrateTextBlock" Text="n/a" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,2,0,0" />
+                        <TextBlock Text="G.711u standard" FontSize="10" Foreground="#94A3B8" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <!-- Diagnostic Details -->
+            <Border Grid.Row="3" Background="#F1F5F9" CornerRadius="8" Padding="12" Margin="0,0,0,4">
+                <StackPanel>
+                    <TextBlock Text="Telephony Diagnostic Summary" FontWeight="SemiBold" FontSize="12" Foreground="#334155" />
+                    <TextBlock x:Name="DiagnosticSummaryTextBlock"
+                               Text="RTP stream connection established with PBX. Forward and reverse RTP paths maintain optimal packet delivery without underruns."
+                               FontSize="11.5" Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

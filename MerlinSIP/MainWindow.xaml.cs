@@ -1397,20 +1397,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        string syncEndpoint;
-        if (_config.AllowsCustomSipEndpoint)
-        {
-            // Contractor buyout mode: sync dynamically from contractor's self-hosted handler if configured
-            if (string.IsNullOrWhiteSpace(_config.DataHandlerUrl))
-            {
-                return;
-            }
-            syncEndpoint = $"{_config.DataHandlerUrl.TrimEnd('/')}/api/v1/config/sync";
-        }
-        else
-        {
-            syncEndpoint = "https://accounts.chriskendall.media/api/v1/config/sync";
-        }
+        var baseHandler = !string.IsNullOrWhiteSpace(_config.DataHandlerUrl) ? _config.DataHandlerUrl : _config.EffectiveDataHandlerUrl;
+        string syncEndpoint = $"{baseHandler.TrimEnd('/')}/api/v1/config/sync";
 
         try
         {
@@ -1966,6 +1954,82 @@ public partial class MainWindow : Window
 
         ApplyGlobalSearchFilter();
         _ = RefreshPresenceSubscriptionsAsync();
+        _ = SyncRemoteDirectoryContactsAsync();
+    }
+
+    
+    private async Task SyncRemoteDirectoryContactsAsync()
+    {
+        try
+        {
+            var handlerUrl = _config.EffectiveDataHandlerUrl.TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(handlerUrl)) return;
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"{handlerUrl}/api/v1/contacts");
+            req.Headers.Add("User-Agent", "MerlinSIP/1.4.0");
+            using var res = await HttpClientHelper.SharedClient.SendAsync(req, cts.Token);
+            if (!res.IsSuccessStatusCode) return;
+
+            var json = await res.Content.ReadAsStringAsync(cts.Token);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("contacts", out var contactsArray) || contactsArray.ValueKind != JsonValueKind.Array)
+            {
+                return;
+            }
+
+            bool changed = false;
+            foreach (var item in contactsArray.EnumerateArray())
+            {
+                var ext = item.TryGetProperty("extension", out var extEl) ? extEl.GetString() : null;
+                var phone = item.TryGetProperty("phone", out var phoneEl) ? phoneEl.GetString() : ext;
+                var name = item.TryGetProperty("name", out var nameEl) ? nameEl.GetString() : null;
+                var email = item.TryGetProperty("email", out var emailEl) ? emailEl.GetString() : "";
+
+                var effectiveNumber = !string.IsNullOrWhiteSpace(ext) ? ext.Trim() : (phone?.Trim() ?? "");
+                if (string.IsNullOrWhiteSpace(effectiveNumber)) continue;
+
+                var existing = _contacts.FirstOrDefault(c => string.Equals(c.Number, effectiveNumber, StringComparison.OrdinalIgnoreCase));
+                if (existing == null)
+                {
+                    var newContact = new ContactEntry
+                    {
+                        Name = !string.IsNullOrWhiteSpace(name) ? name.Trim() : $"Ext {effectiveNumber}",
+                        Number = effectiveNumber,
+                        Company = "Corporate Directory",
+                        Notes = email ?? "",
+                        IsFavorite = false
+                    };
+                    _contacts.Add(newContact);
+                    changed = true;
+                }
+                else if (string.IsNullOrWhiteSpace(existing.Name) || existing.Name.StartsWith("Ext ", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrWhiteSpace(name) && !string.Equals(existing.Name, name.Trim()))
+                    {
+                        var idx = _contacts.IndexOf(existing);
+                        if (idx >= 0)
+                        {
+                            _contacts[idx] = existing with { Name = name.Trim() };
+                            changed = true;
+                        }
+                    }
+                }
+            }
+
+            if (changed)
+            {
+                await _contactStore.SaveAsync(_contacts);
+                ApplyGlobalSearchFilter();
+                _ = RefreshPresenceSubscriptionsAsync();
+                DebugLog.Write($"REMOTE CONTACTS: Synced {_contacts.Count} directory entries from {handlerUrl}");
+            }
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"REMOTE CONTACTS sync failed: {ex.Message}");
+        }
     }
 
     private async Task RefreshPresenceSubscriptionsAsync()

@@ -1,0 +1,110 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using MerlinSip.Models;
+
+namespace MerlinSip.Services;
+
+public sealed class ChatMessageStore
+{
+    private readonly string _path = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "MerlinSIP",
+        "messages.dat");
+
+    private readonly string _legacyPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "MerlinSIP",
+        "messages.json");
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true
+    };
+
+    public async Task<IReadOnlyList<ChatMessageEntry>> LoadAsync()
+    {
+        if (File.Exists(_path))
+        {
+            try
+            {
+                var protectedText = await File.ReadAllTextAsync(_path);
+                var plainText = Unprotect(protectedText);
+                return JsonSerializer.Deserialize<List<ChatMessageEntry>>(plainText) ?? [];
+            }
+            catch (Exception error)
+            {
+                DebugLog.Write($"MESSAGES load failed error={error.Message}");
+                return [];
+            }
+        }
+
+        if (!File.Exists(_legacyPath))
+        {
+            return [];
+        }
+
+        try
+        {
+            await using var stream = new FileStream(_legacyPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
+            var messages = await JsonSerializer.DeserializeAsync<List<ChatMessageEntry>>(stream) ?? [];
+            await SaveAsync(messages);
+            return messages;
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"LEGACY MESSAGES load failed error={error.Message}");
+            return [];
+        }
+    }
+
+    public async Task SaveAsync(IEnumerable<ChatMessageEntry> messages)
+    {
+        try
+        {
+            var plainText = JsonSerializer.Serialize(messages.Take(1000).ToList(), JsonOptions);
+            await AtomicFileStorage.SaveAtomicTextAsync(_path, Protect(plainText));
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"MESSAGES save failed error={error.Message}");
+        }
+    }
+
+    private static string Protect(string value)
+    {
+        var plainBytes = Encoding.UTF8.GetBytes(value);
+        if (OperatingSystem.IsWindows())
+        {
+#pragma warning disable CA1416
+            var encrypted = ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser);
+            return Convert.ToBase64String(encrypted);
+#pragma warning restore CA1416
+        }
+        else
+        {
+            return Convert.ToBase64String(plainBytes);
+        }
+    }
+
+    private static string Unprotect(string value)
+    {
+        var encryptedBytes = Convert.FromBase64String(value);
+        if (OperatingSystem.IsWindows())
+        {
+#pragma warning disable CA1416
+            var plainBytes = ProtectedData.Unprotect(encryptedBytes, null, DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(plainBytes);
+#pragma warning restore CA1416
+        }
+        else
+        {
+            return Encoding.UTF8.GetString(encryptedBytes);
+        }
+    }
+}

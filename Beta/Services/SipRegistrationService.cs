@@ -1,0 +1,4490 @@
+using System.IO;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Net.Security;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using System.Text;
+using System.Text.RegularExpressions;
+using MerlinSip.Models;
+
+namespace MerlinSip.Services;
+
+public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICallQualityDataSource, ICallManagerSipProvider
+{
+    private const int StandardRegisterExpiresSeconds = 3600;
+    private static readonly TimeSpan RegisterRefreshInterval = TimeSpan.FromMinutes(10);
+    private UdpClient? _client;
+    private TcpClient? _tcpClient;
+    private Stream? _tcpStream;
+    private AppStartupConfig? _config;
+    private string _domain = "";
+    private string _localAddress = "127.0.0.1";
+    private int _localPort;
+    private CancellationTokenSource? _listenCancellation;
+    private CancellationTokenSource? _registrationRefreshCancellation;
+    private CancellationTokenSource? _natKeepAliveCancellation;
+    private readonly SemaphoreSlim _tcpWriteLock = new(1, 1);
+    private readonly StringBuilder _tcpReceiveBuffer = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(string CallId, string Method), TaskCompletionSource<SipResponse>> _pendingTransactions = new();
+    private volatile PendingReferTransfer? _pendingReferTransfer;
+    private readonly SemaphoreSlim _sipCommandLock = new(1, 1);
+    private readonly SemaphoreSlim _registrationLock = new(1, 1);
+    private bool _listenerStarted;
+    private bool _registered;
+    private bool? _passwordIsHa1;
+    private int _inviteCseq = 1;
+    private int _registerCseq = 1;
+    private int _messageCseq = 1;
+    private int _subscribeCseq = 1;
+    private int _publishCseq = 1;
+    private int _notifyCseq = 1;
+    private string _notifyCallId = "";
+    private string _notifyLocalTag = "";
+    private int _optionsCseq = 1;
+    private string _publishCallId = "";
+    private string _publishLocalTag = "";
+    private string _publishEtag = "";
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _subscriptionCallIds = new(StringComparer.OrdinalIgnoreCase);
+    private ActiveCall? _line1Call;
+    private ActiveCall? _line2Call;
+    private RtpVideoSession? _videoSession;
+    public RtpVideoSession? VideoSession => _videoSession;
+    public bool HasActiveVideoCall => _line1Call?.IsVideo == true || _line2Call?.IsVideo == true;
+    private int _selectedLine = 1;
+    private PendingIncomingCall? _pendingIncomingCall;
+    private RtpAudioSession? _audioSession;
+
+    public void SetSelectedLine(int line)
+    {
+        _selectedLine = line == 2 ? 2 : 1;
+        DebugLog.Write($"Selected line set to {_selectedLine}");
+    }
+
+    internal ActiveCall? GetLineCall(int line) => line == 2 ? _line2Call : _line1Call;
+
+    public bool IsLineActive(int line) => (line == 2 ? _line2Call : _line1Call) != null;
+
+    private ActiveCall? _activeCall
+    {
+        get => _selectedLine == 2 ? (_line2Call ?? _line1Call) : (_line1Call ?? _line2Call);
+        set
+        {
+            if (_selectedLine == 2)
+            {
+                _line2Call = value;
+            }
+            else
+            {
+                _line1Call = value;
+            }
+        }
+    }
+
+    private ActiveCall? _conferenceCall
+    {
+        get => _selectedLine == 2 ? _line1Call : _line2Call;
+        set
+        {
+            if (_selectedLine == 2)
+            {
+                _line1Call = value;
+            }
+            else
+            {
+                _line2Call = value;
+            }
+        }
+    }
+    private bool _rejectIncomingCalls;
+    private string _publishedPresence = "";
+    private SipResponse? _lastCallFailureResponse;
+    private CancellationTokenSource? _heartbeatCancellation;
+    private int _heartbeatConsecutiveFailures;
+    private DateTimeOffset _lastHeartbeatSuccess = DateTimeOffset.MinValue;
+    private static Task _disposingAudioTask = Task.CompletedTask;
+    private IPEndPoint? _cachedServerEndPoint;
+    private static IPEndPoint? _discoveredLanEndPoint;
+    private MwiService? _mwiService;
+
+    public event EventHandler<IncomingCallEventArgs>? IncomingCall;
+    public event EventHandler<CallProgressEventArgs>? CallProgress;
+    public event EventHandler<CallEndedEventArgs>? CallEnded;
+    public event EventHandler<ContactPresenceEventArgs>? ContactPresenceChanged;
+    public event EventHandler<HeartbeatStatusEventArgs>? HeartbeatStatus;
+    public event EventHandler<VoicemailStatus>? VoicemailStatusChanged;
+
+    Task<SipResponse> IMwiSipTransport.SendRequestAndWaitAsync(string request, CancellationToken cancellationToken) => SendAndWaitFromListenerAsync(request, cancellationToken);
+    string IMwiSipTransport.BuildDigestAuthorization(string method, string uri, string challengeHeader) => BuildDigestAuthorization(method, uri, challengeHeader);
+    string IMwiSipTransport.CreateBranch() => CreateBranch();
+    AppStartupConfig? IMwiSipTransport.Config => _config;
+    string IMwiSipTransport.Domain => _domain;
+    string IMwiSipTransport.LocalAddress => _localAddress;
+    int IMwiSipTransport.LocalPort => _localPort;
+    string IMwiSipTransport.SipTransportName => SipTransportName;
+    string IMwiSipTransport.ContactTransport => ContactTransport;
+
+    private double _lastMeasuredLatencyMs = 18.0;
+
+    double ICallQualityDataSource.GetPacketLossPercentage() => _audioSession?.GetQualityStats().LossPercent ?? 0.0;
+    double ICallQualityDataSource.GetJitterMs() => _audioSession?.GetQualityStats().JitterMs ?? 0.0;
+    double ICallQualityDataSource.GetLatencyMs() => _lastMeasuredLatencyMs > 0 ? _lastMeasuredLatencyMs : 18.0;
+    bool ICallQualityDataSource.IsCallActive => _activeCall is not null;
+
+    public bool CanControlAudio => _audioSession is not null;
+
+    public bool IsConferenceActive => _conferenceCall is not null;
+
+    public bool IsConferenceMerged => _audioSession?.IsConferenceMerged ?? false;
+
+    public bool CanMergeConference => _conferenceCall is not null && _conferenceCall.Established && _audioSession is not null;
+
+    public bool HasPendingIncomingCall => _pendingIncomingCall is not null;
+
+    public bool HasInboundRtpAudio => _audioSession?.ReceivedPackets > 0;
+
+    public float CurrentMicLevel => _audioSession?.CurrentMicLevel ?? 0f;
+
+    public bool IsRecording => _audioSession?.IsRecording ?? false;
+
+    public string? CurrentRecordingPath => _audioSession?.CurrentRecordingPath;
+
+    public DateTimeOffset LastHeartbeatSuccess => _lastHeartbeatSuccess;
+
+    public int HeartbeatConsecutiveFailures => _heartbeatConsecutiveFailures;
+
+    private bool UseTcpSignalling => _config?.UsesTcpSignalling == true;
+    private bool UseTlsSignalling => _config?.UsesTlsSignalling == true;
+    private bool UseStreamSignalling => UseTcpSignalling || UseTlsSignalling;
+
+    private bool IsTransportReady => UseStreamSignalling
+        ? _tcpClient?.Connected == true && _tcpStream is not null
+        : _client is not null;
+
+    private string SipTransportName => UseTlsSignalling ? "TLS" : UseTcpSignalling ? "TCP" : "UDP";
+
+    private string ContactTransport => UseTlsSignalling ? "tls" : UseTcpSignalling ? "tcp" : "udp";
+
+    public void ClearStaleCallState(string reason)
+    {
+        var hadCall = _line1Call is not null || _line2Call is not null || _pendingIncomingCall is not null || _audioSession is not null;
+        if (!hadCall)
+        {
+            return;
+        }
+
+        DebugLog.Write($"Clearing stale call state reason={reason} line1={_line1Call?.CallId} line2={_line2Call?.CallId} pending={_pendingIncomingCall?.CallId}");
+        _audioSession?.Dispose();
+        _audioSession = null;
+        _line1Call = null;
+        _line2Call = null;
+        _pendingIncomingCall = null;
+        QueueRegistrationRefresh(reason);
+    }
+
+    public string? ServerEndpointAddress => _cachedServerEndPoint?.Address.ToString();
+
+    public string LastCallFailureReason => _lastCallFailureResponse is null
+        ? "No outbound route failure has been recorded in this session."
+        : $"{_lastCallFailureResponse.Code} {_lastCallFailureResponse.Reason}".Trim();
+
+    public string RtpStatus
+    {
+        get
+        {
+            if (_audioSession is null)
+            {
+                return "No active RTP session. Place a test call to verify live audio packets.";
+            }
+
+            return _audioSession.ReceivedPackets > 0
+                ? $"RTP is receiving audio packets. Received {_audioSession.ReceivedPackets}, sent {_audioSession.SentPackets}."
+                : $"RTP is active but no inbound audio packets have been received yet. Sent {_audioSession.SentPackets}.";
+        }
+    }
+
+    public SipRegistrationService()
+    {
+        try
+        {
+            NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
+        }
+        catch
+        {
+        }
+    }
+
+    private void OnNetworkAddressChanged(object? sender, EventArgs e)
+    {
+        DebugLog.Write("Network address change detected! Queueing instant registration refresh.");
+        QueueRegistrationRefresh("network address changed");
+    }
+
+    public (bool Active, string PathOrMsg) ToggleCallRecording(string targetNumber)
+    {
+        if (_audioSession is null)
+        {
+            return (false, "No active audio session.");
+        }
+
+        if (_audioSession.IsRecording)
+        {
+            var msg = _audioSession.StopRecording();
+            return (false, msg ?? "Recording stopped.");
+        }
+
+        var path = _audioSession.StartRecording(targetNumber);
+        return (true, path);
+    }
+
+    public bool HasMeasuredCallQuality => _audioSession?.ReceivedPackets > 0;
+
+    public string NegotiatedAudioCodec => _audioSession?.NegotiatedCodec ?? "";
+
+    public (double LossPercent, double JitterMs, double LatencyMs, int SignalBars, string QualityText) GetCallQualityStats()
+    {
+        if (_audioSession is null || _audioSession.ReceivedPackets <= 0)
+        {
+            return (0.0, 0.0, 0.0, 0, "Not measured");
+        }
+
+        return _audioSession.GetQualityStats();
+    }
+
+    public void SetRejectIncomingCalls(bool reject)
+    {
+        _rejectIncomingCalls = reject;
+        DebugLog.Write($"DND rejectIncomingCalls={reject}");
+    }
+
+    public void UpdateNetworkAssistance(bool enabled)
+    {
+        if (_config is null)
+        {
+            return;
+        }
+
+        _config = _config with { SipAlgCompatibilityMode = enabled };
+        DebugLog.Write($"Network assistance updated keepaliveAssist={enabled}");
+    }
+
+    public void SetMuted(bool muted)
+    {
+        _audioSession?.SetMuted(muted);
+    }
+
+    public void SetVideoMuted(bool muted)
+    {
+        _videoSession?.SetMute(muted);
+    }
+
+    public async Task<SipCallResult> HoldLineAsync(int line, bool held, CancellationToken cancellationToken = default)
+    {
+        var call = line == 2 ? _line2Call : _line1Call;
+        if (!IsTransportReady || _config is null || call is null || !call.Established)
+        {
+            return new SipCallResult(false, $"No connected call on line {line} to hold.");
+        }
+
+        var isSecondary = line == 2;
+        var cseq = _inviteCseq++;
+        var branch = CreateBranch();
+        var reInvite = BuildReInvite(call, cseq, branch, held, null, isSecondary ? _audioSession?.SecondaryLocalPort : _audioSession?.LocalPort);
+        call = call with { CSeq = cseq, InviteBranch = branch };
+        if (line == 2) _line2Call = call; else _line1Call = call;
+
+        DebugLog.Write($"SEND HOLD REINVITE line={line} callId={call.CallId} held={held}");
+        var response = await SendAndWaitFromListenerAsync(reInvite, cancellationToken);
+
+        if (response.Code is 401 or 407)
+        {
+            var cur = line == 2 ? _line2Call : _line1Call;
+            if (cur is null || cur.CallId != call.CallId) return new SipCallResult(false, "Call ended.");
+            await SendAckForFinalInviteResponseForCallAsync(cur, response, cancellationToken);
+            var challengeHeader = response.Headers.TryGetValue("www-authenticate", out var wwwAuthenticate)
+                ? wwwAuthenticate
+                : response.Headers.GetValueOrDefault("proxy-authenticate", "");
+            var authCseq = _inviteCseq++;
+            var authBranch = CreateBranch();
+            var authorization = BuildDigestAuthorization("INVITE", $"sip:{call.Target}", challengeHeader);
+            var authInvite = BuildReInvite(call, authCseq, authBranch, held, authorization, isSecondary ? _audioSession?.SecondaryLocalPort : _audioSession?.LocalPort, response.Code == 407);
+            call = call with { CSeq = authCseq, InviteBranch = authBranch };
+            if (line == 2) _line2Call = call; else _line1Call = call;
+            DebugLog.Write($"SEND AUTH HOLD REINVITE line={line} callId={call.CallId} held={held}");
+            response = await SendAndWaitFromListenerAsync(authInvite, cancellationToken);
+        }
+
+        if (response.Code is >= 200 and < 300)
+        {
+            var cur = line == 2 ? _line2Call : _line1Call;
+            if (cur is null || cur.CallId != call.CallId) return new SipCallResult(false, "Call ended.");
+            cur = cur with { RemoteTag = ExtractTag(response.Headers.GetValueOrDefault("to", "")), OnHold = held };
+            if (line == 2) _line2Call = cur; else _line1Call = cur;
+            await SendAckForInviteResponseForCallAsync(cur, response, cancellationToken, false);
+            if (isSecondary)
+            {
+                _audioSession?.SetSecondaryHeld(held);
+            }
+            else
+            {
+                _audioSession?.SetHeld(held);
+            }
+            DebugLog.Write($"HOLD state accepted line={line} held={held} callId={cur.CallId}");
+            return new SipCallResult(true, held ? "Call placed on hold." : "Call resumed.");
+        }
+
+        if (response.Code >= 300)
+        {
+            var cur = line == 2 ? _line2Call : _line1Call;
+            if (cur is not null)
+            {
+                await SendAckForFinalInviteResponseForCallAsync(cur, response, cancellationToken);
+            }
+        }
+
+        return new SipCallResult(false, $"Hold request failed: {response.Code} {response.Reason}".Trim());
+    }
+
+    public async Task<SipCallResult> SetHeldAsync(bool held, CancellationToken cancellationToken = default)
+    {
+        return await HoldLineAsync(_selectedLine, held, cancellationToken);
+    }
+
+    private async Task<SipCallResult> SetHeldForCurrentCallAsync(bool held, bool secondaryAudio, CancellationToken cancellationToken)
+    {
+        var activeCall = _activeCall;
+        if (!IsTransportReady || _config is null || activeCall is null || !activeCall.Established)
+        {
+            return new SipCallResult(false, "Connect a call before using hold.");
+        }
+
+        var cseq = _inviteCseq++;
+        var branch = CreateBranch();
+        var reInvite = BuildReInvite(activeCall, cseq, branch, held, null);
+        activeCall = activeCall with { CSeq = cseq, InviteBranch = branch };
+        _activeCall = activeCall;
+        DebugLog.Write($"SEND HOLD REINVITE callId={activeCall.CallId} held={held}");
+        var response = await SendAndWaitFromListenerAsync(reInvite, cancellationToken);
+
+        if (response.Code is 401 or 407)
+        {
+            if (_activeCall is null || _activeCall.CallId != activeCall.CallId) return new SipCallResult(false, "Call ended.");
+            await SendAckForFinalInviteResponseAsync(response, cancellationToken);
+            var challengeHeader = response.Headers.TryGetValue("www-authenticate", out var wwwAuthenticate)
+                ? wwwAuthenticate
+                : response.Headers.GetValueOrDefault("proxy-authenticate", "");
+            var authCseq = _inviteCseq++;
+            var authBranch = CreateBranch();
+            var authorization = BuildDigestAuthorization("INVITE", $"sip:{activeCall.Target}", challengeHeader);
+            var authInvite = BuildReInvite(activeCall, authCseq, authBranch, held, authorization, proxyAuthorization: response.Code == 407);
+            activeCall = activeCall with { CSeq = authCseq, InviteBranch = authBranch };
+            _activeCall = activeCall;
+            DebugLog.Write($"SEND AUTH HOLD REINVITE callId={activeCall.CallId} held={held}");
+            response = await SendAndWaitFromListenerAsync(authInvite, cancellationToken);
+        }
+
+        if (response.Code is >= 200 and < 300)
+        {
+            if (_activeCall is null || _activeCall.CallId != activeCall.CallId) return new SipCallResult(false, "Call ended.");
+            _activeCall = _activeCall with { RemoteTag = ExtractTag(response.Headers.GetValueOrDefault("to", "")), OnHold = held };
+            await SendAckForInviteResponseAsync(response, cancellationToken, false);
+            if (secondaryAudio)
+            {
+                _audioSession?.SetSecondaryHeld(held);
+            }
+            else
+            {
+                _audioSession?.SetHeld(held);
+            }
+            DebugLog.Write($"HOLD state accepted held={held} callId={_activeCall.CallId}");
+            return new SipCallResult(true, held ? "Call placed on hold." : "Call resumed.");
+        }
+
+        if (response.Code >= 300)
+        {
+            await SendAckForFinalInviteResponseAsync(response, cancellationToken);
+        }
+
+        return new SipCallResult(false, $"Hold request failed: {response.Code} {response.Reason}".Trim());
+    }
+
+    public void SetHeldLocal(bool held)
+    {
+        _audioSession?.SetHeld(held);
+    }
+
+    public async Task<SipCallResult> AnswerCallAsync(PendingIncomingCall incoming, CancellationToken cancellationToken = default)
+    {
+        _pendingIncomingCall = incoming;
+        return await AnswerIncomingCallAsync(cancellationToken);
+    }
+
+    public async Task<SipCallResult> ResumeSpecificCallAsync(string callId, CancellationToken cancellationToken = default)
+    {
+        if (string.Equals(_line2Call?.CallId, callId, StringComparison.OrdinalIgnoreCase))
+        {
+            return await HoldLineAsync(2, false, cancellationToken);
+        }
+
+        if (string.Equals(_line1Call?.CallId, callId, StringComparison.OrdinalIgnoreCase))
+        {
+            return await HoldLineAsync(1, false, cancellationToken);
+        }
+
+        return await SetHeldAsync(false, cancellationToken);
+    }
+
+    public async Task PublishPresenceAsync(string status, CancellationToken cancellationToken = default)
+    {
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            _publishedPresence = status;
+        }
+
+        if (!_registered || _config is null || string.IsNullOrEmpty(_domain))
+        {
+            return;
+        }
+
+        await _sipCommandLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (string.IsNullOrEmpty(_publishCallId))
+            {
+                _publishCallId = Guid.NewGuid().ToString("N");
+                _publishLocalTag = Guid.NewGuid().ToString("N")[..12];
+            }
+
+            var publishCseq = _publishCseq++;
+            var isOffline = status.Equals("Offline", StringComparison.OrdinalIgnoreCase) ||
+                            status.Equals("Appear Offline", StringComparison.OrdinalIgnoreCase);
+            var basicStatus = isOffline ? "closed" : "open";
+            var expires = isOffline ? 0 : 3600;
+
+            var isBusyOrDnd = IsBusyOrDndPresence(status);
+            var noteText = PresenceNote(status);
+
+            var activityXml = status.ToLowerInvariant() switch
+            {
+                "away" or "appear away" => "      <rpid:away/>\n",
+                "dnd" or "do not disturb" => "      <rpid:do-not-disturb/>\n      <rpid:on-the-phone/>\n",
+                "busy" => "      <rpid:busy/>\n      <rpid:on-the-phone/>\n",
+                "available" => "      <rpid:available/>\n",
+                _ => ""
+            };
+
+            var contentBuilder = new StringBuilder();
+            contentBuilder.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+            contentBuilder.AppendLine("<presence xmlns=\"urn:ietf:params:xml:ns:pidf\"");
+            contentBuilder.AppendLine("          xmlns:dm=\"urn:ietf:params:xml:ns:pidf:data-model\"");
+            contentBuilder.AppendLine("          xmlns:rpid=\"urn:ietf:params:xml:ns:pidf:rpid\"");
+            contentBuilder.AppendLine($"          entity=\"sip:{_config.Extension}@{_domain}\">");
+            contentBuilder.AppendLine($"  <tuple id=\"{_config.Extension}\">");
+            contentBuilder.AppendLine("    <status>");
+            contentBuilder.AppendLine($"      <basic>{basicStatus}</basic>");
+            contentBuilder.AppendLine("    </status>");
+            contentBuilder.AppendLine($"    <note>{noteText}</note>");
+            contentBuilder.AppendLine("  </tuple>");
+            if (!string.IsNullOrWhiteSpace(activityXml))
+            {
+                contentBuilder.AppendLine($"  <dm:person id=\"p_{_config.Extension}\">");
+                contentBuilder.AppendLine("    <rpid:activities>");
+                contentBuilder.Append(activityXml);
+                contentBuilder.AppendLine("    </rpid:activities>");
+                contentBuilder.AppendLine($"    <dm:note>{noteText}</dm:note>");
+                contentBuilder.AppendLine("  </dm:person>");
+            }
+            contentBuilder.Append("</presence>");
+            
+            var content = contentBuilder.ToString();
+
+            var publishRequest = BuildPublish(_config.Extension, _publishCallId, _publishLocalTag, publishCseq, content, expires, null);
+            
+            try
+            {
+                var response = await SendAndWaitFromListenerAsync(publishRequest, cancellationToken);
+                if (response.Code is 401 or 407)
+                {
+                    var challengeHeader = response.Headers.TryGetValue("www-authenticate", out var wwwAuthenticate)
+                        ? wwwAuthenticate
+                        : response.Headers.GetValueOrDefault("proxy-authenticate", "");
+                    var authCseq = _publishCseq++;
+                    var isProxy = response.Code == 407 || !response.Headers.ContainsKey("www-authenticate");
+                    var authorization = BuildDigestAuthorization("PUBLISH", $"sip:{_config.Extension}@{_domain}", challengeHeader);
+                    var authHeaderVal = isProxy ? $"Proxy-{authorization}" : authorization;
+                    var authorizedRequest = BuildPublish(_config.Extension, _publishCallId, _publishLocalTag, authCseq, content, expires, authHeaderVal);
+                    response = await SendAndWaitFromListenerAsync(authorizedRequest, cancellationToken);
+                }
+
+                if (response.Code is >= 200 and < 300)
+                {
+                    if (response.Headers.TryGetValue("sip-etag", out var etag))
+                    {
+                        _publishEtag = etag;
+                    }
+                    if (isOffline)
+                    {
+                        _publishEtag = "";
+                    }
+                    DebugLog.Write($"BLF publish presence succeeded status={status} note={noteText} code={response.Code} etag={_publishEtag}");
+                }
+                else if (response.Code == 412)
+                {
+                    _publishEtag = "";
+                    var retryCseq = _publishCseq++;
+                    var retryRequest = BuildPublish(_config.Extension, _publishCallId, _publishLocalTag, retryCseq, content, expires, null);
+                    _ = await SendAndWaitFromListenerAsync(retryRequest, cancellationToken);
+                }
+                else
+                {
+                    DebugLog.Write($"BLF publish presence response code={response.Code} reason={response.Reason}");
+                }
+
+                if (isBusyOrDnd)
+                {
+                    _ = Task.Run(() => NotifyOffHookStatusAsync(true, noteText, CancellationToken.None));
+                }
+                else if (status.Equals("Available", StringComparison.OrdinalIgnoreCase))
+                {
+                    _ = Task.Run(() => NotifyOffHookStatusAsync(false, "Phone is on the hook and available", CancellationToken.None));
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"Publish presence failed: {ex.Message}");
+            }
+        }
+        finally
+        {
+            _sipCommandLock.Release();
+        }
+    }
+
+    private string BuildPublish(string target, string callId, string localTag, int cseq, string content, int expires, string? authorization)
+    {
+        var sipIfMatch = string.IsNullOrEmpty(_publishEtag) ? "" : $"\r\nSIP-If-Match: {_publishEtag}";
+        var authHeader = "";
+        if (!string.IsNullOrWhiteSpace(authorization))
+        {
+            authHeader = authorization.StartsWith("Proxy-", StringComparison.OrdinalIgnoreCase)
+                ? $"\r\nProxy-Authorization: {authorization["Proxy-".Length..]}"
+                : $"\r\nAuthorization: {authorization}";
+        }
+
+        var contentLength = Encoding.UTF8.GetByteCount(content);
+
+        var sb = new StringBuilder();
+        sb.Append($"PUBLISH sip:{target}@{_domain} SIP/2.0\r\n");
+        sb.Append($"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={CreateBranch()};rport\r\n");
+        sb.Append("Max-Forwards: 70\r\n");
+        sb.Append($"To: <sip:{target}@{_domain}>\r\n");
+        sb.Append($"From: <sip:{_config!.Extension}@{_domain}>;tag={localTag}\r\n");
+        sb.Append($"Call-ID: {callId}\r\n");
+        sb.Append($"CSeq: {cseq} PUBLISH\r\n");
+        sb.Append("User-Agent: CK Media Services Merlin SIP\r\n");
+        sb.Append("Event: presence\r\n");
+        sb.Append($"Expires: {expires}\r\n");
+        sb.Append($"Content-Type: application/pidf+xml{sipIfMatch}{authHeader}\r\n");
+        sb.Append($"Content-Length: {contentLength}\r\n\r\n");
+        sb.Append(content);
+        
+        return sb.ToString();
+    }
+
+    public async Task NotifyOffHookStatusAsync(bool isOffHook, string reason = "Phone is off the hook and cannot be contacted", CancellationToken cancellationToken = default)
+    {
+        if (!_registered || _config is null || string.IsNullOrEmpty(_domain))
+        {
+            return;
+        }
+
+        await _sipCommandLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (string.IsNullOrEmpty(_notifyCallId))
+            {
+                _notifyCallId = Guid.NewGuid().ToString("N");
+                _notifyLocalTag = Guid.NewGuid().ToString("N")[..12];
+            }
+
+            var notifyCseq = _notifyCseq++;
+            var eventState = isOffHook ? "active;expires=3600" : "terminated;reason=noresource";
+            var noteText = isOffHook ? BusyHereStatus : "Phone is on the hook and available";
+
+            var content = BuildDialogInfoXml(_config.Extension, _domain, isOffHook, noteText);
+            var notifyRequest = BuildNotify(_config.Extension, _notifyCallId, _notifyLocalTag, notifyCseq, content, eventState, null);
+
+            DebugLog.Write($"SEND NOTIFY off-hook={isOffHook} note='{noteText}' requested='{reason}'");
+            try
+            {
+                var response = await SendAndWaitFromListenerAsync(notifyRequest, cancellationToken);
+                if (response.Code is 401 or 407)
+                {
+                    var challengeHeader = response.Headers.TryGetValue("www-authenticate", out var wwwAuthenticate)
+                        ? wwwAuthenticate
+                        : response.Headers.GetValueOrDefault("proxy-authenticate", "");
+                    var authCseq = _notifyCseq++;
+                    var isProxy = response.Code == 407 || !response.Headers.ContainsKey("www-authenticate");
+                    var authorization = BuildDigestAuthorization("NOTIFY", $"sip:{_config.Extension}@{_domain}", challengeHeader);
+                    var authHeaderVal = isProxy ? $"Proxy-{authorization}" : authorization;
+                    var authorizedRequest = BuildNotify(_config.Extension, _notifyCallId, _notifyLocalTag, authCseq, content, eventState, authHeaderVal);
+                    await SendAndWaitFromListenerAsync(authorizedRequest, cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"NOTIFY off-hook send error: {ex.Message}");
+            }
+        }
+        finally
+        {
+            _sipCommandLock.Release();
+        }
+    }
+
+    public const string BusyHereStatus = "BusyHere";
+
+    internal static bool IsBusyOrDndPresence(string? status)
+    {
+        return status != null && (
+            status.Equals("Busy", StringComparison.OrdinalIgnoreCase) ||
+            status.Equals("DND", StringComparison.OrdinalIgnoreCase) ||
+            status.Equals("Do Not Disturb", StringComparison.OrdinalIgnoreCase) ||
+            status.Equals(BusyHereStatus, StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal static string PresenceNote(string? status)
+    {
+        return IsBusyOrDndPresence(status) ? BusyHereStatus : status ?? "";
+    }
+
+    internal static string BuildDialogInfoXml(string extension, string domain, bool isOffHook, string noteText)
+    {
+        var state = isOffHook ? "confirmed" : "terminated";
+        var contentBuilder = new StringBuilder();
+        contentBuilder.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+        contentBuilder.AppendLine("<dialog-info xmlns=\"urn:ietf:params:xml:ns:dialog-info\" version=\"1\" state=\"full\"");
+        contentBuilder.AppendLine($"             entity=\"sip:{extension}@{domain}\">");
+        contentBuilder.AppendLine($"  <dialog id=\"{extension}_offhook\" direction=\"recipient\">");
+        contentBuilder.AppendLine($"    <state>{state}</state>");
+        contentBuilder.AppendLine($"    <notes>{noteText}</notes>");
+        contentBuilder.AppendLine("  </dialog>");
+        contentBuilder.Append("</dialog-info>");
+        return contentBuilder.ToString();
+    }
+
+    internal string BuildNotify(string target, string callId, string localTag, int cseq, string content, string subscriptionState, string? authorization)
+    {
+        var authHeader = "";
+        if (!string.IsNullOrWhiteSpace(authorization))
+        {
+            authHeader = authorization.StartsWith("Proxy-", StringComparison.OrdinalIgnoreCase)
+                ? $"\r\nProxy-Authorization: {authorization["Proxy-".Length..]}"
+                : $"\r\nAuthorization: {authorization}";
+        }
+
+        var contentLength = Encoding.UTF8.GetByteCount(content);
+
+        var sb = new StringBuilder();
+        sb.Append($"NOTIFY sip:{target}@{_domain} SIP/2.0\r\n");
+        sb.Append($"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={CreateBranch()};rport\r\n");
+        sb.Append("Max-Forwards: 70\r\n");
+        sb.Append($"To: <sip:{target}@{_domain}>\r\n");
+        sb.Append($"From: <sip:{_config!.Extension}@{_domain}>;tag={localTag}\r\n");
+        sb.Append($"Call-ID: {callId}\r\n");
+        sb.Append($"CSeq: {cseq} NOTIFY\r\n");
+        sb.Append($"Contact: <sip:{_config.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}>\r\n");
+        sb.Append("User-Agent: CK Media Services Merlin SIP\r\n");
+        sb.Append("Event: dialog\r\n");
+        sb.Append($"Subscription-State: {subscriptionState}\r\n");
+        sb.Append($"Content-Type: application/dialog-info+xml{authHeader}\r\n");
+        sb.Append($"Content-Length: {contentLength}\r\n\r\n");
+        sb.Append(content);
+
+        return sb.ToString();
+    }
+
+    public async Task<SipCallResult> SendDtmfAsync(char digit, int line, CancellationToken cancellationToken = default)
+    {
+        if (_audioSession is null)
+        {
+            return new SipCallResult(false, "No active audio session.");
+        }
+
+        try
+        {
+            await _audioSession.SendDtmfAsync(digit, cancellationToken, isSecondary: line == 2);
+            return new SipCallResult(true, $"Sent DTMF {digit}.");
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"DTMF send failed digit={digit} line={line} error={error.Message}");
+            return new SipCallResult(false, "Unable to send DTMF tone.");
+        }
+    }
+
+    public Task<SipCallResult> SendDtmfAsync(char digit, CancellationToken cancellationToken = default)
+    {
+        return SendDtmfAsync(digit, _selectedLine, cancellationToken);
+    }
+
+    public async Task<SipCallResult> SendDtmfSequenceAsync(string code, int line, CancellationToken cancellationToken = default)
+    {
+        var digits = DeskPhone.DtmfDigits(code);
+        if (digits.Count == 0)
+        {
+            return new SipCallResult(false, "No feature code to send.");
+        }
+
+        foreach (var digit in digits)
+        {
+            var result = await SendDtmfAsync(digit, line, cancellationToken);
+            if (!result.Signalled)
+            {
+                return result;
+            }
+
+            await Task.Delay(180, cancellationToken);
+        }
+
+        return new SipCallResult(true, $"Sent {code}.");
+    }
+
+    public async Task<SipRegistrationResult> RegisterAsync(AppStartupConfig config, CancellationToken cancellationToken = default)
+    {
+        DisposeClient();
+
+        _config = config;
+        _passwordIsHa1 = null;
+        _domain = string.IsNullOrWhiteSpace(config.Domain) ? config.Server : config.Domain;
+        _localAddress = GetLocalAddress(config.Server);
+        if (config.UsesTcpSignalling || config.UsesTlsSignalling)
+        {
+            _tcpClient = new TcpClient();
+            await _tcpClient.ConnectAsync(config.Server, config.Port, cancellationToken);
+            _tcpClient.NoDelay = true;
+
+            if (config.UsesTlsSignalling)
+            {
+                var sslStream = new SslStream(_tcpClient.GetStream(), false, ValidateTlsCertificate);
+                await sslStream.AuthenticateAsClientAsync(config.Server);
+                _tcpStream = sslStream;
+                var localEndPoint = (IPEndPoint)_tcpClient.Client.LocalEndPoint!;
+                _localAddress = localEndPoint.Address.ToString();
+                _localPort = localEndPoint.Port;
+                DebugLog.Write($"SIP TLS connected local={_localAddress}:{_localPort} remote={config.Server}:{config.Port}");
+            }
+            else
+            {
+                _tcpStream = _tcpClient.GetStream();
+                var localEndPoint = (IPEndPoint)_tcpClient.Client.LocalEndPoint!;
+                _localAddress = localEndPoint.Address.ToString();
+                _localPort = localEndPoint.Port;
+                DebugLog.Write($"SIP TCP connected local={_localAddress}:{_localPort} remote={config.Server}:{config.Port}");
+            }
+        }
+        else
+        {
+            var bound = false;
+            var primaryPort = _config?.LocalSipPort > 0 ? _config.LocalSipPort : 5060;
+            foreach (var port in new[] { primaryPort, 5062, 5064, 5066 }.Distinct())
+            {
+                try
+                {
+                    _client = new UdpClient(new IPEndPoint(IPAddress.Any, port));
+                    bound = true;
+                    break;
+                }
+                catch (SocketException)
+                {
+                    // Port already in use, try the next one
+                }
+            }
+
+            if (!bound)
+            {
+                _client = new UdpClient(new IPEndPoint(IPAddress.Any, 0));
+            }
+
+            _localPort = ((IPEndPoint)_client!.Client.LocalEndPoint!).Port;
+        }
+
+        SipRegistrationResult result;
+        try
+        {
+            result = await RegisterCurrentSocketAsync(cancellationToken);
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"REGISTER failed error={error.Message}");
+            result = new SipRegistrationResult(false, $"Unable to connect: {error.Message}");
+        }
+        if (result.Connected)
+        {
+            _registered = true;
+            StartListening();
+            StartRegistrationRefresh();
+            StartNatKeepAlive();
+            StartHeartbeat();
+            StartMwi();
+        }
+
+        return result;
+    }
+
+    public async Task<SipCallResult> InviteLineAsync(int line, string destination, CancellationToken cancellationToken = default, bool isVideo = false)
+    {
+        if (line == 2)
+        {
+            return await InviteSecondaryLegAsync(destination, cancellationToken, isVideo);
+        }
+        return await InvitePrimaryLegAsync(destination, cancellationToken, isVideo);
+    }
+
+    public Task<SipCallResult> InviteAsync(string destination, CancellationToken cancellationToken = default, bool isVideo = false)
+    {
+        return InviteLineAsync(_selectedLine, destination, cancellationToken, isVideo);
+    }
+
+    private async Task<SipCallResult> InvitePrimaryLegAsync(string destination, CancellationToken cancellationToken, bool isVideo = false)
+    {
+        if (!IsTransportReady || _config is null)
+        {
+            return new SipCallResult(false, "Register the SIP account first.");
+        }
+
+        var registrationCheck = await RegisterCurrentSocketAsync(cancellationToken);
+        if (!registrationCheck.Connected)
+        {
+            _registered = false;
+            return new SipCallResult(false, $"Registration check failed: {registrationCheck.Message}");
+        }
+
+        _registered = true;
+
+        var callId = $"{Guid.NewGuid():N}@merlin-sip";
+        var target = destination.Contains('@') ? destination : $"{destination}@{_domain}";
+        var localTag = Guid.NewGuid().ToString("N")[..12];
+        var cseq = _inviteCseq++;
+        var inviteBranch = CreateBranch();
+        try
+        {
+            await _disposingAudioTask.WaitAsync(TimeSpan.FromMilliseconds(1000), cancellationToken);
+        }
+        catch { }
+
+        if (_audioSession is null)
+        {
+            _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume);
+            try
+            {
+                _audioSession.PrepareDevices();
+            }
+            catch (Exception error)
+            {
+                DebugLog.Write($"RTP prepare failed input={_config.AudioInput.Name} output={_config.AudioOutput.Name} error={error.Message}");
+                _audioSession.Dispose();
+                _audioSession = null;
+                return new SipCallResult(false, $"Audio device failed to open: {error.Message}");
+            }
+        }
+
+        if (isVideo && _videoSession == null && _config != null)
+        {
+            _videoSession = new RtpVideoSession(_config.VideoSource);
+        }
+        var invite = BuildInvite(target, callId, localTag, cseq, inviteBranch, null, isVideo: isVideo);
+        DebugLog.Write($"SEND INVITE line=1 target={target} callId={callId}");
+        var activeCall = new ActiveCall(callId, target, localTag, cseq, inviteBranch, false, null, false, LineNumber: 1, IsVideo: isVideo);
+        _line1Call = activeCall;
+        var firstResponse = await SendAndWaitFromListenerAsync(invite, cancellationToken);
+        DebugLog.Write($"INVITE RESPONSE line=1 code={firstResponse.Code} reason={firstResponse.Reason}");
+        if (!IsCurrentCall(callId))
+        {
+            return new SipCallResult(false, "Call ended.");
+        }
+
+        if (firstResponse.Code is >= 100 and < 300)
+        {
+            _line1Call = _line1Call with { Established = firstResponse.Code >= 200, RemoteTag = ExtractTag(firstResponse.Headers.GetValueOrDefault("to", "")) };
+            if (firstResponse.Code >= 200)
+            {
+                await AcknowledgeAndStartAudioForCallAsync(_line1Call, firstResponse, cancellationToken, useSecondaryAudio: false);
+            }
+
+            return new SipCallResult(true, DescribeCallProgress(firstResponse));
+        }
+
+        if (firstResponse.Code is 401 or 407)
+        {
+            if (_line1Call is null || _line1Call.CallId != activeCall.CallId) return new SipCallResult(false, "Call ended.");
+            _line1Call = _line1Call with { RemoteTag = ExtractTag(firstResponse.Headers.GetValueOrDefault("to", "")) };
+            await SendAckForFinalInviteResponseForCallAsync(_line1Call, firstResponse, cancellationToken);
+
+            var challengeHeader = firstResponse.Headers.TryGetValue("www-authenticate", out var wwwAuthenticate)
+                ? wwwAuthenticate
+                : firstResponse.Headers.GetValueOrDefault("proxy-authenticate", "");
+            var authorization = BuildDigestAuthorization("INVITE", $"sip:{target}", challengeHeader);
+            var authCseq = _inviteCseq++;
+            var authBranch = CreateBranch();
+            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization, isVideo: isVideo, proxyAuthorization: firstResponse.Code == 407);
+            DebugLog.Write($"SEND AUTH INVITE line=1 target={target} callId={callId}");
+            activeCall = new ActiveCall(callId, target, localTag, authCseq, authBranch, false, null, false, LineNumber: 1, IsVideo: isVideo);
+            _line1Call = activeCall;
+            var secondResponse = await SendAndWaitFromListenerAsync(secondInvite, cancellationToken);
+            DebugLog.Write($"AUTH INVITE RESPONSE line=1 code={secondResponse.Code} reason={secondResponse.Reason}");
+            if (!IsCurrentCall(callId))
+            {
+                return new SipCallResult(false, "Call ended.");
+            }
+
+            if (secondResponse.Code is >= 100 and < 300)
+            {
+                _line1Call = _line1Call with { Established = secondResponse.Code >= 200, RemoteTag = ExtractTag(secondResponse.Headers.GetValueOrDefault("to", "")) };
+                if (secondResponse.Code >= 200)
+                {
+                    await AcknowledgeAndStartAudioForCallAsync(_line1Call, secondResponse, cancellationToken, useSecondaryAudio: false);
+                }
+            }
+
+            if (secondResponse.Code is >= 100 and < 300)
+            {
+                return new SipCallResult(true, DescribeCallProgress(secondResponse));
+            }
+
+            if (_line1Call is not null && _line1Call.CallId == activeCall.CallId)
+            {
+                try
+                {
+                    _line1Call = _line1Call with { RemoteTag = ExtractTag(secondResponse.Headers.GetValueOrDefault("to", "")) };
+                    await SendAckForFinalInviteResponseForCallAsync(_line1Call, secondResponse, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.Write($"ACK send failure: {ex.Message}");
+                }
+                _line1Call = null;
+            }
+            _lastCallFailureResponse = secondResponse;
+            if (_line2Call is null)
+            {
+                DisposeAudioSessionInBackground(_audioSession, "invite auth failure");
+                _audioSession = null;
+            }
+            return new SipCallResult(false, $"Call failed: {secondResponse.Code} {secondResponse.Reason}".Trim());
+        }
+
+        if (_line1Call is not null && _line1Call.CallId == activeCall.CallId)
+        {
+            try
+            {
+                _line1Call = _line1Call with { RemoteTag = ExtractTag(firstResponse.Headers.GetValueOrDefault("to", "")) };
+                await SendAckForFinalInviteResponseForCallAsync(_line1Call, firstResponse, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"ACK send failure: {ex.Message}");
+            }
+            _line1Call = null;
+        }
+        _lastCallFailureResponse = firstResponse;
+        if (_line2Call is null)
+        {
+            DisposeAudioSessionInBackground(_audioSession, "invite failure");
+            _audioSession = null;
+        }
+        return new SipCallResult(false, $"Call failed: {firstResponse.Code} {firstResponse.Reason}".Trim());
+    }
+
+    private async Task<SipCallResult> InviteSecondaryLegAsync(string destination, CancellationToken cancellationToken, bool isVideo = false)
+    {
+        if (!IsTransportReady || _config is null)
+        {
+            return new SipCallResult(false, "Register the SIP account first.");
+        }
+
+        if (_audioSession is null)
+        {
+            _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume);
+            try
+            {
+                _audioSession.PrepareDevices();
+            }
+            catch (Exception error)
+            {
+                DebugLog.Write($"RTP prepare failed for line 2: {error.Message}");
+                _audioSession.Dispose();
+                _audioSession = null;
+                return new SipCallResult(false, $"Audio device failed to open: {error.Message}");
+            }
+        }
+
+        var registrationCheck = await RegisterCurrentSocketAsync(cancellationToken);
+        if (!registrationCheck.Connected)
+        {
+            _registered = false;
+            return new SipCallResult(false, $"Registration check failed: {registrationCheck.Message}");
+        }
+
+        _registered = true;
+        var callId = $"{Guid.NewGuid():N}@merlin-sip";
+        var target = destination.Contains('@') ? destination : $"{destination}@{_domain}";
+        var localTag = Guid.NewGuid().ToString("N")[..12];
+        var cseq = _inviteCseq++;
+        var inviteBranch = CreateBranch();
+        var mediaPort = _audioSession.PrepareSecondarySocket();
+        if (isVideo && _videoSession == null && _config != null)
+        {
+            _videoSession = new RtpVideoSession(_config.VideoSource);
+        }
+        var invite = BuildInvite(target, callId, localTag, cseq, inviteBranch, null, mediaPort, isVideo: isVideo);
+        DebugLog.Write($"SEND INVITE line=2 target={target} callId={callId} mediaPort={mediaPort}");
+        var call = new ActiveCall(callId, target, localTag, cseq, inviteBranch, false, null, false, LineNumber: 2, IsVideo: isVideo);
+        _line2Call = call;
+        var firstResponse = await SendAndWaitFromListenerAsync(invite, cancellationToken);
+        DebugLog.Write($"INVITE RESPONSE line=2 code={firstResponse.Code} reason={firstResponse.Reason}");
+        if (!IsCurrentCall(callId))
+        {
+            return new SipCallResult(false, "Call ended.");
+        }
+
+        if (firstResponse.Code is >= 100 and < 300)
+        {
+            _line2Call = _line2Call with { Established = firstResponse.Code >= 200, RemoteTag = ExtractTag(firstResponse.Headers.GetValueOrDefault("to", "")) };
+            if (firstResponse.Code >= 200)
+            {
+                await AcknowledgeAndStartAudioForCallAsync(_line2Call, firstResponse, cancellationToken, useSecondaryAudio: true);
+            }
+
+            return new SipCallResult(true, DescribeCallProgress(firstResponse));
+        }
+
+        if (firstResponse.Code is 401 or 407)
+        {
+            if (_line2Call is null || _line2Call.CallId != call.CallId) return new SipCallResult(false, "Call ended.");
+            _line2Call = _line2Call with { RemoteTag = ExtractTag(firstResponse.Headers.GetValueOrDefault("to", "")) };
+            await SendAckForFinalInviteResponseForCallAsync(_line2Call, firstResponse, cancellationToken);
+
+            var challengeHeader = firstResponse.Headers.TryGetValue("www-authenticate", out var wwwAuthenticate)
+                ? wwwAuthenticate
+                : firstResponse.Headers.GetValueOrDefault("proxy-authenticate", "");
+            var authorization = BuildDigestAuthorization("INVITE", $"sip:{target}", challengeHeader);
+            var authCseq = _inviteCseq++;
+            var authBranch = CreateBranch();
+            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization, mediaPort, isVideo: isVideo, proxyAuthorization: firstResponse.Code == 407);
+            DebugLog.Write($"SEND AUTH INVITE line=2 target={target} callId={callId} mediaPort={mediaPort}");
+            call = new ActiveCall(callId, target, localTag, authCseq, authBranch, false, null, false, LineNumber: 2, IsVideo: isVideo);
+            _line2Call = call;
+            var secondResponse = await SendAndWaitFromListenerAsync(secondInvite, cancellationToken);
+            DebugLog.Write($"AUTH INVITE RESPONSE line=2 code={secondResponse.Code} reason={secondResponse.Reason}");
+            if (!IsCurrentCall(callId))
+            {
+                return new SipCallResult(false, "Call ended.");
+            }
+
+            if (secondResponse.Code is >= 100 and < 300)
+            {
+                _line2Call = _line2Call with { Established = secondResponse.Code >= 200, RemoteTag = ExtractTag(secondResponse.Headers.GetValueOrDefault("to", "")) };
+                if (secondResponse.Code >= 200)
+                {
+                    await AcknowledgeAndStartAudioForCallAsync(_line2Call, secondResponse, cancellationToken, useSecondaryAudio: true);
+                }
+
+                return new SipCallResult(true, DescribeCallProgress(secondResponse));
+            }
+
+            if (_line2Call is not null && _line2Call.CallId == call.CallId)
+            {
+                try
+                {
+                    _line2Call = _line2Call with { RemoteTag = ExtractTag(secondResponse.Headers.GetValueOrDefault("to", "")) };
+                    await SendAckForFinalInviteResponseForCallAsync(_line2Call, secondResponse, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.Write($"ACK send failure: {ex.Message}");
+                }
+                _line2Call = null;
+            }
+            _lastCallFailureResponse = secondResponse;
+            _audioSession.StopSecondary();
+            if (_line1Call is null)
+            {
+                DisposeAudioSessionInBackground(_audioSession, "line 2 invite auth failure");
+                _audioSession = null;
+            }
+            return new SipCallResult(false, $"Call failed: {secondResponse.Code} {secondResponse.Reason}".Trim());
+        }
+
+        if (_line2Call is not null && _line2Call.CallId == call.CallId)
+        {
+            try
+            {
+                _line2Call = _line2Call with { RemoteTag = ExtractTag(firstResponse.Headers.GetValueOrDefault("to", "")) };
+                await SendAckForFinalInviteResponseForCallAsync(_line2Call, firstResponse, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"ACK send failure: {ex.Message}");
+            }
+            _line2Call = null;
+        }
+        _lastCallFailureResponse = firstResponse;
+        _audioSession.StopSecondary();
+        if (_line1Call is null)
+        {
+            DisposeAudioSessionInBackground(_audioSession, "line 2 invite failure");
+            _audioSession = null;
+        }
+        return new SipCallResult(false, $"Call failed: {firstResponse.Code} {firstResponse.Reason}".Trim());
+    }
+
+    public async Task<SipCallResult> SendOptionsAsync(string? destination = null, CancellationToken cancellationToken = default)
+    {
+        if (!IsTransportReady || _config is null)
+        {
+            return new SipCallResult(false, "Register the SIP account first.");
+        }
+
+        var target = string.IsNullOrWhiteSpace(destination)
+            ? _domain
+            : destination.Contains('@') ? destination : $"{destination}@{_domain}";
+        var options = BuildOptions(target, $"{Guid.NewGuid():N}@merlin-sip", _messageCseq++);
+        DebugLog.Write($"SEND OPTIONS target={target}");
+        var response = await SendAndWaitFromListenerAsync(options, cancellationToken);
+        DebugLog.Write($"OPTIONS RESPONSE code={response.Code} reason={response.Reason}");
+
+        return response.Code is >= 200 and < 300
+            ? new SipCallResult(true, $"OPTIONS accepted: {response.Code} {response.Reason}".Trim())
+            : new SipCallResult(false, $"OPTIONS failed: {response.Code} {response.Reason}".Trim());
+    }
+
+    public async Task SubscribeToContactPresenceAsync(IEnumerable<string> extensions, CancellationToken cancellationToken = default)
+    {
+        if (!IsTransportReady || _config is null || !_registered)
+        {
+            return;
+        }
+
+        var validExtensions = extensions
+            .Select(NormalizeExtension)
+            .Where(value => !string.IsNullOrWhiteSpace(value) && value.Length <= 10)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var tasks = validExtensions.Select(async ext =>
+        {
+            try
+            {
+                await SubscribeToContactPresenceAsync(ext, cancellationToken);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                DebugLog.Write($"BLF subscribe failed extension={ext} error={error.Message}");
+            }
+        });
+        await Task.WhenAll(tasks);
+    }
+
+    private bool ValidateTlsCertificate(object? sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
+    {
+        if (_config?.IgnoreSslErrors == true)
+        {
+            return true;
+        }
+
+        return sslPolicyErrors == SslPolicyErrors.None;
+    }
+
+    public async Task<SipCallResult> RejectIncomingCallAsync(PendingIncomingCall incoming, bool redirectToVoicemail = false, CancellationToken cancellationToken = default)
+    {
+        if (!IsTransportReady || _config is null)
+        {
+            return new SipCallResult(false, "Register the SIP account first.");
+        }
+
+        if (redirectToVoicemail && !string.IsNullOrWhiteSpace(_config.MobileNumber))
+        {
+            var targetUri = $"sip:{_config.MobileNumber}@{_domain}";
+            await SendSimpleResponseAsync(
+                incoming.Request,
+                incoming.RemoteEndPoint,
+                302,
+                "Moved Temporarily",
+                cancellationToken,
+                incoming.LocalTag,
+                $"Contact: <{targetUri}>");
+        }
+        else
+        {
+            await SendSimpleResponseAsync(
+                incoming.Request,
+                incoming.RemoteEndPoint,
+                486,
+                "Busy Here",
+                cancellationToken,
+                incoming.LocalTag);
+        }
+
+        if (_pendingIncomingCall?.CallId == incoming.CallId)
+        {
+            _pendingIncomingCall = null;
+        }
+
+        return new SipCallResult(true, redirectToVoicemail ? "Call sent to voicemail." : "Incoming call rejected.");
+    }
+
+    private async Task SubscribeToContactPresenceAsync(string extension, CancellationToken cancellationToken)
+    {
+        var target = extension.Contains('@') ? extension : $"{extension}@{_domain}";
+        await SubscribeToContactPresenceAsync(extension, target, "dialog", "application/dialog-info+xml", cancellationToken);
+        await SubscribeToContactPresenceAsync(extension, target, "presence", "application/pidf+xml", cancellationToken);
+    }
+
+    private async Task SubscribeToContactPresenceAsync(string extension, string target, string eventName, string accept, CancellationToken cancellationToken)
+    {
+        var callId = $"{Guid.NewGuid():N}@merlin-sip";
+        var localTag = Guid.NewGuid().ToString("N")[..12];
+        _subscriptionCallIds[callId] = extension;
+        var cseq = _subscribeCseq++;
+        var request = BuildSubscribe(target, callId, localTag, cseq, eventName, accept, null);
+        DebugLog.Write($"SEND BLF SUBSCRIBE target={target} event={eventName} callId={callId}");
+        var response = await SendAndWaitFromListenerAsync(request, cancellationToken);
+
+        if (response.Code is 401 or 407)
+        {
+            var challengeHeader = response.Headers.TryGetValue("www-authenticate", out var wwwAuthenticate)
+                ? wwwAuthenticate
+                : response.Headers.GetValueOrDefault("proxy-authenticate", "");
+            var authCseq = _subscribeCseq++;
+            var authorization = BuildDigestAuthorization("SUBSCRIBE", $"sip:{target}", challengeHeader);
+            var authorized = BuildSubscribe(target, callId, localTag, authCseq, eventName, accept, authorization, response.Code == 407);
+            response = await SendAndWaitFromListenerAsync(authorized, cancellationToken);
+        }
+
+        if (response.Code is >= 200 and < 300)
+        {
+            DebugLog.Write($"BLF subscribed extension={extension} event={eventName} code={response.Code}");
+        }
+        else
+        {
+            DebugLog.Write($"BLF subscribe response extension={extension} event={eventName} code={response.Code} reason={response.Reason}");
+        }
+    }
+
+    public async Task<SipCallResult> AnswerIncomingCallAsync(CancellationToken cancellationToken = default)
+    {
+        if (!IsTransportReady || _config is null)
+        {
+            return new SipCallResult(false, "Register the SIP account first.");
+        }
+
+        if (_pendingIncomingCall is null)
+        {
+            return new SipCallResult(false, "No incoming call is waiting to be answered.");
+        }
+
+        var pendingCall = _pendingIncomingCall;
+        if (!TryParseRemoteAudio(pendingCall.Request, out var remoteAddress, out var remotePort, out var payloadType))
+        {
+            await SendSimpleResponseAsync(pendingCall.Request, pendingCall.RemoteEndPoint, 488, "Not Acceptable Here", cancellationToken, pendingCall.LocalTag);
+            _pendingIncomingCall = null;
+            DebugLog.Write($"INCOMING ANSWER failed no-remote-audio callId={pendingCall.CallId}");
+            return new SipCallResult(false, "Unable to answer because the call did not include usable audio details.");
+        }
+
+        _audioSession?.Dispose();
+        _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume);
+        try
+        {
+            _audioSession.PrepareDevices();
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"RTP prepare failed incoming input={_config.AudioInput.Name} output={_config.AudioOutput.Name} error={error.Message}");
+            _audioSession.Dispose();
+            _audioSession = null;
+            await SendSimpleResponseAsync(pendingCall.Request, pendingCall.RemoteEndPoint, 486, "Busy Here", cancellationToken, pendingCall.LocalTag);
+            _pendingIncomingCall = null;
+            QueueRegistrationRefresh("incoming answer audio failed");
+            return new SipCallResult(false, $"Audio device failed to open: {error.Message}");
+        }
+
+        var answer = BuildIncomingAnswer(pendingCall, payloadType);
+        var payload = Encoding.UTF8.GetBytes(answer);
+        await SendToRemoteAsync(payload, pendingCall.RemoteEndPoint, cancellationToken);
+        DebugLog.Write($"SEND INCOMING ANSWER callId={pendingCall.CallId} bytes={payload.Length}");
+
+        _activeCall = new ActiveCall(
+            pendingCall.CallId,
+            pendingCall.RemoteTarget,
+            pendingCall.LocalTag,
+            _inviteCseq++,
+            CreateBranch(),
+            true,
+            pendingCall.RemoteTag);
+        _pendingIncomingCall = null;
+
+        try
+        {
+            await _audioSession.StartAsync(remoteAddress, remotePort, payloadType);
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"RTP start failed incoming remote={remoteAddress}:{remotePort} error={error.Message}");
+        }
+
+        if (pendingCall.HasVideo && TryParseRemoteVideo(pendingCall.Request, out var inVideoAddress, out var inVideoPort, out var inVideoPayload))
+        {
+            try
+            {
+                _videoSession?.Dispose();
+                _videoSession = new RtpVideoSession(_config.VideoSource);
+                _videoSession.SetCodec(inVideoPayload == 97 ? "VP8 (Yeastar WebRTC/SIP)" : "H.264 (Yeastar WebRTC/SIP)");
+                if (IPAddress.TryParse(inVideoAddress, out var ipAddr))
+                {
+                    _videoSession.SetRemoteEndPoint(new IPEndPoint(ipAddr, inVideoPort));
+                    _videoSession.Start();
+                    DebugLog.Write($"RTP Video incoming started remote={inVideoAddress}:{inVideoPort}");
+                }
+            }
+            catch (Exception vErr)
+            {
+                DebugLog.Write($"RTP Video incoming start error: {vErr.Message}");
+            }
+        }
+
+        CallProgress?.Invoke(this, new CallProgressEventArgs(200, "OK", true, "Call connected."));
+        return new SipCallResult(true, "Call answered.");
+    }
+
+    public async Task<SipCallResult> DeclinePendingIncomingCallAsync(CancellationToken cancellationToken = default)
+    {
+        if (_pendingIncomingCall is null) return new SipCallResult(false, "No incoming call.");
+
+        var declineAction = _config?.DeclineIncomingAction ?? "Send busy";
+        var mobileNumber = _config?.MobileNumber;
+        try
+        {
+            if (declineAction.Contains("603", StringComparison.OrdinalIgnoreCase))
+            {
+                await SendSimpleResponseAsync(
+                    _pendingIncomingCall.Request,
+                    _pendingIncomingCall.RemoteEndPoint,
+                    603,
+                    "Decline",
+                    cancellationToken,
+                    _pendingIncomingCall.LocalTag);
+                DebugLog.Write($"SEND INCOMING DECLINE (603) callId={_pendingIncomingCall.CallId}");
+            }
+            else if (declineAction.Contains("480", StringComparison.OrdinalIgnoreCase))
+            {
+                await SendSimpleResponseAsync(
+                    _pendingIncomingCall.Request,
+                    _pendingIncomingCall.RemoteEndPoint,
+                    480,
+                    "Temporarily Unavailable",
+                    cancellationToken,
+                    _pendingIncomingCall.LocalTag);
+                DebugLog.Write($"SEND INCOMING REJECT (480) callId={_pendingIncomingCall.CallId}");
+            }
+            else if (!string.IsNullOrWhiteSpace(mobileNumber) && (declineAction.Contains("Mobile", StringComparison.OrdinalIgnoreCase) || declineAction.Contains("302", StringComparison.OrdinalIgnoreCase)))
+            {
+                var targetUri = $"sip:{mobileNumber}@{_domain}";
+                await SendSimpleResponseAsync(
+                    _pendingIncomingCall.Request,
+                    _pendingIncomingCall.RemoteEndPoint,
+                    302,
+                    "Moved Temporarily",
+                    cancellationToken,
+                    _pendingIncomingCall.LocalTag,
+                    $"Contact: <{targetUri}>");
+                DebugLog.Write($"SEND INCOMING REDIRECT (busy/decline) callId={_pendingIncomingCall.CallId} target={targetUri}");
+            }
+            else
+            {
+                await SendSimpleResponseAsync(
+                    _pendingIncomingCall.Request,
+                    _pendingIncomingCall.RemoteEndPoint,
+                    486,
+                    "Busy Here",
+                    cancellationToken,
+                    _pendingIncomingCall.LocalTag);
+                DebugLog.Write($"SEND INCOMING REJECT (486) callId={_pendingIncomingCall.CallId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"DeclinePendingIncomingCallAsync error: {ex.Message}");
+        }
+
+        _pendingIncomingCall = null;
+        if (_line1Call is null && _line2Call is null)
+        {
+            DisposeAudioSessionInBackground(_audioSession, "decline incoming");
+            _audioSession = null;
+        }
+        QueueRegistrationRefresh("incoming call rejected");
+        return new SipCallResult(true, "Incoming call declined.");
+    }
+
+    public async Task<SipCallResult> EndLineCallAsync(int line, CancellationToken cancellationToken = default)
+    {
+        if (!IsTransportReady || _config is null)
+        {
+            return new SipCallResult(false, "No active SIP call to end.");
+        }
+
+        var call = line == 2 ? _line2Call : _line1Call;
+        if (call is null)
+        {
+            if (_pendingIncomingCall is not null)
+            {
+                return await DeclinePendingIncomingCallAsync(cancellationToken);
+            }
+            return new SipCallResult(false, $"No active call on line {line}.");
+        }
+
+        var message = call.Established ? BuildBye(call) : BuildCancel(call);
+        var payload = Encoding.UTF8.GetBytes(message);
+        var method = call.Established ? "BYE" : "CANCEL";
+        DebugLog.Write($"SEND LINE {line} {method} callId={call.CallId} bytes={payload.Length}");
+
+        try
+        {
+            await SendToServerAsync(payload, cancellationToken);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    for (int i = 0; i < 2; i++)
+                    {
+                        await Task.Delay(20, CancellationToken.None);
+                        await SendToServerAsync(payload, CancellationToken.None);
+                    }
+                }
+                catch { }
+            });
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"SEND LINE {line} {method} failed callId={call.CallId} error={error.Message}");
+        }
+
+        if (line == 2)
+        {
+            _line2Call = null;
+            _audioSession?.StopSecondary();
+        }
+        else
+        {
+            _line1Call = null;
+        }
+
+        if (_line1Call is null && _line2Call is null)
+        {
+            var audioSession = _audioSession;
+            _audioSession = null;
+            DisposeAudioSessionInBackground(audioSession, $"local hangup line {line}");
+            QueueRegistrationRefresh($"local hangup line {line}");
+        }
+
+        CallEnded?.Invoke(this, new CallEndedEventArgs("Call ended.", CallId: call.CallId, LineNumber: line));
+        return new SipCallResult(true, "Call ended.");
+    }
+
+    public Task<SipCallResult> EndCallAsync(CancellationToken cancellationToken = default)
+    {
+        if (_pendingIncomingCall is not null)
+        {
+            return DeclinePendingIncomingCallAsync(cancellationToken);
+        }
+        return EndLineCallAsync(_selectedLine, cancellationToken);
+    }
+
+    public async Task<SipCallResult> TransferAsync(string destination, CancellationToken cancellationToken = default)
+    {
+        await _sipCommandLock.WaitAsync(cancellationToken);
+        try
+        {
+            var activeCall = _activeCall;
+            if (!IsTransportReady || _config is null || activeCall is null || !activeCall.Established)
+            {
+                return new SipCallResult(false, "Connect a call before transferring.");
+            }
+
+            var transferTarget = destination.Contains('@') ? destination : $"{destination}@{_domain}";
+            var refer = BuildRefer(activeCall, transferTarget);
+            var notifySource = new TaskCompletionSource<SipCallResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pendingReferTransfer = new PendingReferTransfer(activeCall.CallId, notifySource);
+            DebugLog.Write($"SEND REFER callId={activeCall.CallId} target={transferTarget} bytes={Encoding.UTF8.GetByteCount(refer)}");
+            try
+            {
+                var referResponse = await SendAndWaitFromListenerAsync(refer, cancellationToken);
+                DebugLog.Write($"REFER RESPONSE code={referResponse.Code} reason={referResponse.Reason} callId={activeCall.CallId}");
+                if (referResponse.Code is < 200 or >= 300)
+                {
+                    _pendingReferTransfer = null;
+                    return new SipCallResult(false, $"Transfer rejected: {referResponse.Code} {referResponse.Reason}".Trim());
+                }
+
+                var completed = await Task.WhenAny(notifySource.Task, Task.Delay(TimeSpan.FromSeconds(12), cancellationToken));
+                if (completed != notifySource.Task)
+                {
+                    _pendingReferTransfer = null;
+                    DebugLog.Write($"REFER notification timed out callId={activeCall.CallId}");
+                    return new SipCallResult(false, "Transfer was accepted by the PBX, but no completion confirmation was received. The call has been left connected.");
+                }
+
+                var transferResult = await notifySource.Task;
+                if (!transferResult.Signalled)
+                {
+                    _pendingReferTransfer = null;
+                    return transferResult;
+                }
+
+                await SendByeAfterTransferAsync(activeCall, cancellationToken);
+            }
+            catch (Exception error)
+            {
+                _pendingReferTransfer = null;
+                DebugLog.Write($"SEND REFER failed callId={activeCall.CallId} error={error.Message}");
+                return new SipCallResult(false, $"Unable to transfer call: {error.Message}");
+            }
+
+            _pendingReferTransfer = null;
+            var audioSession = _audioSession;
+            _audioSession = null;
+            _activeCall = null;
+            _conferenceCall = null;
+            _pendingIncomingCall = null;
+            DisposeAudioSessionInBackground(audioSession, "transfer");
+            QueueRegistrationRefresh("transfer");
+            CallEnded?.Invoke(this, new CallEndedEventArgs("Call transferred."));
+            return new SipCallResult(true, $"Transfer completed to {destination}.");
+        }
+        finally
+        {
+            _pendingReferTransfer = null;
+            _sipCommandLock.Release();
+        }
+    }
+
+    public async Task<SipCallResult> CompleteAssistedTransferAsync(CancellationToken cancellationToken = default)
+    {
+        await _sipCommandLock.WaitAsync(cancellationToken);
+        try
+        {
+            var consultCall = _activeCall;
+            var originalCall = _conferenceCall;
+            if (!IsTransportReady || _config is null || consultCall is null || originalCall is null ||
+                !consultCall.Established || !originalCall.Established)
+            {
+                return new SipCallResult(false, "Start an assisted transfer before completing it.");
+            }
+            if (string.IsNullOrWhiteSpace(consultCall.RemoteTag))
+            {
+                return new SipCallResult(false, "Assisted transfer cannot complete because the consult call is missing PBX dialog details.");
+            }
+
+            var refer = BuildAttendedTransferRefer(originalCall, consultCall);
+            var notifySource = new TaskCompletionSource<SipCallResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pendingReferTransfer = new PendingReferTransfer(originalCall.CallId, notifySource);
+            DebugLog.Write($"SEND ATTENDED REFER original={originalCall.CallId} consult={consultCall.CallId} target={consultCall.Target}");
+            try
+            {
+                var referResponse = await SendAndWaitFromListenerAsync(refer, cancellationToken);
+                DebugLog.Write($"ATTENDED REFER RESPONSE code={referResponse.Code} reason={referResponse.Reason} original={originalCall.CallId}");
+                if (referResponse.Code is < 200 or >= 300)
+                {
+                    _pendingReferTransfer = null;
+                    return new SipCallResult(false, $"Assisted transfer rejected: {referResponse.Code} {referResponse.Reason}".Trim());
+                }
+
+                var completed = await Task.WhenAny(notifySource.Task, Task.Delay(TimeSpan.FromSeconds(12), cancellationToken));
+                if (completed != notifySource.Task)
+                {
+                    _pendingReferTransfer = null;
+                    return new SipCallResult(false, "Assisted transfer was accepted by the PBX, but no completion confirmation was received.");
+                }
+
+                var transferResult = await notifySource.Task;
+                if (!transferResult.Signalled)
+                {
+                    _pendingReferTransfer = null;
+                    return transferResult;
+                }
+
+                await SendByeAfterTransferAsync(consultCall, cancellationToken);
+            }
+            catch (Exception error)
+            {
+                _pendingReferTransfer = null;
+                DebugLog.Write($"ATTENDED REFER failed original={originalCall.CallId} consult={consultCall.CallId} error={error.Message}");
+                return new SipCallResult(false, $"Unable to complete assisted transfer: {error.Message}");
+            }
+
+            _pendingReferTransfer = null;
+            var audioSession = _audioSession;
+            _audioSession = null;
+            _activeCall = null;
+            _conferenceCall = null;
+            _pendingIncomingCall = null;
+            DisposeAudioSessionInBackground(audioSession, "assisted transfer");
+            QueueRegistrationRefresh("assisted transfer");
+            CallEnded?.Invoke(this, new CallEndedEventArgs("Assisted transfer completed."));
+            return new SipCallResult(true, "Assisted transfer completed.");
+        }
+        finally
+        {
+            _pendingReferTransfer = null;
+            _sipCommandLock.Release();
+        }
+    }
+
+    private async Task<SipCallResult> EndConferenceCallsAsync(CancellationToken cancellationToken)
+    {
+        var activeCall = _activeCall;
+        var conferenceCall = _conferenceCall;
+        if (activeCall is null && conferenceCall is null)
+        {
+            return new SipCallResult(false, "No active conference calls to end.");
+        }
+
+        var failures = new List<string>();
+        foreach (var call in new[] { activeCall, conferenceCall }.Where(call => call is not null).Cast<ActiveCall>())
+        {
+            var message = call.Established ? BuildBye(call) : BuildCancel(call);
+            var payload = Encoding.UTF8.GetBytes(message);
+            var method = call.Established ? "BYE" : "CANCEL";
+            DebugLog.Write($"SEND CONFERENCE {method} callId={call.CallId} bytes={payload.Length}");
+            try
+            {
+                await SendToServerAsync(payload, cancellationToken);
+            }
+            catch (Exception error)
+            {
+                DebugLog.Write($"SEND CONFERENCE {method} failed callId={call.CallId} error={error.Message}");
+                failures.Add($"{call.Target}: {error.Message}");
+            }
+        }
+
+        var audioSession = _audioSession;
+        _audioSession = null;
+        _activeCall = null;
+        _conferenceCall = null;
+        DisposeAudioSessionInBackground(audioSession, "local conference hangup");
+        QueueRegistrationRefresh("local conference hangup");
+
+        return failures.Count == 0
+            ? new SipCallResult(true, "Conference ended.")
+            : new SipCallResult(false, $"Conference cleanup sent with errors: {string.Join("; ", failures)}");
+    }
+
+    public async Task<SipCallResult> ConsultativeTransferAsync(string destination, CancellationToken cancellationToken = default)
+    {
+        var activeCall = _activeCall;
+        if (!IsTransportReady || _config is null || activeCall is null || !activeCall.Established)
+        {
+            return new SipCallResult(false, "Connect a call before starting a consultative transfer.");
+        }
+
+        var holdResult = await SetHeldAsync(true, cancellationToken);
+        if (!holdResult.Signalled)
+        {
+            return new SipCallResult(false, $"Failed to place initial call on hold: {holdResult.Message}");
+        }
+
+        _conferenceCall = activeCall;
+        _activeCall = null;
+
+        var inviteResult = await InviteConsultativeLegAsync(destination, cancellationToken);
+        if (!inviteResult.Signalled)
+        {
+            _activeCall = _conferenceCall;
+            _conferenceCall = null;
+            await SetHeldAsync(false, cancellationToken);
+            return new SipCallResult(false, $"Consultative call failed: {inviteResult.Message}");
+        }
+
+        return new SipCallResult(true, "Consultative call established. You may now speak to the third party.");
+    }
+
+    private async Task<SipCallResult> InviteConsultativeLegAsync(string destination, CancellationToken cancellationToken)
+    {
+        if (!IsTransportReady || _config is null || _audioSession is null)
+        {
+            return new SipCallResult(false, "Connect a call before adding a third party.");
+        }
+
+        var registrationCheck = await RegisterCurrentSocketAsync(cancellationToken);
+        if (!registrationCheck.Connected)
+        {
+            _registered = false;
+            return new SipCallResult(false, $"Registration check failed: {registrationCheck.Message}");
+        }
+
+        _registered = true;
+        var callId = $"{Guid.NewGuid():N}@merlin-sip";
+        var target = destination.Contains('@') ? destination : $"{destination}@{_domain}";
+        var localTag = Guid.NewGuid().ToString("N")[..12];
+        var cseq = _inviteCseq++;
+        var inviteBranch = CreateBranch();
+        var mediaPort = _audioSession.PrepareSecondarySocket();
+        var invite = BuildInvite(target, callId, localTag, cseq, inviteBranch, null, mediaPort);
+        DebugLog.Write($"SEND CONSULT INVITE target={target} callId={callId} mediaPort={mediaPort}");
+        var consultCall = new ActiveCall(callId, target, localTag, cseq, inviteBranch, false, null);
+        _activeCall = consultCall;
+        var firstResponse = await SendAndWaitFromListenerAsync(invite, cancellationToken);
+        DebugLog.Write($"CONSULT INVITE RESPONSE code={firstResponse.Code} reason={firstResponse.Reason}");
+        if (!IsCurrentCall(callId))
+        {
+            return new SipCallResult(false, "Consultative call ended.");
+        }
+
+        if (firstResponse.Code is >= 100 and < 300)
+        {
+            _activeCall = _activeCall with { Established = firstResponse.Code >= 200, RemoteTag = ExtractTag(firstResponse.Headers.GetValueOrDefault("to", "")) };
+            if (firstResponse.Code >= 200)
+            {
+                await AcknowledgeAndStartAudioAsync(firstResponse, cancellationToken, useSecondaryAudio: true);
+            }
+
+            return new SipCallResult(true, DescribeCallProgress(firstResponse));
+        }
+
+        if (firstResponse.Code is 401 or 407)
+        {
+            _activeCall = _activeCall with { RemoteTag = ExtractTag(firstResponse.Headers.GetValueOrDefault("to", "")) };
+            await SendAckForFinalInviteResponseAsync(firstResponse, cancellationToken);
+
+            var challengeHeader = firstResponse.Headers.TryGetValue("www-authenticate", out var wwwAuthenticate)
+                ? wwwAuthenticate
+                : firstResponse.Headers.GetValueOrDefault("proxy-authenticate", "");
+            var authorization = BuildDigestAuthorization("INVITE", $"sip:{target}", challengeHeader);
+            var authCseq = _inviteCseq++;
+            var authBranch = CreateBranch();
+            var secondInvite = BuildInvite(target, callId, localTag, authCseq, authBranch, authorization, mediaPort, proxyAuthorization: firstResponse.Code == 407);
+            DebugLog.Write($"SEND AUTH CONSULT INVITE target={target} callId={callId} mediaPort={mediaPort}");
+            _activeCall = new ActiveCall(callId, target, localTag, authCseq, authBranch, false, null);
+            var secondResponse = await SendAndWaitFromListenerAsync(secondInvite, cancellationToken);
+            DebugLog.Write($"AUTH CONSULT INVITE RESPONSE code={secondResponse.Code} reason={secondResponse.Reason}");
+            if (!IsCurrentCall(callId))
+            {
+                return new SipCallResult(false, "Consultative call ended.");
+            }
+
+            if (secondResponse.Code is >= 100 and < 300)
+            {
+                _activeCall = _activeCall with { Established = secondResponse.Code >= 200, RemoteTag = ExtractTag(secondResponse.Headers.GetValueOrDefault("to", "")) };
+                if (secondResponse.Code >= 200)
+                {
+                    await AcknowledgeAndStartAudioAsync(secondResponse, cancellationToken, useSecondaryAudio: true);
+                }
+
+                return new SipCallResult(true, DescribeCallProgress(secondResponse));
+            }
+
+            _activeCall = _activeCall with { RemoteTag = ExtractTag(secondResponse.Headers.GetValueOrDefault("to", "")) };
+            await SendAckForFinalInviteResponseAsync(secondResponse, cancellationToken);
+            _lastCallFailureResponse = secondResponse;
+            _activeCall = null;
+            _audioSession.StopSecondary();
+            return new SipCallResult(false, $"Consultative call failed: {secondResponse.Code} {secondResponse.Reason}".Trim());
+        }
+
+        _activeCall = _activeCall with { RemoteTag = ExtractTag(firstResponse.Headers.GetValueOrDefault("to", "")) };
+        await SendAckForFinalInviteResponseAsync(firstResponse, cancellationToken);
+        _lastCallFailureResponse = firstResponse;
+        _activeCall = null;
+        _audioSession.StopSecondary();
+        return new SipCallResult(false, $"Consultative call failed: {firstResponse.Code} {firstResponse.Reason}".Trim());
+    }
+
+    public async Task<SipCallResult> ConferenceAsync(CancellationToken cancellationToken = default)
+    {
+        var activeCall = _activeCall;
+        var conferenceCall = _conferenceCall;
+        
+        if (!IsTransportReady || _config is null || activeCall is null || !activeCall.Established || conferenceCall is null || !conferenceCall.Established)
+        {
+            return new SipCallResult(false, "Both an active call and a held call are required to create a conference.");
+        }
+
+        var transferTarget = $"sip:{conferenceCall.Target}";
+        var refer = BuildRefer(activeCall, transferTarget);
+        var payload = Encoding.UTF8.GetBytes(refer);
+        DebugLog.Write($"SEND CONFERENCE REFER activeId={activeCall.CallId} confId={conferenceCall.CallId} target={transferTarget}");
+        
+        try
+        {
+            await SendToServerAsync(payload, cancellationToken);
+            await SendByeAfterTransferAsync(activeCall, cancellationToken);
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"SEND CONFERENCE REFER failed callId={activeCall.CallId} error={error.Message}");
+            return new SipCallResult(false, $"Unable to bridge conference: {error.Message}");
+        }
+
+        _audioSession?.Dispose();
+        _audioSession = null;
+        _activeCall = null;
+        _conferenceCall = null;
+        CallEnded?.Invoke(this, new CallEndedEventArgs("Conference created and transferred."));
+        return new SipCallResult(true, "Calls have been bridged together.");
+    }
+
+    public async Task<SipCallResult> MergeConferenceAsync(CancellationToken cancellationToken = default)
+    {
+        var activeCall = _activeCall;
+        var conferenceCall = _conferenceCall;
+        
+        if (!CanMergeConference || activeCall is null || conferenceCall is null)
+        {
+            return new SipCallResult(false, "Cannot merge. Requires one active and one held call.");
+        }
+
+        if (activeCall.OnHold)
+        {
+            await SetHeldAsync(false, cancellationToken);
+        }
+        if (conferenceCall.OnHold)
+        {
+            var temp = _activeCall;
+            _activeCall = conferenceCall;
+            await SetHeldForCurrentCallAsync(false, secondaryAudio: true, cancellationToken);
+            _conferenceCall = _activeCall;
+            _activeCall = temp;
+        }
+
+        try
+        {
+            if (_audioSession is not null)
+                _audioSession.MergeConference();
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"MERGE AUDIO FAILED active={activeCall.CallId} conf={conferenceCall.CallId} error={error.Message}");
+        }
+
+        return new SipCallResult(true, "Local conference merge active.");
+    }
+
+    public async Task<SipCallResult> SplitConferenceAsync(CancellationToken cancellationToken = default)
+    {
+        var activeCall = _activeCall;
+        var conferenceCall = _conferenceCall;
+        
+        if (!IsConferenceMerged || activeCall is null || conferenceCall is null)
+        {
+            return new SipCallResult(false, "No active merged conference to split.");
+        }
+
+        try
+        {
+            if (_audioSession is not null)
+                _audioSession.UnmergeConference();
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"SPLIT AUDIO FAILED active={activeCall.CallId} conf={conferenceCall.CallId} error={error.Message}");
+        }
+
+        var temp = _activeCall;
+        _activeCall = conferenceCall;
+        await SetHeldForCurrentCallAsync(true, secondaryAudio: true, cancellationToken);
+        _conferenceCall = _activeCall;
+        _activeCall = temp;
+
+        return new SipCallResult(true, "Conference split. Call 2 placed on hold.");
+    }
+
+    public async Task<SipCallResult> ConferenceAsync(string destination, CancellationToken cancellationToken = default)
+    {
+        if (!IsTransportReady || _config is null || _activeCall is null || !_activeCall.Established)
+        {
+            return new SipCallResult(false, "Connect a call before conferencing.");
+        }
+
+        var conferenceTarget = destination.Contains('@') ? destination : $"{destination}@{_domain}";
+        var refer = BuildRefer(_activeCall, conferenceTarget);
+        var payload = Encoding.UTF8.GetBytes(refer);
+        DebugLog.Write($"SEND REFER for conference callId={_activeCall.CallId} target={conferenceTarget} bytes={payload.Length}");
+        try
+        {
+            await SendToServerAsync(payload, cancellationToken);
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"SEND REFER for conference failed callId={_activeCall.CallId} error={error.Message}");
+            return new SipCallResult(false, $"Unable to add to conference: {error.Message}");
+        }
+
+        // Note: Unlike transfer, we keep the active call for conference
+        return new SipCallResult(true, $"Conference request sent to {destination}.");
+    }
+
+    private string BuildOptions(string target, string callId, string localTag, int cseq, string branch)
+    {
+        return string.Join("\r\n", [
+            $"OPTIONS sip:{target} SIP/2.0",
+            $"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={branch};rport",
+            "Max-Forwards: 70",
+            $"From: <sip:{_config!.Extension}@{_domain}>;tag={localTag}",
+            $"To: <sip:{target}>",
+            $"Call-ID: {callId}",
+            $"CSeq: {cseq} OPTIONS",
+            $"Contact: <sip:{_config.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}>",
+            "User-Agent: CK Media Services Merlin SIP",
+            "Allow: INVITE, ACK, CANCEL, BYE, OPTIONS, REGISTER, REFER, NOTIFY, MESSAGE",
+            "Supported: replaces, timer",
+            "Content-Length: 0",
+            "",
+            ""
+        ]);
+    }
+
+    private async Task SendByeAfterTransferAsync(ActiveCall call, CancellationToken cancellationToken)
+    {
+        if (!IsTransportReady || _config is null)
+        {
+            return;
+        }
+
+        var bye = BuildBye(call);
+        var payload = Encoding.UTF8.GetBytes(bye);
+        DebugLog.Write($"SEND BYE after transfer callId={call.CallId} bytes={payload.Length}");
+        await SendToServerAsync(payload, cancellationToken);
+    }
+
+    private static void DisposeAudioSessionInBackground(RtpAudioSession? audioSession, string reason)
+    {
+        if (audioSession is null)
+        {
+            return;
+        }
+
+        _disposingAudioTask = Task.Run(() =>
+        {
+            try
+            {
+                audioSession.Dispose();
+                DebugLog.Write($"RTP disposed reason={reason}");
+            }
+            catch (Exception error)
+            {
+                DebugLog.Write($"RTP dispose failed reason={reason} error={error.Message}");
+            }
+        });
+    }
+
+    public void Dispose()
+    {
+        DisposeClient();
+    }
+
+    public Task<SipRegistrationResult> RefreshRegistrationAsync(CancellationToken cancellationToken = default)
+    {
+        return RegisterCurrentSocketAsync(cancellationToken);
+    }
+
+    private async Task<SipRegistrationResult> RegisterCurrentSocketAsync(CancellationToken cancellationToken)
+    {
+        if (!IsTransportReady || _config is null)
+        {
+            return new SipRegistrationResult(false, "Network or configuration is unavailable.");
+        }
+
+                if (_discoveredLanEndPoint is not null)
+        {
+            _cachedServerEndPoint = _discoveredLanEndPoint;
+        }
+        else if (IPAddress.TryParse(_config.Server, out var address))
+        {
+            _cachedServerEndPoint = new IPEndPoint(address, _config.Port);
+        }
+        else
+        {
+            var addresses = await Dns.GetHostAddressesAsync(_config.Server, cancellationToken);
+            _cachedServerEndPoint = new IPEndPoint(addresses[0], _config.Port);
+        }
+
+        if (_activeCall is not null)
+        {
+            DebugLog.Write("REGISTER skipped because a call is active");
+            return new SipRegistrationResult(true, "Call in progress.");
+        }
+
+        var republishBusyHere = false;
+        await _registrationLock.WaitAsync(cancellationToken);
+        try
+        {
+            var callId = $"{Guid.NewGuid():N}@merlin-sip";
+            var first = BuildRegister(callId, _registerCseq++, null);
+            DebugLog.Write($"SEND REGISTER callId={callId} listener={_listenerStarted}");
+            var firstResponse = _listenerStarted
+                ? await SendAndWaitFromListenerAsync(first, cancellationToken)
+                : await SendAndReceiveDirectAsync(first, cancellationToken);
+            DebugLog.Write($"REGISTER RESPONSE code={firstResponse.Code} reason={firstResponse.Reason}");
+
+            if (firstResponse.Code == 0 && !UseStreamSignalling)
+            {
+                DebugLog.Write($"SIP server {_config.Server} timed out at {_cachedServerEndPoint}. Probing for local LAN PBX / NAT Hairpin fallback...");
+                var lanPbx = await ProbeLocalLanPbxAsync(cancellationToken);
+                if (lanPbx is not null)
+                {
+                    _discoveredLanEndPoint = lanPbx;
+                    _cachedServerEndPoint = lanPbx;
+                    DebugLog.Write($"Retrying REGISTER against local LAN PBX at {_cachedServerEndPoint}...");
+                    firstResponse = _listenerStarted
+                        ? await SendAndWaitFromListenerAsync(first, cancellationToken)
+                        : await SendAndReceiveDirectAsync(first, cancellationToken);
+                    DebugLog.Write($"LAN REGISTER RESPONSE code={firstResponse.Code} reason={firstResponse.Reason}");
+                }
+            }
+            UpdateLocalEndpointFromResponse(firstResponse);
+            if (firstResponse.Code == 200)
+            {
+                _registered = true;
+                republishBusyHere = true;
+                return new SipRegistrationResult(true, "Registered and listening for calls.");
+            }
+
+            if (firstResponse.Code is not (401 or 407))
+            {
+                _registered = false;
+                return new SipRegistrationResult(false, $"SIP server returned {firstResponse.Code} {firstResponse.Reason}".Trim());
+            }
+
+            var challengeHeader = firstResponse.Headers.TryGetValue("www-authenticate", out var wwwAuthenticate)
+                ? wwwAuthenticate
+                : firstResponse.Headers.GetValueOrDefault("proxy-authenticate", "");
+
+            var authorization = BuildDigestAuthorization("REGISTER", $"sip:{_domain}", challengeHeader);
+            var second = BuildRegister(callId, _registerCseq++, authorization, firstResponse.Code == 407);
+            DebugLog.Write($"SEND AUTH REGISTER callId={callId} listener={_listenerStarted}");
+            var secondResponse = _listenerStarted
+                ? await SendAndWaitFromListenerAsync(second, cancellationToken)
+                : await SendAndReceiveDirectAsync(second, cancellationToken);
+            DebugLog.Write($"AUTH REGISTER RESPONSE code={secondResponse.Code} reason={secondResponse.Reason}");
+            UpdateLocalEndpointFromResponse(secondResponse);
+
+            if (secondResponse.Code is 401 or 407 && _passwordIsHa1 is null && IsMd5Hash(_config?.Password))
+            {
+                DebugLog.Write("AUTH REGISTER: Pre-calculated HA1 attempt returned 401/407, retrying with plaintext hash");
+                var retryChallengeHeader = secondResponse.Headers.TryGetValue("www-authenticate", out var retryWww)
+                    ? retryWww
+                    : secondResponse.Headers.GetValueOrDefault("proxy-authenticate", "");
+                if (string.IsNullOrWhiteSpace(retryChallengeHeader)) retryChallengeHeader = challengeHeader;
+
+                var retryAuth = BuildDigestAuthorization("REGISTER", $"sip:{_domain}", retryChallengeHeader, forcePlaintext: true);
+                var retryRegister = BuildRegister(callId, _registerCseq++, retryAuth, secondResponse.Code == 407);
+                secondResponse = _listenerStarted
+                    ? await SendAndWaitFromListenerAsync(retryRegister, cancellationToken)
+                    : await SendAndReceiveDirectAsync(retryRegister, cancellationToken);
+                DebugLog.Write($"AUTH REGISTER RETRY RESPONSE code={secondResponse.Code} reason={secondResponse.Reason}");
+                UpdateLocalEndpointFromResponse(secondResponse);
+
+                if (secondResponse.Code == 200)
+                {
+                    _passwordIsHa1 = false;
+                }
+            }
+            else if (secondResponse.Code == 200 && IsMd5Hash(_config?.Password))
+            {
+                _passwordIsHa1 = true;
+            }
+
+            _registered = secondResponse.Code == 200;
+            republishBusyHere = _registered;
+            return _registered
+                ? new SipRegistrationResult(true, "Registered and listening for calls.")
+                : new SipRegistrationResult(false, $"SIP registration failed: {secondResponse.Code} {secondResponse.Reason}".Trim());
+        }
+        finally
+        {
+            _registrationLock.Release();
+            if (republishBusyHere)
+            {
+                try
+                {
+                    await PublishBusyHereIfSelectedAsync(cancellationToken);
+                }
+                catch (Exception error)
+                {
+                    DebugLog.Write($"BusyHere republish failed error={error.Message}");
+                }
+            }
+        }
+    }
+
+    private async Task PublishBusyHereIfSelectedAsync(CancellationToken cancellationToken)
+    {
+        if (!IsBusyOrDndPresence(_publishedPresence))
+        {
+            return;
+        }
+
+        DebugLog.Write($"BusyHere refresh status={_publishedPresence}");
+        await PublishPresenceAsync(_publishedPresence, cancellationToken);
+    }
+
+    private string BuildRegister(string callId, int cseq, string? authorization, bool proxyAuthorization = false)
+    {
+        var branch = $"z9hG4bK-{Guid.NewGuid():N}";
+        var tag = Guid.NewGuid().ToString("N")[..12];
+        var contact = $"sip:{_config!.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}";
+        var expires = _config.RegistrationExpiry > 0 ? _config.RegistrationExpiry : 3600;
+        var lines = new List<string>
+        {
+            $"REGISTER sip:{_domain} SIP/2.0",
+            $"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={branch};rport",
+            "Max-Forwards: 70",
+            $"From: <sip:{_config.Extension}@{_domain}>;tag={tag}",
+            $"To: <sip:{_config.Extension}@{_domain}>",
+            $"Call-ID: {callId}",
+            $"CSeq: {cseq} REGISTER",
+            $"Contact: <{contact}>",
+            $"Expires: {expires}",
+            "User-Agent: CK Media Services Merlin SIP",
+            "Allow: INVITE, ACK, CANCEL, BYE, OPTIONS, REGISTER, REFER, NOTIFY, MESSAGE",
+            "Content-Length: 0"
+        };
+
+        if (!string.IsNullOrWhiteSpace(authorization))
+        {
+            var headerName = proxyAuthorization ? "Proxy-Authorization" : "Authorization";
+            lines.Insert(8, $"{headerName}: {authorization}");
+        }
+
+        return string.Join("\r\n", lines) + "\r\n\r\n";
+    }
+
+    private string BuildInvite(string target, string callId, string localTag, int cseq, string branch, string? authorization, int? mediaPort = null, bool isVideo = false, bool proxyAuthorization = false)
+    {
+        var codecs = GetSupportedAudioPayloads(_config?.PreferredCodecs);
+        var rtpPort = mediaPort ?? _audioSession?.LocalPort ?? 40000;
+        var videoPort = _videoSession?.LocalPort ?? (rtpPort + 2);
+        
+        var sdpLines = new List<string>
+        {
+            "v=0",
+            $"o=CKMediaServices 0 0 IN IP4 {_localAddress}",
+            "s=CK Media Services call",
+            $"c=IN IP4 {_localAddress}",
+            "t=0 0",
+            $"m=audio {rtpPort} RTP/AVP {codecs} 101",
+            "a=rtpmap:0 PCMU/8000",
+            "a=rtpmap:8 PCMA/8000",
+            "a=rtpmap:101 telephone-event/8000",
+            "a=fmtp:101 0-16",
+            "a=ptime:20",
+            "a=sendrecv"
+        };
+
+        if (isVideo)
+        {
+            // Yeastar SIP & WebRTC Video SDP Offer (RFC 6184 H.264 & RFC 7741 VP8)
+            sdpLines.Add($"m=video {videoPort} RTP/AVP 96 97");
+            sdpLines.Add("b=AS:1024");
+            sdpLines.Add("a=rtpmap:96 H264/90000");
+            sdpLines.Add("a=fmtp:96 profile-level-id=42e01f;packetization-mode=1");
+            sdpLines.Add("a=rtpmap:97 VP8/90000");
+            sdpLines.Add("a=rtcp-fb:96 nack");
+            sdpLines.Add("a=rtcp-fb:96 nack pli");
+            sdpLines.Add("a=rtcp-fb:96 ccm fir");
+            sdpLines.Add("a=rtcp-fb:97 nack");
+            sdpLines.Add("a=rtcp-fb:97 nack pli");
+            sdpLines.Add("a=rtcp-fb:97 ccm fir");
+            sdpLines.Add("a=sendrecv");
+        }
+
+        var sdp = string.Join("\r\n", sdpLines) + "\r\n";
+
+        var lines = new List<string>
+        {
+            $"INVITE sip:{target} SIP/2.0",
+            $"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={branch};rport",
+            "Max-Forwards: 70",
+            $"From: <sip:{_config!.Extension}@{_domain}>;tag={localTag}",
+            $"To: <sip:{target}>",
+            $"Call-ID: {callId}",
+            $"CSeq: {cseq} INVITE",
+            $"Contact: <sip:{_config.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}>",
+            "User-Agent: CK Media Services Merlin SIP",
+            "Allow: INVITE, ACK, CANCEL, BYE, OPTIONS, REGISTER, REFER, NOTIFY, MESSAGE",
+            "Supported: replaces, timer",
+            "Content-Type: application/sdp",
+            $"Content-Length: {Encoding.UTF8.GetByteCount(sdp)}",
+            "",
+            sdp
+        };
+
+        if (!string.IsNullOrWhiteSpace(authorization))
+        {
+            var headerName = proxyAuthorization ? "Proxy-Authorization" : "Authorization";
+            lines.Insert(8, $"{headerName}: {authorization}");
+        }
+
+        return string.Join("\r\n", lines);
+    }
+
+    private string BuildIncomingAnswer(PendingIncomingCall call, int payloadType)
+    {
+        var headers = ParseHeaders(call.Request);
+        var via = headers.GetValueOrDefault("via", "");
+        var from = headers.GetValueOrDefault("from", "");
+        var to = EnsureToTag(headers.GetValueOrDefault("to", ""), call.LocalTag);
+        var cseq = headers.GetValueOrDefault("cseq", "");
+        var codecLine = payloadType == 8
+            ? "a=rtpmap:8 PCMA/8000"
+            : "a=rtpmap:0 PCMU/8000";
+
+        var sdpLines = new List<string>
+        {
+            "v=0",
+            $"o=CKMediaServices 0 0 IN IP4 {_localAddress}",
+            "s=CK Media Services call",
+            $"c=IN IP4 {_localAddress}",
+            "t=0 0",
+            $"m=audio {_audioSession?.LocalPort ?? 40000} RTP/AVP {payloadType} 101",
+            codecLine,
+            "a=rtpmap:101 telephone-event/8000",
+            "a=fmtp:101 0-16",
+            "a=sendrecv"
+        };
+
+        if (call.HasVideo || call.Request.Contains("m=video", StringComparison.OrdinalIgnoreCase))
+        {
+            var videoPort = _videoSession?.LocalPort ?? 40002;
+            sdpLines.Add($"m=video {videoPort} RTP/AVP 96 97");
+            sdpLines.Add("b=AS:1024");
+            sdpLines.Add("a=rtpmap:96 H264/90000");
+            sdpLines.Add("a=fmtp:96 profile-level-id=42e01f;packetization-mode=1");
+            sdpLines.Add("a=rtpmap:97 VP8/90000");
+            sdpLines.Add("a=rtcp-fb:96 nack");
+            sdpLines.Add("a=rtcp-fb:96 nack pli");
+            sdpLines.Add("a=rtcp-fb:96 ccm fir");
+            sdpLines.Add("a=sendrecv");
+        }
+
+        var sdp = string.Join("\r\n", sdpLines) + "\r\n";
+
+        return string.Join("\r\n", [
+            "SIP/2.0 200 OK",
+            $"Via: {via}",
+            $"From: {from}",
+            $"To: {to}",
+            $"Call-ID: {call.CallId}",
+            $"CSeq: {cseq}",
+            $"Contact: <sip:{_config!.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}>",
+            "User-Agent: CK Media Services Merlin SIP",
+            "Allow: INVITE, ACK, CANCEL, BYE, OPTIONS, REGISTER, REFER, NOTIFY, MESSAGE",
+            "Content-Type: application/sdp",
+            $"Content-Length: {Encoding.UTF8.GetByteCount(sdp)}",
+            "",
+            sdp
+        ]);
+    }
+
+    private string BuildReInvite(ActiveCall call, int cseq, string branch, bool held, string? authorization, int? mediaPort = null, bool proxyAuthorization = false)
+    {
+        var direction = held ? "sendonly" : "sendrecv";
+        var codecs = GetSupportedAudioPayloads(_config?.PreferredCodecs);
+        var sdp = string.Join("\r\n", [
+            "v=0",
+            $"o=CKMediaServices 0 0 IN IP4 {_localAddress}",
+            "s=CK Media Services call",
+            $"c=IN IP4 {_localAddress}",
+            "t=0 0",
+            $"m=audio {mediaPort ?? (call.LineNumber == 2 ? _audioSession?.SecondaryLocalPort : _audioSession?.LocalPort) ?? 40000} RTP/AVP {codecs} 101",
+            "a=rtpmap:0 PCMU/8000",
+            "a=rtpmap:8 PCMA/8000",
+            "a=rtpmap:101 telephone-event/8000",
+            "a=fmtp:101 0-16",
+            "a=ptime:20",
+            $"a={direction}"
+        ]) + "\r\n";
+
+        var to = $"<sip:{call.Target}>";
+        if (!string.IsNullOrWhiteSpace(call.RemoteTag))
+        {
+            to += $";tag={call.RemoteTag}";
+        }
+
+        var lines = new List<string>
+        {
+            $"INVITE sip:{call.Target} SIP/2.0",
+            $"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={branch};rport",
+            "Max-Forwards: 70",
+            $"From: <sip:{_config!.Extension}@{_domain}>;tag={call.LocalTag}",
+            $"To: {to}",
+            $"Call-ID: {call.CallId}",
+            $"CSeq: {cseq} INVITE",
+            $"Contact: <sip:{_config.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}>",
+            "User-Agent: CK Media Services Merlin SIP",
+            "Allow: INVITE, ACK, CANCEL, BYE, OPTIONS, REGISTER, REFER, NOTIFY, MESSAGE",
+            "Supported: replaces, timer",
+            "Content-Type: application/sdp",
+            $"Content-Length: {Encoding.UTF8.GetByteCount(sdp)}",
+            "",
+            sdp
+        };
+
+        if (!string.IsNullOrWhiteSpace(authorization))
+        {
+            var headerName = proxyAuthorization ? "Proxy-Authorization" : "Authorization";
+            lines.Insert(8, $"{headerName}: {authorization}");
+        }
+
+        return string.Join("\r\n", lines);
+    }
+
+    private static string GetSupportedAudioPayloads(string? preferredCodecs)
+    {
+        var payloads = new List<string>();
+        var tokens = (preferredCodecs ?? "")
+            .Split([',', ' ', ';', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        foreach (var token in tokens)
+        {
+            var payload = token.ToUpperInvariant() switch
+            {
+                "PCMU" or "ULAW" or "MU-LAW" or "0" => "0",
+                "PCMA" or "ALAW" or "A-LAW" or "8" => "8",
+                _ => ""
+            };
+
+            if (payload.Length > 0 && !payloads.Contains(payload))
+            {
+                payloads.Add(payload);
+            }
+        }
+
+        if (payloads.Count == 0)
+        {
+            payloads.Add("0");
+            payloads.Add("8");
+        }
+
+        if (payloads.Contains("0") && payloads.Contains("8"))
+        {
+            payloads.Remove("0");
+            payloads.Insert(0, "0");
+        }
+
+        return string.Join(' ', payloads);
+    }
+
+    private string BuildCancel(ActiveCall call)
+    {
+        return string.Join("\r\n", [
+            $"CANCEL sip:{call.Target} SIP/2.0",
+            $"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={call.InviteBranch};rport",
+            "Max-Forwards: 70",
+            $"From: <sip:{_config!.Extension}@{_domain}>;tag={call.LocalTag}",
+            $"To: <sip:{call.Target}>",
+            $"Call-ID: {call.CallId}",
+            $"CSeq: {call.CSeq} CANCEL",
+            "User-Agent: CK Media Services Merlin SIP",
+            "Content-Length: 0",
+            "",
+            ""
+        ]);
+    }
+
+    private string BuildBye(ActiveCall call)
+    {
+        var branch = $"z9hG4bK-{Guid.NewGuid():N}";
+        var to = $"<sip:{call.Target}>";
+        if (!string.IsNullOrWhiteSpace(call.RemoteTag))
+        {
+            to += $";tag={call.RemoteTag}";
+        }
+
+        return string.Join("\r\n", [
+            $"BYE sip:{call.Target} SIP/2.0",
+            $"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={branch};rport",
+            "Max-Forwards: 70",
+            $"From: <sip:{_config!.Extension}@{_domain}>;tag={call.LocalTag}",
+            $"To: {to}",
+            $"Call-ID: {call.CallId}",
+            $"CSeq: {_inviteCseq++} BYE",
+            "User-Agent: CK Media Services Merlin SIP",
+            "Content-Length: 0",
+            "",
+            ""
+        ]);
+    }
+
+    private string BuildRefer(ActiveCall call, string transferTarget)
+    {
+        var branch = CreateBranch();
+        var to = $"<sip:{call.Target}>";
+        if (!string.IsNullOrWhiteSpace(call.RemoteTag))
+        {
+            to += $";tag={call.RemoteTag}";
+        }
+
+        return string.Join("\r\n", [
+            $"REFER sip:{call.Target} SIP/2.0",
+            $"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={branch};rport",
+            "Max-Forwards: 70",
+            $"From: <sip:{_config!.Extension}@{_domain}>;tag={call.LocalTag}",
+            $"To: {to}",
+            $"Call-ID: {call.CallId}",
+            $"CSeq: {_inviteCseq++} REFER",
+            $"Contact: <sip:{_config.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}>",
+            $"Refer-To: <sip:{transferTarget}>",
+            $"Referred-By: <sip:{_config.Extension}@{_domain}>",
+            "User-Agent: CK Media Services Merlin SIP",
+            "Content-Length: 0",
+            "",
+            ""
+        ]);
+    }
+
+    private string BuildAttendedTransferRefer(ActiveCall originalCall, ActiveCall consultCall)
+    {
+        var branch = CreateBranch();
+        var to = $"<sip:{originalCall.Target}>";
+        if (!string.IsNullOrWhiteSpace(originalCall.RemoteTag))
+        {
+            to += $";tag={originalCall.RemoteTag}";
+        }
+
+        var replaces = $"{consultCall.CallId};to-tag={consultCall.RemoteTag};from-tag={consultCall.LocalTag}";
+        var escapedReplaces = Uri.EscapeDataString(replaces);
+        var referTo = $"sip:{consultCall.Target}?Replaces={escapedReplaces}";
+
+        return string.Join("\r\n", [
+            $"REFER sip:{originalCall.Target} SIP/2.0",
+            $"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={branch};rport",
+            "Max-Forwards: 70",
+            $"From: <sip:{_config!.Extension}@{_domain}>;tag={originalCall.LocalTag}",
+            $"To: {to}",
+            $"Call-ID: {originalCall.CallId}",
+            $"CSeq: {_inviteCseq++} REFER",
+            $"Contact: <sip:{_config.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}>",
+            $"Refer-To: <{referTo}>",
+            $"Referred-By: <sip:{_config.Extension}@{_domain}>",
+            "User-Agent: CK Media Services Merlin SIP",
+            "Content-Length: 0",
+            "",
+            ""
+        ]);
+    }
+
+    private string BuildSubscribe(string target, string callId, string localTag, int cseq, string eventName, string accept, string? authorization, bool proxyAuthorization = false)
+    {
+        var lines = new List<string>
+        {
+            $"SUBSCRIBE sip:{target} SIP/2.0",
+            $"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={CreateBranch()};rport",
+            "Max-Forwards: 70",
+            $"From: <sip:{_config!.Extension}@{_domain}>;tag={localTag}",
+            $"To: <sip:{target}>",
+            $"Call-ID: {callId}",
+            $"CSeq: {cseq} SUBSCRIBE",
+            $"Contact: <sip:{_config.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}>",
+            "User-Agent: CK Media Services Merlin SIP",
+            $"Event: {eventName}",
+            $"Accept: {accept}",
+            "Expires: 3600",
+            "Content-Length: 0",
+            "",
+            ""
+        };
+
+        if (!string.IsNullOrWhiteSpace(authorization))
+        {
+            var headerName = proxyAuthorization ? "Proxy-Authorization" : "Authorization";
+            lines.Insert(8, $"{headerName}: {authorization}");
+        }
+
+        return string.Join("\r\n", lines);
+    }
+
+    private string BuildOptions(string target, string callId, int cseq)
+    {
+        return string.Join("\r\n", [
+            $"OPTIONS sip:{target} SIP/2.0",
+            $"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={CreateBranch()};rport",
+            "Max-Forwards: 70",
+            $"From: <sip:{_config!.Extension}@{_domain}>;tag={Guid.NewGuid():N}",
+            $"To: <sip:{target}>",
+            $"Call-ID: {callId}",
+            $"CSeq: {cseq} OPTIONS",
+            $"Contact: <sip:{_config.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}>",
+            "User-Agent: CK Media Services Merlin SIP",
+            "Accept: application/sdp",
+            "Content-Length: 0",
+            "",
+            ""
+        ]);
+    }
+
+    private async Task<SipResponse> SendAndReceiveDirectAsync(string message, CancellationToken cancellationToken)
+    {
+        if (!IsTransportReady || _config is null)
+        {
+            return new SipResponse(0, "SIP client is not initialized.", new Dictionary<string, string>(), "");
+        }
+
+        var payload = Encoding.UTF8.GetBytes(message);
+        try
+        {
+            await SendToServerAsync(payload, cancellationToken);
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"SEND DIRECT failed error={error.Message}");
+            return new SipResponse(0, error.Message, new Dictionary<string, string>(), "");
+        }
+        DebugLog.Write($"SEND DIRECT bytes={payload.Length}");
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+
+        try
+        {
+            while (!linked.Token.IsCancellationRequested)
+            {
+                var text = UseStreamSignalling
+                    ? await ReceiveTcpMessageAsync(linked.Token)
+                    : Encoding.UTF8.GetString((await _client!.ReceiveAsync(linked.Token)).Buffer);
+                if (text.StartsWith("SIP/2.0", StringComparison.OrdinalIgnoreCase))
+                {
+                    var response = ParseResponse(text);
+                    DebugLog.Write($"RECV DIRECT code={response.Code} reason={response.Reason} callId={response.Headers.GetValueOrDefault("call-id", "")}");
+                    return response;
+                }
+
+                DebugLog.Write($"RECV DIRECT non-response bytes={Encoding.UTF8.GetByteCount(text)}");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            DebugLog.Write("RECV DIRECT timed out");
+            return new SipResponse(0, "Timed out waiting for SIP response.", new Dictionary<string, string>(), "");
+        }
+        catch (SocketException error)
+        {
+            DebugLog.Write($"RECV DIRECT socket error={error.Message}");
+            return new SipResponse(0, error.Message, new Dictionary<string, string>(), "");
+        }
+
+        return new SipResponse(0, "Timed out waiting for SIP response.", new Dictionary<string, string>(), "");
+    }
+
+    private async Task SendToServerAsync(byte[] payload, CancellationToken cancellationToken)
+    {
+        if (UseStreamSignalling)
+        {
+            if (_tcpStream is null)
+            {
+                throw new InvalidOperationException("TCP SIP stream is not connected.");
+            }
+
+            await _tcpWriteLock.WaitAsync(cancellationToken);
+            try
+            {
+                await _tcpStream.WriteAsync(payload, cancellationToken);
+                await _tcpStream.FlushAsync(cancellationToken);
+            }
+            finally
+            {
+                _tcpWriteLock.Release();
+            }
+
+            return;
+        }
+
+        if (!IsTransportReady || _config is null)
+        {
+            throw new InvalidOperationException("UDP SIP socket is not connected.");
+        }
+
+        await _client!.SendAsync(payload, GetRemoteSipEndPoint(), cancellationToken);
+    }
+
+    private async Task SendToRemoteAsync(byte[] payload, IPEndPoint remoteEndPoint, CancellationToken cancellationToken)
+    {
+        if (UseStreamSignalling)
+        {
+            await SendToServerAsync(payload, cancellationToken);
+            return;
+        }
+
+        if (!IsTransportReady)
+        {
+            throw new InvalidOperationException("UDP SIP socket is not connected.");
+        }
+
+        await _client!.SendAsync(payload, remoteEndPoint, cancellationToken);
+    }
+
+    private IPEndPoint GetRemoteSipEndPoint()
+    {
+        if (_tcpClient?.Client.RemoteEndPoint is IPEndPoint tcpRemote)
+        {
+            return tcpRemote;
+        }
+
+        if (_cachedServerEndPoint is not null)
+        {
+            return _cachedServerEndPoint;
+        }
+
+        if (_config is not null)
+        {
+            if (IPAddress.TryParse(_config.Server, out var address))
+            {
+                return new IPEndPoint(address, _config.Port);
+            }
+            try
+            {
+                var resolved = Dns.GetHostAddresses(_config.Server)
+                    .FirstOrDefault(candidate => candidate.AddressFamily == AddressFamily.InterNetwork);
+                if (resolved is not null)
+                {
+                    return new IPEndPoint(resolved, _config.Port);
+                }
+            }
+            catch (Exception error)
+            {
+                DebugLog.Write($"SIP remote endpoint resolve failed error={error.Message}");
+            }
+        }
+
+        return new IPEndPoint(IPAddress.None, _config?.Port ?? AppStartupConfig.FixedSipPort);
+    }
+
+    private async Task<string> ReceiveTcpMessageAsync(CancellationToken cancellationToken)
+    {
+        if (_tcpStream is null)
+        {
+            throw new InvalidOperationException("TCP SIP stream is not connected.");
+        }
+
+        var buffer = new byte[8192];
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var existing = TryTakeTcpMessage();
+            if (existing is not null)
+            {
+                return existing;
+            }
+
+            var read = await _tcpStream.ReadAsync(buffer, cancellationToken);
+            if (read <= 0)
+            {
+                throw new IOException("TCP SIP stream closed.");
+            }
+
+            _tcpReceiveBuffer.Append(Encoding.UTF8.GetString(buffer, 0, read));
+        }
+
+        throw new OperationCanceledException(cancellationToken);
+    }
+
+    private string? TryTakeTcpMessage()
+    {
+        int headerEnd = -1;
+        for (int i = 0; i < _tcpReceiveBuffer.Length - 3; i++)
+        {
+            if (_tcpReceiveBuffer[i] == '\r' && _tcpReceiveBuffer[i + 1] == '\n' &&
+                _tcpReceiveBuffer[i + 2] == '\r' && _tcpReceiveBuffer[i + 3] == '\n')
+            {
+                headerEnd = i;
+                break;
+            }
+        }
+        if (headerEnd < 0) return null;
+
+        var headerText = _tcpReceiveBuffer.ToString(0, headerEnd);
+        var contentLength = 0;
+        foreach (var line in headerText.Split("\r\n"))
+        {
+            var separator = line.IndexOf(':');
+            if (separator > 0 &&
+                string.Equals(line[..separator], "Content-Length", StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(line[(separator + 1)..].Trim(), out var parsedLength))
+            {
+                contentLength = Math.Max(0, parsedLength);
+                break;
+            }
+        }
+
+        var totalLength = headerEnd + 4 + contentLength;
+        if (_tcpReceiveBuffer.Length < totalLength)
+        {
+            return null;
+        }
+
+        var message = _tcpReceiveBuffer.ToString(0, totalLength);
+        _tcpReceiveBuffer.Remove(0, totalLength);
+        return message;
+    }
+
+    private async Task<SipResponse> SendAndWaitFromListenerAsync(string message, CancellationToken cancellationToken)
+    {
+        if (!IsTransportReady || _config is null)
+        {
+            return new SipResponse(0, "SIP client is not initialized.", new Dictionary<string, string>(), "");
+        }
+
+        var requestHeaders = ParseHeaders(message);
+        var expectedCallId = requestHeaders.GetValueOrDefault("call-id", "").ToLowerInvariant();
+        var expectedMethod = ExtractCSeqMethod(requestHeaders.GetValueOrDefault("cseq", "")).ToUpperInvariant();
+        var key = (expectedCallId, expectedMethod);
+
+        var waitSource = new TaskCompletionSource<SipResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingTransactions[key] = waitSource;
+        var payload = Encoding.UTF8.GetBytes(message);
+        try
+        {
+            await SendToServerAsync(payload, cancellationToken);
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"SEND LISTENER failed error={error.Message}");
+            _pendingTransactions.TryRemove(key, out _);
+            return new SipResponse(0, error.Message, new Dictionary<string, string>(), "");
+        }
+        DebugLog.Write($"SEND LISTENER bytes={payload.Length}");
+
+        var isInvite = message.StartsWith("INVITE ", StringComparison.OrdinalIgnoreCase);
+        var timeoutAt = DateTimeOffset.Now.AddSeconds(isInvite ? 45 : 12);
+        SipResponse lastResponse = new(0, "Timed out waiting for SIP call response.", new Dictionary<string, string>(), "");
+        try
+        {
+            while (DateTimeOffset.Now < timeoutAt)
+            {
+                var completed = await Task.WhenAny(waitSource.Task, Task.Delay(TimeSpan.FromSeconds(2), cancellationToken));
+                if (completed != waitSource.Task)
+                {
+                    if (!isInvite && lastResponse.Code > 0)
+                    {
+                        return lastResponse;
+                    }
+
+                    continue;
+                }
+
+                var response = await waitSource.Task;
+                lastResponse = response;
+                if (response.Code >= 200 || response.Code is 401 or 407)
+                {
+                    return response;
+                }
+
+                if (isInvite && response.Code == 183)
+                {
+                    await StartEarlyMediaAsync(response, cancellationToken);
+                }
+
+                RaiseCallProgress(response);
+                waitSource = new TaskCompletionSource<SipResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _pendingTransactions[key] = waitSource;
+            }
+
+            return lastResponse;
+        }
+        finally
+        {
+            _pendingTransactions.TryRemove(key, out _);
+        }
+    }
+
+    private async Task AcknowledgeAndStartAudioForCallAsync(ActiveCall call, SipResponse response, CancellationToken cancellationToken, bool useSecondaryAudio = false)
+    {
+        if (call is null || !IsTransportReady || _config is null || _audioSession is null)
+        {
+            return;
+        }
+
+        var ack = BuildAck(call, false);
+        var ackPayload = Encoding.UTF8.GetBytes(ack);
+        await SendToServerAsync(ackPayload, cancellationToken);
+        DebugLog.Write($"SEND ACK callId={call.CallId} bytes={ackPayload.Length}");
+        RaiseCallProgress(response, call.CallId, call.LineNumber);
+
+        if (TryParseRemoteAudio(response.Raw, out var remoteAddress, out var remotePort, out var payloadType))
+        {
+            try
+            {
+                if (useSecondaryAudio)
+                {
+                    await _audioSession.StartSecondaryAsync(remoteAddress, remotePort, payloadType);
+                }
+                else
+                {
+                    await _audioSession.StartAsync(remoteAddress, remotePort, payloadType);
+                }
+            }
+            catch (Exception error)
+            {
+                DebugLog.Write($"RTP start failed remote={remoteAddress}:{remotePort} error={error.Message}");
+            }
+        }
+        else
+        {
+            DebugLog.Write($"RTP remote audio parse failed callId={call.CallId}");
+        }
+
+        if (call.IsVideo &&
+            TryParseRemoteVideo(response.Raw, out var remoteVideoAddress, out var remoteVideoPort, out var remoteVideoPayload))
+        {
+            try
+            {
+                if (_videoSession == null && _config != null)
+                {
+                    _videoSession = new RtpVideoSession(_config.VideoSource);
+                }
+
+                if (_videoSession != null)
+                {
+                    _videoSession.SetCodec(remoteVideoPayload == 97 ? "VP8 (Yeastar WebRTC/SIP)" : "H.264 (Yeastar WebRTC/SIP)");
+                    if (IPAddress.TryParse(remoteVideoAddress, out var ipAddr))
+                    {
+                        _videoSession.SetRemoteEndPoint(new IPEndPoint(ipAddr, remoteVideoPort));
+                        _videoSession.Start();
+                        DebugLog.Write($"RTP Video started remote={remoteVideoAddress}:{remoteVideoPort} codec={remoteVideoPayload}");
+                    }
+                }
+            }
+            catch (Exception vErr)
+            {
+                DebugLog.Write($"RTP Video start error: {vErr.Message}");
+            }
+        }
+    }
+
+    private Task AcknowledgeAndStartAudioAsync(SipResponse response, CancellationToken cancellationToken, bool useSecondaryAudio = false)
+    {
+        if (_activeCall is not null)
+        {
+            return AcknowledgeAndStartAudioForCallAsync(_activeCall, response, cancellationToken, useSecondaryAudio);
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task SendAckForInviteResponseForCallAsync(ActiveCall call, SipResponse response, CancellationToken cancellationToken, bool reuseInviteBranch)
+    {
+        if (call is null || !IsTransportReady || _config is null)
+        {
+            return;
+        }
+
+        var ack = BuildAck(call, reuseInviteBranch);
+        var payload = Encoding.UTF8.GetBytes(ack);
+        await SendToServerAsync(payload, cancellationToken);
+        DebugLog.Write($"SEND ACK callId={call.CallId} code={response.Code} bytes={payload.Length}");
+    }
+
+    private async Task SendAckForFinalInviteResponseForCallAsync(ActiveCall call, SipResponse response, CancellationToken cancellationToken)
+    {
+        if (call is null || !IsTransportReady || _config is null || response.Code < 300)
+        {
+            return;
+        }
+
+        await SendAckForInviteResponseForCallAsync(call, response, cancellationToken, true);
+    }
+    private async Task SendAckForFinalInviteResponseAsync(SipResponse response, CancellationToken cancellationToken)
+    {
+        if (_activeCall is null || !IsTransportReady || _config is null || response.Code < 300)
+        {
+            return;
+        }
+
+        await SendAckForInviteResponseAsync(response, cancellationToken, true);
+    }
+
+    private async Task SendAckForInviteResponseAsync(SipResponse response, CancellationToken cancellationToken, bool reuseInviteBranch)
+    {
+        if (_activeCall is null || !IsTransportReady || _config is null)
+        {
+            return;
+        }
+
+        var ack = BuildAck(_activeCall, reuseInviteBranch);
+        var payload = Encoding.UTF8.GetBytes(ack);
+        await SendToServerAsync(payload, cancellationToken);
+        DebugLog.Write($"SEND ACK callId={_activeCall.CallId} code={response.Code} bytes={payload.Length}");
+    }
+
+    private string BuildAck(ActiveCall call, bool reuseInviteBranch)
+    {
+        var branch = reuseInviteBranch ? call.InviteBranch : CreateBranch();
+        var to = $"<sip:{call.Target}>";
+        if (!string.IsNullOrWhiteSpace(call.RemoteTag))
+        {
+            to += $";tag={call.RemoteTag}";
+        }
+
+        return string.Join("\r\n", [
+            $"ACK sip:{call.Target} SIP/2.0",
+            $"Via: SIP/2.0/{SipTransportName} {_localAddress}:{_localPort};branch={branch};rport",
+            "Max-Forwards: 70",
+            $"From: <sip:{_config!.Extension}@{_domain}>;tag={call.LocalTag}",
+            $"To: {to}",
+            $"Call-ID: {call.CallId}",
+            $"CSeq: {call.CSeq} ACK",
+            $"Contact: <sip:{_config.Extension}@{_localAddress}:{_localPort};transport={ContactTransport}>",
+            "User-Agent: CK Media Services Merlin SIP",
+            "Content-Length: 0",
+            "",
+            ""
+        ]);
+    }
+
+    private void StartListening()
+    {
+        if (_listenerStarted)
+        {
+            return;
+        }
+
+        _listenerStarted = true;
+        _listenCancellation = new CancellationTokenSource();
+        _ = Task.Run(() => ListenLoopAsync(_listenCancellation.Token));
+    }
+
+    private void StartRegistrationRefresh()
+    {
+        _registrationRefreshCancellation?.Cancel();
+        _registrationRefreshCancellation?.Dispose();
+        _registrationRefreshCancellation = new CancellationTokenSource();
+        _ = Task.Run(() => RegistrationRefreshLoopAsync(_registrationRefreshCancellation.Token));
+    }
+
+    private void StartNatKeepAlive()
+    {
+        _natKeepAliveCancellation?.Cancel();
+        _natKeepAliveCancellation?.Dispose();
+        _natKeepAliveCancellation = new CancellationTokenSource();
+        _ = Task.Run(() => NatKeepAliveLoopAsync(_natKeepAliveCancellation.Token));
+    }
+
+    public void StartHeartbeat()
+    {
+        StopHeartbeat();
+        _heartbeatCancellation = new CancellationTokenSource();
+        _heartbeatConsecutiveFailures = 0;
+        _ = Task.Run(() => HeartbeatLoopAsync(_heartbeatCancellation.Token));
+    }
+
+    public void StopHeartbeat()
+    {
+        if (_heartbeatCancellation != null)
+        {
+            _heartbeatCancellation.Cancel();
+            _heartbeatCancellation.Dispose();
+            _heartbeatCancellation = null;
+        }
+    }
+
+    private async Task HeartbeatLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                var delay = _config?.HeartbeatInterval > 0 ? _config.HeartbeatInterval : 60;
+                await Task.Delay(TimeSpan.FromSeconds(delay), cancellationToken);
+                if (!IsTransportReady || _config == null || _activeCall is not null)
+                {
+                    continue;
+                }
+
+                var cseq = _optionsCseq++;
+                var branch = CreateBranch();
+                var callId = $"{Guid.NewGuid():N}@merlin-sip-hb";
+                var options = BuildOptions(_config.Server, callId, Guid.NewGuid().ToString("N")[..12], cseq, branch);
+                
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var response = await SendAndWaitFromListenerAsync(options, cancellationToken);
+                sw.Stop();
+                var latency = (int)sw.ElapsedMilliseconds;
+                _lastMeasuredLatencyMs = latency > 0 ? latency : 18.0;
+                _audioSession?.SetMeasuredLatency(_lastMeasuredLatencyMs);
+
+                if (response.Code >= 200 && response.Code < 300)
+                {
+                    _registered = true;
+                    _lastHeartbeatSuccess = DateTimeOffset.Now;
+                    _heartbeatConsecutiveFailures = 0;
+                    HeartbeatStatus?.Invoke(this, new HeartbeatStatusEventArgs(true, response.Code, latency, 0, "OK"));
+                    await PublishBusyHereIfSelectedAsync(cancellationToken);
+                }
+                else if (response.Code > 0)
+                {
+                    _heartbeatConsecutiveFailures++;
+                    HeartbeatStatus?.Invoke(this, new HeartbeatStatusEventArgs(false, response.Code, latency, _heartbeatConsecutiveFailures, "Failed response"));
+                    await RecoverRegistrationAfterHeartbeatFailureAsync(cancellationToken);
+                }
+                else
+                {
+                    _heartbeatConsecutiveFailures++;
+                    HeartbeatStatus?.Invoke(this, new HeartbeatStatusEventArgs(false, 0, latency, _heartbeatConsecutiveFailures, "No response"));
+                    await RecoverRegistrationAfterHeartbeatFailureAsync(cancellationToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _heartbeatConsecutiveFailures++;
+                HeartbeatStatus?.Invoke(this, new HeartbeatStatusEventArgs(false, 0, 0, _heartbeatConsecutiveFailures, ex.Message));
+                await RecoverRegistrationAfterHeartbeatFailureAsync(cancellationToken);
+            }
+        }
+    }
+
+    private async Task RecoverRegistrationAfterHeartbeatFailureAsync(CancellationToken cancellationToken)
+    {
+        if (_heartbeatConsecutiveFailures < 3 || _activeCall is not null || _config is null)
+        {
+            return;
+        }
+
+        DebugLog.Write($"HEARTBEAT recovery starting failures={_heartbeatConsecutiveFailures}");
+        _registered = false;
+        try
+        {
+            var result = await RegisterCurrentSocketAsync(cancellationToken);
+            DebugLog.Write($"HEARTBEAT recovery register connected={result.Connected} message={result.Message}");
+            if (result.Connected)
+            {
+                _registered = true;
+                _heartbeatConsecutiveFailures = 0;
+                _lastHeartbeatSuccess = DateTimeOffset.Now;
+                HeartbeatStatus?.Invoke(this, new HeartbeatStatusEventArgs(true, 200, 0, 0, "Registration restored"));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"HEARTBEAT recovery failed error={error.Message}");
+        }
+    }
+
+    private async Task NatKeepAliveLoopAsync(CancellationToken cancellationToken)
+    {
+        var payload = Encoding.UTF8.GetBytes("\r\n\r\n");
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                var delay = _config?.SipAlgCompatibilityMode == true
+                    ? TimeSpan.FromSeconds(15)
+                    : TimeSpan.FromSeconds(25);
+
+                await Task.Delay(delay, cancellationToken);
+                if (!IsTransportReady || _config is null || _activeCall is not null)
+                {
+                    continue;
+                }
+
+                await SendToServerAsync(payload, cancellationToken);
+                DebugLog.Write("SEND NAT keepalive");
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception error)
+            {
+                DebugLog.Write($"NAT keepalive failed error={error.Message}");
+            }
+        }
+    }
+
+    private async Task StartEarlyMediaAsync(SipResponse response, CancellationToken cancellationToken)
+    {
+        if (_activeCall is null || _audioSession is null)
+        {
+            return;
+        }
+
+        if (!TryParseRemoteAudio(response.Raw, out var remoteAddress, out var remotePort, out var payloadType))
+        {
+            return;
+        }
+
+        try
+        {
+            await _audioSession.StartAsync(remoteAddress, remotePort, payloadType, false);
+            DebugLog.Write($"RTP early-media start callId={_activeCall.CallId}");
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"RTP early-media start failed callId={_activeCall.CallId} error={error.Message}");
+        }
+    }
+
+    private async Task RegistrationRefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(RegisterRefreshInterval, cancellationToken);
+                if (_activeCall is not null)
+                {
+                    DebugLog.Write("REGISTER refresh deferred while call is active");
+                    continue;
+                }
+
+                var result = await RegisterCurrentSocketAsync(cancellationToken);
+                DebugLog.Write($"REGISTER refresh result connected={result.Connected} message={result.Message}");
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception error)
+            {
+                DebugLog.Write($"REGISTER refresh error={error.Message}");
+            }
+        }
+    }
+
+    private async Task ListenLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested && IsTransportReady)
+        {
+            try
+            {
+                var remoteEndPoint = GetRemoteSipEndPoint();
+                var message = UseStreamSignalling
+                    ? await ReceiveTcpMessageAsync(cancellationToken)
+                    : Encoding.UTF8.GetString((await _client!.ReceiveAsync(cancellationToken)).Buffer);
+
+                if (message.StartsWith("SIP/2.0", StringComparison.OrdinalIgnoreCase))
+                {
+                    var response = ParseResponse(message);
+                    DebugLog.Write($"RECV SIP RESPONSE code={response.Code} reason={response.Reason} callId={response.Headers.GetValueOrDefault("call-id", "")}");
+                    var isAwaitedResponse = TryCompletePendingResponse(response);
+                    if (isAwaitedResponse)
+                    {
+                        continue;
+                    }
+
+                    if (response.Code >= 200 && _activeCall is not null && response.Headers.GetValueOrDefault("call-id", "") == _activeCall.CallId)
+                    {
+                        var cseqMethod = ExtractCSeqMethod(response.Headers.GetValueOrDefault("cseq", ""));
+                        if (!string.Equals(cseqMethod, "INVITE", StringComparison.OrdinalIgnoreCase))
+                        {
+                            DebugLog.Write($"RECV dialog response ignored method={cseqMethod} code={response.Code} callId={_activeCall.CallId}");
+                            continue;
+                        }
+
+                        _activeCall = _activeCall with { Established = response.Code < 300, RemoteTag = ExtractTag(response.Headers.GetValueOrDefault("to", "")) };
+                        if (response.Code < 300)
+                        {
+                            await AcknowledgeAndStartAudioAsync(response, cancellationToken);
+                        }
+                        else
+                        {
+                            RaiseCallProgress(response);
+                        }
+                    }
+                    continue;
+                }
+
+                if (message.StartsWith("INVITE ", StringComparison.OrdinalIgnoreCase))
+                {
+                    DebugLog.Write("RECV INVITE");
+                    await HandleIncomingInviteAsync(message, remoteEndPoint, cancellationToken);
+                }
+                else if (message.StartsWith("OPTIONS ", StringComparison.OrdinalIgnoreCase))
+                {
+                    DebugLog.Write("RECV OPTIONS");
+                    await SendSimpleResponseAsync(message, remoteEndPoint, 200, "OK", cancellationToken);
+                }
+                else if (message.StartsWith("BYE ", StringComparison.OrdinalIgnoreCase))
+                {
+                    DebugLog.Write("RECV BYE");
+                    await SendSimpleResponseAsync(message, remoteEndPoint, 200, "OK", cancellationToken);
+                    var headers = ParseHeaders(message);
+                    var byeCallId = headers.GetValueOrDefault("call-id", "");
+
+                    if (_line2Call is not null && string.Equals(byeCallId, _line2Call.CallId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var ended = _line2Call;
+                        _audioSession?.StopSecondary();
+                        _line2Call = null;
+                        DebugLog.Write($"RECV BYE line 2 ended callId={byeCallId}");
+                        CallEnded?.Invoke(this, new CallEndedEventArgs("Call ended.", CallId: ended.CallId, LineNumber: 2));
+                        if (_line1Call is null)
+                        {
+                            var audio = _audioSession;
+                            _audioSession = null;
+                            DisposeAudioSessionInBackground(audio, "line 2 remote BYE");
+                            QueueRegistrationRefresh("line 2 remote BYE");
+                        }
+                    }
+                    else if (_line1Call is not null && string.Equals(byeCallId, _line1Call.CallId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var ended = _line1Call;
+                        _line1Call = null;
+                        DebugLog.Write($"RECV BYE line 1 ended callId={byeCallId}");
+                        CallEnded?.Invoke(this, new CallEndedEventArgs("Call ended.", CallId: ended.CallId, LineNumber: 1));
+                        if (_line2Call is null)
+                        {
+                            var audio = _audioSession;
+                            _audioSession = null;
+                            DisposeAudioSessionInBackground(audio, "line 1 remote BYE");
+                            QueueRegistrationRefresh("line 1 remote BYE");
+                        }
+                    }
+                    else
+                    {
+                        DebugLog.Write($"RECV BYE ignored callId={byeCallId} line1={_line1Call?.CallId} line2={_line2Call?.CallId} pending={_pendingIncomingCall?.CallId}");
+                    }
+                }
+                else if (message.StartsWith("CANCEL ", StringComparison.OrdinalIgnoreCase))
+                {
+                    DebugLog.Write("RECV CANCEL");
+                    await SendSimpleResponseAsync(message, remoteEndPoint, 200, "OK", cancellationToken);
+                    var headers = ParseHeaders(message);
+                    var cancelCallId = headers.GetValueOrDefault("call-id", "");
+                    if (_pendingIncomingCall is not null &&
+                        string.Equals(cancelCallId, _pendingIncomingCall.CallId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _pendingIncomingCall = null;
+                        if (_line1Call is null && _line2Call is null)
+                        {
+                            _audioSession?.Dispose();
+                            _audioSession = null;
+                            QueueRegistrationRefresh("remote CANCEL");
+                        }
+                        CallEnded?.Invoke(this, new CallEndedEventArgs("Incoming call was cancelled."));
+                    }
+                    else
+                    {
+                        DebugLog.Write($"RECV CANCEL ignored callId={cancelCallId} line1={_line1Call?.CallId} line2={_line2Call?.CallId} pending={_pendingIncomingCall?.CallId}");
+                    }
+                }
+                else if (message.StartsWith("NOTIFY ", StringComparison.OrdinalIgnoreCase))
+                {
+                    DebugLog.Write("RECV NOTIFY");
+                    await SendSimpleResponseAsync(message, remoteEndPoint, 200, "OK", cancellationToken);
+                    if (HandleReferNotify(message))
+                    {
+                        continue;
+                    }
+                    if (HandleMwiNotify(message))
+                    {
+                        continue;
+                    }
+                    HandlePresenceNotify(message);
+                }
+                else if (message.StartsWith("MESSAGE ", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Legacy SIP MESSAGE chat removed in favor of backend ChatConnectorService
+                    await SendSimpleResponseAsync(message, remoteEndPoint, 200, "OK", cancellationToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex) when (ex is System.IO.IOException || ex is System.Net.Sockets.SocketException)
+            {
+                _registered = false;
+                DisposeClient();
+                QueueRegistrationRefresh("listen loop exception");
+                break;
+            }
+            catch
+            {
+                // Keep the listener alive for later packets.
+            }
+        }
+    }
+
+    private async Task HandleIncomingInviteAsync(string message, IPEndPoint remoteEndPoint, CancellationToken cancellationToken)
+    {
+        var headers = ParseHeaders(message);
+        var callId = headers.GetValueOrDefault("call-id", "");
+        var from = headers.GetValueOrDefault("from", "Unknown caller");
+        var localTag = Guid.NewGuid().ToString("N")[..12];
+
+        if ((_line1Call is not null && _line2Call is not null) || _pendingIncomingCall is not null)
+        {
+            await SendSimpleResponseAsync(message, remoteEndPoint, 486, "Busy Here", cancellationToken, localTag);
+            DebugLog.Write($"RECV INVITE rejected busy callId={callId} line1={_line1Call?.CallId} line2={_line2Call?.CallId} pending={_pendingIncomingCall?.CallId}");
+            return;
+        }
+
+        if (_rejectIncomingCalls)
+        {
+            var mobileNumber = _config?.MobileNumber;
+            if (!string.IsNullOrWhiteSpace(mobileNumber))
+            {
+                var targetUri = $"sip:{mobileNumber}@{_domain}";
+                await SendSimpleResponseAsync(message, remoteEndPoint, 302, "Moved Temporarily", cancellationToken, localTag, $"Contact: <{targetUri}>");
+                DebugLog.Write($"RECV INVITE redirected because DND is enabled and mobile number is set target={targetUri}");
+            }
+            else
+            {
+                await SendSimpleResponseAsync(message, remoteEndPoint, 486, "Busy Here", cancellationToken, localTag);
+                DebugLog.Write("RECV INVITE rejected because DND is enabled");
+            }
+            QueueRegistrationRefresh("DND incoming reject");
+            return;
+        }
+
+        await SendSimpleResponseAsync(message, remoteEndPoint, 100, "Trying", cancellationToken);
+        await SendSimpleResponseAsync(message, remoteEndPoint, 180, "Ringing", cancellationToken, localTag);
+
+        bool isVideo = TryParseRemoteVideo(message, out _, out _, out _);
+
+        _pendingIncomingCall = new PendingIncomingCall(
+            callId,
+            message,
+            remoteEndPoint,
+            localTag,
+            ExtractTag(from),
+            ExtractRemoteTarget(headers),
+            ExtractCSeqNumber(headers.GetValueOrDefault("cseq", "")),
+            isVideo);
+        
+        bool isIntercom = message.Contains("Answer-After=0", StringComparison.OrdinalIgnoreCase) || 
+                          message.Contains("Intercom", StringComparison.OrdinalIgnoreCase) || 
+                          message.Contains("Auto-Answer", StringComparison.OrdinalIgnoreCase) ||
+                          message.Contains("info=alert-autoanswer", StringComparison.OrdinalIgnoreCase);
+
+        var targetLine = _line1Call is null ? 1 : 2;
+        IncomingCall?.Invoke(this, new IncomingCallEventArgs(ExtractCaller(from), from, isIntercom, LineNumber: targetLine, IsVideo: isVideo));
+
+        if (isIntercom)
+        {
+            await AnswerIncomingCallAsync(cancellationToken);
+        }
+    }
+
+    private void HandlePresenceNotify(string message)
+    {
+        try
+        {
+            var headers = ParseHeaders(message);
+            var body = ExtractBody(message);
+            
+            var callId = headers.GetValueOrDefault("call-id", "");
+            string extension = "";
+            if (!string.IsNullOrWhiteSpace(callId) && _subscriptionCallIds.TryGetValue(callId, out var subExt))
+            {
+                extension = subExt;
+            }
+
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                extension = ExtractPresenceExtension(body);
+            }
+
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                var source = headers.GetValueOrDefault("from", "");
+                var fromExt = NormalizeExtension(ExtractCaller(source));
+                if (!string.Equals(fromExt, "asterisk", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(fromExt, "pbx", StringComparison.OrdinalIgnoreCase))
+                {
+                    extension = fromExt;
+                }
+            }
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                var toHeader = headers.GetValueOrDefault("to", "");
+                extension = NormalizeExtension(ExtractCaller(toHeader));
+            }
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                extension = NormalizeExtension(headers.GetValueOrDefault("event", ""));
+            }
+
+            var presence = ParsePresenceState(body);
+            if (string.IsNullOrWhiteSpace(extension) || string.IsNullOrWhiteSpace(presence))
+            {
+                return;
+            }
+
+            var eventName = headers.GetValueOrDefault("event", "").Split(';')[0].Trim();
+            DebugLog.Write($"BLF notify extension={extension} presence={presence} event={eventName} callId={callId}");
+            ContactPresenceChanged?.Invoke(this, new ContactPresenceEventArgs(extension, presence, eventName));
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"BLF notify parse failed error={error.Message}");
+        }
+    }
+
+    private bool HandleReferNotify(string message)
+    {
+        var pending = _pendingReferTransfer;
+        if (pending is null)
+        {
+            return false;
+        }
+
+        var headers = ParseHeaders(message);
+        var callId = headers.GetValueOrDefault("call-id", "");
+        var eventName = headers.GetValueOrDefault("event", "");
+        if (!string.Equals(callId, pending.CallId, StringComparison.OrdinalIgnoreCase) ||
+            (!eventName.Contains("refer", StringComparison.OrdinalIgnoreCase) && !ExtractBody(message).Contains("SIP/2.0", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        var body = ExtractBody(message).Trim();
+        var statusLine = body
+            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault(line => line.StartsWith("SIP/2.0", StringComparison.OrdinalIgnoreCase)) ?? "";
+        var code = 0;
+        var reason = "";
+        var parts = statusLine.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+        {
+            int.TryParse(parts[1], out code);
+            reason = parts.Length >= 3 ? parts[2] : "";
+        }
+
+        DebugLog.Write($"REFER NOTIFY callId={callId} event={eventName} status={statusLine}");
+        if (code is >= 100 and < 200)
+        {
+            return true;
+        }
+
+        if (code is >= 200 and < 300)
+        {
+            pending.ResultSource.TrySetResult(new SipCallResult(true, $"Transfer completed: {code} {reason}".Trim()));
+            return true;
+        }
+
+        if (code >= 300)
+        {
+            pending.ResultSource.TrySetResult(new SipCallResult(false, $"Transfer failed: {code} {reason}".Trim()));
+            return true;
+        }
+
+        return true;
+    }
+
+        private void StartMwi()
+    {
+        try
+        {
+            _mwiService?.Dispose();
+            _mwiService = new MwiService(this);
+            _mwiService.VoicemailCountChanged += (s, e) => VoicemailStatusChanged?.Invoke(this, e);
+            _ = _mwiService.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"StartMwi exception: {ex.Message}");
+        }
+    }
+
+    private bool HandleMwiNotify(string message)
+    {
+        var headers = ParseHeaders(message);
+        var eventHeader = headers.GetValueOrDefault("event", "");
+        if (eventHeader.StartsWith("message-summary", StringComparison.OrdinalIgnoreCase))
+        {
+            var body = ExtractBody(message);
+            bool hasMessages = false;
+            int newMsg = 0;
+            int oldMsg = 0;
+
+            var waitingMatch = Regex.Match(body, @"Messages-Waiting:\s*(yes|no)", RegexOptions.IgnoreCase);
+            if (waitingMatch.Success)
+            {
+                hasMessages = waitingMatch.Groups[1].Value.Equals("yes", StringComparison.OrdinalIgnoreCase);
+            }
+
+            var voiceMessageMatch = Regex.Match(body, @"Voice-Message:\s*(\d+)/(\d+)", RegexOptions.IgnoreCase);
+            if (voiceMessageMatch.Success)
+            {
+                int.TryParse(voiceMessageMatch.Groups[1].Value, out newMsg);
+                int.TryParse(voiceMessageMatch.Groups[2].Value, out oldMsg);
+            }
+
+            var status = new VoicemailStatus
+            {
+                HasMessages = hasMessages,
+                NewMessages = newMsg,
+                OldMessages = oldMsg,
+                LastChecked = DateTime.UtcNow
+            };
+
+            VoicemailStatusChanged?.Invoke(this, status);
+            return true;
+        }
+        return false;
+    }
+
+    private async Task SendSimpleResponseAsync(
+        string request,
+        IPEndPoint remoteEndPoint,
+        int code,
+        string reason,
+        CancellationToken cancellationToken,
+        string? localTag = null,
+        string? additionalHeader = null)
+    {
+        if (!IsTransportReady)
+        {
+            return;
+        }
+
+        var headers = ParseHeaders(request);
+        var via = headers.GetValueOrDefault("via", "");
+        var from = headers.GetValueOrDefault("from", "");
+        var to = headers.GetValueOrDefault("to", "");
+        var callId = headers.GetValueOrDefault("call-id", "");
+        var cseq = headers.GetValueOrDefault("cseq", "");
+
+        if (code >= 180 && !to.Contains("tag=", StringComparison.OrdinalIgnoreCase))
+        {
+            to = EnsureToTag(to, localTag ?? Guid.NewGuid().ToString("N")[..12]);
+        }
+
+        var responseList = new List<string>
+        {
+            $"SIP/2.0 {code} {reason}",
+            $"Via: {via}",
+            $"From: {from}",
+            $"To: {to}",
+            $"Call-ID: {callId}",
+            $"CSeq: {cseq}",
+            "User-Agent: CK Media Services Merlin SIP"
+        };
+
+        if (!string.IsNullOrEmpty(additionalHeader))
+        {
+            responseList.Add(additionalHeader);
+        }
+
+        responseList.Add("Content-Length: 0");
+        responseList.Add("");
+        responseList.Add("");
+
+        var response = string.Join("\r\n", responseList);
+
+        var payload = Encoding.UTF8.GetBytes(response);
+        await SendToRemoteAsync(payload, remoteEndPoint, cancellationToken);
+        DebugLog.Write($"SEND RESPONSE code={code} reason={reason} callId={callId} bytes={payload.Length}");
+    }
+
+    public static bool IsMd5Hash(string? value) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Trim().Length == 32 &&
+        value.Trim().All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
+
+    internal string ResolveHa1(string realm, bool forcePlaintext = false)
+    {
+        var password = _config?.Password?.Trim() ?? string.Empty;
+        var username = _config?.Username?.Trim() ?? string.Empty;
+
+        if (!forcePlaintext && (_passwordIsHa1 == true || (_passwordIsHa1 is null && IsMd5Hash(password))))
+        {
+            DebugLog.Write($"DIGEST AUTH: Using pre-calculated MD5 HA1 hash for user={username} realm={realm}");
+            return password.ToLowerInvariant();
+        }
+
+        DebugLog.Write($"DIGEST AUTH: Calculating HA1 from plaintext password for user={username} realm={realm}");
+        return Md5($"{username}:{realm}:{password}");
+    }
+
+    private string BuildDigestAuthorization(string method, string uri, string challengeHeader, bool forcePlaintext = false)
+    {
+        var challenge = ParseChallenge(challengeHeader);
+        var realm = challenge.GetValueOrDefault("realm", _domain);
+        var nonce = challenge.GetValueOrDefault("nonce", "");
+        var qop = challenge.GetValueOrDefault("qop", "").Split(',').Select(value => value.Trim()).Contains("auth") ? "auth" : "";
+        var nc = "00000001";
+        var cnonce = Guid.NewGuid().ToString("N")[..16];
+        var ha1 = ResolveHa1(realm, forcePlaintext);
+        var ha2 = Md5($"{method}:{uri}");
+        var response = string.IsNullOrWhiteSpace(qop)
+            ? Md5($"{ha1}:{nonce}:{ha2}")
+            : Md5($"{ha1}:{nonce}:{nc}:{cnonce}:{qop}:{ha2}");
+
+        var fields = new List<string>
+        {
+            $"username=\"{_config?.Username ?? ""}\"",
+            $"realm=\"{realm}\"",
+            $"nonce=\"{nonce}\"",
+            $"uri=\"{uri}\"",
+            $"response=\"{response}\"",
+            "algorithm=MD5"
+        };
+
+        if (challenge.TryGetValue("opaque", out var opaque))
+        {
+            fields.Add($"opaque=\"{opaque}\"");
+        }
+
+        if (!string.IsNullOrWhiteSpace(qop))
+        {
+            fields.Add($"qop={qop}");
+            fields.Add($"nc={nc}");
+            fields.Add($"cnonce=\"{cnonce}\"");
+        }
+
+        return $"Digest {string.Join(", ", fields)}";
+    }
+
+    internal static SipResponse ParseResponse(string raw)
+    {
+        var lines = raw.Split(["\r\n", "\n"], StringSplitOptions.None);
+        var match = Regex.Match(lines.FirstOrDefault() ?? "", @"^SIP/2.0\s+(\d{3})\s*(.*)$", RegexOptions.IgnoreCase);
+        var headers = ParseHeaders(raw);
+
+        return match.Success
+            ? new SipResponse(int.Parse(match.Groups[1].Value), match.Groups[2].Value, headers, raw)
+            : new SipResponse(0, "Invalid SIP response.", headers, raw);
+    }
+
+    private void UpdateLocalEndpointFromResponse(SipResponse response)
+    {
+        if (UseStreamSignalling)
+        {
+            return;
+        }
+
+        if (response.Headers.TryGetValue("via", out var viaHeader) && !string.IsNullOrWhiteSpace(viaHeader))
+        {
+            var receivedMatch = Regex.Match(viaHeader, @"received=([a-fA-F0-9\.:]+)");
+            var rportMatch = Regex.Match(viaHeader, @"rport=(\d+)");
+
+            var updated = false;
+            if (receivedMatch.Success)
+            {
+                var serverAddress = receivedMatch.Groups[1].Value;
+                if (_localAddress != serverAddress)
+                {
+                    DebugLog.Write($"NAT traversal: updating local IP from {_localAddress} to public {serverAddress}");
+                    _localAddress = serverAddress;
+                    updated = true;
+                }
+            }
+
+            if (rportMatch.Success && int.TryParse(rportMatch.Groups[1].Value, out var serverPort))
+            {
+                if (_localPort != serverPort)
+                {
+                    DebugLog.Write($"NAT traversal: updating local port from {_localPort} to public {serverPort}");
+                    _localPort = serverPort;
+                    updated = true;
+                }
+            }
+
+            if (updated)
+            {
+                DebugLog.Write($"NAT traversal: public endpoint detected as {_localAddress}:{_localPort}");
+            }
+        }
+    }
+
+        internal static Dictionary<string, string> ParseHeaders(string raw)
+    {
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrEmpty(raw))
+        {
+            return headers;
+        }
+
+        var headerSection = raw.Split(["\r\n\r\n", "\n\n"], 2, StringSplitOptions.None)[0];
+        string? lastKey = null;
+
+        foreach (var line in headerSection.Split(["\r\n", "\n"], StringSplitOptions.None).Skip(1))
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            if ((line[0] == ' ' || line[0] == '\t') && lastKey != null)
+            {
+                if (headers.TryGetValue(lastKey, out var existing))
+                {
+                    headers[lastKey] = existing + " " + line.Trim();
+                }
+                continue;
+            }
+
+            var index = line.IndexOf(':');
+            if (index > 0)
+            {
+                var key = line[..index].Trim().ToLowerInvariant();
+                var value = line[(index + 1)..].Trim();
+                lastKey = key;
+
+                if (headers.TryGetValue(key, out var existing))
+                {
+                    headers[key] = existing + "\r\n" + line[..index] + ": " + value;
+                }
+                else
+                {
+                    headers[key] = value;
+                }
+            }
+        }
+
+        return headers;
+    }
+
+    private static Dictionary<string, string> ParseChallenge(string header)
+    {
+        var value = Regex.Replace(header, "^Digest\\s+", "", RegexOptions.IgnoreCase);
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (Match match in Regex.Matches(value, "(\\w+)=(?:\"([^\"]*)\"|([^,]*))"))
+        {
+            result[match.Groups[1].Value] = match.Groups[2].Success ? match.Groups[2].Value : match.Groups[3].Value.Trim();
+        }
+
+        return result;
+    }
+
+    private static string ExtractCaller(string fromHeader)
+    {
+        var match = Regex.Match(fromHeader, @"sip:([^@>;]+)", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value : fromHeader;
+    }
+
+    private static string NormalizeExtension(string value)
+    {
+        var source = value.Trim();
+        var sipMatch = Regex.Match(source, @"sip:([^@>;]+)", RegexOptions.IgnoreCase);
+        if (sipMatch.Success)
+        {
+            source = sipMatch.Groups[1].Value;
+        }
+
+        var builder = new StringBuilder(source.Length);
+        foreach (var character in source)
+        {
+            if (char.IsDigit(character) || character is '*' or '#')
+            {
+                builder.Append(character);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    internal readonly record struct BlfChannels(string Dialog = "", string Reachability = "")
+    {
+        public static BlfChannels Apply(BlfChannels current, string? incoming, string? eventName)
+        {
+            if (string.IsNullOrWhiteSpace(incoming))
+            {
+                return current;
+            }
+
+            var source = (eventName ?? "").Split(';')[0].Trim();
+            var isDialog = source.Equals("dialog", StringComparison.OrdinalIgnoreCase);
+            var isPresence = source.Equals("presence", StringComparison.OrdinalIgnoreCase);
+            if (isDialog || (!isPresence && incoming is "Ringing" or "Busy"))
+            {
+                return current with { Dialog = incoming };
+            }
+
+            return current with { Reachability = incoming };
+        }
+
+        public string Resolve()
+        {
+            if (Dialog is "Ringing" or "Busy")
+            {
+                return Dialog;
+            }
+
+            if (Reachability is "Offline" or "DND" or "Away" or "Busy" or "Available")
+            {
+                return Reachability;
+            }
+
+            return "Offline";
+        }
+    }
+
+    internal static string MergeBlfPresence(string? current, string? incoming, string? eventName)
+    {
+        var channels = BlfChannels.Apply(new BlfChannels(Reachability: current ?? ""), incoming, eventName);
+        return channels.Resolve();
+    }
+
+    internal static string ExtractPresenceExtension(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return "";
+        }
+
+        string[] patterns = new[]
+        {
+            "entity\\s*=\\s*[\"'’]?(?:sip:)?([^@\"'’>;]+)",
+            "<tuple\\s+id\\s*=\\s*[\"'’]?(?:sip:)?([^@\"'’>;]+)",
+            "<local>.*?<identity[^>]*>\\s*(?:sip:)?([^<@>;]+)",
+            "<remote>.*?<identity[^>]*>\\s*(?:sip:)?([^<@>;]+)",
+            "<identity[^>]*>\\s*(?:sip:)?([^<@>;]+)"
+        };
+
+        foreach (var pattern in patterns)
+        {
+            var match = Regex.Match(body, pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            if (match.Success)
+            {
+                var candidate = NormalizeExtension(match.Groups[1].Value);
+                if (!string.IsNullOrWhiteSpace(candidate) && !string.Equals(candidate, "asterisk", StringComparison.OrdinalIgnoreCase))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return "";
+    }
+
+    internal static string ParsePresenceState(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return "";
+        }
+
+        // 1. Note tags: <note>...</note> or <dm:note>...</dm:note>
+        var noteMatch = Regex.Match(body, "<note>\\s*([^<]+)\\s*</note>|<dm:note>\\s*([^<]+)\\s*</dm:note>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (noteMatch.Success)
+        {
+            var note = (noteMatch.Groups[1].Success ? noteMatch.Groups[1].Value : noteMatch.Groups[2].Value).Trim();
+            if (note.Equals("Available", StringComparison.OrdinalIgnoreCase) ||
+                note.Equals("Busy", StringComparison.OrdinalIgnoreCase) ||
+                note.Equals("DND", StringComparison.OrdinalIgnoreCase) ||
+                note.Equals("Do Not Disturb", StringComparison.OrdinalIgnoreCase) ||
+                note.Equals("Away", StringComparison.OrdinalIgnoreCase) ||
+                note.Equals("Offline", StringComparison.OrdinalIgnoreCase))
+            {
+                return note.ToLowerInvariant() switch
+                {
+                    "available" => "Available",
+                    "away" => "Away",
+                    "dnd" or "do not disturb" => "DND",
+                    "busy" => "Busy",
+                    "offline" => "Offline",
+                    _ => "Available"
+                };
+            }
+        }
+
+        // 2. RPID activities: <rpid:do-not-disturb/>, <rpid:busy/>, <rpid:away/>, <rpid:available/>
+        if (Regex.IsMatch(body, "<rpid:do-not-disturb\\s*/>|<ep:do-not-disturb\\s*/>", RegexOptions.IgnoreCase))
+        {
+            return "DND";
+        }
+        if (Regex.IsMatch(body, "<rpid:busy\\s*/>|<rpid:on-the-phone\\s*/>|<ep:busy\\s*/>", RegexOptions.IgnoreCase))
+        {
+            return "Busy";
+        }
+        if (Regex.IsMatch(body, "<rpid:away\\s*/>|<rpid:be-right-back\\s*/>|<ep:away\\s*/>", RegexOptions.IgnoreCase))
+        {
+            return "Away";
+        }
+        if (Regex.IsMatch(body, "<rpid:available\\s*/>", RegexOptions.IgnoreCase))
+        {
+            return "Available";
+        }
+
+        // 3. Dialog-Info (RFC 4235):
+        if (body.Contains("dialog-info", StringComparison.OrdinalIgnoreCase))
+        {
+            // Ringing states
+            if (Regex.IsMatch(body, "<state>\\s*(?:early|trying)\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'’]?(?:early|trying)", RegexOptions.IgnoreCase))
+            {
+                return "Ringing";
+            }
+
+            // Confirmed / active call states
+            if (Regex.IsMatch(body, "<state>\\s*confirmed\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'’]?confirmed", RegexOptions.IgnoreCase))
+            {
+                return "Busy";
+            }
+
+            // Terminated or idle states -> Available
+            if (Regex.IsMatch(body, "<state>\\s*terminated\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'’]?terminated", RegexOptions.IgnoreCase))
+            {
+                return "Available";
+            }
+
+            // Dialog-info present without active early/confirmed dialog is idle -> Available
+            return "Available";
+        }
+
+        // 4. Basic PIDF status: <basic>open</basic> / <basic>closed</basic>
+        if (Regex.IsMatch(body, "<basic>\\s*closed\\s*</basic>", RegexOptions.IgnoreCase))
+        {
+            return "Offline";
+        }
+
+        if (Regex.IsMatch(body, "<basic>\\s*open\\s*</basic>", RegexOptions.IgnoreCase))
+        {
+            return "Available";
+        }
+
+        // 5. Fallback string matches
+        if (body.Contains("busy", StringComparison.OrdinalIgnoreCase) || body.Contains("inuse", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Busy";
+        }
+
+        if (body.Contains("ring", StringComparison.OrdinalIgnoreCase) || body.Contains("early", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Ringing";
+        }
+
+        if (body.Contains("dnd", StringComparison.OrdinalIgnoreCase))
+        {
+            return "DND";
+        }
+
+        if (body.Contains("away", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Away";
+        }
+
+        if (body.Contains("open", StringComparison.OrdinalIgnoreCase) || body.Contains("available", StringComparison.OrdinalIgnoreCase) || body.Contains("idle", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Available";
+        }
+
+        return "";
+    }
+
+    private static string ExtractBody(string raw)
+    {
+        var bodyStart = raw.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+        if (bodyStart >= 0)
+        {
+            return raw[(bodyStart + 4)..];
+        }
+
+        bodyStart = raw.IndexOf("\n\n", StringComparison.Ordinal);
+        return bodyStart >= 0 ? raw[(bodyStart + 2)..] : "";
+    }
+
+    private static string ExtractRemoteTarget(IReadOnlyDictionary<string, string> headers)
+    {
+        var source = headers.GetValueOrDefault("contact", "");
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            source = headers.GetValueOrDefault("from", "");
+        }
+
+        var match = Regex.Match(source, @"sip:([^>;,\s]+)", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value : "unknown";
+    }
+
+    private static int ExtractCSeqNumber(string cseq)
+    {
+        var parts = cseq.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 0 && int.TryParse(parts[0], out var value) ? value : 1;
+    }
+
+    private static string ExtractCSeqMethod(string cseq)
+    {
+        var parts = cseq.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 1 ? parts[1] : "";
+    }
+
+    private static string EnsureToTag(string to, string localTag)
+    {
+        if (to.Contains("tag=", StringComparison.OrdinalIgnoreCase))
+        {
+            return to;
+        }
+
+        return $"{to};tag={localTag}";
+    }
+
+    private static string? ExtractTag(string header)
+    {
+        var match = Regex.Match(header, @"(?:^|;)tag=([^;>\s]+)", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    public void CleanupVideoSession()
+    {
+        try
+        {
+            _videoSession?.Dispose();
+        }
+        catch { }
+        _videoSession = null;
+    }
+
+    public bool TryParseRemoteVideo(string response, out string address, out int port, out int payloadType)
+    {
+        address = _config?.Server ?? "";
+        port = 0;
+        payloadType = 96;
+        var bodyStart = response.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+        var sdp = bodyStart >= 0 ? response[(bodyStart + 4)..] : response;
+
+        foreach (var line in sdp.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (line.StartsWith("c=IN IP4 ", StringComparison.OrdinalIgnoreCase))
+            {
+                address = line["c=IN IP4 ".Length..].Trim();
+            }
+            else if (line.StartsWith("m=video ", StringComparison.OrdinalIgnoreCase))
+            {
+                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 4 && int.TryParse(parts[1], out var parsedPort))
+                {
+                    port = parsedPort;
+                    var payloads = parts.Skip(3).ToArray();
+                    payloadType = payloads.Contains("96") ? 96 : payloads.Contains("97") ? 97 : 96;
+                }
+            }
+        }
+
+        if (ShouldUseConfiguredMediaHost(address))
+        {
+            address = _config!.Server;
+        }
+
+        return port > 0 && !string.IsNullOrWhiteSpace(address);
+    }
+
+    private bool TryParseRemoteAudio(string response, out string address, out int port, out int payloadType)
+    {
+        address = _config?.Server ?? "";
+        port = 0;
+        payloadType = 0;
+        var bodyStart = response.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+        var sdp = bodyStart >= 0 ? response[(bodyStart + 4)..] : response;
+
+        foreach (var line in sdp.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (line.StartsWith("c=IN IP4 ", StringComparison.OrdinalIgnoreCase))
+            {
+                address = line["c=IN IP4 ".Length..].Trim();
+            }
+            else if (line.StartsWith("m=audio ", StringComparison.OrdinalIgnoreCase))
+            {
+                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 4 && int.TryParse(parts[1], out var parsedPort))
+                {
+                    port = parsedPort;
+                    var payloads = parts.Skip(3).ToArray();
+                    payloadType = payloads.Contains("0") ? 0 : payloads.Contains("8") ? 8 : 0;
+                }
+            }
+        }
+
+        if (ShouldUseConfiguredMediaHost(address))
+        {
+            DebugLog.Write($"RTP media address fallback sdp={address} host={_config!.Server}");
+            address = _config.Server;
+        }
+
+        return port > 0 && !string.IsNullOrWhiteSpace(address);
+    }
+
+    private bool ShouldUseConfiguredMediaHost(string address)
+    {
+        if (_config is null || string.IsNullOrWhiteSpace(_config.Server) || !IPAddress.TryParse(address, out var mediaAddress))
+        {
+            return false;
+        }
+
+        if (!IsPrivateAddress(mediaAddress) || LocalNetworkCanReach(mediaAddress))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool LocalNetworkCanReach(IPAddress mediaAddress)
+    {
+        foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (networkInterface.OperationalStatus != OperationalStatus.Up)
+            {
+                continue;
+            }
+
+            foreach (var unicast in networkInterface.GetIPProperties().UnicastAddresses)
+            {
+                var localAddress = unicast.Address;
+                if (localAddress.AddressFamily != AddressFamily.InterNetwork || IPAddress.IsLoopback(localAddress))
+                {
+                    continue;
+                }
+
+                if (IsSamePrivateNetwork(localAddress, mediaAddress))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSamePrivateNetwork(IPAddress localAddress, IPAddress mediaAddress)
+    {
+        var local = localAddress.GetAddressBytes();
+        var media = mediaAddress.GetAddressBytes();
+
+        if (local[0] == 10 && media[0] == 10)
+        {
+            return true;
+        }
+
+        if (local[0] == 192 && local[1] == 168 && media[0] == 192 && media[1] == 168)
+        {
+            return true;
+        }
+
+        return local[0] == 172 && media[0] == 172 &&
+               local[1] >= 16 && local[1] <= 31 &&
+               media[1] >= 16 && media[1] <= 31;
+    }
+
+    private static bool IsPrivateAddress(IPAddress address)
+    {
+        var bytes = address.GetAddressBytes();
+        return bytes[0] == 10 ||
+               (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
+               (bytes[0] == 192 && bytes[1] == 168);
+    }
+
+    private static string Md5(string value)
+    {
+        var bytes = MD5.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static string CreateBranch()
+    {
+        return $"z9hG4bK-{Guid.NewGuid():N}";
+    }
+
+    private static string SanitizeHeader(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return "";
+        return value.Replace("\r", "").Replace("\n", "").Trim();
+    }
+
+    private void RaiseCallProgress(SipResponse response, string? callId = null, int? lineNumber = null)
+    {
+        var connected = response.Code is >= 200 and < 300;
+        var description = DescribeCallProgress(response);
+        CallProgress?.Invoke(this, new CallProgressEventArgs(response.Code, response.Reason, connected, description, callId, lineNumber));
+    }
+
+    private void RaiseCallProgress(SipResponse response)
+    {
+        RaiseCallProgress(response, _activeCall?.CallId, _activeCall?.LineNumber);
+    }
+
+    private bool IsCurrentCall(string callId)
+    {
+        return (_line1Call is not null && string.Equals(_line1Call.CallId, callId, StringComparison.OrdinalIgnoreCase)) ||
+               (_line2Call is not null && string.Equals(_line2Call.CallId, callId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool TryCompletePendingResponse(SipResponse response)
+    {
+        var callId = response.Headers.GetValueOrDefault("call-id", "").ToLowerInvariant();
+        var method = ExtractCSeqMethod(response.Headers.GetValueOrDefault("cseq", "")).ToUpperInvariant();
+        var key = (callId, method);
+
+        if (_pendingTransactions.TryGetValue(key, out var waitSource))
+        {
+            return waitSource.TrySetResult(response);
+        }
+
+        DebugLog.Write($"RECV SIP RESPONSE ignored for pending transaction callId={callId} method={method}");
+        return false;
+    }
+
+    private static string DescribeCallProgress(SipResponse response)
+    {
+        return response.Code switch
+        {
+            100 => "Call setup in progress.",
+            180 => "Remote phone is ringing.",
+            183 => "Remote side is providing early media.",
+            >= 200 and < 300 => "Call connected.",
+            >= 300 => $"Call failed: {response.Code} {response.Reason}".Trim(),
+            _ => $"SIP response: {response.Code} {response.Reason}".Trim()
+        };
+    }
+
+    private void QueueRegistrationRefresh(string reason)
+    {
+        _ = Task.Run(async () =>
+        {
+            await RefreshRegistrationAfterCallAsync(reason);
+        });
+    }
+
+    private async Task RefreshRegistrationAfterCallAsync(string reason)
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(900));
+
+        for (var attempt = 1; attempt <= 5; attempt++)
+        {
+            try
+            {
+                if (!IsTransportReady || _config is null)
+                {
+                    DebugLog.Write($"REGISTER post-call refresh abandoned reason={reason} attempt={attempt}");
+                    return;
+                }
+
+                if (_activeCall is not null)
+                {
+                    DebugLog.Write($"REGISTER post-call refresh waiting reason={reason} attempt={attempt}");
+                    await Task.Delay(TimeSpan.FromMilliseconds(750));
+                    continue;
+                }
+
+                var result = await RegisterCurrentSocketAsync(CancellationToken.None);
+                DebugLog.Write($"REGISTER post-call refresh reason={reason} attempt={attempt} connected={result.Connected} message={result.Message}");
+                if (result.Connected)
+                {
+                    return;
+                }
+            }
+            catch (Exception error)
+            {
+                DebugLog.Write($"REGISTER post-call refresh failed reason={reason} attempt={attempt} error={error.Message}");
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(900 * attempt));
+        }
+
+        _registered = false;
+        DebugLog.Write($"REGISTER post-call refresh exhausted reason={reason}");
+    }
+
+    private static string GetLocalAddress(string remoteServer)
+    {
+        try
+        {
+            using var tempSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            tempSocket.Connect(remoteServer, 5060);
+            if (tempSocket.LocalEndPoint is IPEndPoint localEP)
+            {
+                return localEP.Address.ToString();
+            }
+        }
+        catch (Exception error)
+        {
+            DebugLog.Write($"GetLocalAddress socket connect failed: {error.Message}");
+        }
+
+        // Fallback: search active interfaces but filter out virtual ones (WSL, Hyper-V, VPNs, VMware, VirtualBox)
+        foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (networkInterface.OperationalStatus != OperationalStatus.Up)
+            {
+                continue;
+            }
+
+            var name = networkInterface.Name.ToLowerInvariant();
+            var desc = networkInterface.Description.ToLowerInvariant();
+            if (name.Contains("virtual") || name.Contains("wsl") || name.Contains("hyper-v") || name.Contains("vmware") || name.Contains("virtualbox") || name.Contains("vbox") || name.Contains("vpn") || name.Contains("loopback") || name.Contains("pseudo") ||
+                desc.Contains("virtual") || desc.Contains("wsl") || desc.Contains("hyper-v") || desc.Contains("vmware") || desc.Contains("virtualbox") || desc.Contains("vbox") || desc.Contains("vpn") || desc.Contains("loopback") || desc.Contains("pseudo"))
+            {
+                continue;
+            }
+
+            foreach (var address in networkInterface.GetIPProperties().UnicastAddresses)
+            {
+                if (address.Address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(address.Address))
+                {
+                    return address.Address.ToString();
+                }
+            }
+        }
+
+        // Final fallback: any non-loopback IP
+        foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (networkInterface.OperationalStatus != OperationalStatus.Up)
+            {
+                continue;
+            }
+
+            foreach (var address in networkInterface.GetIPProperties().UnicastAddresses)
+            {
+                if (address.Address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(address.Address))
+                {
+                    return address.Address.ToString();
+                }
+            }
+        }
+
+        return "127.0.0.1";
+    }
+
+    private async Task<IPEndPoint?> ProbeLocalLanPbxAsync(CancellationToken cancellationToken)
+    {
+        return await Task.Run(() =>
+        {
+            try
+            {
+                var candidates = new List<string> { "10.0.0.40" };
+
+                if (IPAddress.TryParse(_localAddress, out var localIp) && localIp.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    var bytes = localIp.GetAddressBytes();
+                    var subnetBase = $"{bytes[0]}.{bytes[1]}.{bytes[2]}";
+                    if (!candidates.Contains($"{subnetBase}.40")) candidates.Add($"{subnetBase}.40");
+                    if (!candidates.Contains($"{subnetBase}.1")) candidates.Add($"{subnetBase}.1");
+                    if (!candidates.Contains($"{subnetBase}.200")) candidates.Add($"{subnetBase}.200");
+                    if (!candidates.Contains($"{subnetBase}.250")) candidates.Add($"{subnetBase}.250");
+                }
+
+                foreach (var candidate in candidates)
+                {
+                    if (candidate == _localAddress) continue;
+                    if (!IPAddress.TryParse(candidate, out var candidateIp)) continue;
+
+                    try
+                    {
+                        using var probeSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                        probeSocket.ReceiveTimeout = 300;
+                        probeSocket.SendTimeout = 300;
+                        probeSocket.Bind(new IPEndPoint(IPAddress.Any, 0));
+
+                        var probePort = ((IPEndPoint)probeSocket.LocalEndPoint!).Port;
+                        var pingOptions = string.Join("\r\n", [
+                            $"OPTIONS sip:{_domain} SIP/2.0",
+                            $"Via: SIP/2.0/UDP {_localAddress}:{probePort};branch=z9hG4bK-{Guid.NewGuid():N}",
+                            "Max-Forwards: 70",
+                            $"From: <sip:ping@{_domain}>;tag={Guid.NewGuid():N}",
+                            $"To: <sip:{_domain}>",
+                            $"Call-ID: {Guid.NewGuid():N}@merlin-sip",
+                            "CSeq: 1 OPTIONS",
+                            "User-Agent: MerlinSIP-LAN-Probe",
+                            "Content-Length: 0",
+                            "",
+                            ""
+                        ]);
+
+                        var probeBytes = Encoding.UTF8.GetBytes(pingOptions);
+                        var ep = new IPEndPoint(candidateIp, _config?.Port > 0 ? _config.Port : 5060);
+                        probeSocket.SendTo(probeBytes, ep);
+
+                        var buf = new byte[1024];
+                        EndPoint remoteEp = new IPEndPoint(IPAddress.Any, 0);
+                        var received = probeSocket.ReceiveFrom(buf, ref remoteEp);
+                        if (received > 0)
+                        {
+                            var text = Encoding.UTF8.GetString(buf, 0, received);
+                            if (text.StartsWith("SIP/2.0", StringComparison.OrdinalIgnoreCase))
+                            {
+                                DebugLog.Write($"[LAN PBX PROBE] Found active SIP PBX at {candidate}: {text.Split('\r')[0]}");
+                                return ep;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write($"[LAN PBX PROBE] Probe error: {ex.Message}");
+            }
+
+            return null;
+        }, cancellationToken);
+    }
+
+    private void DisposeClient()
+    {
+        StopHeartbeat();
+        _listenCancellation?.Cancel();
+        _listenCancellation?.Dispose();
+        _listenCancellation = null;
+        _listenerStarted = false;
+        _registrationRefreshCancellation?.Cancel();
+        _registrationRefreshCancellation?.Dispose();
+        _registrationRefreshCancellation = null;
+        _natKeepAliveCancellation?.Cancel();
+        _natKeepAliveCancellation?.Dispose();
+        _natKeepAliveCancellation = null;
+        foreach (var tcs in _pendingTransactions.Values)
+        {
+            tcs.TrySetCanceled();
+        }
+        _pendingTransactions.Clear();
+        _pendingIncomingCall = null;
+        _client?.Dispose();
+        _client = null;
+        _tcpStream?.Dispose();
+        _tcpStream = null;
+        _tcpClient?.Dispose();
+        _tcpClient = null;
+        _registered = false;
+        _audioSession?.Dispose();
+        _audioSession = null;
+        try { _mwiService?.Dispose(); } catch { }
+        _mwiService = null;
+        try { _videoSession?.Dispose(); } catch { }
+        _videoSession = null;
+    }
+}
+
+public sealed record SipRegistrationResult(bool Connected, string Message);
+
+public sealed record SipCallResult(bool Signalled, string Message);
+
+public sealed record IncomingCallEventArgs(string CallerNumber, string RawFromHeader, bool IsIntercom = false, int LineNumber = 1, bool IsVideo = false);
+
+
+public sealed record CallProgressEventArgs(int Code, string Reason, bool Connected, string Message, string? CallId = null, int? LineNumber = null);
+
+public sealed record CallEndedEventArgs(string Message, string? CallId = null, int? LineNumber = null);
+
+public sealed record ContactPresenceEventArgs(string Number, string Presence, string EventName = "");
+
+public sealed record SipResponse(int Code, string Reason, IReadOnlyDictionary<string, string> Headers, string Raw);
+
+internal sealed record PendingSipTransaction(TaskCompletionSource<SipResponse> ResponseSource, string CallId, string CSeqMethod);
+
+internal sealed record PendingReferTransfer(string CallId, TaskCompletionSource<SipCallResult> ResultSource);
+
+internal sealed record ActiveCall(string CallId, string Target, string LocalTag, int CSeq, string InviteBranch, bool Established, string? RemoteTag, bool OnHold = false, int LineNumber = 1, bool IsVideo = false);
+
+public sealed record PendingIncomingCall(
+    string CallId,
+    string Request,
+    IPEndPoint RemoteEndPoint,
+    string LocalTag,
+    string? RemoteTag,
+    string RemoteTarget,
+    int InviteCSeq,
+    bool HasVideo = false);

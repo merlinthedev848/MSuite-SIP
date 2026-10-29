@@ -144,6 +144,7 @@ const handlePinProvision = (req: Request, res: Response) => {
 
   return res.json({
     ok: true,
+    success: true,
     message: 'Extension provisioned successfully.',
     sip: {
       server: config.pbx_server,

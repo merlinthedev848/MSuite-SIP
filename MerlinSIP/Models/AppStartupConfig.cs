@@ -80,8 +80,15 @@ public sealed record AppStartupConfig(
         LicenseStatus.Contains("Buyout", StringComparison.OrdinalIgnoreCase) ||
         LicenseStatus.Contains("Suite Config", StringComparison.OrdinalIgnoreCase);
 
-    public string EffectiveDataHandlerUrl =>
-        string.IsNullOrWhiteSpace(DataHandlerUrl) ? DefaultDataHandlerUrl : DataHandlerUrl.Trim();
+    public string EffectiveDataHandlerUrl
+    {
+        get
+        {
+            var env = Environment.GetEnvironmentVariable("CKM_HANDLER_URL");
+            if (!string.IsNullOrWhiteSpace(env)) return env.Trim();
+            return string.IsNullOrWhiteSpace(DataHandlerUrl) ? DefaultDataHandlerUrl : DataHandlerUrl.Trim();
+        }
+    }
 
     public AppStartupConfig WithFixedSipEndpoint()
     {

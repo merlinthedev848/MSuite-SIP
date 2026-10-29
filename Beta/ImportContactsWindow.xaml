@@ -1,0 +1,94 @@
+<Window x:Class="MerlinSip.ImportContactsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Import contacts"
+        Icon="Assets/CKMedia-Icon.ico"
+        Width="760"
+        Height="680"
+        MinWidth="640"
+        MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        Background="#F8FAFC"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
+        KeyDown="Window_KeyDown">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="Import contacts" FontSize="24" FontWeight="SemiBold" Foreground="#111827" />
+            <TextBlock x:Name="FileText" Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Text="Choose which column fills each part of the contact. Number is required." Foreground="#334155" Margin="0,16,0,12" TextWrapping="Wrap" />
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,10">
+                <TextBlock Text="Name" Foreground="#64748B" FontWeight="Medium" Margin="0,0,0,4" />
+                <ComboBox x:Name="NameColumnCombo" DisplayMemberPath="Label" SelectedValuePath="Index" Height="34" />
+            </StackPanel>
+            <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,10">
+                <TextBlock Text="Number" Foreground="#64748B" FontWeight="Medium" Margin="0,0,0,4" />
+                <ComboBox x:Name="NumberColumnCombo" DisplayMemberPath="Label" SelectedValuePath="Index" Height="34" SelectionChanged="NumberColumnCombo_SelectionChanged" />
+            </StackPanel>
+            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,0,10">
+                <TextBlock Text="Company" Foreground="#64748B" FontWeight="Medium" Margin="0,0,0,4" />
+                <ComboBox x:Name="CompanyColumnCombo" DisplayMemberPath="Label" SelectedValuePath="Index" Height="34" />
+            </StackPanel>
+            <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,10">
+                <TextBlock Text="Notes" Foreground="#64748B" FontWeight="Medium" Margin="0,0,0,4" />
+                <ComboBox x:Name="NotesColumnCombo" DisplayMemberPath="Label" SelectedValuePath="Index" Height="34" />
+            </StackPanel>
+            <StackPanel Grid.Row="2" Grid.Column="0">
+                <TextBlock Text="Favorite" Foreground="#64748B" FontWeight="Medium" Margin="0,0,0,4" />
+                <ComboBox x:Name="FavoriteColumnCombo" DisplayMemberPath="Label" SelectedValuePath="Index" Height="34" />
+            </StackPanel>
+        </Grid>
+
+        <DockPanel Grid.Row="3" Margin="0,16,0,0">
+            <TextBlock DockPanel.Dock="Top" Text="Preview" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,8" />
+            <DataGrid x:Name="PreviewGrid"
+                      IsReadOnly="True"
+                      AutoGenerateColumns="True"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      GridLinesVisibility="Horizontal"
+                      BorderBrush="#E2E8F0"
+                      BorderThickness="1"
+                      Background="White"
+                      RowBackground="White"
+                      AlternatingRowBackground="#F8FAFC" />
+        </DockPanel>
+
+        <CheckBox Grid.Row="4" x:Name="UpdateExistingCheckBox" Content="Update contacts that already use this number" Foreground="#111827" Margin="0,14,0,0" />
+
+        <Grid Grid.Row="5" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,12,0" />
+            <Button Grid.Column="1" Content="Cancel" Width="110" Height="40" Margin="0,0,8,0" Click="CancelButton_Click" />
+            <Button Grid.Column="2" x:Name="ImportButton" Content="Import" Width="120" Height="40" FontWeight="Bold" Background="#FBBF24" BorderBrush="#F59E0B" Foreground="#0F172A" Click="ImportButton_Click" />
+        </Grid>
+    </Grid>
+</Window>

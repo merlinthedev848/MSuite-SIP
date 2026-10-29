@@ -7,31 +7,43 @@ namespace MerlinSip.Services;
 
 public sealed class ProvisioningService
 {
-    private static readonly string[] ProvisioningUrlTemplates =
+    private static readonly string[] EndpointPaths =
     [
-        "https://accounts.chriskendall.media/sip/register/{code}",
-        "https://accounts.chriskendall.media/index.php/sip/register/{code}",
-        "https://accounts.chriskendall.media/sip/device/{code}",
-        "https://accounts.chriskendall.media/index.php/sip/device/{code}",
-        "https://accounts.chriskendall.media/sip/autoprovision/{code}",
-        "https://accounts.chriskendall.media/index.php/sip/autoprovision/{code}",
-        "https://accounts.chriskendall.media/sip/details/{code}",
-        "https://accounts.chriskendall.media/index.php/sip/details/{code}",
-        "https://accounts.chriskendall.media/sip/provision/{code}",
-        "https://accounts.chriskendall.media/index.php/sip/provision/{code}",
-        "https://accounts.chriskendall.media/sip/details",
-        "https://accounts.chriskendall.media/index.php/sip/details",
-        "https://accounts.chriskendall.media/sip/autoprovision/details",
-        "https://accounts.chriskendall.media/index.php/sip/autoprovision/details",
-        "https://accounts.chriskendall.media/sip/provision/details",
-        "https://accounts.chriskendall.media/index.php/sip/provision/details",
-        "https://accounts.chriskendall.media/sip/autoprovision",
-        "https://accounts.chriskendall.media/index.php/sip/autoprovision",
-        "https://accounts.chriskendall.media/sip/provision",
-        "https://accounts.chriskendall.media/index.php/sip/provision"
+        "/sip/provision/{code}",
+        "/sip/register/{code}",
+        "/sip/autoprovision/{code}",
+        "/sip/details/{code}",
+        "/api/v1/provision"
     ];
 
     private static readonly HttpClient HttpClient = HttpClientHelper.SharedClient;
+
+    public static List<string> GetBaseUrls()
+    {
+        var list = new List<string>();
+
+        // 1. Explicit environment override (e.g. during testing or custom deployment)
+        var envHandler = Environment.GetEnvironmentVariable("CKM_HANDLER_URL");
+        if (!string.IsNullOrWhiteSpace(envHandler))
+        {
+            list.Add(envHandler.Trim().TrimEnd('/'));
+        }
+
+        // 2. Production CKM Handler Gateway
+        list.Add(AppStartupConfig.DefaultDataHandlerUrl.TrimEnd('/'));
+
+        // 3. Beta CKM Handler Gateway
+        list.Add("https://beta-handler.chriskendall.media");
+
+        // 4. Local test / developer daemon loopbacks
+        list.Add("http://127.0.0.1:3000");
+        list.Add("http://127.0.0.1:9099");
+
+        // 5. Upstream accounts server fallback
+        list.Add("https://accounts.chriskendall.media");
+
+        return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
 
     public async Task<ProvisioningResult> ProvisionAsync(
         string code,
@@ -51,105 +63,110 @@ public sealed class ProvisioningService
         try
         {
             ProvisioningResult? lastFailure = null;
-            var maxDelay = TimeSpan.FromSeconds(30);
-            var delay = TimeSpan.FromSeconds(1);
+            var baseUrls = GetBaseUrls();
 
-            for (int attempt = 0; attempt < 5; attempt++)
+            var urlsToTry = new List<(string BaseUrl, Uri FullUri)>();
+            foreach (var baseUrl in baseUrls)
             {
-                if (attempt > 0)
+                foreach (var endpoint in EndpointPaths)
                 {
-                    var jitter = TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
-                    await Task.Delay(delay + jitter, cancellationToken);
-                    delay = delay * 2;
-                    if (delay > maxDelay) delay = maxDelay;
-                }
-
-                var urls = ProvisioningUrlTemplates.Select(t => new Uri(t.Replace("{code}", cleanedCode))).ToArray();
-                foreach (var url in urls)
-                {
-                    HttpResponseMessage response;
-                    try
+                    var resolvedPath = endpoint.Replace("{code}", cleanedCode);
+                    if (Uri.TryCreate($"{baseUrl}{resolvedPath}", UriKind.Absolute, out var uri))
                     {
-                        response = await HttpClient.PostAsJsonAsync(url, new ProvisioningRequest(cleanedCode), cancellationToken);
-                    }
-                    catch (HttpRequestException)
-                    {
-                        lastFailure = ProvisioningResult.Fail("The provisioning service is not available right now.");
-                        continue; // try next URL or retry
-                    }
-                    
-                    using (response)
-                    {
-                        var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
-                        var isJson = contentType.Contains("json", StringComparison.OrdinalIgnoreCase);
-
-                        if (!isJson)
-                        {
-                            DebugLog.Write($"PROVISION endpoint returned non-json status={(int)response.StatusCode} url={url}");
-                            lastFailure = ProvisioningResult.Fail("The provisioning service is not available right now.");
-                            continue;
-                        }
-
-                        var payload = await response.Content.ReadFromJsonAsync<ProvisioningResponse>(cancellationToken: cancellationToken);
-                        if (!response.IsSuccessStatusCode || payload is null || !payload.Success || payload.Sip is null)
-                        {
-                            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests || 
-                                (int)response.StatusCode >= 500)
-                            {
-                                lastFailure = ProvisioningResult.Fail(ToCustomerMessage(payload?.Error, response.StatusCode));
-                                break; // Break URL loop, go to outer retry loop
-                            }
-                            return ProvisioningResult.Fail(ToCustomerMessage(payload?.Error, response.StatusCode));
-                        }
-
-                        var ext = payload.Sip.EffectiveExtension;
-                        var auth = payload.Sip.EffectiveAuthName;
-                        var pwd = payload.Sip.EffectivePassword;
-
-                        if (string.IsNullOrWhiteSpace(ext) ||
-                            string.IsNullOrWhiteSpace(auth) ||
-                            string.IsNullOrWhiteSpace(pwd))
-                        {
-                            return ProvisioningResult.Fail("The provisioning code did not return complete account details.");
-                        }
-
-                        var isMd5 = SipRegistrationService.IsMd5Hash(pwd);
-                        DebugLog.Write($"PROVISION loaded ext={ext} auth={auth} isMd5Password={isMd5}");
-
-                        var srv = payload.Sip.EffectiveServer;
-                        var prt = payload.Sip.EffectivePort;
-                        var dom = payload.Sip.EffectiveDomain;
-                        var handlerUrl = payload.Sip.DataHandlerUrl;
-                        var bName = payload.Branding?.BrandName ?? "MerlinSIP";
-                        var pColor = payload.Branding?.PrimaryColor ?? "#2563EB";
-                        var aColor = payload.Branding?.AccentColor ?? "#38BDF8";
-                        var lUrl = payload.Branding?.LogoUrl;
-
-                        var config = new AppStartupConfig(
-                            srv,
-                            prt,
-                            dom,
-                            ext,
-                            auth,
-                            pwd,
-                            licenseKey,
-                            licenseStatus,
-                            audioInput,
-                            audioOutput,
-                            LicenseLocalKey: licenseLocalKey,
-                            IsProvisioned: true,
-                            DataHandlerUrl: handlerUrl,
-                            BrandName: bName,
-                            PrimaryColor: pColor,
-                            AccentColor: aColor,
-                            LogoUrl: lUrl).WithFixedSipEndpoint();
-
-                        return ProvisioningResult.Ok(config);
+                        urlsToTry.Add((baseUrl, uri));
                     }
                 }
             }
 
-            return lastFailure ?? ProvisioningResult.Fail("The provisioning service is not available right now.");
+            foreach (var (baseUrl, url) in urlsToTry)
+            {
+                HttpResponseMessage response;
+                try
+                {
+                    using var reqCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    reqCts.CancelAfter(TimeSpan.FromSeconds(3));
+                    response = await HttpClient.PostAsJsonAsync(url, new ProvisioningRequest(cleanedCode), reqCts.Token);
+                }
+                catch (Exception)
+                {
+                    continue; // try next handler endpoint
+                }
+
+                using (response)
+                {
+                    var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+                    var isJson = contentType.Contains("json", StringComparison.OrdinalIgnoreCase);
+
+                    if (!isJson)
+                    {
+                        DebugLog.Write($"PROVISION endpoint returned non-json status={(int)response.StatusCode} url={url}");
+                        continue;
+                    }
+
+                    var payload = await response.Content.ReadFromJsonAsync<ProvisioningResponse>(cancellationToken: cancellationToken);
+                    if (!response.IsSuccessStatusCode || payload is null || !payload.Success || payload.Sip is null)
+                    {
+                        if (response.StatusCode == System.Net.HttpStatusCode.NotFound ||
+                            response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                        {
+                            return ProvisioningResult.Fail(ToCustomerMessage(payload?.Error, response.StatusCode));
+                        }
+
+                        lastFailure = ProvisioningResult.Fail(ToCustomerMessage(payload?.Error, response.StatusCode));
+                        continue;
+                    }
+
+                    var ext = payload.Sip.EffectiveExtension;
+                    var auth = payload.Sip.EffectiveAuthName;
+                    var pwd = payload.Sip.EffectivePassword;
+
+                    if (string.IsNullOrWhiteSpace(ext) ||
+                        string.IsNullOrWhiteSpace(auth) ||
+                        string.IsNullOrWhiteSpace(pwd))
+                    {
+                        return ProvisioningResult.Fail("The provisioning code did not return complete account details.");
+                    }
+
+                    var isMd5 = SipRegistrationService.IsMd5Hash(pwd);
+                    DebugLog.Write($"PROVISION loaded ext={ext} auth={auth} isMd5Password={isMd5} via {baseUrl}");
+
+                    var srv = payload.Sip.EffectiveServer;
+                    var prt = payload.Sip.EffectivePort;
+                    var dom = payload.Sip.EffectiveDomain;
+                    var handlerUrl = !string.IsNullOrWhiteSpace(payload.Sip.DataHandlerUrl)
+                        ? payload.Sip.DataHandlerUrl
+                        : baseUrl;
+
+                    var bName = payload.Branding?.BrandName ?? "MerlinSIP Beta";
+                    var pColor = payload.Branding?.PrimaryColor ?? "#2563EB";
+                    var aColor = payload.Branding?.AccentColor ?? "#38BDF8";
+                    var lUrl = payload.Branding?.LogoUrl;
+
+                    var config = new AppStartupConfig(
+                        srv,
+                        prt,
+                        dom,
+                        ext,
+                        auth,
+                        pwd,
+                        licenseKey,
+                        licenseStatus,
+                        audioInput,
+                        audioOutput,
+                        LicenseLocalKey: licenseLocalKey,
+                        IsProvisioned: true,
+                        DataHandlerUrl: handlerUrl,
+                        BrandName: bName,
+                        PrimaryColor: pColor,
+                        AccentColor: aColor,
+                        LogoUrl: lUrl).WithFixedSipEndpoint();
+
+                    return ProvisioningResult.Ok(config);
+                }
+            }
+
+            return lastFailure ?? ProvisioningResult.Fail("The provisioning handler is currently unreachable. Please check your network connection.");
         }
         catch (Exception error)
         {
@@ -166,9 +183,14 @@ public sealed class ProvisioningService
         }
 
         if (string.Equals(error, "invalid_or_expired_code", StringComparison.OrdinalIgnoreCase) ||
-            statusCode is System.Net.HttpStatusCode.Unauthorized)
+            statusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.NotFound)
         {
             return "The provisioning code is invalid or has expired.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            return error;
         }
 
         return "The provisioning code could not be accepted.";
@@ -183,10 +205,16 @@ public sealed class ProvisioningService
         [property: JsonPropertyName("logo_url")] string? LogoUrl = null);
 
     private sealed record ProvisioningResponse(
-        [property: JsonPropertyName("success")] bool Success,
-        [property: JsonPropertyName("sip")] ProvisionedSipDetails? Sip,
+        [property: JsonPropertyName("success")] bool? SuccessProp = null,
+        [property: JsonPropertyName("ok")] bool? OkProp = null,
+        [property: JsonPropertyName("sip")] ProvisionedSipDetails? Sip = null,
         [property: JsonPropertyName("branding")] ProvisionedBrandingDetails? Branding = null,
-        [property: JsonPropertyName("error")] string? Error = null);
+        [property: JsonPropertyName("error")] string? Error = null,
+        [property: JsonPropertyName("message")] string? Message = null)
+    {
+        [JsonIgnore]
+        public bool Success => SuccessProp == true || OkProp == true;
+    }
 
     private sealed record ProvisionedSipDetails(
         [property: JsonPropertyName("extension")] string? Extension,
