@@ -368,6 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load Live Activity & Audit Logs
     loadAuditLogs();
+    loadDiscoveredDevices();
   }
 
   // Live Audit Event Stream Loader
@@ -1683,6 +1684,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const query = e.target.value.toLowerCase().trim();
     if (!query) {
       renderHandsetsTable(cachedHandsets);
+      loadDiscoveredDevices();
       return;
     }
     const filtered = cachedHandsets.filter(h =>
@@ -3187,3 +3189,230 @@ document.addEventListener('DOMContentLoaded', () => {
   initTelemetryLoop();
 
 });
+
+  // ==========================================================================
+  // Omada / GenieACS Zero-Touch Device Discovery & Adoption Engine
+  // ==========================================================================
+  let cachedDiscoveredDevices = [];
+
+  async function loadDiscoveredDevices() {
+    const data = await fetchJson('/api/admin/discovered-devices');
+    const banner = document.getElementById('bannerDiscoveredDevices');
+    const bannerCount = document.getElementById('discoveredCountBanner');
+    const navBadge = document.getElementById('navBadgeDiscovered');
+    const pendingSection = document.getElementById('sectionPendingAdoption');
+    const pendingBody = document.getElementById('discoveredTableBody');
+    const statDiscovered = document.getElementById('statDiscovered');
+    const pendingBadge = document.getElementById('pendingBadgeCount');
+
+    const devices = (data && data.devices) ? data.devices : [];
+    cachedDiscoveredDevices = devices;
+    const count = devices.length;
+
+    if (bannerCount) bannerCount.textContent = count;
+    if (statDiscovered) statDiscovered.textContent = count;
+    if (pendingBadge) pendingBadge.textContent = `${count} Device${count === 1 ? '' : 's'}`;
+
+    if (navBadge) {
+      navBadge.textContent = `${count} New`;
+      if (count > 0) navBadge.classList.remove('hidden');
+      else navBadge.classList.add('hidden');
+    }
+
+    if (count > 0) {
+      if (banner) banner.classList.remove('hidden');
+      if (pendingSection) pendingSection.classList.remove('hidden');
+    } else {
+      if (banner) banner.classList.add('hidden');
+      if (pendingSection) pendingSection.classList.add('hidden');
+    }
+
+    if (pendingBody) {
+      if (count === 0) {
+        pendingBody.innerHTML = '<tr><td colspan="6" class="text-center muted">No unadopted devices on network. Plug a deskphone into LAN to discover.</td></tr>';
+        return;
+      }
+      pendingBody.innerHTML = devices.map(d => `
+        <tr>
+          <td><code style="font-weight: 700;">${d.mac_address}</code></td>
+          <td><strong>${(d.brand || 'Yealink').toUpperCase()}</strong> ${d.model || ''}</td>
+          <td><span class="font-mono">${d.ip_address}</span></td>
+          <td><span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">Pending Adoption</span></td>
+          <td>${new Date(d.last_seen_at).toLocaleTimeString()}</td>
+          <td style="text-align: right;">
+            <button class="btn btn-sm btn-primary" onclick="window.openAdoptModal('${d.mac_address}', '${d.brand}', '${d.model}')">Adopt Device</button>
+            <button class="btn btn-sm btn-secondary" onclick="window.ignoreDiscoveredDevice('${d.mac_address}')" style="margin-left: 4px;">Dismiss</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  window.openAdoptModal = async (mac, brand, model) => {
+    document.getElementById('adoptDeviceMac').value = mac;
+    document.getElementById('adoptDisplayMac').value = mac;
+    document.getElementById('adoptDisplayBrand').value = (brand || 'Yealink').toUpperCase();
+    document.getElementById('adoptDisplayModel').value = model || 'T46U';
+    document.getElementById('adoptLineLabel').value = '';
+
+    // Populate available extensions
+    const sel = document.getElementById('adoptExtensionSelect');
+    sel.innerHTML = '<option value="">Loading extensions...</option>';
+    const extData = await fetchJson('/api/admin/extensions');
+    if (extData && extData.extensions && extData.extensions.length) {
+      sel.innerHTML = '<option value="">Select an extension...</option>' + 
+        extData.extensions.map(e => `<option value="${e.extension}">Ext ${e.extension} — ${e.display_name} (${e.sip_username})</option>`).join('');
+    } else {
+      sel.innerHTML = '<option value="">No extensions available</option>';
+    }
+
+    openModal('modalAdoptDevice');
+  };
+
+  window.ignoreDiscoveredDevice = async (mac) => {
+    if (!confirm(`Dismiss device ${mac} from pending adoption?`)) return;
+    const res = await fetchJson(`/api/admin/discovered-devices/${mac}`, { method: 'DELETE' });
+    if (res && res.ok) {
+      window.showToast('Device dismissed.', 'info');
+      loadDiscoveredDevices();
+    }
+  };
+
+  // Handle Adopt Device Form Submission
+  document.getElementById('formAdoptDevice')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const mac = document.getElementById('adoptDeviceMac').value;
+    const brand = document.getElementById('adoptDisplayBrand').value;
+    const model = document.getElementById('adoptDisplayModel').value;
+    const extension = document.getElementById('adoptExtensionSelect').value;
+    const lineLabel = document.getElementById('adoptLineLabel').value;
+
+    if (!extension) {
+      alert('Please select an extension.');
+      return;
+    }
+
+    const res = await fetchJson(`/api/admin/discovered-devices/${mac}/adopt`, {
+      method: 'POST',
+      body: JSON.stringify({ extension, brand, model, lineLabel })
+    });
+
+    if (res && res.ok) {
+      window.showToast(`Device ${mac} successfully adopted and provisioned!`, 'success');
+      closeModal('modalAdoptDevice');
+      loadDiscoveredDevices();
+      loadHandsets();
+      loadOverview();
+    } else {
+      window.showToast(res?.error || 'Adoption failed.', 'error');
+    }
+  });
+
+  // Zero-Touch Auto-Adoption Toggle Handler
+  document.getElementById('chkAutoAdoptPolicy')?.addEventListener('change', async (e) => {
+    const enabled = e.target.checked;
+    const res = await fetchJson('/api/admin/auto-adopt/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ enabled })
+    });
+    if (res && res.ok) {
+      window.showToast(`Zero-Touch Auto-Adoption ${enabled ? 'Enabled' : 'Disabled'}`, 'info');
+      const badge = document.getElementById('chipAutoAdoptStatus');
+      if (badge) badge.textContent = `Auto-Adopt: ${enabled ? 'Active' : 'Disabled'}`;
+      const engineBadge = document.getElementById('engineAutoAdoptBadge');
+      if (engineBadge) {
+        engineBadge.textContent = enabled ? 'Zero-Touch Active' : 'Approval Required';
+        engineBadge.className = enabled ? 'badge badge-success' : 'badge';
+      }
+    }
+  });
+
+  document.getElementById('btnToggleAutoAdoptEngine')?.addEventListener('click', () => {
+    const chk = document.getElementById('chkAutoAdoptPolicy');
+    if (chk) {
+      chk.checked = !chk.checked;
+      chk.dispatchEvent(new Event('change'));
+    }
+  });
+
+  // Endpoints modal triggers
+  document.getElementById('btnOpenEndpointsModal')?.addEventListener('click', () => {
+    openModal('modalEndpoints');
+  });
+
+  document.getElementById('btnGoToAdoption')?.addEventListener('click', () => {
+    switchTab('handsets');
+  });
+
+  document.getElementById('btnTriggerQuickSync')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnTriggerQuickSync');
+    btn.textContent = 'Syncing...';
+    btn.disabled = true;
+    try {
+      const res = await fetchJson('/api/admin/pbx/sync', { method: 'POST', body: JSON.stringify({}) });
+      if (res && res.ok) {
+        window.showToast(`PBX Sync successful: ${res.count ?? 0} extensions synced.`, 'success');
+        loadExtensions();
+        loadOverview();
+      } else {
+        window.showToast(res?.error || 'Sync failed.', 'error');
+      }
+    } finally {
+      btn.textContent = 'Force Sync Now';
+      btn.disabled = false;
+    }
+  });
+
+  // Load firmware repository table
+  async function loadFirmwareRepository() {
+    const tbody = document.getElementById('firmwareTableBody');
+    if (!tbody) return;
+    const data = await fetchJson('/api/admin/firmware/status');
+    const list = data?.catalog?.handsets || [];
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center muted">No firmware images cataloged.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = list.map(f => {
+      const isDownloaded = f.status === 'DOWNLOADED';
+      const statusBadge = isDownloaded 
+        ? '<span class="badge badge-success">Cached Locally</span>'
+        : '<span class="badge badge-warning">Vendor Cloud</span>';
+
+      return `
+        <tr>
+          <td><strong>${(f.brand || '').toUpperCase()}</strong> ${f.model || ''}</td>
+          <td><code>${f.version || 'Latest'}</code></td>
+          <td><code class="text-xs">${f.filename || '--'}</code></td>
+          <td>${statusBadge}</td>
+          <td>${f.file_size ? (f.file_size / (1024*1024)).toFixed(1) + ' MB' : '--'}</td>
+          <td style="text-align: right;">
+            ${isDownloaded 
+              ? '<span class="text-xs muted">Option 66 Ready</span>' 
+              : `<button class="btn btn-xs btn-primary" onclick="autoDownloadFirmware('${f.brand}', '${f.model}')">Cache Locally</button>`}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('btnSyncAllFwRepository')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnSyncAllFwRepository');
+    btn.textContent = 'Downloading...';
+    btn.disabled = true;
+    try {
+      const res = await fetchJson('/api/admin/firmware/sync-all', { method: 'POST' });
+      if (res && res.ok) {
+        window.showToast('Firmware binaries sync started in background.', 'success');
+        loadFirmwareRepository();
+      }
+    } finally {
+      btn.textContent = 'Auto-Cache All Recommended Binaries';
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('btnSyncAllFwQuick')?.addEventListener('click', () => {
+    document.getElementById('btnSyncAllFwRepository')?.click();
+  });

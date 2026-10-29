@@ -155,6 +155,17 @@ systemDb.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS discovered_devices (
+    mac_address TEXT PRIMARY KEY,
+    brand TEXT,
+    model TEXT,
+    ip_address TEXT,
+    user_agent TEXT,
+    status TEXT DEFAULT 'PENDING_ADOPTION',
+    first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS firmware_binaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     category TEXT NOT NULL DEFAULT 'handset',
@@ -220,6 +231,13 @@ try { systemDb.exec("ALTER TABLE server_config ADD COLUMN brand_name TEXT DEFAUL
 try { systemDb.exec("ALTER TABLE server_config ADD COLUMN primary_color TEXT DEFAULT '#2563EB';"); } catch {}
 try { systemDb.exec("ALTER TABLE server_config ADD COLUMN accent_color TEXT DEFAULT '#38BDF8';"); } catch {}
 try { systemDb.exec("ALTER TABLE server_config ADD COLUMN logo_url TEXT DEFAULT '';"); } catch {}
+
+// Auto-Adoption & Auto-Sync Server Configuration Columns
+try { systemDb.exec('ALTER TABLE server_config ADD COLUMN auto_adopt_enabled INTEGER DEFAULT 0;'); } catch {}
+try { systemDb.exec('ALTER TABLE server_config ADD COLUMN auto_sync_enabled INTEGER DEFAULT 1;'); } catch {}
+try { systemDb.exec('ALTER TABLE server_config ADD COLUMN auto_sync_interval_mins INTEGER DEFAULT 5;'); } catch {}
+try { systemDb.exec('ALTER TABLE server_config ADD COLUMN last_sync_at DATETIME;'); } catch {}
+try { systemDb.exec("ALTER TABLE server_config ADD COLUMN last_sync_status TEXT DEFAULT 'IDLE';"); } catch {}
 
 // Ensure editable custom configuration columns exist for Handsets & Routers
 try { systemDb.exec("ALTER TABLE physical_handsets ADD COLUMN custom_config TEXT DEFAULT '';"); } catch {}

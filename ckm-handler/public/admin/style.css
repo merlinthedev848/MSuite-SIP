@@ -2226,3 +2226,201 @@ select option,
   align-items: center;
   gap: 8px;
 }
+
+
+/* ==========================================================================
+   Omada / GenieACS Executive Pulse Banner & Autonomous Engines Styles
+   ========================================================================== */
+.system-pulse-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #16a34a;
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04);
+}
+
+.pulse-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pulse-radar-dot {
+  width: 12px;
+  height: 12px;
+  background: #16a34a;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.2);
+  display: inline-block;
+}
+
+.pulse-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.pulse-subtitle {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+.pulse-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pulse-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+}
+
+/* Discovered Devices Alert Card */
+.discovered-alert-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  margin-bottom: 24px;
+}
+
+.alert-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.alert-icon-ring {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #d97706;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.alert-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.alert-desc {
+  font-size: 12px;
+  color: #b45309;
+}
+
+/* Autonomous Engines Grid */
+.automation-engine-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.engine-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.engine-box-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.engine-icon-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+  display: inline-block;
+}
+
+.engine-desc {
+  font-size: 11.5px;
+  color: #64748b;
+  line-height: 1.4;
+  margin-bottom: 12px;
+  flex-grow: 1;
+}
+
+.engine-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  margin-bottom: 6px;
+}
+
+.engine-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Zero-Touch Auto-Adoption Toggle */
+.auto-adopt-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #334155;
+  background: #f8fafc;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.auto-adopt-toggle-wrap input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: #2563eb;
+  width: 15px;
+  height: 15px;
+}
+
+.nav-badge-pending {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  background: #f59e0b;
+  color: #ffffff;
+  margin-left: auto;
+}

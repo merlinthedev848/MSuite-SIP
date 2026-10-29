@@ -33,36 +33,42 @@
       </div>
       
       <nav class="nav-menu">
-        <div class="nav-section-title">Operations</div>
+        <div class="nav-section-title">Fleet & Operations</div>
         <button class="nav-btn active" data-tab="overview">
-          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></span> Overview & Telemetry
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></span> Overview Dashboard
         </button>
         <button class="nav-btn" data-tab="extensions">
-          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></span> Extensions & PINs
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></span> Extensions & Softphones
         </button>
-        <button class="nav-btn" data-tab="handsets">
-          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></span> Physical Handsets
+        <button class="nav-btn" data-tab="handsets" id="navBtnHandsets">
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></span> IP Deskphone Fleet
+          <span class="nav-badge-pending hidden" id="navBadgeDiscovered">0 Pending</span>
         </button>
         <button class="nav-btn" data-tab="routers">
-          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"></rect><rect x="2" y="14" width="20" height="8" rx="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg></span> Routers & Gateways
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"></rect><rect x="2" y="14" width="20" height="8" rx="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg></span> Network Gateways
+        </button>
+
+        <div class="nav-section-title">Automation & Services</div>
+        <button class="nav-btn" data-tab="config">
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></span> PBX Core & Auto-Sync
+        </button>
+        <button class="nav-btn" data-tab="firmware" id="navBtnFirmware">
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></span> Firmware Repository
         </button>
         <button class="nav-btn" data-tab="shell" id="navBtnShell">
           <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg></span> Live Device Shell
           <span class="nav-badge-live">Live</span>
         </button>
 
-        <div class="nav-section-title">Administration & Security</div>
+        <div class="nav-section-title">Administration & Compliance</div>
+        <button class="nav-btn" data-tab="branding">
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path></svg></span> Branding & Softphones
+        </button>
         <button class="nav-btn" data-tab="users" id="navBtnUsers">
           <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span> Admin Users & RBAC
         </button>
-        <button class="nav-btn" data-tab="branding">
-          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path></svg></span> Brand & Colors
-        </button>
-        <button class="nav-btn" data-tab="config">
-          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></span> PBX & Gateways
-        </button>
         <button class="nav-btn" data-tab="gdpr">
-          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span> GDPR & Retention Vault
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span> GDPR & Storage Vault
         </button>
       </nav>
 
@@ -125,179 +131,198 @@
 
       <!-- TAB 1: OVERVIEW -->
       <section class="tab-pane active" id="pane-overview">
-        <!-- Top Metrics Cards -->
+        <!-- Omada / GenieACS Executive Pulse Banner -->
+        <div class="system-pulse-banner">
+          <div class="pulse-left">
+            <span class="pulse-radar-dot"></span>
+            <div>
+              <div class="pulse-title">All Systems Operational</div>
+              <div class="pulse-subtitle">Zero-Touch Provisioning Active · PBX Core Synced · DHCP Option 66 Listening</div>
+            </div>
+          </div>
+          <div class="pulse-right">
+            <span class="pulse-chip" id="chipPbxHealth">PBX: < 1ms</span>
+            <span class="pulse-chip" id="chipAutoAdoptStatus">Auto-Adopt: Disabled</span>
+            <span class="pulse-chip" id="chipAutoSyncStatus">Auto-Sync: Active (5m)</span>
+            <button class="btn btn-sm btn-light" id="btnOpenEndpointsModal" title="View Public Client & Provisioning URLs">Client Endpoints</button>
+          </div>
+        </div>
+
+        <!-- Omada-Style Discovered Devices Notification Banner -->
+        <div id="bannerDiscoveredDevices" class="discovered-alert-card hidden">
+          <div class="alert-card-left">
+            <div class="alert-icon-ring">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </div>
+            <div>
+              <div class="alert-title"><span id="discoveredCountBanner">0</span> Unadopted Hardware Deskphone(s) Discovered</div>
+              <div class="alert-desc">New VoIP handsets sent boot requests via DHCP Option 66. Ready for instant zero-touch adoption.</div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-primary" id="btnGoToAdoption">Review & Adopt Devices →</button>
+        </div>
+
+        <!-- Primary Fleet Metrics -->
         <div class="metrics-grid">
           <div class="metric-card">
             <div class="metric-header">
-              <span class="metric-title">Configured Extensions</span>
-              <div class="metric-icon-bubble" title="Configured SIP Accounts">
+              <span class="metric-title">Active Extensions</span>
+              <div class="metric-icon-bubble">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
               </div>
             </div>
             <div class="metric-val" id="statExt">0</div>
-            <div class="metric-sub">Active SIP Accounts</div>
+            <div class="metric-sub">PBX Synchronized Accounts</div>
           </div>
 
           <div class="metric-card">
             <div class="metric-header">
-              <span class="metric-title">Physical Handsets</span>
-              <div class="metric-icon-bubble" title="Hardphone Fleet">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+              <span class="metric-title">Adopted Deskphones</span>
+              <div class="metric-icon-bubble">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
               </div>
             </div>
             <div class="metric-val" id="statHandsets">0</div>
-            <div class="metric-sub">Provisioned MAC Bindings</div>
+            <div class="metric-sub">Managed Hardware Bindings</div>
           </div>
 
           <div class="metric-card">
             <div class="metric-header">
-              <span class="metric-title">Unclaimed PINs</span>
-              <div class="metric-icon-bubble" title="Auto-Provisioning Codes">
+              <span class="metric-title">Discovered (Pending)</span>
+              <div class="metric-icon-bubble" style="background: rgba(245, 158, 11, 0.1); color: #d97706;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
               </div>
             </div>
-            <div class="metric-val" id="statPins">0</div>
-            <div class="metric-sub">Pending Device Claims</div>
+            <div class="metric-val" id="statDiscovered">0</div>
+            <div class="metric-sub">Unadopted Devices on LAN</div>
           </div>
 
           <div class="metric-card">
             <div class="metric-header">
-              <span class="metric-title">Network Gateways</span>
-              <div class="metric-icon-bubble" title="Router Configurations">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+              <span class="metric-title">Site Gateways</span>
+              <div class="metric-icon-bubble">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"></rect><rect x="2" y="14" width="20" height="8" rx="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
               </div>
             </div>
             <div class="metric-val" id="statRouters">0</div>
-            <div class="metric-sub">Provisioned Router Profiles</div>
+            <div class="metric-sub">Voice VLAN & QoS Routers</div>
           </div>
 
           <div class="metric-card">
             <div class="metric-header">
               <span class="metric-title">Firmware Repository</span>
-              <div class="metric-icon-bubble" title="Cached Binaries">
+              <div class="metric-icon-bubble">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
               </div>
             </div>
             <div class="metric-val" id="statFirmware">0</div>
-            <div class="metric-sub">Cached Firmware Packages</div>
+            <div class="metric-sub">Cached Vendor Images</div>
           </div>
         </div>
 
-        <!-- Live Component Health Matrix -->
+        <!-- Autonomous Engines Grid (The Core Automation Control Center) -->
         <div class="card mt-6">
           <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <h3>Service Infrastructure & Daemon Health</h3>
-              <p class="muted">Real-time status, process latency, and telemetry across all core system daemons</p>
+              <h3>Autonomous Infrastructure Daemons</h3>
+              <p class="muted">Background workers ensuring zero manual intervention across sync, discovery, and firmware</p>
             </div>
-            <span class="badge badge-primary" id="componentsSummaryBadge">Loading status...</span>
+            <span class="badge badge-primary" id="enginesSummaryBadge">4 Daemons Active</span>
           </div>
-          <div class="component-grid" id="componentsGrid">
-            <!-- Dynamically populated from /api/admin/overview -->
+          <div class="automation-engine-grid">
+            <!-- Engine 1: PBX Auto-Sync -->
+            <div class="engine-box">
+              <div class="engine-box-top">
+                <span class="engine-icon-status active"></span>
+                <strong>PBX Synchronization Engine</strong>
+              </div>
+              <p class="engine-desc">Continuously discovers extensions and updates credentials from Asterisk / Yeastar.</p>
+              <div class="engine-status-row">
+                <span class="muted">Status:</span>
+                <span class="badge badge-success" id="enginePbxSyncBadge">Automated (5m)</span>
+              </div>
+              <div class="engine-status-row">
+                <span class="muted">Last Sync:</span>
+                <span id="enginePbxLastSync" class="font-mono text-xs">Just now</span>
+              </div>
+              <div class="engine-actions">
+                <button class="btn btn-xs btn-primary" id="btnTriggerQuickSync">Force Sync Now</button>
+                <button class="btn btn-xs btn-secondary" onclick="switchTab('config')">Configure</button>
+              </div>
+            </div>
+
+            <!-- Engine 2: Zero-Touch Auto-Adoption -->
+            <div class="engine-box">
+              <div class="engine-box-top">
+                <span class="engine-icon-status active"></span>
+                <strong>Zero-Touch Auto-Adoption</strong>
+              </div>
+              <p class="engine-desc">Auto-binds newly discovered deskphones to available extensions on first boot.</p>
+              <div class="engine-status-row">
+                <span class="muted">Policy:</span>
+                <span class="badge" id="engineAutoAdoptBadge">Approval Required</span>
+              </div>
+              <div class="engine-status-row">
+                <span class="muted">Listener:</span>
+                <span class="font-mono text-xs">Port 80/443 Option 66</span>
+              </div>
+              <div class="engine-actions">
+                <button class="btn btn-xs btn-secondary" id="btnToggleAutoAdoptEngine">Toggle Auto-Adopt</button>
+                <button class="btn btn-xs btn-secondary" onclick="switchTab('handsets')">View Fleet</button>
+              </div>
+            </div>
+
+            <!-- Engine 3: Firmware Vault -->
+            <div class="engine-box">
+              <div class="engine-box-top">
+                <span class="engine-icon-status active"></span>
+                <strong>Firmware Repository Daemon</strong>
+              </div>
+              <p class="engine-desc">Maintains verified vendor firmware packages for Yealink, Snom, Fanvil, and MikroTik.</p>
+              <div class="engine-status-row">
+                <span class="muted">Baseline:</span>
+                <span class="badge badge-primary">Recommended Stable</span>
+              </div>
+              <div class="engine-status-row">
+                <span class="muted">Delivery:</span>
+                <span class="font-mono text-xs">Direct Option 66 HTTP</span>
+              </div>
+              <div class="engine-actions">
+                <button class="btn btn-xs btn-secondary" id="btnSyncAllFwQuick">Sync Binaries</button>
+                <button class="btn btn-xs btn-secondary" onclick="switchTab('firmware')">Repository</button>
+              </div>
+            </div>
+
+            <!-- Engine 4: GDPR Compliance -->
+            <div class="engine-box">
+              <div class="engine-box-top">
+                <span class="engine-icon-status active"></span>
+                <strong>GDPR Retention Daemon</strong>
+              </div>
+              <p class="engine-desc">Automatically executes cryptographic scrubbing of expired chat and media records.</p>
+              <div class="engine-status-row">
+                <span class="muted">Schedule:</span>
+                <span class="badge badge-success">Daily (03:00 UTC)</span>
+              </div>
+              <div class="engine-status-row">
+                <span class="muted">Threshold:</span>
+                <span class="font-mono text-xs">Chat 90d · Media 90d</span>
+              </div>
+              <div class="engine-actions">
+                <button class="btn btn-xs btn-secondary" onclick="switchTab('gdpr')">Retention Policy</button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Unified Service Endpoints -->
-        <div class="card mt-6">
-          <div class="card-header">
-            <h3>Unified Service Endpoints</h3>
-            <p class="muted">Public client endpoints for VoIP deskphones, routers, and MerlinSIP softphones</p>
-          </div>
-          <div class="endpoint-grid">
-            <div class="endpoint-card">
-              <div class="endpoint-card-top">
-                <span class="tag tag-wss">WSS</span>
-                <span class="endpoint-card-title">Real-Time Chat & Signaling</span>
-              </div>
-              <div class="endpoint-card-body">
-                <code id="epChat" class="endpoint-code">--</code>
-                <div class="endpoint-actions">
-                  <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epChat')" title="Copy WebSocket URL">Copy</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="endpoint-card">
-              <div class="endpoint-card-top">
-                <span class="tag tag-http">HTTP</span>
-                <span class="endpoint-card-title">Deskphone Provisioning Server</span>
-              </div>
-              <div class="endpoint-card-body">
-                <code id="epProv" class="endpoint-code">--</code>
-                <div class="endpoint-actions">
-                  <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epProv')" title="Copy Provisioning URL">Copy</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="endpoint-card">
-              <div class="endpoint-card-top">
-                <span class="tag tag-xml">XML</span>
-                <span class="endpoint-card-title">Corporate Remote Phonebook</span>
-              </div>
-              <div class="endpoint-card-body">
-                <code id="epPhonebook" class="endpoint-code">--</code>
-                <div class="endpoint-actions">
-                  <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epPhonebook')" title="Copy URL">Copy</button>
-                  <a class="btn btn-xs btn-primary" id="linkPhonebook" href="/phonebook/yealink.xml" target="_blank">Open</a>
-                </div>
-              </div>
-            </div>
-
-            <div class="endpoint-card">
-              <div class="endpoint-card-top">
-                <span class="tag tag-json">JSON</span>
-                <span class="endpoint-card-title">Dynamic Softphone Config Sync</span>
-              </div>
-              <div class="endpoint-card-body">
-                <code id="epSync" class="endpoint-code">--</code>
-                <div class="endpoint-actions">
-                  <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epSync')" title="Copy URL">Copy</button>
-                  <a class="btn btn-xs btn-primary" id="linkSync" href="/api/v1/config/sync" target="_blank">Test</a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- PBX SIP Diagnostics & Live Audit Stream Grid -->
+        <!-- Live Daemon Telemetry & Activity Stream -->
         <div class="grid-2col mt-6">
-          <!-- PBX Live Diagnostic Card -->
-          <div class="card pbx-diag-card">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <h3>PBX SIP Ping & Latency Probe</h3>
-                <p class="muted">Active socket connectivity & SIP OPTIONS round-trip telemetry</p>
-              </div>
-              <button class="btn btn-sm btn-primary" id="btnPingPbx">Ping PBX Now</button>
-            </div>
-            <div class="pbx-diag-matrix">
-              <div class="diag-metric-box">
-                <span class="diag-label">Target PBX Core</span>
-                <span class="diag-val" id="pingPbxTarget">pbx.chriskendall.media:5060 (UDP)</span>
-              </div>
-              <div class="diag-metric-box">
-                <span class="diag-label">Socket Probe State</span>
-                <span class="status-pill operational" id="pingStatusPill">Ready</span>
-              </div>
-              <div class="diag-metric-box">
-                <span class="diag-label">Protocol Standard</span>
-                <span class="diag-val">SIP OPTIONS (RFC 3261)</span>
-              </div>
-              <div class="diag-metric-box">
-                <span class="diag-label">Last Round-Trip RTT</span>
-                <span class="diag-val font-mono" id="pingLatencyVal">&lt; 1 ms</span>
-              </div>
-            </div>
-            <div class="ping-telemetry-console" id="pingDetails">Click "Ping PBX Now" to measure live network latency to Asterisk/FreePBX.</div>
-          </div>
-
-          <!-- Live Audit Event Stream -->
+          <!-- Real-Time Activity & Inform Stream -->
           <div class="card audit-stream-card">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
               <div>
-                <h3>Real-Time Audit & Event Stream</h3>
-                <p class="muted">Live feed of provisioning requests, logins, and registrations</p>
+                <h3>Real-Time Device Inform & Audit Stream</h3>
+                <p class="muted">Live feed of device handshakes, provisioning requests, and adoptions</p>
               </div>
               <div style="display: flex; gap: 8px;">
                 <button class="btn btn-sm btn-secondary" id="btnExportAuditCsv" title="Export Audit Log to CSV">
@@ -310,6 +335,50 @@
             <div class="log-stream" id="auditLogStream">
               <div class="muted">Loading recent activity events...</div>
             </div>
+          </div>
+
+          <!-- PBX SIP Ping & Latency Matrix -->
+          <div class="card pbx-diag-card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h3>PBX Core Socket & Protocol Telemetry</h3>
+                <p class="muted">Automated socket heartbeats and round-trip SIP OPTIONS probes</p>
+              </div>
+              <button class="btn btn-sm btn-secondary" id="btnPingPbx">Probe Latency</button>
+            </div>
+            <div class="pbx-diag-matrix">
+              <div class="diag-metric-box">
+                <span class="diag-label">Target PBX Core</span>
+                <span class="diag-val" id="pingPbxTarget">pbx.chriskendall.media:5060 (UDP)</span>
+              </div>
+              <div class="diag-metric-box">
+                <span class="diag-label">Probe Status</span>
+                <span class="status-pill operational" id="pingStatusPill">Connected</span>
+              </div>
+              <div class="diag-metric-box">
+                <span class="diag-label">Protocol Standard</span>
+                <span class="diag-val">SIP RFC 3261</span>
+              </div>
+              <div class="diag-metric-box">
+                <span class="diag-label">Last Round-Trip RTT</span>
+                <span class="diag-val font-mono" id="pingLatencyVal">&lt; 1 ms</span>
+              </div>
+            </div>
+            <div class="ping-telemetry-console" id="pingDetails">Automated background socket probe active. Sub-millisecond latency to PBX core.</div>
+          </div>
+        </div>
+
+        <!-- Service Infrastructure & Daemon Health Matrix -->
+        <div class="card mt-6">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <h3>Underlying Host Services & Database Health</h3>
+              <p class="muted">Real-time status, process latency, and socket connections across core services</p>
+            </div>
+            <span class="badge badge-primary" id="componentsSummaryBadge">Loading status...</span>
+          </div>
+          <div class="component-grid" id="componentsGrid">
+            <!-- Dynamically populated from /api/admin/overview -->
           </div>
         </div>
       </section>
@@ -368,35 +437,63 @@
 
       <!-- TAB 3: PHYSICAL HANDSETS -->
       <section class="tab-pane" id="pane-handsets">
-        <div class="subview-header-bar">
-          <div class="view-segmented-bar">
-            <button class="view-segment-btn active" data-target="subviewHandsetFleet">
-              Registered Fleet (<span id="handsetCountPill">0</span>)
-            </button>
-            <button class="view-segment-btn" data-target="subviewHandsetExplorer">
-              Profile & Firmware Explorer
-            </button>
+        <div class="section-header-panel">
+          <div class="section-header-info">
+            <h2>IP Deskphone Fleet & Zero-Touch Adoption</h2>
+            <p class="section-subtitle">Manage deployed hardware handsets, adopt newly discovered network devices, and configure provisioning profiles.</p>
           </div>
-          <div class="subview-header-actions">
+          <div class="section-header-actions" style="display: flex; gap: 12px; align-items: center;">
+            <label class="auto-adopt-toggle-wrap" title="When enabled, any unadopted deskphone booting on LAN is automatically bound to the next free extension.">
+              <input type="checkbox" id="chkAutoAdoptPolicy">
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">Zero-Touch Auto-Adoption</span>
+            </label>
             <button class="btn btn-primary" id="btnOpenAddHandsetModal">
               + Register Handset
             </button>
           </div>
         </div>
 
-        <!-- SUBVIEW A: REGISTERED FLEET TABLE -->
-        <div class="subview-content active" id="subviewHandsetFleet">
-          <div class="section-header-panel">
-            <div class="section-header-info">
-              <h2>Physical IP Deskphone Directory</h2>
-              <p class="section-subtitle">Auto-provision Yealink, Snom, Grandstream, Poly, Fanvil, Gigaset pro, and Cisco MPP handsets.</p>
+        <!-- Omada-Style Pending Adoption Queue Card (Visible when devices discovered) -->
+        <div id="sectionPendingAdoption" class="card pending-adoption-card hidden mt-4">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #fed7aa; background: #fffbeb;">
+            <div>
+              <h3 style="color: #9a3412;">Discovered Devices on Network (Pending Adoption)</h3>
+              <p class="muted" style="color: #c2410c;">These VoIP handsets booted on the LAN and sent Option 66 provisioning requests. Adopt to assign them to an extension.</p>
             </div>
+            <span class="badge" style="background: #f97316; color: #fff;" id="pendingBadgeCount">0 Devices</span>
           </div>
+          <div class="table-card" style="box-shadow: none; border: none;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>MAC Address</th>
+                  <th>Inferred Brand / Model</th>
+                  <th>Device IP Address</th>
+                  <th>Status</th>
+                  <th>Last Seen</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="discoveredTableBody">
+                <tr><td colspan="6" class="text-center muted">Loading discovered devices...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
 
+        <!-- Adopted Handset Fleet Table -->
+        <div class="card mt-6">
           <div class="table-filter-bar">
             <div class="search-box-wrapper">
               <span class="search-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
-              <input type="text" id="searchHandset" class="search-input" placeholder="Search handsets by MAC address, brand, model, extension...">
+              <input type="text" id="searchHandset" class="search-input" placeholder="Search adopted handsets by MAC, brand, model, or extension...">
+            </div>
+            <div class="filter-actions">
+              <button class="btn btn-sm btn-secondary" id="btnExportHandsetCsv" title="Export Handsets to CSV">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Export CSV</span>
+              </button>
             </div>
           </div>
 
@@ -418,144 +515,26 @@
             </table>
           </div>
         </div>
-
-        <!-- SUBVIEW B: INTERACTIVE PROFILE & FIRMWARE EXPLORER -->
-        <div class="subview-content" id="subviewHandsetExplorer">
-          <div class="card" style="border-left: 3px solid var(--primary);">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-              <div>
-                <h3>Universal Handset Provisioning & Firmware Explorer</h3>
-                <p class="muted">Live configuration compiler, official firmware release manager, and downloadable provisioning profiles for all makes and models.</p>
-              </div>
-              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button class="btn btn-sm btn-primary" id="btnSyncAllHandsetFw">Auto-Download All Stable Firmwares</button>
-                <button class="btn btn-sm btn-secondary" id="btnCopyHandsetExplorerConfig">Copy Config</button>
-                <button class="btn btn-sm btn-secondary" id="btnDownloadHandsetExplorerConfig">Download Template</button>
-              </div>
-            </div>
-
-            <!-- Selectors Grid -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 10px; background: #f8fafc; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-light);">
-              <div class="form-group" style="margin-bottom: 0;">
-                <label>Manufacturer / Brand</label>
-                <select id="explorerHandsetBrand">
-                  <option value="yealink">Yealink (CFG)</option>
-                  <option value="snom">Snom (XML)</option>
-                  <option value="grandstream">Grandstream (XML)</option>
-                  <option value="poly">Poly / Polycom (CFG)</option>
-                  <option value="fanvil">Fanvil (XML)</option>
-                  <option value="gigaset">Gigaset pro (XML)</option>
-                  <option value="cisco">Cisco / Linksys (SPA & MPP XML)</option>
-                </select>
-              </div>
-
-              <div class="form-group" style="margin-bottom: 0;">
-                <label>Hardware Model</label>
-                <select id="explorerHandsetModel">
-                  <option value="T73U" selected>Yealink T73U (Next-Gen 3.2" Color Dual-USB)</option>
-                  <option value="T73W">Yealink T73W (Next-Gen Wi-Fi 6 & BT Color)</option>
-                  <option value="T74U">Yealink T74U (Next-Gen 4.3" Color Dual-USB)</option>
-                  <option value="T74W">Yealink T74W (Next-Gen 4.3" Wi-Fi 6 & BT)</option>
-                  <option value="T77U">Yealink T77U (Next-Gen 7" Color Touchscreen)</option>
-                  <option value="T85W">Yealink T85W (Next-Gen 5.5" Executive Wi-Fi 6)</option>
-                  <option value="T87W">Yealink T87W (Next-Gen 7" Touch Executive Wi-Fi 6)</option>
-                  <option value="T88W">Yealink T88W (Next-Gen Android 13 Flagship)</option>
-                  <option value="T31P">Yealink T31P</option>
-                  <option value="T31G">Yealink T31G (Gigabit)</option>
-                  <option value="T46G">Yealink T46G (Color Display Gigabit)</option>
-                  <option value="T46U">Yealink T46U</option>
-                  <option value="T48U">Yealink T48U</option>
-                  <option value="T54W">Yealink T54W</option>
-                  <option value="W73P">Yealink W73P DECT</option>
-                </select>
-              </div>
-
-              <div class="form-group" style="margin-bottom: 0;">
-                <label>Demo Extension</label>
-                <input type="text" id="explorerHandsetExt" value="101" placeholder="101">
-              </div>
-
-              <div class="form-group" style="margin-bottom: 0;">
-                <label>Line Display Label</label>
-                <input type="text" id="explorerHandsetLabel" value="Demo User" placeholder="Display Label">
-              </div>
-            </div>
-
-            <!-- Internal Firmware Repository & Auto-Download Vault Deck -->
-            <div id="explorerHandsetFwBanner" class="firmware-vault-deck">
-              <div class="firmware-deck-row">
-                <div class="firmware-deck-info">
-                  <span class="badge badge-primary" id="explorerHandsetFwVer">Firmware: Loading...</span>
-                  <span id="explorerHandsetStorageBadge" class="badge badge-firmware-missing">Checking Local Storage...</span>
-                  <span style="font-size: 12px; color: #94a3b8;">Binary: <code id="explorerHandsetFwFile" style="color: #38bdf8; background: transparent; border: none; padding: 0;">--</code></span>
-                </div>
-                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                  <button id="btnAutoDownloadHandsetFw" class="btn btn-sm btn-primary firmware-action-btn">
-                    Auto-Download to Server
-                  </button>
-                  <label class="btn btn-sm btn-secondary firmware-action-btn" style="margin-bottom: 0; cursor: pointer;">
-                    Upload File
-                    <input type="file" id="fileUploadHandsetFw" style="display: none;">
-                  </label>
-                  <button id="btnPurgeHandsetFw" class="btn btn-sm btn-danger firmware-action-btn hidden">
-                    Purge
-                  </button>
-                  <a id="explorerHandsetFwLink" class="btn btn-sm btn-secondary firmware-action-btn" href="#" target="_blank">
-                    <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -1px; margin-right: 3px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></span> Vendor Portal
-                  </a>
-                </div>
-              </div>
-              <div class="firmware-deck-row" style="font-size: 11.5px; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 8px;">
-                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                  <span class="muted" style="color: #94a3b8;">Internal Model Directory:</span>
-                  <span class="firmware-dir-badge" id="explorerHandsetPathTag">data/firmware/yealink/T46U/</span>
-                  <span id="explorerHandsetFwNotes" class="muted" style="color: #cbd5e1;"></span>
-                </div>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                  <span class="muted" style="color: #94a3b8;">Device Option 66 URL:</span>
-                  <code id="explorerHandsetBootUrl" style="font-size: 11px; color: #38bdf8; background: transparent; border: none; padding: 0;">--</code>
-                  <button class="btn btn-sm btn-secondary" id="btnCopyHandsetBootUrl" style="padding: 2px 7px; font-size: 10px;">Copy</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Live Compiled Configuration Editor -->
-            <div style="margin-top: 12px;">
-              <textarea id="explorerHandsetConfig" class="code-editor" style="height: 320px;" spellcheck="false"></textarea>
-            </div>
-          </div>
-        </div>
       </section>
 
       <!-- TAB 4: ROUTERS & GATEWAYS -->
       <section class="tab-pane" id="pane-routers">
-        <div class="subview-header-bar">
-          <div class="view-segmented-bar">
-            <button class="view-segment-btn active" data-target="subviewRouterFleet">
-              Site Gateways (<span id="routerCountPill">0</span>)
-            </button>
-            <button class="view-segment-btn" data-target="subviewRouterExplorer">
-              Router Script & Profile Generator
-            </button>
+        <div class="section-header-panel">
+          <div class="section-header-info">
+            <h2>VoIP Network Routers & Gateways</h2>
+            <p class="section-subtitle">Generate automated DHCP Option 66 provisioning, Voice VLAN, and QoS scripts for site routers.</p>
           </div>
-          <div class="subview-header-actions">
+          <div class="section-header-actions">
             <button class="btn btn-primary" id="btnOpenAddRouterModal">
               + New Router Profile
             </button>
           </div>
         </div>
 
-        <!-- SUBVIEW A: GATEWAYS TABLE -->
-        <div class="subview-content active" id="subviewRouterFleet">
-          <div class="section-header-panel">
-            <div class="section-header-info">
-              <h2>VoIP Router & Network Gateway Profiles</h2>
-              <p class="section-subtitle">Generate automated boot scripts and configurations for MikroTik, TP-Link, Technicolor, Cisco, DrayTek, and more.</p>
-            </div>
-          </div>
-
+        <div class="card mt-4">
           <div class="table-filter-bar">
             <div class="search-box-wrapper">
+              <span class="search-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
               <input type="text" id="searchRouter" class="search-input" placeholder="Search routers by site name, brand, model, or IP subnet...">
             </div>
             <div class="filter-actions">
@@ -585,117 +564,39 @@
             </table>
           </div>
         </div>
+      </section>
 
-        <!-- SUBVIEW B: INTERACTIVE ROUTER SCRIPT GENERATOR -->
-        <div class="subview-content" id="subviewRouterExplorer">
-          <div class="card" style="border-left: 3px solid var(--primary);">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-              <div>
-                <h3>Universal VoIP Router & Network Gateway Profile Explorer</h3>
-                <p class="muted">Live deployment script compiler, firmware OS versions, Voice VLAN setups, and SIP ALG mitigations across router platforms.</p>
-              </div>
-              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button class="btn btn-sm btn-primary" id="btnSyncAllRouterFw">Auto-Download All Stable Firmwares</button>
-                <button class="btn btn-sm btn-secondary" id="btnCopyRouterExplorerConfig">Copy Script</button>
-                <button class="btn btn-sm btn-secondary" id="btnDownloadRouterExplorerConfig">Download Script</button>
-              </div>
-            </div>
+      <!-- TAB: FIRMWARE REPOSITORY (GenieACS / Omada Central Firmware Vault) -->
+      <section class="tab-pane" id="pane-firmware">
+        <div class="section-header-panel">
+          <div class="section-header-info">
+            <h2>Firmware Image Repository & Auto-Vault</h2>
+            <p class="section-subtitle">Manage official manufacturer firmware binaries for automated Option 66 delivery to VoIP hardware.</p>
+          </div>
+          <div class="section-header-actions">
+            <button class="btn btn-primary" id="btnSyncAllFwRepository">
+              Auto-Cache All Recommended Binaries
+            </button>
+          </div>
+        </div>
 
-            <!-- Selectors Grid -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 10px; background: #f8fafc; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-light);">
-              <div class="form-group" style="margin-bottom: 0;">
-                <label>Router / Firewall Platform</label>
-                <select id="explorerRouterBrand">
-                  <option value="mikrotik">MikroTik RouterOS (v6/v7 .rsc)</option>
-                  <option value="tplink">TP-Link (Omada SDN & Archer/VR Series)</option>
-                  <option value="technicolor">Technicolor / Thomson (Homeware & OpenWrt)</option>
-                  <option value="cisco">Cisco IOS & ISR Gateway (.cfg)</option>
-                  <option value="draytek">DrayTek Vigor Series</option>
-                  <option value="ubiquiti">Ubiquiti EdgeRouter (EdgeOS .sh)</option>
-                  <option value="unifi">Ubiquiti UniFi Gateway (UDM / UXG)</option>
-                  <option value="pfsense">pfSense Firewall (Static Port NAT & QoS)</option>
-                  <option value="opnsense">OPNsense Firewall (Static Port NAT)</option>
-                  <option value="switch">Cisco Catalyst Switch (Voice VLAN .cfg)</option>
-                  <option value="meraki">Cisco Meraki MX Security Appliance</option>
-                  <option value="fortinet">Fortinet FortiGate (FortiOS)</option>
-                  <option value="sonicwall">SonicWall TZ & NSA Series</option>
-                  <option value="sophos">Sophos XGS Firewall</option>
-                  <option value="linux">Generic Linux / Dnsmasq (Option 66)</option>
-                </select>
-              </div>
-
-              <div class="form-group" style="margin-bottom: 0;">
-                <label>Hardware Model</label>
-                <select id="explorerRouterModel">
-                  <option value="hex" selected>MikroTik hEX (RB750Gr3 / RB760iGS)</option>
-                  <option value="rb3011">MikroTik RB3011UiAS-RM (10-Port GbE)</option>
-                  <option value="rb4011">MikroTik RB4011iGS+ (10G SFP+)</option>
-                  <option value="rb5009">MikroTik RB5009UG+S+IN (Heavy Duty 2.5G)</option>
-                  <option value="ccr2004">MikroTik CCR2004-16G-2S+ Cloud Core</option>
-                  <option value="ccr2116">MikroTik CCR2116-12G-4S+ Carrier</option>
-                  <option value="hap-ax3">MikroTik hAP ax3 / ax2 Wi-Fi 6</option>
-                  <option value="chr">MikroTik Cloud Hosted Router (CHR x86 VM)</option>
-                </select>
-              </div>
-
-              <div class="form-group" style="margin-bottom: 0;">
-                <label>Voice VLAN ID</label>
-                <input type="number" id="explorerRouterVlan" value="20">
-              </div>
-
-              <div class="form-group" style="margin-bottom: 0;">
-                <label>Voice Subnet (CIDR)</label>
-                <input type="text" id="explorerRouterSubnet" value="10.20.0.1/24" style="font-family: monospace;">
-              </div>
-            </div>
-
-            <!-- Internal Firmware Repository & Auto-Download Vault Deck -->
-            <div id="explorerRouterFwBanner" class="firmware-vault-deck">
-              <div class="firmware-deck-row">
-                <div class="firmware-deck-info">
-                  <span class="badge badge-primary" id="explorerRouterFwVer">Firmware: Loading...</span>
-                  <span id="explorerRouterStorageBadge" class="badge badge-firmware-missing">Checking Local Storage...</span>
-                  <span style="font-size: 12px; color: #94a3b8;">Binary: <code id="explorerRouterFwFile" style="color: #38bdf8; background: transparent; border: none; padding: 0;">--</code></span>
-                </div>
-                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                  <button id="btnAutoDownloadRouterFw" class="btn btn-sm btn-primary firmware-action-btn">
-                    Auto-Download to Server
-                  </button>
-                  <label class="btn btn-sm btn-secondary firmware-action-btn" style="margin-bottom: 0; cursor: pointer;">
-                    Upload File
-                    <input type="file" id="fileUploadRouterFw" style="display: none;">
-                  </label>
-                  <button id="btnPurgeRouterFw" class="btn btn-sm btn-danger firmware-action-btn hidden">
-                    Purge
-                  </button>
-                  <a id="explorerRouterFwLink" class="btn btn-sm btn-secondary firmware-action-btn" href="#" target="_blank">
-                    Vendor Portal
-                  </a>
-                </div>
-              </div>
-              <div class="firmware-deck-row" style="font-size: 11.5px; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 8px;">
-                <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
-                  <span class="muted" style="color: #94a3b8;">Internal Model Directory:</span>
-                  <span class="firmware-dir-badge" id="explorerRouterPathTag">data/firmware/mikrotik/HEX/</span>
-                  <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; cursor: pointer;">
-                    <input type="checkbox" id="explorerRouterAlg" checked> Disable SIP ALG
-                  </label>
-                  <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; cursor: pointer;">
-                    <input type="checkbox" id="explorerRouterQos" checked> Prioritize Voice Audio (DSCP 46 EF)
-                  </label>
-                </div>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                  <span class="muted" style="color: #94a3b8;">Direct Serving URL:</span>
-                  <code id="explorerRouterBootUrl" style="font-size: 11px; color: #38bdf8; background: transparent; border: none; padding: 0;">--</code>
-                  <button class="btn btn-sm btn-secondary" id="btnCopyRouterBootUrl" style="padding: 2px 7px; font-size: 10px;">Copy</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Live Compiled Script Editor -->
-            <div style="margin-top: 12px;">
-              <textarea id="explorerRouterConfig" class="code-editor" style="height: 320px;" spellcheck="false"></textarea>
-            </div>
+        <div class="card mt-4">
+          <div class="table-card">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Manufacturer / Model</th>
+                  <th>Recommended Version</th>
+                  <th>Filename</th>
+                  <th>Storage Status</th>
+                  <th>File Size</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="firmwareTableBody">
+                <tr><td colspan="6" class="text-center">Loading firmware repository...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -1547,5 +1448,121 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <script src="app.js"></script>
+
+  <!-- Omada One-Click Adopt Device Modal -->
+  <div id="modalAdoptDevice" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Adopt Network Deskphone</h3>
+        <button class="modal-close" onclick="closeModal('modalAdoptDevice')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formAdoptDevice">
+          <input type="hidden" id="adoptDeviceMac">
+          <div class="form-group">
+            <label>Device MAC Address</label>
+            <input type="text" id="adoptDisplayMac" readonly style="font-family: monospace; background: #f8fafc; font-weight: 700;">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Detected Manufacturer</label>
+              <input type="text" id="adoptDisplayBrand" readonly style="background: #f8fafc;">
+            </div>
+            <div class="form-group">
+              <label>Hardware Model</label>
+              <input type="text" id="adoptDisplayModel" readonly style="background: #f8fafc;">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Assign to PBX Extension *</label>
+            <select id="adoptExtensionSelect" required>
+              <option value="">Select an extension...</option>
+            </select>
+            <small>The phone will automatically configure its SIP credentials and line label for this extension.</small>
+          </div>
+          <div class="form-group">
+            <label>Line Display Label</label>
+            <input type="text" id="adoptLineLabel" placeholder="e.g. Front Desk Phone">
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modalAdoptDevice')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Adopt & Provision Device</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Client & Developer Endpoints Reference Modal -->
+  <div id="modalEndpoints" class="modal-backdrop hidden">
+    <div class="modal-card" style="max-width: 640px;">
+      <div class="modal-header">
+        <h3>Client & Auto-Provisioning Service Endpoints</h3>
+        <button class="modal-close" onclick="closeModal('modalEndpoints')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted" style="margin-bottom: 16px;">These are the public connection URLs used by VoIP deskphones, site routers, and softphone clients.</p>
+        <div class="endpoint-grid" style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="endpoint-card">
+            <div class="endpoint-card-top">
+              <span class="tag tag-http">HTTP</span>
+              <span class="endpoint-card-title">DHCP Option 66 Provisioning Server</span>
+            </div>
+            <div class="endpoint-card-body">
+              <code id="epProv" class="endpoint-code">--</code>
+              <div class="endpoint-actions">
+                <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epProv')">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="endpoint-card">
+            <div class="endpoint-card-top">
+              <span class="tag tag-wss">WSS</span>
+              <span class="endpoint-card-title">Real-Time Chat & Signaling WebSocket</span>
+            </div>
+            <div class="endpoint-card-body">
+              <code id="epChat" class="endpoint-code">--</code>
+              <div class="endpoint-actions">
+                <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epChat')">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="endpoint-card">
+            <div class="endpoint-card-top">
+              <span class="tag tag-xml">XML</span>
+              <span class="endpoint-card-title">Remote XML Corporate Phonebook</span>
+            </div>
+            <div class="endpoint-card-body">
+              <code id="epPhonebook" class="endpoint-code">--</code>
+              <div class="endpoint-actions">
+                <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epPhonebook')">Copy</button>
+                <a class="btn btn-xs btn-primary" id="linkPhonebook" href="/phonebook/yealink.xml" target="_blank">Open</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="endpoint-card">
+            <div class="endpoint-card-top">
+              <span class="tag tag-json">JSON</span>
+              <span class="endpoint-card-title">Softphone Dynamic Config Sync</span>
+            </div>
+            <div class="endpoint-card-body">
+              <code id="epSync" class="endpoint-code">--</code>
+              <div class="endpoint-actions">
+                <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epSync')">Copy</button>
+                <a class="btn btn-xs btn-primary" id="linkSync" href="/api/v1/config/sync" target="_blank">Test</a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modalEndpoints')">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

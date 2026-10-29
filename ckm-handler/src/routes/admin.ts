@@ -507,6 +507,7 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
   const handsetCount = (systemDb.prepare('SELECT COUNT(*) as count FROM physical_handsets').get() as any).count;
   const pinCount = (systemDb.prepare('SELECT COUNT(*) as count FROM softphone_pins WHERE claimed = 0').get() as any).count;
   const routerCount = (systemDb.prepare('SELECT COUNT(*) as count FROM routers').get() as any).count;
+  const discoveredCount = (systemDb.prepare("SELECT COUNT(*) as count FROM discovered_devices WHERE status = 'PENDING_ADOPTION'").get() as any).count;
   const firmwareCount = (systemDb.prepare("SELECT COUNT(*) as count FROM firmware_binaries WHERE status = 'DOWNLOADED'").get() as any).count;
   const sysPages = systemDb.pragma('page_count', { simple: true });
   const tSys = performance.now() - tSys0;
@@ -618,6 +619,14 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
       unclaimedPins: pinCount,
       routers: routerCount,
       firmwareCount: firmwareCount,
+      discoveredDevices: discoveredCount,
+      autoAdoptEnabled: config.auto_adopt_enabled === 1,
+      autoSync: {
+        enabled: config.auto_sync_enabled === 1,
+        intervalMins: config.auto_sync_interval_mins || 5,
+        lastSyncAt: config.last_sync_at,
+        lastSyncStatus: config.last_sync_status || 'IDLE'
+      },
       messages: msgCount,
       vaultFiles: fileCount,
       storageMb: (totalBytes / (1024 * 1024)).toFixed(2),
@@ -1227,6 +1236,85 @@ router.post('/api/admin/pbx/sync', adminAuth, requirePermission('manage_pbx'), a
   }
 
   return res.json({ ok: true, count: syncResult.count, message: syncResult.message });
+});
+
+// ==============================================================================
+// Omada / GenieACS Zero-Touch Discovery & Adoption Endpoints
+// ==============================================================================
+router.get('/api/admin/discovered-devices', adminAuth, (req: Request, res: Response) => {
+  const devices = systemDb.prepare(`
+    SELECT mac_address, brand, model, ip_address, user_agent, status, first_seen_at, last_seen_at
+    FROM discovered_devices
+    WHERE status = 'PENDING_ADOPTION'
+    ORDER BY last_seen_at DESC
+  `).all();
+  return res.json({ ok: true, devices });
+});
+
+router.post('/api/admin/discovered-devices/:mac/adopt', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
+  const mac = req.params.mac.toUpperCase().replace(/[^0-9A-F]/g, '');
+  const { extension, brand, model, lineLabel } = req.body;
+
+  if (!extension) {
+    return res.status(400).json({ ok: false, error: 'Extension assignment is required for adoption.' });
+  }
+
+  // Verify extension exists
+  const extRec = systemDb.prepare('SELECT extension, display_name FROM extensions WHERE extension = ?').get(extension) as any;
+  if (!extRec) {
+    return res.status(400).json({ ok: false, error: `Extension ${extension} does not exist.` });
+  }
+
+  // Check if MAC already adopted
+  const existingHandset = systemDb.prepare("SELECT mac_address FROM physical_handsets WHERE UPPER(REPLACE(mac_address, ':', '')) = ?").get(mac);
+  if (existingHandset) {
+    systemDb.prepare("UPDATE discovered_devices SET status = 'ADOPTED' WHERE UPPER(REPLACE(mac_address, ':', '')) = ?").run(mac);
+    return res.status(409).json({ ok: false, error: `Device ${mac} is already registered.` });
+  }
+
+  const finalBrand = (brand || 'yealink').toLowerCase();
+  const finalModel = model || 'T46U';
+  const label = lineLabel || extRec.display_name || `Ext ${extension}`;
+
+  systemDb.prepare(`
+    INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, last_provisioned_at)
+    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(mac, finalBrand, finalModel, extension, label);
+
+  systemDb.prepare("UPDATE discovered_devices SET status = 'ADOPTED', last_seen_at = CURRENT_TIMESTAMP WHERE UPPER(REPLACE(mac_address, ':', '')) = ?").run(mac);
+
+  logActivity('DEVICE_ADOPTED', `Handset [${mac}] (${finalBrand.toUpperCase()} ${finalModel}) adopted by admin and bound to Ext ${extension}`, req.ip);
+  broadcastDeviceLog('DESKPHONE', 'SUCCESS', `[Adopted] Device [${mac}] bound to Ext ${extension} (${label})`, {
+    deviceIdentifier: mac,
+    ipAddress: req.ip,
+    metadata: { extension, brand: finalBrand, model: finalModel }
+  });
+
+  return res.json({ ok: true, message: `Device ${mac} successfully adopted and provisioned to Ext ${extension}.` });
+});
+
+router.delete('/api/admin/discovered-devices/:mac', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
+  const mac = req.params.mac.toUpperCase().replace(/[^0-9A-F]/g, '');
+  systemDb.prepare("UPDATE discovered_devices SET status = 'IGNORED' WHERE UPPER(REPLACE(mac_address, ':', '')) = ?").run(mac);
+  logActivity('DEVICE_IGNORED', `Discovered device [${mac}] dismissed by admin.`, req.ip);
+  return res.json({ ok: true, message: 'Device dismissed from pending adoption queue.' });
+});
+
+router.post('/api/admin/auto-adopt/toggle', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
+  const { enabled } = req.body;
+  const val = enabled ? 1 : 0;
+  systemDb.prepare('UPDATE server_config SET auto_adopt_enabled = ? WHERE id = 1').run(val);
+  logActivity('AUTO_ADOPT_TOGGLE', `Zero-Touch Auto-Adoption changed to: ${val === 1 ? 'ENABLED' : 'DISABLED'}`, req.ip);
+  return res.json({ ok: true, autoAdoptEnabled: val === 1 });
+});
+
+router.post('/api/admin/auto-sync/toggle', adminAuth, requirePermission('manage_pbx'), (req: Request, res: Response) => {
+  const { enabled, intervalMins } = req.body;
+  const val = enabled !== undefined ? (enabled ? 1 : 0) : 1;
+  const interval = Math.max(1, Math.min(60, parseInt(intervalMins || '5', 10)));
+  systemDb.prepare('UPDATE server_config SET auto_sync_enabled = ?, auto_sync_interval_mins = ? WHERE id = 1').run(val, interval);
+  logActivity('AUTO_SYNC_TOGGLE', `PBX Auto-Sync changed to: ${val === 1 ? 'ENABLED' : 'DISABLED'} (${interval}m interval)`, req.ip);
+  return res.json({ ok: true, autoSyncEnabled: val === 1, intervalMins: interval });
 });
 
 // 8. Custom Branding & Theme Configuration

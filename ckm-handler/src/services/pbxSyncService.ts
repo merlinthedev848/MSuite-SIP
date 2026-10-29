@@ -2,7 +2,7 @@ import net from 'net';
 import http from 'http';
 import https from 'https';
 import crypto from 'crypto';
-import systemDb from '../database/systemDb';
+import systemDb, { logActivity } from '../database/systemDb';
 
 export interface PbxSyncConfig {
   type?: 'yeastar_api' | 'yeastar_ami' | 'asterisk_ami' | 'freepbx_ami' | 'grandstream_api';
@@ -394,4 +394,47 @@ function parseAmiOutput(raw: string): SyncedExtension[] {
   }
 
   return extensions;
+}
+
+// ==============================================================================
+// Autonomous Background PBX Synchronization Daemon (Omada / GenieACS style)
+// ==============================================================================
+let pbxSyncTimer: NodeJS.Timeout | null = null;
+
+export function startPbxSyncDaemon(): void {
+  if (pbxSyncTimer) return;
+  // Initial run after 15s to allow server to boot cleanly, then every 5 minutes
+  setTimeout(runAutoPbxSync, 15000);
+  pbxSyncTimer = setInterval(runAutoPbxSync, 5 * 60 * 1000);
+  console.log('[PBX Sync Engine] Autonomous background synchronization daemon active (5m interval)');
+}
+
+export async function runAutoPbxSync(): Promise<void> {
+  try {
+    const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as any;
+    if (!config || config.auto_sync_enabled === 0) return;
+    if (!config.pbx_server || config.pbx_server === '127.0.0.1' || config.pbx_server === 'localhost') return;
+
+    const syncConfig: PbxSyncConfig = {
+      type: 'asterisk_ami',
+      host: config.pbx_server,
+      port: 5038,
+      username: 'admin',
+      secret: ''
+    };
+
+    const res = await syncExtensionsFromPbx(syncConfig);
+    const now = new Date().toISOString();
+    systemDb.prepare(`
+      UPDATE server_config 
+      SET last_sync_at = ?, last_sync_status = ? 
+      WHERE id = 1
+    `).run(now, res.success ? 'SUCCESS' : 'FAILED');
+
+    if (res.success && res.count > 0) {
+      logActivity('PBX_AUTO_SYNC', `Autonomous PBX sync completed: ${res.count} extension(s) synchronized.`, '127.0.0.1');
+    }
+  } catch {
+    // Silent catch to ensure daemon stability
+  }
 }

@@ -17,6 +17,7 @@ import adminRouter from './routes/admin';
 import integrationApiRouter from './routes/integrationApi';
 import firmwareRouter from './routes/firmwareRoute';
 import { reconcileFirmwareStorage } from './services/firmwareService';
+import { startPbxSyncDaemon } from './services/pbxSyncService';
 
 const app = express();
 const server = http.createServer(app);
@@ -96,6 +97,7 @@ initializeSocketService(server);
 startRetentionScheduler();
 startLicenseGuardDaemon();
 reconcileFirmwareStorage();
+startPbxSyncDaemon();
 
 // 8. Start Server Listener
 server.listen(PORT, () => {

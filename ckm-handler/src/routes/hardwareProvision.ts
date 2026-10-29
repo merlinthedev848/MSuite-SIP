@@ -40,6 +40,72 @@ const getRouterByMacStmt = systemDb.prepare(`
   SELECT * FROM routers WHERE LOWER(REPLACE(mac_address, ':', '')) = ?
 `);
 
+// Omada / GenieACS Zero-Touch Discovery Statements
+const recordDiscoveredDeviceStmt = systemDb.prepare(`
+  INSERT INTO discovered_devices (mac_address, brand, model, ip_address, user_agent, status, last_seen_at)
+  VALUES (?, ?, ?, ?, ?, 'PENDING_ADOPTION', CURRENT_TIMESTAMP)
+  ON CONFLICT(mac_address) DO UPDATE SET
+    ip_address = excluded.ip_address,
+    user_agent = excluded.user_agent,
+    status = CASE WHEN discovered_devices.status = 'ADOPTED' THEN 'ADOPTED' ELSE 'PENDING_ADOPTION' END,
+    last_seen_at = CURRENT_TIMESTAMP
+`);
+
+const findAvailableExtensionStmt = systemDb.prepare(`
+  SELECT e.extension, e.sip_username, e.sip_password, e.display_name, e.is_active
+  FROM extensions e
+  LEFT JOIN physical_handsets h ON e.extension = h.extension
+  WHERE h.mac_address IS NULL AND e.is_active = 1
+  ORDER BY CAST(e.extension AS INTEGER) ASC, e.extension ASC
+  LIMIT 1
+`);
+
+const autoAdoptHandsetStmt = systemDb.prepare(`
+  INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, last_provisioned_at)
+  VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+`);
+
+const markDeviceAdoptedStmt = systemDb.prepare(`
+  UPDATE discovered_devices SET status = 'ADOPTED', last_seen_at = CURRENT_TIMESTAMP WHERE mac_address = ?
+`);
+
+function detectDeviceMetadata(cleanMac: string, filename: string, userAgent: string): { brand: string; model: string } {
+  const ua = (userAgent || '').toLowerCase();
+  const mac = cleanMac.toLowerCase();
+  let brand = 'yealink';
+  let model = 'T46U';
+
+  if (ua.includes('yealink') || mac.startsWith('001565') || filename.startsWith('y00000000')) {
+    brand = 'yealink';
+    const m = ua.match(/t\d{2,3}[ugw]?(?:-pro)?/i);
+    if (m) model = m[0].toUpperCase();
+  } else if (ua.includes('grandstream') || mac.startsWith('000b82') || filename.startsWith('cfg')) {
+    brand = 'grandstream';
+    const m = ua.match(/gxp\d{4}|grp\d{4}/i);
+    if (m) model = m[0].toUpperCase();
+  } else if (ua.includes('snom') || mac.startsWith('000413') || filename.startsWith('snom')) {
+    brand = 'snom';
+    const m = ua.match(/d\d{3}|m\d{2}/i);
+    if (m) model = m[0].toUpperCase();
+  } else if (ua.includes('poly') || mac.startsWith('0004f2') || filename.includes('-phone.cfg')) {
+    brand = 'poly';
+    const m = ua.match(/vvx\s*\d{3}/i);
+    if (m) model = m[0].replace(/\s+/, '').toUpperCase();
+  } else if (ua.includes('cisco') || ua.includes('linksys') || mac.startsWith('00085d') || filename.startsWith('spa')) {
+    brand = 'cisco';
+    const m = ua.match(/spa\d{3}|cp-\d{4}/i);
+    if (m) model = m[0].toUpperCase();
+  } else if (ua.includes('fanvil') || mac.startsWith('00a859')) {
+    brand = 'fanvil';
+    const m = ua.match(/x\d{1,2}[uv]?/i);
+    if (m) model = m[0].toUpperCase();
+  } else if (ua.includes('gigaset') || mac.startsWith('002104')) {
+    brand = 'gigaset';
+  }
+
+  return { brand, model };
+}
+
 // Hardware Deskphone Provisioning Handler
 router.get('/provision/:filename', (req: Request, res: Response) => {
   const filename = req.params.filename.toLowerCase();
@@ -70,11 +136,40 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
   }
 
   // 3. Look up MAC address using pre-compiled statement
-  const handset = getHandsetStmt.get(cleanMac) as any;
+  let handset = getHandsetStmt.get(cleanMac) as any;
 
   if (!handset) {
-    broadcastDeviceLog('DESKPHONE', 'WARN', `Unregistered deskphone attempted provision with MAC [${cleanMac.toUpperCase()}] (File: ${filename})`, { deviceIdentifier: cleanMac.toUpperCase(), ipAddress: req.ip, userAgent: req.headers['user-agent'] as string });
-    return res.status(404).send(`# Error: Handset MAC [${cleanMac}] is not registered in CKM Handler.`);
+    const meta = detectDeviceMetadata(cleanMac, filename, req.headers['user-agent'] as string);
+    const serverCfg = getServerConfigStmt.get() as any;
+
+    // Check if Zero-Touch Auto-Adoption is enabled (Omada / GenieACS style)
+    if (serverCfg?.auto_adopt_enabled === 1) {
+      const freeExt = findAvailableExtensionStmt.get() as any;
+      if (freeExt) {
+        autoAdoptHandsetStmt.run(cleanMac.toUpperCase(), meta.brand, meta.model, freeExt.extension, freeExt.display_name || `Ext ${freeExt.extension}`);
+        markDeviceAdoptedStmt.run(cleanMac.toUpperCase());
+        logActivity('DEVICE_AUTO_ADOPTED', `Handset [${cleanMac.toUpperCase()}] (${meta.brand.toUpperCase()} ${meta.model}) auto-adopted to Ext ${freeExt.extension}`, req.ip);
+        broadcastDeviceLog('DESKPHONE', 'SUCCESS', `[Zero-Touch Auto-Adopted] Handset [${cleanMac.toUpperCase()}] (${meta.brand.toUpperCase()} ${meta.model}) bound to Ext ${freeExt.extension}`, {
+          deviceIdentifier: cleanMac.toUpperCase(),
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'] as string,
+          metadata: { extension: freeExt.extension, brand: meta.brand, model: meta.model }
+        });
+        handset = getHandsetStmt.get(cleanMac) as any;
+      }
+    }
+
+    if (!handset) {
+      // Record unadopted device in discovery queue (Omada pending adoption state)
+      recordDiscoveredDeviceStmt.run(cleanMac.toUpperCase(), meta.brand, meta.model, req.ip, (req.headers['user-agent'] as string) || 'Unknown');
+      broadcastDeviceLog('DESKPHONE', 'WARN', `[Omada Auto-Discovery] Unadopted deskphone detected: ${meta.brand.toUpperCase()} ${meta.model} [${cleanMac.toUpperCase()}] from ${req.ip} (Pending Adoption)`, {
+        deviceIdentifier: cleanMac.toUpperCase(),
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'] as string,
+        metadata: { brand: meta.brand, model: meta.model, status: 'PENDING_ADOPTION' }
+      });
+      return res.status(404).send(`# CKM Handler Omada Discovery: Handset [${cleanMac.toUpperCase()}] detected and placed in pending adoption queue.\r\n`);
+    }
   }
 
   if (handset.is_active !== 1) {
