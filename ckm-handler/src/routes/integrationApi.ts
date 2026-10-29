@@ -3,6 +3,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import systemDb from '../database/systemDb';
 import { syncExtensionsFromAsterisk, AmiConfig } from '../services/pbxSyncService';
+import { broadcastDeviceLog } from '../services/telemetryStream';
 
 const router = Router();
 
@@ -110,6 +111,12 @@ router.post('/api/v1/integrations/provision-user', apiKeyAuth, async (req: Reque
   const deepLink = `merlinsip://provision?code=${pin}&handler=${encodeURIComponent(serverCfg.data_handler_url)}`;
   const welcomeCard = `========================================\nMerlinSIP Softphone Configuration Card\n========================================\nUser / Display Name: ${extRecord.display_name}\nExtension Number:    ${cleanExt}\n8-Digit Setup PIN:   ${pin}\nAuto-Setup Link:     ${deepLink}\nHandler Gateway:     ${serverCfg.data_handler_url}\nCode Expiration:     ${expiresAt}\n\nInstructions:\n1. Download or open MerlinSIP Softphone.\n2. In the setup prompt, enter the 8-Digit PIN [${pin}] or click the Auto-Setup link above.\n3. Your softphone will configure its SIP credentials and connect to the secure chat network automatically!`;
 
+  broadcastDeviceLog('SOFTPHONE', 'SUCCESS', `[Inbound API Provisioning] External integration issued PIN [${pin}] for Ext ${cleanExt} (${extRecord.display_name})`, {
+    deviceIdentifier: `Ext ${cleanExt}`,
+    ipAddress: req.ip,
+    metadata: { extension: cleanExt, code: pin, expiresAt }
+  });
+
   return res.json({
     ok: true,
     extension: cleanExt,
@@ -151,6 +158,10 @@ router.get('/api/v1/integrations/extension/:ext/code', apiKeyAuth, (req: Request
 
     systemDb.prepare('DELETE FROM softphone_pins WHERE extension = ? AND claimed = 0').run(cleanExt);
     systemDb.prepare('INSERT INTO softphone_pins (code, extension, expires_at) VALUES (?, ?, ?)').run(pin, cleanExt, expiresAt);
+    broadcastDeviceLog('SOFTPHONE', 'SUCCESS', `[Inbound API Provisioning] Setup PIN [${pin}] refreshed for Ext ${cleanExt}`, {
+      deviceIdentifier: `Ext ${cleanExt}`,
+      ipAddress: req.ip
+    });
   }
 
   const deepLink = `merlinsip://provision?code=${pin}&handler=${encodeURIComponent(serverCfg.data_handler_url)}`;
