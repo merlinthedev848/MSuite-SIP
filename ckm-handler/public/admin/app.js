@@ -159,8 +159,14 @@ document.addEventListener('DOMContentLoaded', () => {
     options.headers = options.headers || {};
     if (options.headers instanceof Headers) {
       options.headers.set('Authorization', `Bearer ${token}`);
+      if (options.body && typeof options.body === 'string' && !options.headers.has('Content-Type')) {
+        options.headers.set('Content-Type', 'application/json');
+      }
     } else {
       options.headers['Authorization'] = `Bearer ${token}`;
+      if (options.body && typeof options.body === 'string' && !options.headers['Content-Type']) {
+        options.headers['Content-Type'] = 'application/json';
+      }
     }
 
     try {
@@ -227,7 +233,9 @@ document.addEventListener('DOMContentLoaded', () => {
     extensions: 'SIP Extensions & Softphone PINs',
     handsets: 'Physical IP Handset Directory',
     routers: 'VoIP Router & Network Gateway Profiles',
+    firmware: 'Firmware Repository & Binary Cache',
     shell: 'Live Device Connectivity & Telemetry Shell',
+    settings: 'Global Unified System Settings Center',
     branding: 'Softphone Custom Branding, Logo & Colors',
     config: 'PBX Integration & Gateway Settings',
     gdpr: 'GDPR Compliance & Data Retention Vault',
@@ -251,7 +259,9 @@ document.addEventListener('DOMContentLoaded', () => {
         extensions: 'Operations / Extensions & PINs',
         handsets: 'Operations / Physical Handsets',
         routers: 'Operations / Routers & Gateways',
+        firmware: 'Services / Firmware Repository',
         shell: 'Operations / Live Device Shell',
+        settings: 'Administration / Global System Settings',
         users: 'Administration / Admin Users & RBAC',
         branding: 'Administration / Theme & Branding',
         config: 'Administration / PBX Integration',
@@ -275,12 +285,49 @@ document.addEventListener('DOMContentLoaded', () => {
     else if (tab === 'extensions') loadExtensions();
     else if (tab === 'handsets') loadHandsets();
     else if (tab === 'routers') loadRouters();
+    else if (tab === 'firmware') loadFirmwareRepository();
     else if (tab === 'shell') loadShellHistory();
     else if (tab === 'branding') loadBranding();
     else if (tab === 'config') loadConfig();
     else if (tab === 'gdpr') loadGdprPolicy();
     else if (tab === 'users') loadUsers();
+    else if (tab === 'settings') {
+      loadConfig();
+      loadAutomationDaemonSettings();
+      loadBranding();
+      loadUsers();
+      loadGdprPolicy();
+    }
   }
+
+  window.switchTab = function(tab, subtab) {
+    const settingsSubtabs = {
+      config: 'settings-pbx',
+      pbx: 'settings-pbx',
+      automation: 'settings-automation',
+      branding: 'settings-branding',
+      users: 'settings-security',
+      security: 'settings-security',
+      gdpr: 'settings-gdpr'
+    };
+
+    if (settingsSubtabs[tab]) {
+      subtab = settingsSubtabs[tab];
+      tab = 'settings';
+    }
+
+    const btn = document.querySelector(`.nav-btn[data-tab="${tab}"]`);
+    if (btn) {
+      btn.click();
+    }
+
+    if (tab === 'settings' && subtab) {
+      const subBtn = document.querySelector(`.settings-nav-btn[data-subtab="${subtab}"]`);
+      if (subBtn) {
+        subBtn.click();
+      }
+    }
+  };
 
   // --------------------------------------------------------------------------
   // 3. Modal Management (Open, Close, Outside Click)
@@ -365,6 +412,44 @@ document.addEventListener('DOMContentLoaded', () => {
     // Update PBX Ping Target Card
     const pingTarget = document.getElementById('pingPbxTarget');
     if (pingTarget) pingTarget.textContent = formattedPbx;
+
+    // Update Autonomous Infrastructure Daemons Badges & Switches
+    const autoAdoptOn = !!s.autoAdoptEnabled;
+    const engineAutoAdoptBadge = document.getElementById('engineAutoAdoptBadge');
+    if (engineAutoAdoptBadge) {
+      engineAutoAdoptBadge.textContent = autoAdoptOn ? 'Zero-Touch Active' : 'Approval Required';
+      engineAutoAdoptBadge.className = autoAdoptOn ? 'badge badge-success' : 'badge';
+    }
+    const chipAutoAdopt = document.getElementById('chipAutoAdoptStatus');
+    if (chipAutoAdopt) chipAutoAdopt.textContent = `Auto-Adopt: ${autoAdoptOn ? 'Active' : 'Disabled'}`;
+
+    const autoSyncOn = s.autoSync ? !!s.autoSync.enabled : true;
+    const syncInterval = s.autoSync?.intervalMins || 5;
+    const enginePbxSyncBadge = document.getElementById('enginePbxSyncBadge');
+    if (enginePbxSyncBadge) {
+      enginePbxSyncBadge.textContent = autoSyncOn ? `Automated (${syncInterval}m)` : 'Manual Only';
+      enginePbxSyncBadge.className = autoSyncOn ? 'badge badge-success' : 'badge badge-secondary';
+    }
+
+    const enginePbxLastSync = document.getElementById('enginePbxLastSync');
+    if (enginePbxLastSync) {
+      if (s.autoSync?.lastSyncAt) {
+        const d = new Date(s.autoSync.lastSyncAt);
+        enginePbxLastSync.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } else {
+        enginePbxLastSync.textContent = 'Standby';
+      }
+    }
+
+    // Keep all settings switches synchronized with server state
+    const chkAdopt = document.getElementById('chkAutoAdoptPolicy');
+    if (chkAdopt) chkAdopt.checked = autoAdoptOn;
+    const settingsAdopt = document.getElementById('settingsAutoAdoptToggle');
+    if (settingsAdopt) settingsAdopt.checked = autoAdoptOn;
+    const settingsSync = document.getElementById('settingsAutoSyncToggle');
+    if (settingsSync) settingsSync.checked = autoSyncOn;
+    const settingsInterval = document.getElementById('settingsSyncInterval');
+    if (settingsInterval) settingsInterval.value = String(syncInterval);
 
     // Load Live Activity & Audit Logs
     loadAuditLogs();
@@ -2529,8 +2614,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Topbar Shortcut: Jump directly to Users & Permissions Tab
   document.getElementById('btnTopbarUser')?.addEventListener('click', () => {
-    const usersBtn = document.querySelector('.nav-btn[data-tab="users"]');
-    if (usersBtn) usersBtn.click();
+    window.switchTab('settings', 'settings-security');
   });
 
   // Self-Service Change Password Modal Handlers
@@ -3309,7 +3393,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Zero-Touch Auto-Adoption Toggle Handler
+  // Zero-Touch Auto-Adoption Policy Toggle Handler
   document.getElementById('chkAutoAdoptPolicy')?.addEventListener('change', async (e) => {
     const enabled = e.target.checked;
     const res = await fetchJson('/api/admin/auto-adopt/toggle', {
@@ -3318,6 +3402,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     if (res && res.ok) {
       window.showToast(`Zero-Touch Auto-Adoption ${enabled ? 'Enabled' : 'Disabled'}`, 'info');
+      const settingsAdopt = document.getElementById('settingsAutoAdoptToggle');
+      if (settingsAdopt) settingsAdopt.checked = enabled;
       const badge = document.getElementById('chipAutoAdoptStatus');
       if (badge) badge.textContent = `Auto-Adopt: ${enabled ? 'Active' : 'Disabled'}`;
       const engineBadge = document.getElementById('engineAutoAdoptBadge');
@@ -3328,11 +3414,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.getElementById('btnToggleAutoAdoptEngine')?.addEventListener('click', () => {
-    const chk = document.getElementById('chkAutoAdoptPolicy');
-    if (chk) {
-      chk.checked = !chk.checked;
-      chk.dispatchEvent(new Event('change'));
+  document.getElementById('btnToggleAutoAdoptEngine')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnToggleAutoAdoptEngine');
+    btn.disabled = true;
+    try {
+      const currentVal = document.getElementById('settingsAutoAdoptToggle')?.checked ?? document.getElementById('chkAutoAdoptPolicy')?.checked ?? false;
+      const nextVal = !currentVal;
+      const res = await fetchJson('/api/admin/auto-adopt/toggle', {
+        method: 'POST',
+        body: JSON.stringify({ enabled: nextVal })
+      });
+      if (res && res.ok) {
+        window.showToast(`Zero-Touch Auto-Adoption ${nextVal ? 'Enabled' : 'Disabled'}`, 'info');
+        const chk1 = document.getElementById('chkAutoAdoptPolicy');
+        if (chk1) chk1.checked = nextVal;
+        const chk2 = document.getElementById('settingsAutoAdoptToggle');
+        if (chk2) chk2.checked = nextVal;
+        const engineBadge = document.getElementById('engineAutoAdoptBadge');
+        if (engineBadge) {
+          engineBadge.textContent = nextVal ? 'Zero-Touch Active' : 'Approval Required';
+          engineBadge.className = nextVal ? 'badge badge-success' : 'badge';
+        }
+        const chip = document.getElementById('chipAutoAdoptStatus');
+        if (chip) chip.textContent = `Auto-Adopt: ${nextVal ? 'Active' : 'Disabled'}`;
+      } else {
+        window.showToast(res?.error || 'Failed to toggle Auto-Adopt.', 'error');
+      }
+    } finally {
+      btn.disabled = false;
     }
   });
 
@@ -3414,8 +3523,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.getElementById('btnSyncAllFwQuick')?.addEventListener('click', () => {
-    document.getElementById('btnSyncAllFwRepository')?.click();
+  document.getElementById('btnSyncAllFwQuick')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnSyncAllFwQuick');
+    btn.textContent = 'Syncing...';
+    btn.disabled = true;
+    try {
+      const res = await fetchJson('/api/admin/firmware/sync-all', { method: 'POST' });
+      if (res && res.ok) {
+        window.showToast('Firmware binaries sync started in background.', 'success');
+        loadFirmwareRepository();
+      } else {
+        window.showToast(res?.error || 'Failed to trigger firmware sync.', 'error');
+      }
+    } finally {
+      btn.textContent = 'Sync Binaries';
+      btn.disabled = false;
+    }
   });
 
 
@@ -3451,6 +3574,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.settings-subpane').forEach(p => p.classList.remove('active'));
         const pane = document.getElementById('subpane-' + target);
         if (pane) pane.classList.add('active');
+
+        if (target === 'settings-pbx') loadConfig();
+        else if (target === 'settings-automation') loadAutomationDaemonSettings();
+        else if (target === 'settings-branding') loadBranding();
+        else if (target === 'settings-security') loadUsers();
+        else if (target === 'settings-gdpr') loadGdprPolicy();
       });
     });
   }
@@ -3471,25 +3600,106 @@ document.addEventListener('DOMContentLoaded', () => {
     if (selInterval && s.autoSync) selInterval.value = String(s.autoSync.intervalMins || 5);
   }
 
-  document.getElementById('btnSaveAutomationSettings')?.addEventListener('click', async () => {
-    const autoAdopt = document.getElementById('settingsAutoAdoptToggle')?.checked || false;
-    const autoSync = document.getElementById('settingsAutoSyncToggle')?.checked || false;
-    const intervalMins = document.getElementById('settingsSyncInterval')?.value || '5';
-
-    await fetchJson('/api/admin/auto-adopt/toggle', {
+  // Interactive Live Change Listeners for Settings Controls
+  document.getElementById('settingsAutoAdoptToggle')?.addEventListener('change', async (e) => {
+    const enabled = e.target.checked;
+    const res = await fetchJson('/api/admin/auto-adopt/toggle', {
       method: 'POST',
-      body: JSON.stringify({ enabled: autoAdopt })
+      body: JSON.stringify({ enabled })
     });
-
-    await fetchJson('/api/admin/auto-sync/toggle', {
-      method: 'POST',
-      body: JSON.stringify({ enabled: autoSync, intervalMins })
-    });
-
-    window.showToast('Global automation and daemon settings saved!', 'success');
-    loadOverview();
+    if (res && res.ok) {
+      window.showToast(`Zero-Touch Auto-Adoption ${enabled ? 'Enabled' : 'Disabled'}`, 'info');
+      const chk = document.getElementById('chkAutoAdoptPolicy');
+      if (chk) chk.checked = enabled;
+      const engineBadge = document.getElementById('engineAutoAdoptBadge');
+      if (engineBadge) {
+        engineBadge.textContent = enabled ? 'Zero-Touch Active' : 'Approval Required';
+        engineBadge.className = enabled ? 'badge badge-success' : 'badge';
+      }
+      const chip = document.getElementById('chipAutoAdoptStatus');
+      if (chip) chip.textContent = `Auto-Adopt: ${enabled ? 'Active' : 'Disabled'}`;
+    }
   });
 
-  document.getElementById('btnForcePbxSyncFromSettings')?.addEventListener('click', () => {
-    document.getElementById('btnTriggerQuickSync')?.click();
+  document.getElementById('settingsAutoSyncToggle')?.addEventListener('change', async (e) => {
+    const enabled = e.target.checked;
+    const intervalMins = document.getElementById('settingsSyncInterval')?.value || '5';
+    const res = await fetchJson('/api/admin/auto-sync/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ enabled, intervalMins })
+    });
+    if (res && res.ok) {
+      window.showToast(`PBX Auto-Sync ${enabled ? 'Enabled' : 'Disabled'}`, 'info');
+      const engineBadge = document.getElementById('enginePbxSyncBadge');
+      if (engineBadge) {
+        engineBadge.textContent = enabled ? `Automated (${intervalMins}m)` : 'Manual Only';
+        engineBadge.className = enabled ? 'badge badge-success' : 'badge badge-secondary';
+      }
+    }
+  });
+
+  document.getElementById('settingsSyncInterval')?.addEventListener('change', async (e) => {
+    const intervalMins = e.target.value;
+    const enabled = document.getElementById('settingsAutoSyncToggle')?.checked !== false;
+    const res = await fetchJson('/api/admin/auto-sync/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ enabled, intervalMins })
+    });
+    if (res && res.ok) {
+      window.showToast(`PBX Auto-Sync interval set to ${intervalMins} minutes`, 'info');
+      const engineBadge = document.getElementById('enginePbxSyncBadge');
+      if (engineBadge && enabled) {
+        engineBadge.textContent = `Automated (${intervalMins}m)`;
+      }
+    }
+  });
+
+  // Apply Daemon Settings Button Handler
+  document.getElementById('btnSaveAutomationSettings')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnSaveAutomationSettings');
+    btn.textContent = 'Applying...';
+    btn.disabled = true;
+    try {
+      const autoAdopt = document.getElementById('settingsAutoAdoptToggle')?.checked || false;
+      const autoSync = document.getElementById('settingsAutoSyncToggle')?.checked || false;
+      const intervalMins = document.getElementById('settingsSyncInterval')?.value || '5';
+
+      await fetchJson('/api/admin/auto-adopt/toggle', {
+        method: 'POST',
+        body: JSON.stringify({ enabled: autoAdopt })
+      });
+
+      await fetchJson('/api/admin/auto-sync/toggle', {
+        method: 'POST',
+        body: JSON.stringify({ enabled: autoSync, intervalMins })
+      });
+
+      window.showToast('Global automation and daemon settings saved!', 'success');
+      loadOverview();
+    } finally {
+      btn.textContent = 'Apply Daemon Settings';
+      btn.disabled = false;
+    }
+  });
+
+  // Force PBX Sync From Settings Button Handler
+  document.getElementById('btnForcePbxSyncFromSettings')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnForcePbxSyncFromSettings');
+    btn.textContent = 'Syncing PBX...';
+    btn.disabled = true;
+    try {
+      const res = await fetchJson('/api/admin/pbx/sync', { method: 'POST', body: JSON.stringify({}) });
+      if (res && res.ok) {
+        window.showToast(`PBX Sync successful: ${res.count ?? 0} extensions synced.`, 'success');
+        loadExtensions();
+        loadOverview();
+      } else {
+        window.showToast(res?.error || 'PBX Sync failed. Ensure Asterisk AMI is online.', 'error');
+      }
+    } catch (err) {
+      window.showToast('PBX Sync error: ' + (err.message || 'Network error'), 'error');
+    } finally {
+      btn.textContent = 'Force PBX Sync Now';
+      btn.disabled = false;
+    }
   });
