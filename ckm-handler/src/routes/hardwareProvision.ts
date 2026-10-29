@@ -1,3 +1,35 @@
+// ==============================================================================
+// FreePBX Dynamic Template Variable Substitution Engine
+// Injects {$domain}, {$PbxAddress}, and account variables from Global Settings
+// ==============================================================================
+export function substituteTemplateVariables(raw: string, config: any, accountCfg: Partial<HandsetAccountConfig>): string {
+  if (!raw) return '';
+  const domain = (config?.data_handler_url || '').trim().replace(/\/$/, '');
+  const cleanDomainHost = domain.replace(/^https?:\/\//, '');
+  const pbxAddress = (config?.pbx_server || '').trim();
+  const pbxPort = String(config?.pbx_port || 5060);
+  const pbxTransport = String(config?.pbx_transport || 'UDP');
+
+  return raw
+    .replace(/\{\$domain\}/gi, domain)
+    .replace(/\{\$dataHandlerUrl\}/gi, domain)
+    .replace(/\{\$serverDomain\}/gi, cleanDomainHost)
+    .replace(/\{\$PbxAddress\}/gi, pbxAddress)
+    .replace(/\{\$pbxAddress\}/gi, pbxAddress)
+    .replace(/\{\$pbx_address\}/gi, pbxAddress)
+    .replace(/\{\$PBX_SERVER\}/gi, pbxAddress)
+    .replace(/\{\$sipServer\}/gi, pbxAddress)
+    .replace(/\{\$sipPort\}/gi, pbxPort)
+    .replace(/\{\$pbxPort\}/gi, pbxPort)
+    .replace(/\{\$sipTransport\}/gi, pbxTransport)
+    .replace(/\{\$pbxTransport\}/gi, pbxTransport)
+    .replace(/\{\$extension\}/gi, accountCfg?.extension || '')
+    .replace(/\{\$username\}/gi, accountCfg?.username || accountCfg?.extension || '')
+    .replace(/\{\$password\}/gi, accountCfg?.password || '')
+    .replace(/\{\$displayName\}/gi, accountCfg?.displayName || `Ext ${accountCfg?.extension || ''}`)
+    .replace(/\{\$lineLabel\}/gi, accountCfg?.displayName || `Ext ${accountCfg?.extension || ''}`);
+}
+
 import { Router, Request, Response } from 'express';
 import systemDb, { logActivity } from '../database/systemDb';
 import { broadcastDeviceLog } from '../services/telemetryStream';
@@ -187,14 +219,6 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     metadata: { extension: handset.extension, brand: handset.brand, model: handset.model, customized: !!(handset.custom_config && handset.custom_config.trim()) }
   });
 
-  // 4. If user has customized their provisioning profile directly, serve it!
-  if (handset.custom_config && handset.custom_config.trim().length > 0) {
-    const isXml = handset.custom_config.trim().startsWith('<');
-    res.setHeader('Content-Type', `${isXml ? 'application/xml' : 'text/plain'}; charset=utf-8`);
-    return res.send(handset.custom_config);
-  }
-
-  // 5. Otherwise generate standard manufacturer template
   const config = getServerConfigStmt.get() as any;
 
   let blfKeys: Array<{ key: number; extension: string; label: string }> = [];
@@ -216,8 +240,18 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     blfKeys
   };
 
+  // 4. If user has customized their provisioning profile directly (FreePBX style), serve it with dynamic variable substitution!
+  if (handset.custom_config && handset.custom_config.trim().length > 0) {
+    const substituted = substituteTemplateVariables(handset.custom_config, config, accountCfg);
+    const isXml = substituted.trim().startsWith('<') || filename.endsWith('.xml');
+    res.setHeader('Content-Type', `${isXml ? 'application/xml' : 'text/plain'}; charset=utf-8`);
+    return res.send(substituted);
+  }
+
+  // 5. Otherwise generate standard manufacturer template and resolve variables
   const brand = (handset.brand || '').toLowerCase();
-  const content = generateDefaultHandsetConfig(brand, accountCfg, handset.model);
+  const rawContent = generateDefaultHandsetConfig(brand, accountCfg, handset.model);
+  const content = substituteTemplateVariables(rawContent, config, accountCfg);
   const isXml = content.trim().startsWith('<') || filename.endsWith('.xml');
 
   res.setHeader('Content-Type', `${isXml ? 'application/xml' : 'text/plain'}; charset=utf-8`);

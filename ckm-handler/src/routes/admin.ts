@@ -10,6 +10,7 @@ import vaultDb from '../database/vaultDb';
 import { ADMIN_USER, ADMIN_PASS, UPLOADS_DIR, PORT, SERVER_DOMAIN } from '../config';
 import { generateRouterConfig, RouterConfigParams } from '../templates/routerTemplates';
 import { HANDSET_CATALOG, ROUTER_CATALOG, generateDefaultHandsetConfig } from '../templates/catalog';
+import { substituteTemplateVariables } from './hardwareProvision';
 import { HandsetAccountConfig } from '../templates/yealink';
 import { licenseState } from '../services/licenseGuard';
 import { syncExtensionsFromAsterisk, syncExtensionsFromPbx, PbxSyncConfig, AmiConfig } from '../services/pbxSyncService';
@@ -989,9 +990,10 @@ router.get('/api/admin/handsets/:mac/preview', adminAuth, (req: Request, res: Re
     blfKeys
   };
 
-  const defaultContent = generateDefaultHandsetConfig(handset.brand, accountCfg);
+  const defaultContent = generateDefaultHandsetConfig(handset.brand, accountCfg, handset.model);
   const isCustomized = !!(handset.custom_config && handset.custom_config.trim().length > 0);
-  const content = isCustomized ? handset.custom_config : defaultContent;
+  const rawContent = isCustomized ? handset.custom_config : defaultContent;
+  const resolvedContent = substituteTemplateVariables(rawContent, config, accountCfg);
 
   return res.json({
     ok: true,
@@ -1001,7 +1003,8 @@ router.get('/api/admin/handsets/:mac/preview', adminAuth, (req: Request, res: Re
     extension: handset.extension,
     displayName: handset.display_name,
     isCustomized,
-    content,
+    content: rawContent,
+    resolvedContent,
     defaultContent
   });
 });

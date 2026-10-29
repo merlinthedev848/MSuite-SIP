@@ -2799,6 +2799,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize segmented subviews (Fleet vs Explorer)
   initSubviews();
+    initSettingsSubnav();
 
   const initialToken = getAuthToken();
   if (!initialToken) {
@@ -3415,4 +3416,80 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btnSyncAllFwQuick')?.addEventListener('click', () => {
     document.getElementById('btnSyncAllFwRepository')?.click();
+  });
+
+
+  // ==========================================================================
+  // FreePBX Style Variable Insertion Engine
+  // ==========================================================================
+  window.insertVariableIntoEditor = function(tag) {
+    const editor = document.getElementById('handsetConfigEditor');
+    if (!editor) return;
+
+    const startPos = editor.selectionStart;
+    const endPos = editor.selectionEnd;
+    const currentVal = editor.value;
+
+    editor.value = currentVal.substring(0, startPos) + tag + currentVal.substring(endPos, currentVal.length);
+    editor.selectionStart = startPos + tag.length;
+    editor.selectionEnd = startPos + tag.length;
+    editor.focus();
+    window.showToast(`Inserted ${tag} at cursor`, 'info');
+  };
+
+  // ==========================================================================
+  // Master Settings Subtab Navigation & Daemon Controller
+  // ==========================================================================
+  function initSettingsSubnav() {
+    const btns = document.querySelectorAll('.settings-nav-btn');
+    btns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        btns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const target = btn.dataset.subtab;
+        document.querySelectorAll('.settings-subpane').forEach(p => p.classList.remove('active'));
+        const pane = document.getElementById('subpane-' + target);
+        if (pane) pane.classList.add('active');
+      });
+    });
+  }
+
+  // Load automation daemon settings in settings pane
+  async function loadAutomationDaemonSettings() {
+    const res = await fetchJson('/api/admin/overview');
+    if (!res || !res.ok || !res.stats) return;
+    const s = res.stats;
+
+    const chkAdopt = document.getElementById('settingsAutoAdoptToggle');
+    if (chkAdopt) chkAdopt.checked = !!s.autoAdoptEnabled;
+
+    const chkSync = document.getElementById('settingsAutoSyncToggle');
+    if (chkSync) chkSync.checked = s.autoSync ? !!s.autoSync.enabled : true;
+
+    const selInterval = document.getElementById('settingsSyncInterval');
+    if (selInterval && s.autoSync) selInterval.value = String(s.autoSync.intervalMins || 5);
+  }
+
+  document.getElementById('btnSaveAutomationSettings')?.addEventListener('click', async () => {
+    const autoAdopt = document.getElementById('settingsAutoAdoptToggle')?.checked || false;
+    const autoSync = document.getElementById('settingsAutoSyncToggle')?.checked || false;
+    const intervalMins = document.getElementById('settingsSyncInterval')?.value || '5';
+
+    await fetchJson('/api/admin/auto-adopt/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: autoAdopt })
+    });
+
+    await fetchJson('/api/admin/auto-sync/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: autoSync, intervalMins })
+    });
+
+    window.showToast('Global automation and daemon settings saved!', 'success');
+    loadOverview();
+  });
+
+  document.getElementById('btnForcePbxSyncFromSettings')?.addEventListener('click', () => {
+    document.getElementById('btnTriggerQuickSync')?.click();
   });
