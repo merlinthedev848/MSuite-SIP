@@ -24,8 +24,9 @@ else
   echo "[*] Fetching and pulling latest changes from origin/${BRANCH}..."
   cd "${REPO_DIR}"
   git fetch origin "${BRANCH}"
-  git checkout "${BRANCH}" 2>/dev/null || git checkout -b "${BRANCH}" "origin/${BRANCH}" 2>/dev/null || true
-  git reset --hard "origin/${BRANCH}"
+  git remote set-branches origin "*" 2>/dev/null || true
+  git checkout -B "${BRANCH}" FETCH_HEAD
+  git reset --hard FETCH_HEAD
 fi
 
 echo "[*] Syncing updated source files, templates, and admin dashboard..."
