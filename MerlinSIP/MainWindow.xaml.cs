@@ -4753,8 +4753,8 @@ del ""%~f0""
         NoticeText.Text = $"Uploading {fileName}...";
         NoticeText.Visibility = Visibility.Visible;
 
-        var contact = _contactStore.FindByNumber(_contacts, _selectedChatNumber);
-        var name = contact?.Name ?? _selectedChatNumber;
+        var destinationContact = _contactStore.FindByNumber(_contacts, _selectedChatNumber);
+        var recipientName = destinationContact?.Name ?? _selectedChatNumber;
 
         await EnsureChatConnectedAsync();
         await _chatService.JoinConversationAsync(_selectedChatNumber);
@@ -4769,15 +4769,16 @@ del ""%~f0""
         var fileInfo = new FileInfo(filePath);
         var fileMessage = string.IsNullOrWhiteSpace(upload.Url) ? fileName : upload.Url;
         var sent = await _chatService.SendMessageAsync(_selectedChatNumber, _config.Extension, fileMessage, "file", fileName, fileInfo.Length);
+        var mySenderName = GetMySenderName();
         if (sent.Accepted)
         {
-            await AddChatMessage("Outbound", name, _selectedChatNumber, $"Sent file: {fileName}", sent.Delivered ? "Delivered" : "Sent");
+            await AddChatMessage("Outbound", mySenderName, _selectedChatNumber, $"Sent file: {fileName}", sent.Delivered ? "Delivered" : "Sent");
             NoticeText.Text = $"File {fileName} sent.";
             FooterStatusText.Text = $"File sent: {fileName}";
         }
         else
         {
-            await AddChatMessage("Outbound", name, _selectedChatNumber, $"Uploaded file: {fileName}", "Uploaded");
+            await AddChatMessage("Outbound", mySenderName, _selectedChatNumber, $"Uploaded file: {fileName}", "Uploaded");
             NoticeText.Text = $"File uploaded, but could not be sent. {sent.Detail}";
             FooterStatusText.Text = sent.Detail;
         }
@@ -4830,17 +4831,18 @@ del ""%~f0""
         MessageBodyTextBox.Focus();
 
         var contact = _contactStore.FindByNumber(_contacts, destination);
-        var name = contact?.Name ?? destination;
+        var recipientName = contact?.Name ?? destination;
         if (!string.Equals(_selectedChatNumber, destination, StringComparison.OrdinalIgnoreCase))
         {
             _selectedChatNumber = destination;
-            ChatThreadTitleText.Text = name;
+            ChatThreadTitleText.Text = recipientName;
             ChatThreadSubtitleText.Text = contact is null || string.IsNullOrWhiteSpace(contact.Company)
                 ? destination
                 : $"{destination}  {contact.Company}";
         }
 
-        var entry = await AddChatMessage("Outbound", name, destination, message, "Sent");
+        var mySenderName = GetMySenderName();
+        var entry = await AddChatMessage("Outbound", mySenderName, destination, message, "Sent");
 
         try
         {
@@ -5042,11 +5044,26 @@ del ""%~f0""
             return;
         }
 
+        var currentSenderName = GetMySenderName();
+        var destContact = _contactStore.FindByNumber(_contacts, _selectedChatNumber);
+        var destRecipientName = destContact?.Name ?? _selectedChatNumber;
+
         foreach (var message in _chatMessages
             .Where(message => MessageBelongsToThread(message, _selectedChatNumber))
             .OrderBy(message => ParseChatTimestamp(message.SentAt)))
         {
-            _chatThreadMessages.Add(message);
+            var displayMessage = message;
+            // Self-healing: if an existing outbound message was previously saved with the recipient's name or blank, display the actual sender's name
+            if (message.IsOutbound)
+            {
+                if (string.IsNullOrWhiteSpace(message.Name) ||
+                    string.Equals(message.Name, destRecipientName, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(message.Name, _selectedChatNumber, StringComparison.OrdinalIgnoreCase))
+                {
+                    displayMessage = message with { Name = currentSenderName };
+                }
+            }
+            _chatThreadMessages.Add(displayMessage);
         }
 
         if (_chatThreadMessages.Count > 0)
@@ -5193,9 +5210,19 @@ del ""%~f0""
                 threadNumber = _selectedChatNumber;
             }
 
-            var contact = _contactStore.FindByNumber(_contacts, threadNumber)
-                ?? _contactStore.FindByNumber(_contacts, conversationId);
-            var senderName = contact?.Name ?? (string.IsNullOrWhiteSpace(senderId) ? threadNumber : senderId);
+            var senderContact = !string.IsNullOrWhiteSpace(senderId) 
+                ? _contactStore.FindByNumber(_contacts, senderId) 
+                : null;
+            if (senderContact is null && !string.IsNullOrWhiteSpace(normalizedSender))
+            {
+                senderContact = _contactStore.FindByNumber(_contacts, normalizedSender);
+            }
+            if (senderContact is null && !string.IsNullOrWhiteSpace(threadNumber) && !threadNumber.Equals(self, StringComparison.OrdinalIgnoreCase))
+            {
+                senderContact = _contactStore.FindByNumber(_contacts, threadNumber);
+            }
+
+            var senderName = senderContact?.Name ?? (!string.IsNullOrWhiteSpace(senderId) ? senderId : threadNumber);
 
             await AddChatMessage("Inbound", senderName, threadNumber, displayMessage, "Received");
             FooterStatusText.Text = $"Chat message received from {senderName}.";
@@ -5241,12 +5268,54 @@ del ""%~f0""
         return NormalizeDialDestination(message.Number).Equals(destination, StringComparison.OrdinalIgnoreCase);
     }
 
+    private string GetMySenderName()
+    {
+        // 1. Check directory contacts for our own extension
+        if (!string.IsNullOrWhiteSpace(_config.Extension))
+        {
+            var myContact = _contactStore.FindByNumber(_contacts, _config.Extension);
+            if (myContact != null && !string.IsNullOrWhiteSpace(myContact.Name))
+            {
+                return myContact.Name.Trim();
+            }
+        }
+
+        // 2. Check DisplayName configured on profile
+        if (!string.IsNullOrWhiteSpace(_config.DisplayName))
+        {
+            return _config.DisplayName.Trim();
+        }
+
+        // 3. Check Username if it's an alphabetical human name
+        if (!string.IsNullOrWhiteSpace(_config.Username))
+        {
+            var user = _config.Username.Trim();
+            if (!string.Equals(user, _config.Extension, StringComparison.OrdinalIgnoreCase) && user.Any(char.IsLetter))
+            {
+                return user;
+            }
+        }
+
+        // 4. Fallback to extension or "You"
+        if (!string.IsNullOrWhiteSpace(_config.Extension))
+        {
+            return $"Ext {_config.Extension}";
+        }
+
+        return "You";
+    }
+
     private async Task<ChatMessageEntry> AddChatMessage(string direction, string name, string number, string message, string result)
     {
+        var isOutbound = string.Equals(direction, "Outbound", StringComparison.OrdinalIgnoreCase);
+        var resolvedSenderName = isOutbound
+            ? GetMySenderName()
+            : (!string.IsNullOrWhiteSpace(name) ? name : number);
+
         var entry = new ChatMessageEntry
         {
             Direction = direction,
-            Name = name,
+            Name = resolvedSenderName,
             Number = number,
             Message = message,
             SentAt = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss"),

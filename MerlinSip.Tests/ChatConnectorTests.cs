@@ -230,4 +230,38 @@ public class ChatConnectorTests
         await service.UpdateServerUrlAsync(null);
         Assert.Equal("https://handler.chriskendall.media", service.ServerUrl);
     }
+
+    [Fact]
+    public void ChatMessageEntry_SenderName_RepresentsSenderNotRecipient()
+    {
+        // Outbound message: Sender is local user (e.g. "Chris Kendall" or "Ext 100"), recipient is "709" (Danny Myers)
+        var outbound = new MerlinSip.Models.ChatMessageEntry
+        {
+            Direction = "Outbound",
+            Name = "Chris Kendall",
+            Number = "709",
+            Message = "Hi Danny",
+            SentAt = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            Result = "Sent"
+        };
+
+        Assert.True(outbound.IsOutbound);
+        Assert.Equal("Chris Kendall", outbound.Name); // Shows the sender who SENT the message
+        Assert.Equal("709", outbound.Number); // The destination/recipient number
+
+        // Inbound message: Sender is "Danny Myers", thread/number is "709"
+        var inbound = new MerlinSip.Models.ChatMessageEntry
+        {
+            Direction = "Inbound",
+            Name = "Danny Myers",
+            Number = "709",
+            Message = "Hello Chris",
+            SentAt = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            Result = "Received"
+        };
+
+        Assert.False(inbound.IsOutbound);
+        Assert.Equal("Danny Myers", inbound.Name); // Shows the sender who SENT the message
+        Assert.Equal("709", inbound.Number);
+    }
 }

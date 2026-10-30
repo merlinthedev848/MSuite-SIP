@@ -88,7 +88,8 @@ public static class SuiteConfigLoader
                 PrimaryColor: primaryColor,
                 AccentColor: accentColor,
                 LogoUrl: logoUrl,
-                AppSecretToken: appToken);
+                AppSecretToken: appToken,
+                DisplayName: displayName);
         }
         catch (Exception ex)
         {
