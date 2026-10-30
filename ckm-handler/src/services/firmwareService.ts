@@ -342,9 +342,13 @@ export async function downloadFirmwareForModel(
   }
 
   const { category, meta } = modelInfo;
-  const downloadUrl = (customUrl && customUrl.trim()) ? customUrl.trim() : (meta.directDownloadUrl || meta.firmwareUrl);
+  const downloadUrl = (customUrl && customUrl.trim()) ? customUrl.trim() : meta.directDownloadUrl;
 
-  if (!downloadUrl || !downloadUrl.startsWith('http')) {
+  if (!downloadUrl) {
+    throw new Error(`Vendor URL for ${meta.name} is an interactive support portal (${meta.firmwareUrl}). Please upload the binary file (.rom/.bin) directly or supply a direct download URL.`);
+  }
+
+  if (!downloadUrl.startsWith('http')) {
     throw new Error(`No valid HTTP/HTTPS download URL configured for model ${meta.name}.`);
   }
 

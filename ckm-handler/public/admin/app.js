@@ -7668,6 +7668,62 @@ function initApp() {
 
 
 
+  // Direct file uploader for models requiring manual vendor binary files
+  window.openFirmwareUploadModal = function(brandId, modelId, brandName, modelName) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.rom,.bin,.zip,.tar,.img,.ld,.npk,.all,.rbi';
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      window.showToast?.(`Uploading ${file.name} for ${brandName} ${modelName}...`, 'info');
+      const formData = new FormData();
+      formData.append('brand', brandId);
+      formData.append('model', modelId);
+      formData.append('firmwareFile', file);
+      try {
+        const token = getAuthToken();
+        const res = await fetch('/api/admin/firmware/upload', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        const data = await res.json();
+        if (data && data.ok) {
+          window.showToast?.(`Firmware ${data.result?.filename || file.name} cached locally for Option 66!`, 'success');
+          loadFirmwareRepository();
+        } else {
+          window.showToast?.(`Upload failed: ${data?.error || 'Unknown error'}`, 'error');
+        }
+      } catch (err) {
+        window.showToast?.(`Upload error: ${err.message || err}`, 'error');
+      }
+    };
+    input.click();
+  };
+
+  // Direct custom URL prompt for vendor binaries hosted on internal/mirror servers
+  window.promptCustomFirmwareUrl = async function(brandId, modelId, brandName, modelName) {
+    const url = window.prompt(`Enter direct download URL for ${brandName} ${modelName} firmware binary (.rom / .bin):`);
+    if (!url || !url.trim()) return;
+    window.showToast?.(`Downloading firmware from custom URL...`, 'info');
+    try {
+      const res = await fetchJson('/api/admin/firmware/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand: brandId, model: modelId, customUrl: url.trim() })
+      });
+      if (res && res.ok) {
+        window.showToast?.(`Firmware successfully downloaded and cached!`, 'success');
+        loadFirmwareRepository();
+      } else {
+        window.showToast?.(`Download failed: ${res?.error || 'Unknown error'}`, 'error');
+      }
+    } catch (err) {
+      window.showToast?.(`Download error: ${err.message || err}`, 'error');
+    }
+  };
+
   // Global handler to trigger local download of a firmware binary
   window.autoDownloadFirmware = async function(brand, model) {
     if (!brand || !model) return;
@@ -7682,7 +7738,7 @@ function initApp() {
         window.showToast?.(`Successfully cached firmware for ${brand.toUpperCase()} ${model}!`, 'success');
         loadFirmwareRepository();
       } else {
-        window.showToast?.(`Failed to download firmware: ${res?.error || 'Unknown error'}`, 'error');
+        window.showToast?.(res?.error || 'Failed to download firmware.', 'error');
       }
     } catch (err) {
       window.showToast?.(`Error downloading firmware: ${err.message || err}`, 'error');
@@ -7712,6 +7768,8 @@ function initApp() {
               modelName: m.name || m.id,
               version: m.firmwareVersion || 'Latest',
               filename: m.firmwareFilename || '--',
+              directDownloadUrl: m.directDownloadUrl || null,
+              portalUrl: m.firmwareUrl || null,
               fileSizeFormatted: m.fileSizeFormatted || (m.fileSizeBytes ? (m.fileSizeBytes / (1024 * 1024)).toFixed(1) + ' MB' : '--'),
               isDownloaded: m.isCached || m.status === 'AVAILABLE' || m.status === 'DOWNLOADED'
             });
@@ -7733,6 +7791,8 @@ function initApp() {
               modelName: m.name || m.id,
               version: m.firmwareVersion || 'Latest',
               filename: m.firmwareFilename || '--',
+              directDownloadUrl: m.directDownloadUrl || null,
+              portalUrl: m.firmwareUrl || null,
               fileSizeFormatted: m.fileSizeFormatted || (m.fileSizeBytes ? (m.fileSizeBytes / (1024 * 1024)).toFixed(1) + ' MB' : '--'),
               isDownloaded: m.isCached || m.status === 'AVAILABLE' || m.status === 'DOWNLOADED'
             });
@@ -7759,10 +7819,17 @@ function initApp() {
           <td><code class="text-xs">${f.filename}</code></td>
           <td>${statusBadge}</td>
           <td>${f.fileSizeFormatted}</td>
-          <td style="text-align: right;">
+          <td style="text-align: right; white-space: nowrap;">
             ${isDownloaded 
-              ? '<span class="text-xs muted" style="color: #10b981; font-weight: 600;">Option 66 Ready</span>' 
-              : `<button class="btn btn-xs btn-primary" onclick="autoDownloadFirmware('${f.brandId}', '${f.id}')">Cache Locally</button>`}
+              ? '<span class="text-xs muted" style="color: #10b981; font-weight: 600;">✓ Option 66 Ready</span>' 
+              : f.directDownloadUrl 
+                ? `<button class="btn btn-xs btn-primary" onclick="autoDownloadFirmware('${f.brandId}', '${f.id}')">⚡ Cache Locally</button>`
+                : `<div style="display: inline-flex; gap: 6px;">
+                     <button class="btn btn-xs btn-primary" onclick="openFirmwareUploadModal('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}')" title="Upload official binary file (.rom / .bin)">📁 Upload</button>
+                     <button class="btn btn-xs btn-secondary" onclick="promptCustomFirmwareUrl('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}')" title="Enter custom direct download URL">🔗 URL</button>
+                     ${f.portalUrl ? `<a href="${f.portalUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-secondary" title="Open vendor support portal in new tab" style="text-decoration: none;">↗ Portal</a>` : ''}
+                   </div>`
+            }
           </td>
         </tr>
       `;
