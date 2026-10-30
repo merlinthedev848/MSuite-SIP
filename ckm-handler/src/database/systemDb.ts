@@ -228,49 +228,51 @@ if (!checkConfig) {
   systemDb.prepare('UPDATE server_config SET data_handler_url = ? WHERE id = 1').run(`https://${SERVER_DOMAIN}`);
 }
 
-// Ensure api_key column exists
-try {
-  systemDb.exec('ALTER TABLE server_config ADD COLUMN api_key TEXT;');
-} catch {
-  // column already exists
+// Defensive, Idempotent Schema Migrations using PRAGMA table_info
+function addColumnIfNotExists(table: string, column: string, columnDef: string): void {
+  try {
+    const cols = systemDb.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!cols.some(c => c.name.toLowerCase() === column.toLowerCase())) {
+      systemDb.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${columnDef};`);
+    }
+  } catch (err: unknown) {
+    console.warn(`[SystemDB Migration] Notice adding ${column} to ${table}:`, err);
+  }
 }
 
-// Ensure branding customization columns exist
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN brand_name TEXT DEFAULT 'MerlinSIP';"); } catch {}
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN primary_color TEXT DEFAULT '#2563EB';"); } catch {}
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN accent_color TEXT DEFAULT '#38BDF8';"); } catch {}
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN logo_url TEXT DEFAULT '';"); } catch {}
+// Server Config Migrations
+addColumnIfNotExists('server_config', 'api_key', 'TEXT');
+addColumnIfNotExists('server_config', 'brand_name', "TEXT DEFAULT 'MerlinSIP'");
+addColumnIfNotExists('server_config', 'primary_color', "TEXT DEFAULT '#2563EB'");
+addColumnIfNotExists('server_config', 'accent_color', "TEXT DEFAULT '#38BDF8'");
+addColumnIfNotExists('server_config', 'logo_url', "TEXT DEFAULT ''");
+addColumnIfNotExists('server_config', 'auto_adopt_enabled', 'INTEGER DEFAULT 0');
+addColumnIfNotExists('server_config', 'auto_sync_enabled', 'INTEGER DEFAULT 1');
+addColumnIfNotExists('server_config', 'auto_sync_interval_mins', 'INTEGER DEFAULT 5');
+addColumnIfNotExists('server_config', 'last_sync_at', 'DATETIME');
+addColumnIfNotExists('server_config', 'last_sync_status', "TEXT DEFAULT 'IDLE'");
+addColumnIfNotExists('server_config', 'pbx_type', "TEXT DEFAULT 'yeastar_api'");
+addColumnIfNotExists('server_config', 'api_host', "TEXT DEFAULT ''");
+addColumnIfNotExists('server_config', 'api_port', 'INTEGER DEFAULT 8260');
+addColumnIfNotExists('server_config', 'api_protocol', "TEXT DEFAULT 'https'");
+addColumnIfNotExists('server_config', 'api_path', "TEXT DEFAULT 'api/v2.0.0'");
+addColumnIfNotExists('server_config', 'api_user', "TEXT DEFAULT ''");
+addColumnIfNotExists('server_config', 'api_secret', "TEXT DEFAULT ''");
+addColumnIfNotExists('server_config', 'verify_ssl', 'INTEGER DEFAULT 0');
 
-// Auto-Adoption & Auto-Sync Server Configuration Columns
-try { systemDb.exec('ALTER TABLE server_config ADD COLUMN auto_adopt_enabled INTEGER DEFAULT 0;'); } catch {}
-try { systemDb.exec('ALTER TABLE server_config ADD COLUMN auto_sync_enabled INTEGER DEFAULT 1;'); } catch {}
-try { systemDb.exec('ALTER TABLE server_config ADD COLUMN auto_sync_interval_mins INTEGER DEFAULT 5;'); } catch {}
-try { systemDb.exec('ALTER TABLE server_config ADD COLUMN last_sync_at DATETIME;'); } catch {}
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN last_sync_status TEXT DEFAULT 'IDLE';"); } catch {}
+// Physical Handsets & Routers Migrations
+addColumnIfNotExists('physical_handsets', 'custom_config', "TEXT DEFAULT ''");
+addColumnIfNotExists('physical_handsets', 'ip_address', "TEXT DEFAULT ''");
+addColumnIfNotExists('physical_handsets', 'user_agent', "TEXT DEFAULT ''");
+addColumnIfNotExists('physical_handsets', 'firmware_version', "TEXT DEFAULT ''");
+addColumnIfNotExists('routers', 'custom_script', "TEXT DEFAULT ''");
+addColumnIfNotExists('routers', 'last_fetched_at', 'DATETIME');
+addColumnIfNotExists('routers', 'last_ip', "TEXT DEFAULT ''");
 
-// PBX Integration & Universal Credentials Columns (Persistent Global Settings)
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN pbx_type TEXT DEFAULT 'yeastar_api';"); } catch {}
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN api_host TEXT DEFAULT '';"); } catch {}
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN api_port INTEGER DEFAULT 8260;"); } catch {}
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN api_protocol TEXT DEFAULT 'https';"); } catch {}
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN api_path TEXT DEFAULT 'api/v2.0.0';"); } catch {}
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN api_user TEXT DEFAULT '';"); } catch {}
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN api_secret TEXT DEFAULT '';"); } catch {}
-try { systemDb.exec("ALTER TABLE server_config ADD COLUMN verify_ssl INTEGER DEFAULT 0;"); } catch {}
-
-// Ensure editable custom configuration columns exist for Handsets & Routers
-try { systemDb.exec("ALTER TABLE physical_handsets ADD COLUMN custom_config TEXT DEFAULT '';"); } catch {}
-try { systemDb.exec("ALTER TABLE routers ADD COLUMN custom_script TEXT DEFAULT '';"); } catch {}
-
-// Ensure real-time telemetry and monitoring columns exist
-try { systemDb.exec("ALTER TABLE physical_handsets ADD COLUMN ip_address TEXT DEFAULT '';"); } catch {}
-try { systemDb.exec("ALTER TABLE physical_handsets ADD COLUMN user_agent TEXT DEFAULT '';"); } catch {}
-try { systemDb.exec("ALTER TABLE physical_handsets ADD COLUMN firmware_version TEXT DEFAULT '';"); } catch {}
-try { systemDb.exec("ALTER TABLE routers ADD COLUMN last_fetched_at DATETIME;"); } catch {}
-try { systemDb.exec("ALTER TABLE routers ADD COLUMN last_ip TEXT DEFAULT '';"); } catch {}
-try { systemDb.exec("ALTER TABLE extensions ADD COLUMN last_registered_at DATETIME;"); } catch {}
-try { systemDb.exec("ALTER TABLE extensions ADD COLUMN last_ip TEXT DEFAULT '';"); } catch {}
-try { systemDb.exec("ALTER TABLE extensions ADD COLUMN user_agent TEXT DEFAULT '';"); } catch {}
+// Extensions Telemetry Migrations
+addColumnIfNotExists('extensions', 'last_registered_at', 'DATETIME');
+addColumnIfNotExists('extensions', 'last_ip', "TEXT DEFAULT ''");
+addColumnIfNotExists('extensions', 'user_agent', "TEXT DEFAULT ''");
 
 // Generate default secure API key if not set
 const cfgRow = systemDb.prepare('SELECT api_key FROM server_config WHERE id = 1').get() as { api_key: string | null } | undefined;

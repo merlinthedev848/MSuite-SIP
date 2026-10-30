@@ -2,7 +2,7 @@
 // FreePBX Dynamic Template Variable Substitution Engine
 // Injects {$domain}, {$PbxAddress}, and account variables from Global Settings
 // ==============================================================================
-export function substituteTemplateVariables(raw: string, config: any, accountCfg: Partial<HandsetAccountConfig>): string {
+export function substituteTemplateVariables(raw: string, config: Partial<ServerConfigRow> | null | undefined, accountCfg: Partial<HandsetAccountConfig>): string {
   if (!raw) return '';
   const domain = (config?.data_handler_url || '').trim().replace(/\/$/, '');
   const cleanDomainHost = domain.replace(/^https?:\/\//, '');

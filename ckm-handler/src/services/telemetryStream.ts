@@ -166,7 +166,7 @@ export function registerSseClient(res: Response): void {
 }
 
 // Heartbeat interval to prevent idle proxy/NAT timeouts
-setInterval(() => {
+let sseHeartbeatInterval: NodeJS.Timeout | null = setInterval(() => {
   if (activeSseClients.size > 0) {
     const ping = `: heartbeat\n\n`;
     for (const client of activeSseClients) {
@@ -178,3 +178,11 @@ setInterval(() => {
     }
   }
 }, 15000);
+sseHeartbeatInterval.unref();
+
+export function stopTelemetryHeartbeat(): void {
+  if (sseHeartbeatInterval) {
+    clearInterval(sseHeartbeatInterval);
+    sseHeartbeatInterval = null;
+  }
+}

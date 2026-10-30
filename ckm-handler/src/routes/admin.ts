@@ -1,3 +1,4 @@
+import { AdminConfigInputSchema } from '../validators/schemas';
 import { Router, Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -186,7 +187,7 @@ router.post('/api/admin/login', (req: Request, res: Response) => {
   }
 
   const cleanUser = String(username).trim();
-  let matchedUser: any = systemDb.prepare('SELECT * FROM admin_users WHERE username = ? AND is_active = 1').get(cleanUser);
+  let matchedUser = systemDb.prepare('SELECT * FROM admin_users WHERE username = ? AND is_active = 1').get(cleanUser) as AdminUserRow | undefined;
 
   let isValid = false;
   if (matchedUser && verifyPassword(password, matchedUser.password_hash, matchedUser.salt)) {
@@ -198,11 +199,11 @@ router.post('/api/admin/login', (req: Request, res: Response) => {
       INSERT OR IGNORE INTO admin_users (username, password_hash, salt, display_name, role, permissions, is_active)
       VALUES (?, ?, ?, 'System Administrator', 'superadmin', '["*"]', 1)
     `).run(ADMIN_USER, hash, salt);
-    matchedUser = systemDb.prepare('SELECT * FROM admin_users WHERE username = ?').get(cleanUser);
+    matchedUser = systemDb.prepare('SELECT * FROM admin_users WHERE username = ?').get(cleanUser) as AdminUserRow | undefined;
     isValid = true;
   }
 
-  if (!isValid) {
+  if (!isValid || !matchedUser) {
     const cur = loginFailedAttempts.get(clientIp) || { count: 0, resetAt: now + 5 * 60 * 1000 };
     cur.count++;
     loginFailedAttempts.set(clientIp, cur);
@@ -258,11 +259,11 @@ router.post('/api/admin/logout', adminAuth, (req: Request, res: Response) => {
 // Admin Users & Permissions Management (RBAC)
 // ----------------------------------------------------------------------------
 router.get('/api/admin/users', adminAuth, requirePermission('manage_users'), (req: Request, res: Response) => {
-  const users = systemDb.prepare(`
+  const users = (systemDb.prepare(`
     SELECT id, username, display_name, role, permissions, is_active, last_login_at, created_at
     FROM admin_users
     ORDER BY id ASC
-  `).all().map((u: any) => {
+  `).all() as AdminUserRow[]).map(u => {
     let perms = [];
     try { perms = JSON.parse(u.permissions || '[]'); } catch {}
     return { ...u, permissions: perms };
@@ -934,8 +935,8 @@ router.get('/api/admin/firmware/status', adminAuth, (req: Request, res: Response
   try {
     const catalog = getFirmwareCatalogStatus();
     return res.json({ ok: true, catalog });
-  } catch (err: any) {
-    return res.status(500).json({ ok: false, error: err?.message || 'Failed to retrieve firmware status' });
+  } catch (err: unknown) {
+    return res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) || 'Failed to retrieve firmware status' });
   }
 });
 
@@ -953,9 +954,9 @@ router.post('/api/admin/firmware/download', adminAuth, async (req: Request, res:
       metadata: { brand, model, filename: result?.filename }
     });
     return res.json({ ok: true, result });
-  } catch (err: any) {
-    broadcastDeviceLog('FIRMWARE', 'ERROR', `[Firmware Download Failed] ${brand.toUpperCase()} ${model}: ${err?.message || 'Error'}`, { ipAddress: req.ip });
-    return res.status(500).json({ ok: false, error: err?.message || 'Download failed' });
+  } catch (err: unknown) {
+    broadcastDeviceLog('FIRMWARE', 'ERROR', `[Firmware Download Failed] ${brand.toUpperCase()} ${model}: ${err instanceof Error ? err.message : String(err) || 'Error'}`, { ipAddress: req.ip });
+    return res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) || 'Download failed' });
   }
 });
 
@@ -967,9 +968,9 @@ router.post('/api/admin/firmware/sync-all', adminAuth, async (req: Request, res:
       ipAddress: req.ip
     });
     return res.json({ ok: true, ...result });
-  } catch (err: any) {
-    broadcastDeviceLog('FIRMWARE', 'ERROR', `[Firmware Batch Sync Failed] ${err?.message || 'Error'}`, { ipAddress: req.ip });
-    return res.status(500).json({ ok: false, error: err?.message || 'Batch sync failed' });
+  } catch (err: unknown) {
+    broadcastDeviceLog('FIRMWARE', 'ERROR', `[Firmware Batch Sync Failed] ${err instanceof Error ? err.message : String(err) || 'Error'}`, { ipAddress: req.ip });
+    return res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) || 'Batch sync failed' });
   }
 });
 
@@ -987,8 +988,8 @@ router.post('/api/admin/firmware/upload', adminAuth, firmwareUpload.single('firm
       metadata: { brand, model, filename: req.file.originalname, size: req.file.size }
     });
     return res.json({ ok: true, result });
-  } catch (err: any) {
-    return res.status(500).json({ ok: false, error: err?.message || 'Upload failed' });
+  } catch (err: unknown) {
+    return res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) || 'Upload failed' });
   }
 });
 
@@ -1001,8 +1002,8 @@ router.delete('/api/admin/firmware/:brand/:model', adminAuth, (req: Request, res
       ipAddress: req.ip
     });
     return res.json({ ok: true, message: `Local firmware for ${brand} ${model} removed.` });
-  } catch (err: any) {
-    return res.status(500).json({ ok: false, error: err?.message || 'Delete failed' });
+  } catch (err: unknown) {
+    return res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) || 'Delete failed' });
   }
 });
 
@@ -1138,13 +1139,14 @@ router.get('/api/admin/config', adminAuth, (req: Request, res: Response) => {
 });
 
 router.post('/api/admin/config', adminAuth, requirePermission('manage_pbx'), (req: Request, res: Response) => {
+  const parseResult = AdminConfigInputSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ ok: false, error: parseResult.error.errors[0]?.message || 'Invalid configuration input' });
+  }
   const {
     pbxServer, pbxPort, pbxTransport, dataHandlerUrl,
     pbxType, apiHost, apiPort, apiProtocol, apiPath, apiUser, apiSecret, verifySsl
-  } = req.body;
-  if (!pbxServer) {
-    return res.status(400).json({ ok: false, error: 'PBX server domain or IP is required.' });
-  }
+  } = parseResult.data;
 
   const existing = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;
   const effectiveSecret = (apiSecret !== undefined && apiSecret !== '') ? String(apiSecret) : (existing?.api_secret || '');
@@ -1157,12 +1159,12 @@ router.post('/api/admin/config', adminAuth, requirePermission('manage_pbx'), (re
     WHERE id = 1
   `).run(
     String(pbxServer).trim(),
-    parseInt(pbxPort || '5060', 10),
+    Number(pbxPort) || 5060,
     String(pbxTransport || 'UDP').toUpperCase(),
     String(dataHandlerUrl || '').trim(),
     String(pbxType || existing?.pbx_type || 'yeastar_api'),
     String(apiHost || pbxServer).trim(),
-    parseInt(apiPort || (pbxType === 'yeastar_api' ? '8260' : '5038'), 10),
+    Number(apiPort) || (pbxType === 'yeastar_api' ? 8260 : 5038),
     String(apiProtocol || 'https').toLowerCase(),
     String(apiPath || 'api/v2.0.0').trim(),
     String(apiUser || existing?.api_user || 'perfexapi').trim(),

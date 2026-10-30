@@ -57,10 +57,10 @@ function pbxHttpRequest(
   port: number,
   path: string,
   method: string,
-  payload?: any,
+  payload?: unknown,
   token?: string,
   verifySsl: boolean = false
-): Promise<any> {
+): Promise<Record<string, any>> {
   return new Promise((resolve, reject) => {
     const isHttps = protocol === 'https';
     const lib = isHttps ? https : http;
@@ -142,7 +142,7 @@ export async function syncExtensionsFromYeastarApi(
   }
 
   // 1. Authenticate with Yeastar API with smart port & protocol auto-detection
-  let loginRes: any;
+  let loginRes: Record<string, any> | undefined;
   let activeProto = protocol;
   let activePort = port;
 
@@ -151,7 +151,7 @@ export async function syncExtensionsFromYeastarApi(
   else if (port === 8088) candidatePorts.push(8260, 443);
   else if (port === 443) candidatePorts.push(8088, 8260);
 
-  let lastErr: any = null;
+  let lastErr: Error | unknown = null;
   for (const p of candidatePorts) {
     try {
       loginRes = await pbxHttpRequest(activeProto, host, p, `${basePath}/login`, 'POST', {
@@ -162,7 +162,7 @@ export async function syncExtensionsFromYeastarApi(
       activePort = p;
       lastErr = null;
       break;
-    } catch (err: any) {
+    } catch (err: unknown) {
       lastErr = err;
       if (activeProto === 'https') {
         try {
@@ -183,7 +183,7 @@ export async function syncExtensionsFromYeastarApi(
   // Check login status
   if (!loginRes || (loginRes.status !== 'Success' && !loginRes.token)) {
     if (lastErr) {
-      return { success: false, count: 0, message: `Failed to connect to Yeastar API at ${host}:${activePort}: ${lastErr.message}` };
+      return { success: false, count: 0, message: `Failed to connect to Yeastar API at ${host}:${activePort}: ${lastErr instanceof Error ? lastErr.message : String(lastErr)}` };
     }
     const errMsg = loginRes?.error || loginRes?.message || loginRes?.errmsg || loginRes?.raw || 'Invalid username or password.';
     return { success: false, count: 0, message: `Yeastar API login failed on ${host}:${activePort}: ${errMsg}` };
@@ -193,7 +193,7 @@ export async function syncExtensionsFromYeastarApi(
 
   // 2. Fetch Extension List
   // Yeastar S-Series & P-Series support extension/query with number: 'all', returning extinfos
-  let extlist: any[] = [];
+  let extlist: Record<string, any>[] = [];
   try {
     const queryRes = await pbxHttpRequest(activeProto, host, activePort, `${basePath}/extension/query`, 'POST', { number: 'all' }, token, verifySsl);
     if (queryRes && Array.isArray(queryRes.extinfos) && queryRes.extinfos.length > 0) {
@@ -487,6 +487,7 @@ export function startPbxSyncDaemon(): void {
   setTimeout(runAutoPbxSync, 15000);
   if (isEnabled) {
     pbxSyncTimer = setInterval(runAutoPbxSync, mins * 60 * 1000);
+    pbxSyncTimer.unref();
     console.log(`[PBX Sync Engine] Autonomous background synchronization daemon active (${mins}m interval)`);
   }
 }
@@ -503,6 +504,7 @@ export function updatePbxSyncSchedule(intervalMins?: number, enabled?: boolean):
   if (isEnabled) {
     const ms = Math.max(1, Math.min(1440, mins)) * 60 * 1000;
     pbxSyncTimer = setInterval(runAutoPbxSync, ms);
+    pbxSyncTimer.unref();
     console.log(`[PBX Sync Engine] Autonomous background sync rescheduled to ${mins}m interval.`);
   } else {
     console.log('[PBX Sync Engine] Autonomous background sync paused.');
@@ -549,9 +551,16 @@ export async function runAutoPbxSync(): Promise<void> {
         deviceIdentifier: targetHost
       });
     }
-  } catch (err: any) {
-    broadcastDeviceLog('PBX', 'ERROR', `Autonomous PBX sync failed: ${err?.message || 'Connection error'}`, {
+  } catch (err: unknown) {
+    broadcastDeviceLog('PBX', 'ERROR', `Autonomous PBX sync failed: ${err instanceof Error ? err.message : 'Connection error'}`, {
       deviceIdentifier: 'PBX Core'
     });
+  }
+}
+
+export function stopPbxSyncDaemon(): void {
+  if (pbxSyncTimer) {
+    clearInterval(pbxSyncTimer);
+    pbxSyncTimer = null;
   }
 }

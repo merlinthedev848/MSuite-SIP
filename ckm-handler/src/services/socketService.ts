@@ -57,22 +57,31 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
     });
 
     // Fetch Decrypted Conversation History (Last 50 messages)
-    socket.on('get_history', (payload: { conversationId: string; limit?: number }, callback?: (res: any) => void) => {
+    socket.on('get_history', (payload: { conversationId: string; limit?: number }, callback?: (res: { success: boolean; messages?: unknown[]; error?: string }) => void) => {
       try {
         const limit = Math.min(Math.max(1, payload?.limit || 50), 100);
         const messages = VaultStore.getRecentMessages(payload.conversationId, limit);
         if (typeof callback === 'function') {
           callback({ success: true, messages });
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (typeof callback === 'function') {
-          callback({ success: false, error: err.message });
+          callback({ success: false, error: err instanceof Error ? err.message : 'Unknown socket error' });
         }
       }
     });
 
     // Real-Time WhatsApp-Speed Message Broadcast & Persistence
-    socket.on('send_message', (payload: any, ackCallback?: (response: any) => void) => {
+    socket.on('send_message', (payload: {
+      conversationId: string;
+      senderId: string;
+      messageType?: string;
+      content: string;
+      fileName?: string;
+      fileSize?: number;
+      fileId?: string;
+      [key: string]: unknown;
+    }, ackCallback?: (response: { success: boolean; id?: number; timestamp?: string; error?: string }) => void) => {
       try {
         const { conversationId, senderId, messageType, content, fileName, fileSize, fileId } = payload;
 
@@ -87,9 +96,9 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
           senderId,
           messageType || 'text',
           content,
-          fileId || null,
-          fileName || null,
-          fileSize || null
+          fileId ? String(fileId) : undefined,
+          fileName ? String(fileName) : undefined,
+          fileSize ? Number(fileSize) : undefined
         );
 
         if (!newRow) {
@@ -121,10 +130,10 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
             timestamp: newRow.timestamp
           });
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[Socket.IO] Error persisting message:', err);
         if (typeof ackCallback === 'function') {
-          ackCallback({ success: false, error: err.message });
+          ackCallback({ success: false, error: err instanceof Error ? err.message : 'Unknown socket error' });
         }
       }
     });

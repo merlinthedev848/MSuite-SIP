@@ -81,7 +81,7 @@ app.use('/api', (req, res) => {
 });
 
 // Global Error Boundary & Exception Handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: Error & { status?: number }, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('[CKM Handler Internal Error]', err);
   if (res.headersSent) {
     return next(err);

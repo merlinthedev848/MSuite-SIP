@@ -102,7 +102,7 @@ export async function validateContainerLicense(): Promise<void> {
 
     req.write(payload);
     req.end();
-  } catch (err: any) {
+  } catch (err: unknown) {
     handleOfflineGrace();
   }
 }
@@ -145,12 +145,22 @@ export function licenseGateMiddleware(req: Request, res: Response, next: NextFun
 /**
  * Initializes the 24-hour phone-home license guard daemon
  */
+let licenseTimer: NodeJS.Timeout | null = null;
+
 export function startLicenseGuardDaemon(): void {
   // Check immediately on boot
   validateContainerLicense();
 
   // Run periodic heartbeat check every 24 hours
-  setInterval(() => {
+  licenseTimer = setInterval(() => {
     validateContainerLicense();
   }, 24 * 3600 * 1000);
+  licenseTimer.unref();
+}
+
+export function stopLicenseGuardDaemon(): void {
+  if (licenseTimer) {
+    clearInterval(licenseTimer);
+    licenseTimer = null;
+  }
 }

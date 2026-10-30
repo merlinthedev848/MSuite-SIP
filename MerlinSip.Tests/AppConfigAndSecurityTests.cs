@@ -125,15 +125,25 @@ public class AppConfigAndSecurityTests
     [Fact]
     public void AppStartupConfig_DataHandlerUrl_PreservedOrDefaults()
     {
-        var defaultConfig = new AppStartupConfig(
-            "pbx.example.com", 5060, "pbx.example.com", "101", "101", "pass",
-            "LIC", "Active",
-            new MediaDeviceInfo("in", "Input"),
-            new MediaDeviceInfo("out", "Output"));
+        var existingEnv = Environment.GetEnvironmentVariable("CKM_HANDLER_URL");
+        try
+        {
+            Environment.SetEnvironmentVariable("CKM_HANDLER_URL", null);
 
-        Assert.Equal(AppStartupConfig.DefaultDataHandlerUrl, defaultConfig.EffectiveDataHandlerUrl);
+            var defaultConfig = new AppStartupConfig(
+                "pbx.example.com", 5060, "pbx.example.com", "101", "101", "pass",
+                "LIC", "Active",
+                new MediaDeviceInfo("in", "Input"),
+                new MediaDeviceInfo("out", "Output"));
 
-        var customConfig = defaultConfig with { DataHandlerUrl = "https://contractor.handler.com" };
-        Assert.Equal("https://contractor.handler.com", customConfig.EffectiveDataHandlerUrl);
+            Assert.Equal(AppStartupConfig.DefaultDataHandlerUrl, defaultConfig.EffectiveDataHandlerUrl);
+
+            var customConfig = defaultConfig with { DataHandlerUrl = "https://contractor.handler.com" };
+            Assert.Equal("https://contractor.handler.com", customConfig.EffectiveDataHandlerUrl);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CKM_HANDLER_URL", existingEnv);
+        }
     }
 }

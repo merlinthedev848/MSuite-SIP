@@ -5,6 +5,8 @@ import vaultDb from '../database/vaultDb';
 import { MediaVaultFileRow, GdprRetentionPolicyRow } from '../types/models';
 import { decryptVaultText } from '../database/cryptoVault';
 import { adminAuth, requirePermission } from './admin';
+import { runRetentionPruning } from '../services/retentionService';
+import { GdprPolicySchema } from '../validators/schemas';
 
 const router = Router();
 
@@ -80,7 +82,16 @@ router.get('/api/v1/gdpr/user/:extension/export', adminAuth, requirePermission('
     FROM messages
     WHERE sender_id = ? OR conversation_id = ?
     ORDER BY id ASC
-  `).all(extension, extension) as any[];
+  `).all(extension, extension) as {
+    id: number;
+    conversation_id: string;
+    sender_id: string;
+    message_type: string;
+    content: string;
+    file_name: string | null;
+    file_size: number | null;
+    timestamp: string;
+  }[];
 
   const userMessages = rawMessages.map(m => ({
     ...m,
@@ -113,24 +124,42 @@ router.get('/api/v1/gdpr/user/:extension/export', adminAuth, requirePermission('
 });
 
 // 3. Get / Set Retention Policy
-router.get(['/api/v1/gdpr/policy', '/api/admin/gdpr/policy'], (req: Request, res: Response) => {
-  const policy = vaultDb.prepare('SELECT * FROM gdpr_retention_policy WHERE id = 1').get();
+router.get(['/api/v1/gdpr/policy', '/api/admin/gdpr/policy'], (_req: Request, res: Response) => {
+  const policy = vaultDb.prepare('SELECT * FROM gdpr_retention_policy WHERE id = 1').get() as GdprRetentionPolicyRow | undefined;
   return res.json({ ok: true, policy });
 });
 
 router.post(['/api/v1/gdpr/policy', '/api/admin/gdpr/policy'], adminAuth, requirePermission('manage_gdpr'), (req: Request, res: Response) => {
-  const { chatDays, mediaDays, autoPrune } = req.body;
+  const parseResult = GdprPolicySchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ ok: false, error: parseResult.error.errors[0]?.message || 'Invalid GDPR policy input' });
+  }
+
+  const { chatDays, mediaDays, autoPrune } = parseResult.data;
   vaultDb.prepare(`
     UPDATE gdpr_retention_policy 
     SET chat_retention_days = ?, media_retention_days = ?, auto_prune_enabled = ?
     WHERE id = 1
   `).run(
-    parseInt(chatDays || '90', 10),
-    parseInt(mediaDays || '90', 10),
+    chatDays,
+    mediaDays,
     autoPrune ? 1 : 0
   );
 
   return res.json({ ok: true, message: 'GDPR retention policy updated.' });
+});
+
+// 4. Force Instant Retention Prune / Scrub
+router.post(['/api/v1/gdpr/prune', '/api/admin/retention/run'], adminAuth, requirePermission('manage_gdpr'), (_req: Request, res: Response) => {
+  try {
+    const summary = runRetentionPruning(true);
+    return res.json({ ok: summary.success, message: summary.message, summary });
+  } catch (err: unknown) {
+    return res.status(500).json({
+      ok: false,
+      error: err instanceof Error ? err.message : 'Retention scrub execution failed.'
+    });
+  }
 });
 
 export default router;
