@@ -374,7 +374,11 @@ export async function syncExtensionsFromAsterisk(
       if (buffer.includes('Response: Error')) {
         const errorLine = buffer.split(/\r?\n/).find(l => l.startsWith('Message:')) || 'AMI authentication failed';
         cleanup();
-        resolve({ success: false, count: 0, message: errorLine.replace('Message:', '').trim() });
+        const rawMsg = errorLine.replace('Message:', '').trim();
+        const hint = rawMsg.toLowerCase().includes('authentication failed')
+          ? `AMI Authentication failed for user "${ami.username}". Verify this user exists in Asterisk /etc/asterisk/manager.conf (or FreePBX 'Asterisk Manager Users') with the correct secret and permit IP.`
+          : rawMsg;
+        resolve({ success: false, count: 0, message: hint });
         return;
       }
 

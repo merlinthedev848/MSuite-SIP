@@ -627,22 +627,22 @@
             <div class="card form-card">
               <div class="card-header">
                 <h3>Core PBX Server & Public Provisioning Domain</h3>
-                <p class="muted">These master parameters populate the <code>{\$PbxAddress}</code> and <code>{\$domain}</code> template variables used across all deskphone and softphone provisioning files.</p>
+                <p class="muted">These master parameters populate the <code>{$PbxAddress}</code> and <code>{$domain}</code> template variables used across all deskphone and softphone provisioning files.</p>
               </div>
               <div class="mt-4">
                 <div class="form-group">
-                  <label>Target PBX Server Hostname / IP (<code>{\$PbxAddress}</code>) *</label>
+                  <label>Target PBX Server Hostname / IP (<code>{$PbxAddress}</code>) *</label>
                   <input type="text" id="cfgPbxServer" required placeholder="pbx.chriskendall.media">
                   <small>The hostname or IP address of your primary Asterisk / FreePBX core.</small>
                 </div>
 
                 <div class="form-row">
                   <div class="form-group">
-                    <label>SIP Signaling Port (<code>{\$sipPort}</code>) *</label>
+                    <label>SIP Signaling Port (<code>{$sipPort}</code>) *</label>
                     <input type="number" id="cfgPbxPort" required value="5060">
                   </div>
                   <div class="form-group">
-                    <label>Signaling Transport (<code>{\$sipTransport}</code>) *</label>
+                    <label>Signaling Transport (<code>{$sipTransport}</code>) *</label>
                     <select id="cfgPbxTransport">
                       <option value="UDP">UDP (Standard VoIP)</option>
                       <option value="TCP">TCP</option>
@@ -652,7 +652,7 @@
                 </div>
 
                 <div class="form-group">
-                  <label>Public Provisioning & Data Handler URL (<code>{\$domain}</code>) *</label>
+                  <label>Public Provisioning & Data Handler URL (<code>{$domain}</code>) *</label>
                   <input type="text" id="cfgDataHandlerUrl" required placeholder="https://handler.chriskendall.media">
                   <small>Public URL where deskphones request Option 66 files and softphones connect for chat, signaling, and directory sync.</small>
                 </div>
@@ -1499,20 +1499,20 @@
         <!-- FreePBX Dynamic Variable Pills Bar -->
         <div class="freepbx-var-bar">
           <span class="freepbx-var-label">Dynamic Variables (Click to insert):</span>
-          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{\$domain}')" title="Provisioning & Data Handler URL from Global Settings">{\$domain}</button>
-          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{\$PbxAddress}')" title="Target PBX Server Hostname from Global Settings">{\$PbxAddress}</button>
-          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{\$sipPort}')" title="SIP Signaling Port">{\$sipPort}</button>
-          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{\$sipTransport}')" title="Signaling Transport (UDP/TCP/TLS)">{\$sipTransport}</button>
-          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{\$extension}')" title="Assigned SIP Extension Number">{\$extension}</button>
-          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{\$username}')" title="SIP Authentication Username">{\$username}</button>
-          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{\$password}')" title="SIP Authentication Password">{\$password}</button>
-          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{\$displayName}')" title="Line Display / Caller ID Label">{\$displayName}</button>
+          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$domain}')" title="Provisioning & Data Handler URL from Global Settings">{$domain}</button>
+          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$PbxAddress}')" title="Target PBX Server Hostname from Global Settings">{$PbxAddress}</button>
+          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$sipPort}')" title="SIP Signaling Port">{$sipPort}</button>
+          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$sipTransport}')" title="Signaling Transport (UDP/TCP/TLS)">{$sipTransport}</button>
+          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$extension}')" title="Assigned SIP Extension Number">{$extension}</button>
+          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$username}')" title="SIP Authentication Username">{$username}</button>
+          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$password}')" title="SIP Authentication Password">{$password}</button>
+          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$displayName}')" title="Line Display / Caller ID Label">{$displayName}</button>
         </div>
 
         <textarea id="handsetConfigEditor" class="code-editor" style="height: 380px; font-family: monospace; font-size: 12.5px; line-height: 1.5;" spellcheck="false" placeholder="Loading configuration syntax..."></textarea>
         
         <p class="muted" style="font-size: 11.5px; margin-top: 8px;">
-          <strong>FreePBX Provisioning Engine:</strong> Any changes saved here become the new active configuration file served to this handset. Dynamic variables like <code>{\$domain}</code> and <code>{\$PbxAddress}</code> are automatically resolved from Global Settings when the phone boots.
+          <strong>FreePBX Provisioning Engine:</strong> Any changes saved here become the new active configuration file served to this handset. Dynamic variables like <code>{$domain}</code> and <code>{$PbxAddress}</code> are automatically resolved from Global Settings when the phone boots.
         </p>
         
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
