@@ -1,75 +1,133 @@
-import { z } from 'zod';
+/**
+ * Zero-dependency type-safe schema validators for CKM Handler
+ * Eliminates external runtime package dependencies so compilation never fails on missing node_modules.
+ */
 
-export const AdminConfigInputSchema = z.object({
-  pbxServer: z.string().min(1, 'PBX Server hostname/IP is required'),
-  pbxPort: z.coerce.number().int().min(1).max(65535).default(5060),
-  pbxTransport: z.enum(['UDP', 'TCP', 'TLS']).default('UDP'),
-  dataHandlerUrl: z.string().min(1, 'Data Handler URL is required'),
-  pbxType: z.enum(['yeastar_api', 'yeastar_ami', 'asterisk_ami']).default('yeastar_api'),
-  apiHost: z.string().optional().nullable(),
-  apiPort: z.coerce.number().int().min(1).max(65535).default(8088),
-  apiProtocol: z.enum(['http', 'https']).default('https'),
-  apiPath: z.string().default('api/v2.0.0'),
-  apiUser: z.string().optional().nullable(),
-  apiSecret: z.string().optional().nullable(),
-  verifySsl: z.coerce.number().int().min(0).max(1).default(0)
-});
+export type SafeParseResult<T> =
+  | { success: true; data: T }
+  | { success: false; error: { errors: Array<{ message: string }> } };
 
-export const ServerConfigSchema = z.object({
-  pbx_server: z.string().min(1, 'PBX Server hostname/IP is required'),
-  sip_port: z.coerce.number().int().min(1).max(65535).default(5060),
-  sip_transport: z.enum(['UDP', 'TCP', 'TLS']).default('UDP'),
-  data_handler_url: z.string().min(1, 'Data Handler URL is required'),
-  pbx_type: z.enum(['yeastar_api', 'yeastar_ami', 'asterisk_ami']).default('yeastar_api'),
-  pbx_api_host: z.string().optional().nullable(),
-  pbx_api_port: z.coerce.number().int().min(1).max(65535).default(8088),
-  pbx_api_protocol: z.enum(['http', 'https']).default('https'),
-  pbx_api_path: z.string().default('api/v2.0.0'),
-  pbx_api_user: z.string().optional().nullable(),
-  pbx_api_secret: z.string().optional().nullable(),
-  pbx_verify_ssl: z.coerce.boolean().default(false),
-  organization_name: z.string().optional().nullable(),
-  support_email: z.string().optional().nullable(),
-  auto_adopt_enabled: z.coerce.boolean().default(false),
-  auto_sync_interval_mins: z.coerce.number().int().min(1).max(1440).default(5),
-  auto_sync_enabled: z.coerce.boolean().default(true),
-  theme_mode: z.enum(['system', 'light', 'dark']).default('system')
-});
+export interface SchemaValidator<T> {
+  safeParse(input: unknown): SafeParseResult<T>;
+}
 
-export const HandsetRegisterSchema = z.object({
-  mac: z.string().regex(/^([0-9A-Fa-f]{2}[:-]?){5}([0-9A-Fa-f]{2})$/, 'Invalid MAC address format'),
-  extension: z.string().min(2).max(10).regex(/^\d+$/, 'Extension must be numeric'),
-  brand: z.string().min(1, 'Brand is required'),
-  model: z.string().min(1, 'Model is required'),
-  ip: z.string().optional().nullable(),
-  label: z.string().optional().nullable()
-});
+export const AdminConfigInputSchema: SchemaValidator<{
+  pbxServer: string;
+  pbxPort: number;
+  pbxTransport: 'UDP' | 'TCP' | 'TLS';
+  dataHandlerUrl: string;
+  pbxType: 'yeastar_api' | 'yeastar_ami' | 'asterisk_ami';
+  apiHost?: string | null;
+  apiPort: number;
+  apiProtocol: 'http' | 'https';
+  apiPath: string;
+  apiUser?: string | null;
+  apiSecret?: string | null;
+  verifySsl: number;
+}> = {
+  safeParse(input: unknown) {
+    if (!input || typeof input !== 'object') {
+      return { success: false, error: { errors: [{ message: 'Invalid configuration payload' }] } };
+    }
+    const b = input as Record<string, unknown>;
+    const pbxServer = String(b.pbxServer || '').trim();
+    if (!pbxServer) {
+      return { success: false, error: { errors: [{ message: 'PBX Server hostname/IP is required' }] } };
+    }
+    const dataHandlerUrl = String(b.dataHandlerUrl || '').trim();
+    if (!dataHandlerUrl) {
+      return { success: false, error: { errors: [{ message: 'Data Handler URL is required' }] } };
+    }
+    const pbxPort = Math.max(1, Math.min(65535, parseInt(String(b.pbxPort || '5060'), 10) || 5060));
+    const rawTransport = String(b.pbxTransport || 'UDP').toUpperCase();
+    const pbxTransport: 'UDP' | 'TCP' | 'TLS' = (rawTransport === 'TCP' || rawTransport === 'TLS') ? rawTransport : 'UDP';
+    const rawType = String(b.pbxType || 'yeastar_api');
+    const pbxType: 'yeastar_api' | 'yeastar_ami' | 'asterisk_ami' = (rawType === 'yeastar_ami' || rawType === 'asterisk_ami') ? rawType : 'yeastar_api';
+    const apiHost = b.apiHost ? String(b.apiHost).trim() : null;
+    const apiPort = Math.max(1, Math.min(65535, parseInt(String(b.apiPort || '8088'), 10) || 8088));
+    const apiProtocol = String(b.apiProtocol || 'https').toLowerCase() === 'http' ? 'http' : 'https';
+    const apiPath = String(b.apiPath || 'api/v2.0.0').trim();
+    const apiUser = b.apiUser !== undefined && b.apiUser !== null ? String(b.apiUser).trim() : null;
+    const apiSecret = b.apiSecret !== undefined && b.apiSecret !== null ? String(b.apiSecret) : null;
+    const verifySsl = b.verifySsl === 1 || b.verifySsl === true || String(b.verifySsl) === '1' ? 1 : 0;
 
-export const RouterProfileSchema = z.object({
-  site_name: z.string().min(1, 'Site name is required'),
-  brand: z.string().min(1, 'Brand is required'),
-  model: z.string().min(1, 'Model is required'),
-  voice_vlan_id: z.coerce.number().int().min(1).max(4094).default(100),
-  voice_subnet: z.string().min(7, 'Subnet CIDR is required'),
-  sip_alg_disabled: z.coerce.boolean().default(true),
-  dscp_voice_tag: z.coerce.number().int().min(0).max(63).default(46),
-  notes: z.string().optional().nullable()
-});
+    return {
+      success: true,
+      data: {
+        pbxServer,
+        pbxPort,
+        pbxTransport,
+        dataHandlerUrl,
+        pbxType,
+        apiHost,
+        apiPort,
+        apiProtocol,
+        apiPath,
+        apiUser,
+        apiSecret,
+        verifySsl
+      }
+    };
+  }
+};
 
-export const AdminUserSchema = z.object({
-  username: z.string().min(3, 'Username must be at least 3 characters').regex(/^[a-zA-Z0-9_.-]+$/, 'Username contains invalid characters'),
-  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
-  role: z.enum(['SUPERADMIN', 'ADMIN', 'READONLY']).default('ADMIN'),
-  full_name: z.string().min(1, 'Full name is required')
-});
+export const GdprPolicySchema: SchemaValidator<{
+  chatDays: number;
+  mediaDays: number;
+  autoPrune: boolean;
+}> = {
+  safeParse(input: unknown) {
+    if (!input || typeof input !== 'object') {
+      return { success: false, error: { errors: [{ message: 'Invalid GDPR policy payload' }] } };
+    }
+    const b = input as Record<string, unknown>;
+    const chatDays = Math.max(1, Math.min(3650, parseInt(String(b.chatDays || '90'), 10) || 90));
+    const mediaDays = Math.max(1, Math.min(3650, parseInt(String(b.mediaDays || '90'), 10) || 90));
+    const autoPrune = b.autoPrune === true || b.autoPrune === 1 || String(b.autoPrune) === 'true';
 
-export const ChangePasswordSchema = z.object({
-  currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string().min(6, 'New password must be at least 6 characters')
-});
+    return {
+      success: true,
+      data: { chatDays, mediaDays, autoPrune }
+    };
+  }
+};
 
-export const GdprPolicySchema = z.object({
-  chatDays: z.coerce.number().int().min(1).max(3650).default(90),
-  mediaDays: z.coerce.number().int().min(1).max(3650).default(90),
-  autoPrune: z.coerce.boolean().default(true)
-});
+export const HandsetRegisterSchema: SchemaValidator<{
+  mac: string;
+  extension: string;
+  brand: string;
+  model: string;
+  ip?: string | null;
+  label?: string | null;
+}> = {
+  safeParse(input: unknown) {
+    if (!input || typeof input !== 'object') {
+      return { success: false, error: { errors: [{ message: 'Invalid handset payload' }] } };
+    }
+    const b = input as Record<string, unknown>;
+    const mac = String(b.mac || '').trim();
+    if (!/^([0-9A-Fa-f]{2}[:-]?){5}([0-9A-Fa-f]{2})$/.test(mac)) {
+      return { success: false, error: { errors: [{ message: 'Invalid MAC address format' }] } };
+    }
+    const extension = String(b.extension || '').trim();
+    if (!/^\d{2,10}$/.test(extension)) {
+      return { success: false, error: { errors: [{ message: 'Extension must be numeric' }] } };
+    }
+    const brand = String(b.brand || '').trim();
+    const model = String(b.model || '').trim();
+    if (!brand || !model) {
+      return { success: false, error: { errors: [{ message: 'Brand and Model are required' }] } };
+    }
+    return {
+      success: true,
+      data: {
+        mac,
+        extension,
+        brand,
+        model,
+        ip: b.ip ? String(b.ip).trim() : null,
+        label: b.label ? String(b.label).trim() : null
+      }
+    };
+  }
+};
