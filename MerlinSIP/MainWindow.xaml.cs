@@ -2144,8 +2144,10 @@ public partial class MainWindow : Window
 
     private static void ReplaceCollection<T>(ObservableCollection<T> target, IEnumerable<T> source)
     {
+        var list = source as IList<T> ?? source.ToList();
+        if (target.Count == list.Count && target.SequenceEqual(list)) return;
         target.Clear();
-        foreach (var item in source)
+        foreach (var item in list)
         {
             target.Add(item);
         }

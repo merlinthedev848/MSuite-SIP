@@ -14,6 +14,10 @@ interface VaultContactRow {
 
 const router = Router();
 
+// Pre-compiled prepared statements for zero-overhead query execution
+const getVaultContactsStmt = vaultDb.prepare('SELECT extension, full_name, mobile, email, department FROM contacts');
+const getExtensionsStmt = systemDb.prepare('SELECT extension, display_name FROM extensions WHERE is_active = 1');
+
 // XML Special Characters Escaping for Hardware Deskphones
 function escapeXml(unsafe: string): string {
   return String(unsafe || '').replace(/[<>&'"]/g, (c) => {
@@ -31,8 +35,8 @@ function escapeXml(unsafe: string): string {
 // Helper to get unified contact entries
 function getUnifiedContacts() {
   // Pull from vaultDb contacts first, then fallback to systemDb extensions
-  const vaultContacts = vaultDb.prepare('SELECT extension, full_name, mobile, email, department FROM contacts').all() as VaultContactRow[];
-  const extensions = systemDb.prepare('SELECT extension, display_name FROM extensions WHERE is_active = 1').all() as Pick<ExtensionRow, 'extension' | 'display_name'>[];
+  const vaultContacts = getVaultContactsStmt.all() as VaultContactRow[];
+  const extensions = getExtensionsStmt.all() as Pick<ExtensionRow, 'extension' | 'display_name'>[];
 
   const map = new Map<string, { extension: string; name: string; email?: string; mobile?: string }>();
   

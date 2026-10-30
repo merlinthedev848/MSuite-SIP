@@ -150,7 +150,32 @@ public sealed class ContactStore
 
     private static string Normalize(string value)
     {
-        return new string(value.Where(char.IsDigit).ToArray());
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+
+        // Fast-path: Check if already all digits to avoid allocation
+        bool allDigits = true;
+        for (int i = 0; i < value.Length; i++)
+        {
+            if (!char.IsDigit(value[i]))
+            {
+                allDigits = false;
+                break;
+            }
+        }
+        if (allDigits) return value;
+
+        // Zero-allocation stack buffer for typical phone numbers (<= 64 chars)
+        Span<char> buffer = value.Length <= 64 ? stackalloc char[value.Length] : new char[value.Length];
+        int count = 0;
+        for (int i = 0; i < value.Length; i++)
+        {
+            char c = value[i];
+            if (char.IsDigit(c))
+            {
+                buffer[count++] = c;
+            }
+        }
+        return count == 0 ? string.Empty : new string(buffer[..count]);
     }
 
     private static HashSet<string> BuildVariants(string normalized)
