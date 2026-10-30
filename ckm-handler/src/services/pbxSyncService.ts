@@ -25,6 +25,7 @@ export interface SyncedExtension {
   displayName: string;
   username: string;
   password?: string;
+  email?: string;
   status?: string;
 }
 
@@ -238,12 +239,14 @@ export async function syncExtensionsFromYeastarApi(
 
     const displayName = String(item.username || item.displayname || item.name || item.callerid || `Extension ${extNumber}`).trim();
     const sipPassword = String(item.user_password || item.password || item.registration_password || item.registerpassword || 'ExtPassword123!').trim();
+    const email = String(item.email || item.useremail || item.user_email || item.mail || item.mailbox || '').trim();
 
     extensions.push({
       extension: extNumber,
       username: extNumber,
       displayName: displayName,
-      password: sipPassword
+      password: sipPassword,
+      email: email
     });
   }
 
@@ -254,14 +257,15 @@ export async function syncExtensionsFromYeastarApi(
   // 3. Insert or update in system.db
   const syncTx = systemDb.transaction((exts: SyncedExtension[]) => {
     const stmt = systemDb.prepare(`
-      INSERT INTO extensions (extension, sip_username, sip_password, display_name)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO extensions (extension, sip_username, sip_password, display_name, email)
+      VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(extension) DO UPDATE SET
         display_name = excluded.display_name,
+        email = CASE WHEN excluded.email != '' THEN excluded.email ELSE extensions.email END,
         sip_password = CASE WHEN excluded.sip_password != 'ExtPassword123!' THEN excluded.sip_password ELSE extensions.sip_password END
     `);
     for (const ext of exts) {
-      stmt.run(ext.extension, ext.username, ext.password || 'ExtPassword123!', ext.displayName);
+      stmt.run(ext.extension, ext.username, ext.password || 'ExtPassword123!', ext.displayName, ext.email || '');
     }
   });
 
@@ -310,13 +314,14 @@ export async function syncExtensionsFromAsterisk(
       // Insert or update into system.db in a single ACID transaction
       const syncTx = systemDb.transaction((exts: SyncedExtension[]) => {
         const stmt = systemDb.prepare(`
-          INSERT INTO extensions (extension, sip_username, sip_password, display_name)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO extensions (extension, sip_username, sip_password, display_name, email)
+          VALUES (?, ?, ?, ?, ?)
           ON CONFLICT(extension) DO UPDATE SET
-            display_name = excluded.display_name
+            display_name = excluded.display_name,
+            email = CASE WHEN excluded.email != '' THEN excluded.email ELSE extensions.email END
         `);
         for (const ext of exts) {
-          stmt.run(ext.extension, ext.username, ext.password || 'ExtPassword123!', ext.displayName);
+          stmt.run(ext.extension, ext.username, ext.password || 'ExtPassword123!', ext.displayName, ext.email || '');
         }
       });
 
@@ -363,6 +368,8 @@ export async function syncExtensionsFromAsterisk(
         socket.write(`Action: Command\r\nCommand: sip show peers\r\n\r\n`);
         socket.write(`Action: Command\r\nCommand: pjsip show endpoints\r\n\r\n`);
         socket.write(`Action: Command\r\nCommand: core show hints\r\n\r\n`);
+        socket.write(`Action: Command\r\nCommand: voicemail show users\r\n\r\n`);
+        socket.write(`Action: Command\r\nCommand: database show AMPUSER\r\n\r\n`);
 
         // Debounce timer: wait 1.8s to collect all incoming event chunks
         if (collectTimer) clearTimeout(collectTimer);
@@ -404,20 +411,31 @@ export async function syncExtensionsFromAsterisk(
 }
 
 function parseAmiOutput(raw: string): SyncedExtension[] {
-  const extensions: SyncedExtension[] = [];
+  const extMap = new Map<string, SyncedExtension>();
   const lines = raw.split(/\r?\n/);
   let currentExt = '';
   let currentName = '';
+  let currentEmail = '';
 
-  const addExt = (ext: string, name: string) => {
+  const addOrUpdateExt = (ext: string, name?: string, email?: string) => {
     const cleanExt = ext.trim().replace(/^SIP\//i, '').replace(/^PJSIP\//i, '');
-    if (/^\d{2,8}$/.test(cleanExt)) {
-      if (!extensions.some(e => e.extension === cleanExt)) {
-        extensions.push({
-          extension: cleanExt,
-          username: cleanExt,
-          displayName: name || `Extension ${cleanExt}`
-        });
+    if (!/^\d{2,8}$/.test(cleanExt)) return;
+
+    let existing = extMap.get(cleanExt);
+    if (!existing) {
+      existing = {
+        extension: cleanExt,
+        username: cleanExt,
+        displayName: name || `Extension ${cleanExt}`,
+        email: email || ''
+      };
+      extMap.set(cleanExt, existing);
+    } else {
+      if (name && name !== `Extension ${cleanExt}` && (!existing.displayName || existing.displayName.startsWith('Extension '))) {
+        existing.displayName = name;
+      }
+      if (email && !existing.email) {
+        existing.email = email;
       }
     }
   };
@@ -425,56 +443,76 @@ function parseAmiOutput(raw: string): SyncedExtension[] {
   for (const line of lines) {
     const trimmed = line.trim();
 
-    // 1. Structured AMI Header Fields
+    // 1. FreePBX / Asterisk AstDB: /AMPUSER/709/email : user@example.com
+    const ampEmailMatch = trimmed.match(/^\/AMPUSER\/(\d{2,8})\/email\s*:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+    if (ampEmailMatch) {
+      addOrUpdateExt(ampEmailMatch[1], undefined, ampEmailMatch[2].trim());
+      continue;
+    }
+
+    const ampNameMatch = trimmed.match(/^\/AMPUSER\/(\d{2,8})\/cidname\s*:\s*(.+)/i);
+    if (ampNameMatch) {
+      addOrUpdateExt(ampNameMatch[1], ampNameMatch[2].trim());
+      continue;
+    }
+
+    // 2. Asterisk Voicemail Users table: default 709 Danny Myers danny@example.com
+    const vmMatch = trimmed.match(/^\s*\S+\s+(\d{2,8})\s+(.+?)\s+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b/);
+    if (vmMatch) {
+      addOrUpdateExt(vmMatch[1], vmMatch[2].trim(), vmMatch[3].trim());
+      continue;
+    }
+
+    // 3. Structured AMI Header Fields
     if (trimmed.startsWith('ObjectName:') || trimmed.startsWith('Peer:')) {
       const parts = trimmed.split(':');
       currentExt = parts[1]?.trim().replace(/^SIP\//i, '').replace(/^PJSIP\//i, '') || '';
     } else if (trimmed.startsWith('Callerid:') || trimmed.startsWith('Description:')) {
       const parts = trimmed.split(':');
       currentName = parts.slice(1).join(':').trim().replace(/["<>]/g, '') || '';
+    } else if (trimmed.startsWith('Email:') || trimmed.startsWith('UserEmail:')) {
+      const parts = trimmed.split(':');
+      currentEmail = parts.slice(1).join(':').trim() || '';
     } else if (trimmed.startsWith('Exten:')) {
       const parts = trimmed.split(':');
       const ext = parts[1]?.trim() || '';
-      addExt(ext, `Extension ${ext}`);
+      addOrUpdateExt(ext, `Extension ${ext}`);
     } else if (trimmed.startsWith('CallerIDNum:')) {
       const parts = trimmed.split(':');
       const ext = parts[1]?.trim() || '';
-      addExt(ext, `Extension ${ext}`);
+      addOrUpdateExt(ext, `Extension ${ext}`);
     }
 
     if (currentExt && /^\d{2,8}$/.test(currentExt)) {
-      addExt(currentExt, currentName);
+      addOrUpdateExt(currentExt, currentName, currentEmail);
       currentExt = '';
       currentName = '';
+      currentEmail = '';
     }
 
-    // 2. Asterisk CLI "sip show peers" table parsing fallback
-    // e.g.: "1001/1001   10.0.0.50  D  Yes  Yes  5060  OK (15 ms)  Alice"
+    // 4. Asterisk CLI "sip show peers" table parsing fallback
     const cliPeerMatch = trimmed.match(/^(\d{2,8})(?:\/\d+)?\s+/);
     if (cliPeerMatch) {
       const ext = cliPeerMatch[1];
       const tokens = trimmed.split(/\s+/);
       const possibleName = tokens.length > 5 ? tokens.slice(6).join(' ') : '';
-      addExt(ext, possibleName || `Extension ${ext}`);
+      addOrUpdateExt(ext, possibleName || `Extension ${ext}`);
     }
 
-    // 3. Asterisk CLI "pjsip show endpoints" table parsing fallback
-    // e.g.: "Endpoint:  1001/1001  Not in use  0 of inf"
+    // 5. Asterisk CLI "pjsip show endpoints" table parsing fallback
     const cliEndpointMatch = trimmed.match(/^Endpoint:\s*(\d{2,8})(?:\/\d+)?/i);
     if (cliEndpointMatch) {
-      const ext = cliEndpointMatch[1];
-      addExt(ext, `Extension ${ext}`);
+      addOrUpdateExt(cliEndpointMatch[1], `Extension ${cliEndpointMatch[1]}`);
     }
 
-    // 4. Asterisk CLI "core show hints" parsing
-    // e.g.: "101@ext-local   : PJSIP/101  State:Idle"
+    // 6. Asterisk CLI "core show hints" parsing
     const hintMatch = trimmed.match(/^(\d{2,8})@/);
     if (hintMatch) {
-      addExt(hintMatch[1], `Extension ${hintMatch[1]}`);
+      addOrUpdateExt(hintMatch[1], `Extension ${hintMatch[1]}`);
     }
   }
 
-  return extensions;
+  return Array.from(extMap.values());
 }
 
 // ==============================================================================

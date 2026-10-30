@@ -16,7 +16,7 @@ const router = Router();
 
 // Pre-compiled prepared statements for zero-overhead query execution
 const getVaultContactsStmt = vaultDb.prepare('SELECT extension, full_name, mobile, email, department FROM contacts');
-const getExtensionsStmt = systemDb.prepare('SELECT extension, display_name FROM extensions WHERE is_active = 1');
+const getExtensionsStmt = systemDb.prepare('SELECT extension, display_name, email FROM extensions WHERE is_active = 1');
 
 // XML Special Characters Escaping for Hardware Deskphones
 function escapeXml(unsafe: string): string {
@@ -40,8 +40,8 @@ function getUnifiedContacts() {
 
   const map = new Map<string, { extension: string; name: string; email?: string; mobile?: string }>();
   
-  for (const ext of extensions) {
-    map.set(ext.extension, { extension: ext.extension, name: ext.display_name });
+  for (const ext of (extensions as any)) {
+    map.set(ext.extension, { extension: ext.extension, name: ext.display_name, email: ext.email });
   }
 
   for (const vc of vaultContacts) {

@@ -718,6 +718,20 @@ router.post('/api/admin/extensions', adminAuth, requirePermission('manage_extens
   return res.json({ ok: true, message: `Extension ${cleanExt} saved successfully.` });
 });
 
+router.put('/api/admin/extensions/:ext/email', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
+  const ext = req.params.ext;
+  const email = String(req.body.email || '').trim();
+  systemDb.prepare('UPDATE extensions SET email = ? WHERE extension = ?').run(email, ext);
+  try {
+    vaultDb.prepare('UPDATE contacts SET email = ? WHERE extension = ?').run(email, ext);
+  } catch {}
+  broadcastDeviceLog('SOFTPHONE', 'INFO', `[Extension Email Updated] Extension ${ext} email set to "${email}"`, {
+    deviceIdentifier: `Ext ${ext}`,
+    ipAddress: req.ip
+  });
+  return res.json({ ok: true, message: `Email for Extension ${ext} updated.` });
+});
+
 router.delete('/api/admin/extensions/:ext', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
   const ext = req.params.ext;
   systemDb.prepare('DELETE FROM extensions WHERE extension = ?').run(ext);

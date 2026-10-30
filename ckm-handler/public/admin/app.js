@@ -1190,7 +1190,7 @@ function initApp() {
 
     if (!list.length) {
 
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center">No extensions match your search.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center">No extensions match your search.</td></tr>';
 
       return;
 
@@ -1203,14 +1203,14 @@ function initApp() {
     tbody.innerHTML = list.map(ext => `
 
       <tr>
-
         <td><strong>${ext.extension}</strong></td>
-
+        <td>${ext.display_name}</td>
         <td>
-          <div>${ext.display_name}</div>
-          ${ext.email ? `<div style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:3px;margin-top:2px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>${ext.email}</div>` : '<div style="font-size:11px;color:#94a3b8;font-style:italic;">No email on file</div>'}
+          <div style="display: flex; align-items: center; gap: 6px;">
+            ${ext.email ? `<span style="font-weight: 500; color: #0284c7; font-family: ui-monospace, monospace; font-size: 12px;">${ext.email}</span>` : '<span class="muted" style="font-size: 11px; font-style: italic;">(None on PBX)</span>'}
+            ${canManage ? `<button class="btn btn-sm btn-light" style="padding: 1px 6px; font-size: 11px; line-height: 1.2;" onclick="window.editExtensionEmail('${ext.extension}', '${(ext.email || '').replace(/'/g, "\'")}')" title="Edit registered email">✎</button>` : ''}
+          </div>
         </td>
-
         <td><code>${ext.sip_username}</code></td>
 
         <td>${ext.active_pin ? `<strong style="color:#0284c7;font-size:15px;letter-spacing:1px;">${ext.active_pin}</strong>` : '<span class="muted">None active</span>'}</td>
@@ -1285,7 +1285,7 @@ function initApp() {
 
     if (!data || !data.ok || !data.extensions.length) {
 
-      if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center">No extensions registered yet. Click "+ New Extension" to create one.</td></tr>';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center">No extensions registered yet. Click "+ New Extension" to create one.</td></tr>';
 
       cachedExtensions = [];
 
@@ -1340,6 +1340,23 @@ function initApp() {
   };
 
 
+
+  window.editExtensionEmail = async (ext, current) => {
+    const newEmail = prompt(`Enter registered email address for Extension ${ext}:`, current || '');
+    if (newEmail === null) return;
+    const clean = newEmail.trim();
+    const res = await fetchJson(`/api/admin/extensions/${ext}/email`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: clean })
+    });
+    if (res && res.ok) {
+      window.showToast?.(`Email updated for Extension ${ext}`, 'success');
+      loadExtensions();
+    } else {
+      window.showToast?.(res?.error || 'Failed to update email', 'error');
+    }
+  };
 
   window.deleteExtension = async (ext) => {
 

@@ -103,11 +103,31 @@ router.post('/api/v1/self-service/request-pin', async (req: Request, res: Respon
   const displayName = extRow?.display_name || contactRow?.full_name || `Extension ${rawExt}`;
   const registeredEmail = (extRow?.email || contactRow?.email || '').trim();
 
+  const rawEmailInput = String(req.body?.email || '').trim().toLowerCase();
+  if (!rawEmailInput || !rawEmailInput.includes('@')) {
+    return res.status(400).json({
+      ok: false,
+      error: 'Please enter your registered email address.'
+    });
+  }
+
   // 3. Security Check: Email MUST exist on file
   if (!registeredEmail || !registeredEmail.includes('@')) {
     return res.status(422).json({
       ok: false,
       error: `No registered email address is on file for Extension ${rawExt}. For security, provisioning PINs cannot be generated without a verified email on file. Please contact your system administrator to add your email address.`
+    });
+  }
+
+  // 3b. Verification: Customer-entered email MUST match registered email on file
+  if (rawEmailInput !== registeredEmail.toLowerCase()) {
+    broadcastDeviceLog('SECURITY', 'WARN', `[PIN Request Rejected] Extension ${rawExt}: entered email "${rawEmailInput}" does not match registered record on PBX`, {
+      deviceIdentifier: `Ext ${rawExt}`,
+      ipAddress: ip
+    });
+    return res.status(403).json({
+      ok: false,
+      error: `The email address entered does not match the registered email address on file for Extension ${rawExt}. Please enter the correct email or contact IT support.`
     });
   }
 

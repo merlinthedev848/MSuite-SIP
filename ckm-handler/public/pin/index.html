@@ -101,10 +101,10 @@
     }
 
     .info-intro {
-      font-size: 14px;
+      font-size: 13.5px;
       line-height: 1.5;
       color: var(--text-muted);
-      margin-bottom: 24px;
+      margin-bottom: 22px;
       background: #f1f5f9;
       border-radius: 8px;
       padding: 12px 14px;
@@ -112,7 +112,7 @@
     }
 
     .form-group {
-      margin-bottom: 20px;
+      margin-bottom: 18px;
     }
 
     label {
@@ -120,7 +120,7 @@
       font-size: 13px;
       font-weight: 600;
       color: var(--text);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .input-wrapper {
@@ -136,12 +136,11 @@
       pointer-events: none;
     }
 
-    input[type="text"] {
+    input[type="text"], input[type="email"] {
       width: 100%;
-      padding: 13px 14px 13px 42px;
-      font-size: 16px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
+      padding: 12px 14px 12px 42px;
+      font-size: 15px;
+      font-weight: 500;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: #ffffff;
@@ -150,9 +149,16 @@
       outline: none;
     }
 
-    input[type="text"]:focus {
+    input[type="text"]:focus, input[type="email"]:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .helper-text {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 5px;
+      display: block;
     }
 
     .btn-submit {
@@ -170,6 +176,7 @@
       justify-content: center;
       gap: 8px;
       transition: background 0.15s ease-in-out;
+      margin-top: 6px;
     }
 
     .btn-submit:hover:not(:disabled) {
@@ -229,21 +236,23 @@
       font-weight: 700;
       color: #047857;
       background: #d1fae5;
-      padding: 2px 6px;
+      padding: 3px 8px;
       border-radius: 4px;
       font-family: ui-monospace, monospace;
       word-break: break-all;
+      display: inline-block;
     }
 
     .security-note {
       margin-top: 14px;
       padding-top: 12px;
       border-top: 1px solid rgba(5, 150, 105, 0.2);
-      font-size: 12.5px;
+      font-size: 12px;
       color: #15803d;
       display: flex;
       align-items: flex-start;
       gap: 6px;
+      line-height: 1.4;
     }
 
     .activation-steps {
@@ -309,12 +318,12 @@
       </div>
 
       <div class="info-intro">
-        Need a setup code for your MerlinSIP softphone? Enter your telephone extension number below. Your new 8-digit PIN will be sent directly to your registered email address.
+        Enter your telephone extension number and your registered email address below. If they match the records on file, an 8-digit provisioning PIN will be sent directly to your inbox.
       </div>
 
       <form id="formPinRequest">
         <div class="form-group">
-          <label for="extInput">Telephone Extension Number</label>
+          <label for="extInput">Telephone Extension Number *</label>
           <div class="input-wrapper">
             <span class="input-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -335,8 +344,29 @@
           </div>
         </div>
 
+        <div class="form-group">
+          <label for="emailInput">Registered Email Address *</label>
+          <div class="input-wrapper">
+            <span class="input-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+            </span>
+            <input 
+              type="email" 
+              id="emailInput" 
+              name="email" 
+              placeholder="e.g. danny@example.com" 
+              required 
+              autocomplete="email"
+            >
+          </div>
+          <span class="helper-text">Must match the registered email address linked to your PBX extension.</span>
+        </div>
+
         <button type="submit" id="btnSubmit" class="btn-submit">
-          <span id="btnText">Send Provisioning PIN</span>
+          <span id="btnText">Verify & Email Provisioning PIN</span>
           <span id="btnSpinner" class="spinner" style="display: none;"></span>
         </button>
       </form>
@@ -348,16 +378,16 @@
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
             <polyline points="22 4 12 14.01 9 11.01"></polyline>
           </svg>
-          PIN Code Dispatched!
+          PIN Successfully Emailed!
         </div>
         <p style="margin-top: 6px;">
-          A new 8-digit softphone provisioning code has been generated and emailed to your registered address:
+          Verification successful! A new 8-digit softphone provisioning code has been dispatched to your email address:
         </p>
         <div style="margin: 10px 0;">
           <span id="resEmail" class="email-highlight">user@domain.com</span>
         </div>
         <p style="font-size: 13px; color: #166534;">
-          Please check your email inbox and spam/junk folder. Your one-time PIN will arrive momentarily.
+          Please check your inbox (and spam/junk folder). Your one-time code will arrive momentarily.
         </p>
         <ol class="activation-steps">
           <li>Open your <strong>MerlinSIP</strong> softphone application.</li>
@@ -369,7 +399,7 @@
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
-          <span><strong>Zero-Exposure Security:</strong> For your protection, provisioning PINs are never shown on screen and are delivered exclusively to your verified address.</span>
+          <span><strong>Zero-Exposure Security:</strong> The PIN code is sent exclusively to your email and is never displayed on screen or provided any other way.</span>
         </div>
         <button type="button" class="btn-reset" onclick="resetForm()">Request Code for Another Extension</button>
       </div>
@@ -382,7 +412,7 @@
             <line x1="12" y1="8" x2="12" y2="12"></line>
             <line x1="12" y1="16" x2="12.01" y2="16"></line>
           </svg>
-          Unable to Generate PIN
+          Unable to Dispatch PIN
         </div>
         <p id="errorMsg" style="margin-top: 6px;"></p>
         <button type="button" class="btn-reset" onclick="resetForm()">Try Again</button>
@@ -397,6 +427,7 @@
   <script>
     const form = document.getElementById('formPinRequest');
     const extInput = document.getElementById('extInput');
+    const emailInput = document.getElementById('emailInput');
     const btnSubmit = document.getElementById('btnSubmit');
     const btnText = document.getElementById('btnText');
     const btnSpinner = document.getElementById('btnSpinner');
@@ -408,30 +439,32 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const ext = extInput.value.trim();
-      if (!ext) return;
+      const email = emailInput.value.trim();
+
+      if (!ext || !email) return;
 
       // Reset states
       alertSuccess.style.display = 'none';
       alertError.style.display = 'none';
       btnSubmit.disabled = true;
-      btnText.textContent = 'Verifying & Dispatching...';
+      btnText.textContent = 'Verifying with PBX...';
       btnSpinner.style.display = 'inline-block';
 
       try {
         const response = await fetch('/api/v1/self-service/request-pin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ extension: ext })
+          body: JSON.stringify({ extension: ext, email: email })
         });
 
         const data = await response.json();
 
         if (response.ok && data.ok) {
           form.style.display = 'none';
-          resEmail.textContent = data.maskedEmail || 'registered address';
+          resEmail.textContent = data.maskedEmail || email;
           alertSuccess.style.display = 'block';
         } else {
-          errorMsg.textContent = data.error || 'Failed to process request. Please contact system administrator.';
+          errorMsg.textContent = data.error || 'Failed to verify extension records. Please contact IT support.';
           alertError.style.display = 'block';
         }
       } catch (err) {
@@ -439,7 +472,7 @@
         alertError.style.display = 'block';
       } finally {
         btnSubmit.disabled = false;
-        btnText.textContent = 'Send Provisioning PIN';
+        btnText.textContent = 'Verify & Email Provisioning PIN';
         btnSpinner.style.display = 'none';
       }
     });
@@ -449,6 +482,7 @@
       alertSuccess.style.display = 'none';
       alertError.style.display = 'none';
       extInput.value = '';
+      emailInput.value = '';
       extInput.focus();
     }
   </script>
