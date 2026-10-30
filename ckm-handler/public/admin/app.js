@@ -7668,73 +7668,106 @@ function initApp() {
 
 
 
+  // Global handler to trigger local download of a firmware binary
+  window.autoDownloadFirmware = async function(brand, model) {
+    if (!brand || !model) return;
+    window.showToast?.(`Caching firmware for ${brand.toUpperCase()} ${model}...`, 'info');
+    try {
+      const res = await fetchJson('/api/admin/firmware/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand, model })
+      });
+      if (res && res.ok) {
+        window.showToast?.(`Successfully cached firmware for ${brand.toUpperCase()} ${model}!`, 'success');
+        loadFirmwareRepository();
+      } else {
+        window.showToast?.(`Failed to download firmware: ${res?.error || 'Unknown error'}`, 'error');
+      }
+    } catch (err) {
+      window.showToast?.(`Error downloading firmware: ${err.message || err}`, 'error');
+    }
+  };
+
   // Load firmware repository table
-
   async function loadFirmwareRepository() {
-
     const tbody = document.getElementById('firmwareTableBody');
-
     if (!tbody) return;
 
     const data = await fetchJson('/api/admin/firmware/status');
-
-    const list = data?.catalog?.handsets || [];
-
-    if (!list.length) {
-
-      tbody.innerHTML = '<tr><td colspan="6" class="text-center muted">No firmware images cataloged.</td></tr>';
-
-      return;
-
+    const catalog = data?.catalog || {};
+    
+    // Flatten models from each brand across handsets and routers
+    const list = [];
+    if (Array.isArray(catalog.handsets)) {
+      catalog.handsets.forEach(b => {
+        const brandName = b.name || b.id || 'Vendor';
+        const brandId = b.id || brandName.toLowerCase();
+        if (Array.isArray(b.models)) {
+          b.models.forEach(m => {
+            list.push({
+              ...m,
+              brandId: brandId,
+              brandName: brandName,
+              modelName: m.name || m.id,
+              version: m.firmwareVersion || 'Latest',
+              filename: m.firmwareFilename || '--',
+              fileSizeFormatted: m.fileSizeFormatted || (m.fileSizeBytes ? (m.fileSizeBytes / (1024 * 1024)).toFixed(1) + ' MB' : '--'),
+              isDownloaded: m.isCached || m.status === 'AVAILABLE' || m.status === 'DOWNLOADED'
+            });
+          });
+        }
+      });
     }
 
+    if (Array.isArray(catalog.routers)) {
+      catalog.routers.forEach(b => {
+        const brandName = b.name || b.id || 'Vendor';
+        const brandId = b.id || brandName.toLowerCase();
+        if (Array.isArray(b.models)) {
+          b.models.forEach(m => {
+            list.push({
+              ...m,
+              brandId: brandId,
+              brandName: brandName,
+              modelName: m.name || m.id,
+              version: m.firmwareVersion || 'Latest',
+              filename: m.firmwareFilename || '--',
+              fileSizeFormatted: m.fileSizeFormatted || (m.fileSizeBytes ? (m.fileSizeBytes / (1024 * 1024)).toFixed(1) + ' MB' : '--'),
+              isDownloaded: m.isCached || m.status === 'AVAILABLE' || m.status === 'DOWNLOADED'
+            });
+          });
+        }
+      });
+    }
 
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center muted">No firmware images cataloged.</td></tr>';
+      return;
+    }
 
     tbody.innerHTML = list.map(f => {
-
-      const isDownloaded = f.status === 'DOWNLOADED';
-
+      const isDownloaded = f.isDownloaded;
       const statusBadge = isDownloaded 
-
         ? '<span class="badge badge-success">Cached Locally</span>'
-
         : '<span class="badge badge-warning">Vendor Cloud</span>';
 
-
-
       return `
-
         <tr>
-
-          <td><strong>${(f.brand || '').toUpperCase()}</strong> ${f.model || ''}</td>
-
-          <td><code>${f.version || 'Latest'}</code></td>
-
-          <td><code class="text-xs">${f.filename || '--'}</code></td>
-
+          <td><strong>${f.brandName.toUpperCase()}</strong> ${f.modelName}</td>
+          <td><code>${f.version}</code></td>
+          <td><code class="text-xs">${f.filename}</code></td>
           <td>${statusBadge}</td>
-
-          <td>${f.file_size ? (f.file_size / (1024*1024)).toFixed(1) + ' MB' : '--'}</td>
-
+          <td>${f.fileSizeFormatted}</td>
           <td style="text-align: right;">
-
             ${isDownloaded 
-
-              ? '<span class="text-xs muted">Option 66 Ready</span>' 
-
-              : `<button class="btn btn-xs btn-primary" onclick="autoDownloadFirmware('${f.brand}', '${f.model}')">Cache Locally</button>`}
-
+              ? '<span class="text-xs muted" style="color: #10b981; font-weight: 600;">Option 66 Ready</span>' 
+              : `<button class="btn btn-xs btn-primary" onclick="autoDownloadFirmware('${f.brandId}', '${f.id}')">Cache Locally</button>`}
           </td>
-
         </tr>
-
       `;
-
     }).join('');
-
   }
-
-
 
   document.getElementById('btnSyncAllFwRepository')?.addEventListener('click', async () => {
 
