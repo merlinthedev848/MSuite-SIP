@@ -7810,7 +7810,9 @@ function initApp() {
       const isDownloaded = f.isDownloaded;
       const statusBadge = isDownloaded 
         ? '<span class="badge badge-success">Cached Locally</span>'
-        : '<span class="badge badge-warning">Vendor Cloud</span>';
+        : f.directDownloadUrl
+          ? '<span class="badge badge-warning">Vendor Cloud</span>'
+          : '<span class="badge" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">Vendor Portal</span>';
 
       return `
         <tr>
