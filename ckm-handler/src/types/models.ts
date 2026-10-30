@@ -41,6 +41,13 @@ export interface ServerConfigRow {
   api_user?: string;
   api_secret?: string;
   verify_ssl?: number;
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_secure?: number;
+  smtp_user?: string;
+  smtp_pass?: string;
+  smtp_from?: string;
+  support_email?: string;
   updated_at?: string;
 }
 
@@ -49,6 +56,7 @@ export interface ExtensionRow {
   sip_username: string;
   sip_password: string;
   display_name: string;
+  email?: string;
   is_active: number;
   last_registered_at?: string | null;
   last_ip?: string | null;

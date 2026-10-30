@@ -726,6 +726,59 @@
                 </div>
               </div>
             </div>
+
+            <!-- Outbound SMTP Mailer & Self-Service PIN Gateway -->
+            <div class="card form-card mt-4">
+              <div class="card-header">
+                <h3>Outbound SMTP Email Gateway & PIN Dispatch</h3>
+                <p class="muted">Configures the mailer used by the customer self-service PIN portal (<code>/pin</code>) and administrative notification alerts.</p>
+              </div>
+              <div class="mt-4">
+                <div class="form-row">
+                  <div class="form-group" style="flex: 2;">
+                    <label>SMTP Hostname / Server</label>
+                    <input type="text" id="cfgSmtpHost" placeholder="e.g. smtp.office365.com or smtp.gmail.com">
+                    <small>Leave blank to fallback to system sendmail/local MTA if installed.</small>
+                  </div>
+                  <div class="form-group" style="flex: 1;">
+                    <label>SMTP Port</label>
+                    <input type="number" id="cfgSmtpPort" value="587" placeholder="587">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group" style="flex: 1;">
+                    <label>Encryption & Security</label>
+                    <select id="cfgSmtpSecure" class="form-select">
+                      <option value="0">STARTTLS (Standard on Port 587 / 25)</option>
+                      <option value="1">Direct SSL / TLS (Standard on Port 465)</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="flex: 1;">
+                    <label>Sender Address (From)</label>
+                    <input type="text" id="cfgSmtpFrom" placeholder="e.g. MerlinSIP Telephony &lt;no-reply@chriskendall.media&gt;">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>SMTP Username / Account</label>
+                    <input type="text" id="cfgSmtpUser" placeholder="e.g. alerts@chriskendall.media">
+                  </div>
+                  <div class="form-group">
+                    <label>SMTP Password</label>
+                    <input type="password" id="cfgSmtpPass" placeholder="Leave blank to keep existing password">
+                  </div>
+                </div>
+
+                <div id="cfgSmtpTestOutput" class="hidden" style="margin-top: 14px; padding: 12px 14px; border-radius: 6px; font-size: 12.5px; font-family: ui-monospace, monospace; white-space: pre-wrap; border: 1px solid #e2e8f0;"></div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+                  <button type="button" class="btn btn-secondary" id="btnTestSmtpConfig">📧 Send Test Email</button>
+                  <button type="submit" class="btn btn-primary" id="btnSaveAllSettings">💾 Save All Master Settings</button>
+                </div>
+              </div>
+            </div>
           </form>
         </div>
 
@@ -1053,6 +1106,11 @@
           <div class="form-group">
             <label>SIP Username</label>
             <input type="text" id="addExtUser" placeholder="Defaults to extension number">
+          </div>
+          <div class="form-group">
+            <label>Registered Email Address (for Self-Service PIN & Notifications)</label>
+            <input type="email" id="addExtEmail" placeholder="e.g. alice@company.com">
+            <small style="color: var(--text-muted); font-size: 11px;">Enables user to self-generate softphone PIN codes at <code>/pin</code>.</small>
           </div>
           <div class="form-group">
             <label>SIP Password / Secret *</label>

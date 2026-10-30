@@ -24,6 +24,12 @@ export const AdminConfigInputSchema: SchemaValidator<{
   apiUser?: string | null;
   apiSecret?: string | null;
   verifySsl: number;
+  smtpHost?: string | null;
+  smtpPort?: number;
+  smtpSecure?: number;
+  smtpUser?: string | null;
+  smtpPass?: string | null;
+  smtpFrom?: string | null;
 }> = {
   safeParse(input: unknown) {
     if (!input || typeof input !== 'object') {
@@ -50,6 +56,12 @@ export const AdminConfigInputSchema: SchemaValidator<{
     const apiUser = b.apiUser !== undefined && b.apiUser !== null ? String(b.apiUser).trim() : null;
     const apiSecret = b.apiSecret !== undefined && b.apiSecret !== null ? String(b.apiSecret) : null;
     const verifySsl = b.verifySsl === 1 || b.verifySsl === true || String(b.verifySsl) === '1' ? 1 : 0;
+    const smtpHost = b.smtpHost !== undefined && b.smtpHost !== null ? String(b.smtpHost).trim() : undefined;
+    const smtpPort = b.smtpPort ? Math.max(1, Math.min(65535, parseInt(String(b.smtpPort), 10) || 587)) : 587;
+    const smtpSecure = b.smtpSecure === 1 || b.smtpSecure === true || String(b.smtpSecure) === '1' ? 1 : 0;
+    const smtpUser = b.smtpUser !== undefined && b.smtpUser !== null ? String(b.smtpUser).trim() : undefined;
+    const smtpPass = b.smtpPass !== undefined && b.smtpPass !== null ? String(b.smtpPass) : undefined;
+    const smtpFrom = b.smtpFrom !== undefined && b.smtpFrom !== null ? String(b.smtpFrom).trim() : undefined;
 
     return {
       success: true,
@@ -65,7 +77,13 @@ export const AdminConfigInputSchema: SchemaValidator<{
         apiPath,
         apiUser,
         apiSecret,
-        verifySsl
+        verifySsl,
+        smtpHost,
+        smtpPort,
+        smtpSecure,
+        smtpUser,
+        smtpPass,
+        smtpFrom
       }
     };
   }

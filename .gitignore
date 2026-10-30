@@ -19,3 +19,6 @@ installer/*.generated.wxs
 *.suo
 *.user
 artifacts/
+
+ckm-handler/data/
+data/

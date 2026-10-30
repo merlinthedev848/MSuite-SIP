@@ -17,6 +17,7 @@ import adminRouter from './routes/admin';
 import integrationApiRouter from './routes/integrationApi';
 import firmwareRouter from './routes/firmwareRoute';
 import cwmpRouter from './routes/cwmpRoute';
+import selfServicePinRouter from './routes/selfServicePin';
 import { reconcileFirmwareStorage } from './services/firmwareService';
 import { startPbxSyncDaemon } from './services/pbxSyncService';
 
@@ -52,10 +53,18 @@ app.use(chatFilesRouter);
 app.use(adminRouter);
 app.use(gdprRouter);
 app.use(integrationApiRouter);
+app.use(selfServicePinRouter);
 
 // 5. Static Web Admin Portal
 const adminStaticPath = path.resolve(__dirname, '../public/admin');
 app.use('/admin', express.static(adminStaticPath));
+
+// 5b. Public Customer Self-Service PIN Portal
+const pinStaticPath = path.resolve(__dirname, '../public/pin');
+app.use('/pin', express.static(pinStaticPath));
+app.get('/pin', (req, res) => {
+  res.sendFile(path.resolve(pinStaticPath, 'index.html'));
+});
 
 // Seamless root redirect to Admin Dashboard
 app.get('/', (req, res) => {

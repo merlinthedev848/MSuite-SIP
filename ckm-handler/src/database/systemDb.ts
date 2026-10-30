@@ -259,6 +259,12 @@ addColumnIfNotExists('server_config', 'api_path', "TEXT DEFAULT 'api/v2.0.0'");
 addColumnIfNotExists('server_config', 'api_user', "TEXT DEFAULT ''");
 addColumnIfNotExists('server_config', 'api_secret', "TEXT DEFAULT ''");
 addColumnIfNotExists('server_config', 'verify_ssl', 'INTEGER DEFAULT 0');
+addColumnIfNotExists('server_config', 'smtp_host', "TEXT DEFAULT ''");
+addColumnIfNotExists('server_config', 'smtp_port', "INTEGER DEFAULT 587");
+addColumnIfNotExists('server_config', 'smtp_secure', "INTEGER DEFAULT 0");
+addColumnIfNotExists('server_config', 'smtp_user', "TEXT DEFAULT ''");
+addColumnIfNotExists('server_config', 'smtp_pass', "TEXT DEFAULT ''");
+addColumnIfNotExists('server_config', 'smtp_from', "TEXT DEFAULT ''");
 
 // Physical Handsets & Routers Migrations
 addColumnIfNotExists('physical_handsets', 'custom_config', "TEXT DEFAULT ''");
@@ -273,6 +279,7 @@ addColumnIfNotExists('routers', 'last_ip', "TEXT DEFAULT ''");
 addColumnIfNotExists('extensions', 'last_registered_at', 'DATETIME');
 addColumnIfNotExists('extensions', 'last_ip', "TEXT DEFAULT ''");
 addColumnIfNotExists('extensions', 'user_agent', "TEXT DEFAULT ''");
+addColumnIfNotExists('extensions', 'email', "TEXT DEFAULT ''");
 
 // Generate default secure API key if not set
 const cfgRow = systemDb.prepare('SELECT api_key FROM server_config WHERE id = 1').get() as { api_key: string | null } | undefined;

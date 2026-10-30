@@ -1206,7 +1206,10 @@ function initApp() {
 
         <td><strong>${ext.extension}</strong></td>
 
-        <td>${ext.display_name}</td>
+        <td>
+          <div>${ext.display_name}</div>
+          ${ext.email ? `<div style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:3px;margin-top:2px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>${ext.email}</div>` : '<div style="font-size:11px;color:#94a3b8;font-style:italic;">No email on file</div>'}
+        </td>
 
         <td><code>${ext.sip_username}</code></td>
 
@@ -1389,17 +1392,12 @@ function initApp() {
     const user = document.getElementById('addExtUser').value.trim() || ext;
 
     const pass = document.getElementById('addExtPass').value.trim();
-
-
+    const email = document.getElementById('addExtEmail')?.value.trim() || '';
 
     const res = await fetchJson('/api/admin/extensions', {
-
       method: 'POST',
-
       headers: { 'Content-Type': 'application/json' },
-
-      body: JSON.stringify({ extension: ext, displayName: name, username: user, password: pass })
-
+      body: JSON.stringify({ extension: ext, displayName: name, username: user, password: pass, email: email })
     });
 
 
@@ -4790,7 +4788,12 @@ function initApp() {
 
     if (document.getElementById('cfgVerifySsl')) document.getElementById('cfgVerifySsl').checked = !!c.verify_ssl;
 
-
+    if (document.getElementById('cfgSmtpHost')) document.getElementById('cfgSmtpHost').value = c.smtp_host || '';
+    if (document.getElementById('cfgSmtpPort')) document.getElementById('cfgSmtpPort').value = c.smtp_port || 587;
+    if (document.getElementById('cfgSmtpSecure')) document.getElementById('cfgSmtpSecure').value = String(c.smtp_secure !== undefined ? c.smtp_secure : 0);
+    if (document.getElementById('cfgSmtpUser')) document.getElementById('cfgSmtpUser').value = c.smtp_user || '';
+    if (document.getElementById('cfgSmtpPass')) document.getElementById('cfgSmtpPass').value = '';
+    if (document.getElementById('cfgSmtpFrom')) document.getElementById('cfgSmtpFrom').value = c.smtp_from || '';
 
     updateCfgPbxTypeFields();
 
@@ -4848,8 +4851,13 @@ function initApp() {
 
       apiSecret: document.getElementById('cfgApiSecret')?.value || '',
 
-      verifySsl: document.getElementById('cfgVerifySsl')?.checked ? 1 : 0
-
+      verifySsl: document.getElementById('cfgVerifySsl')?.checked ? 1 : 0,
+      smtpHost: document.getElementById('cfgSmtpHost')?.value?.trim() || '',
+      smtpPort: parseInt(document.getElementById('cfgSmtpPort')?.value || '587', 10),
+      smtpSecure: parseInt(document.getElementById('cfgSmtpSecure')?.value || '0', 10),
+      smtpUser: document.getElementById('cfgSmtpUser')?.value?.trim() || '',
+      smtpPass: document.getElementById('cfgSmtpPass')?.value || '',
+      smtpFrom: document.getElementById('cfgSmtpFrom')?.value?.trim() || ''
     };
 
 
@@ -4883,6 +4891,63 @@ function initApp() {
 
 
   // Test PBX Connection from Global Settings
+
+  document.getElementById('btnTestSmtpConfig')?.addEventListener('click', async () => {
+    const targetEmail = prompt('Enter the destination email address to receive the test message:');
+    if (!targetEmail || !targetEmail.trim()) return;
+
+    const out = document.getElementById('cfgSmtpTestOutput');
+    if (out) {
+      out.classList.remove('hidden');
+      out.style.background = '#f8fafc';
+      out.style.borderColor = '#e2e8f0';
+      out.style.color = '#334155';
+      out.textContent = 'Connecting to SMTP gateway and dispatching test message...';
+    }
+
+    const payload = {
+      host: document.getElementById('cfgSmtpHost')?.value?.trim(),
+      port: parseInt(document.getElementById('cfgSmtpPort')?.value || '587', 10),
+      secure: parseInt(document.getElementById('cfgSmtpSecure')?.value || '0', 10),
+      user: document.getElementById('cfgSmtpUser')?.value?.trim(),
+      pass: document.getElementById('cfgSmtpPass')?.value,
+      from: document.getElementById('cfgSmtpFrom')?.value?.trim(),
+      targetEmail: targetEmail.trim()
+    };
+
+    try {
+      const res = await fetchJson('/api/admin/smtp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res && res.ok) {
+        if (out) {
+          out.style.background = '#f0fdf4';
+          out.style.borderColor = '#bbf7d0';
+          out.style.color = '#166534';
+          out.textContent = `✓ SMTP Test Succeeded: ${res.message}`;
+        }
+        window.showToast?.('Test email sent successfully!', 'success');
+      } else {
+        if (out) {
+          out.style.background = '#fef2f2';
+          out.style.borderColor = '#fecaca';
+          out.style.color = '#991b1b';
+          out.textContent = `✗ SMTP Test Failed: ${res?.error || res?.message || 'Connection failed'}`;
+        }
+        window.showToast?.(res?.error || 'SMTP test failed', 'error');
+      }
+    } catch (err) {
+      if (out) {
+        out.style.background = '#fef2f2';
+        out.style.borderColor = '#fecaca';
+        out.style.color = '#991b1b';
+        out.textContent = `✗ Network Error: ${err.message}`;
+      }
+    }
+  });
 
   document.getElementById('btnTestPbxConfig')?.addEventListener('click', async () => {
 

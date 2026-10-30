@@ -1,4 +1,5 @@
 import { AdminConfigInputSchema } from '../validators/schemas';
+import { sendEmail, SmtpConfig } from '../services/emailService';
 import { Router, Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -678,7 +679,7 @@ router.post('/api/admin/vault/purge', adminAuth, (req: Request, res: Response) =
 // 2. Extensions Management
 router.get('/api/admin/extensions', adminAuth, (req: Request, res: Response) => {
   const rows = systemDb.prepare(`
-    SELECT e.extension, e.sip_username, e.display_name, e.is_active, e.created_at,
+    SELECT e.extension, e.sip_username, e.display_name, e.email, e.is_active, e.created_at,
            e.last_registered_at, e.last_ip, e.user_agent,
            (SELECT p.code FROM softphone_pins p WHERE p.extension = e.extension AND p.claimed = 0 LIMIT 1) as active_pin,
            (SELECT COUNT(*) FROM physical_handsets h WHERE h.extension = e.extension) as bound_handsets
@@ -689,7 +690,7 @@ router.get('/api/admin/extensions', adminAuth, (req: Request, res: Response) => 
 });
 
 router.post('/api/admin/extensions', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
-  const { extension, username, password, displayName } = req.body;
+  const { extension, username, password, displayName, email } = req.body;
   if (!extension || !password) {
     return res.status(400).json({ ok: false, error: 'Extension and password are required.' });
   }
@@ -697,15 +698,17 @@ router.post('/api/admin/extensions', adminAuth, requirePermission('manage_extens
   const cleanExt = String(extension).trim();
   const cleanUser = String(username || cleanExt).trim();
   const cleanName = String(displayName || `Extension ${cleanExt}`).trim();
+  const cleanEmail = String(email || '').trim();
 
   systemDb.prepare(`
-    INSERT INTO extensions (extension, sip_username, sip_password, display_name)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO extensions (extension, sip_username, sip_password, display_name, email)
+    VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(extension) DO UPDATE SET
       sip_username = excluded.sip_username,
       sip_password = excluded.sip_password,
-      display_name = excluded.display_name
-  `).run(cleanExt, cleanUser, password, cleanName);
+      display_name = excluded.display_name,
+      email = excluded.email
+  `).run(cleanExt, cleanUser, password, cleanName, cleanEmail);
 
   broadcastDeviceLog('SOFTPHONE', 'INFO', `[Extension Managed] Extension ${cleanExt} (${cleanName}) configured`, {
     deviceIdentifier: `Ext ${cleanExt}`,
@@ -1145,16 +1148,19 @@ router.post('/api/admin/config', adminAuth, requirePermission('manage_pbx'), (re
   }
   const {
     pbxServer, pbxPort, pbxTransport, dataHandlerUrl,
-    pbxType, apiHost, apiPort, apiProtocol, apiPath, apiUser, apiSecret, verifySsl
+    pbxType, apiHost, apiPort, apiProtocol, apiPath, apiUser, apiSecret, verifySsl,
+    smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass, smtpFrom
   } = parseResult.data;
 
   const existing = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;
   const effectiveSecret = (apiSecret !== undefined && apiSecret !== '') ? String(apiSecret) : (existing?.api_secret || '');
+  const effectiveSmtpPass = (smtpPass !== undefined && smtpPass !== '') ? String(smtpPass) : (existing?.smtp_pass || '');
 
   systemDb.prepare(`
     UPDATE server_config
     SET pbx_server = ?, pbx_port = ?, pbx_transport = ?, data_handler_url = ?,
         pbx_type = ?, api_host = ?, api_port = ?, api_protocol = ?, api_path = ?, api_user = ?, api_secret = ?, verify_ssl = ?,
+        smtp_host = ?, smtp_port = ?, smtp_secure = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ?,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = 1
   `).run(
@@ -1169,7 +1175,13 @@ router.post('/api/admin/config', adminAuth, requirePermission('manage_pbx'), (re
     String(apiPath || 'api/v2.0.0').trim(),
     String(apiUser || existing?.api_user || 'perfexapi').trim(),
     effectiveSecret,
-    verifySsl ? 1 : 0
+    verifySsl ? 1 : 0,
+    smtpHost !== undefined ? smtpHost : (existing?.smtp_host || ''),
+    Number(smtpPort) || 587,
+    smtpSecure !== undefined ? smtpSecure : (existing?.smtp_secure || 0),
+    smtpUser !== undefined ? smtpUser : (existing?.smtp_user || ''),
+    effectiveSmtpPass,
+    smtpFrom !== undefined ? smtpFrom : (existing?.smtp_from || '')
   );
 
   broadcastDeviceLog('PBX', 'INFO', `[PBX Config Updated] Primary PBX set to ${pbxServer}:${pbxPort} (${pbxTransport}), API Integration: ${pbxType} (${apiHost}:${apiPort})`, {
@@ -1178,6 +1190,42 @@ router.post('/api/admin/config', adminAuth, requirePermission('manage_pbx'), (re
   });
 
   return res.json({ ok: true, message: 'Server and PBX integration configuration updated. Settings saved globally.' });
+});
+
+router.post('/api/admin/smtp/test', adminAuth, requirePermission('manage_pbx'), async (req: Request, res: Response) => {
+  const { host, port, secure, user, pass, from, targetEmail } = req.body;
+  const to = String(targetEmail || '').trim();
+  if (!to || !to.includes('@')) {
+    return res.status(400).json({ ok: false, error: 'A valid recipient email address is required to test SMTP delivery.' });
+  }
+
+  const existing = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;
+  const effectivePass = (pass !== undefined && pass !== '') ? String(pass) : (existing?.smtp_pass || '');
+
+  const smtpConfig: SmtpConfig = {
+    host: String(host !== undefined ? host : existing?.smtp_host || '').trim(),
+    port: parseInt(String(port || existing?.smtp_port || 587), 10),
+    secure: secure === 1 || secure === true || String(secure) === '1',
+    user: String(user !== undefined ? user : existing?.smtp_user || '').trim(),
+    pass: effectivePass,
+    from: String(from !== undefined ? from : existing?.smtp_from || `MerlinSIP Telephony <no-reply@${req.get('host')?.split(':')[0] || 'localhost'}>`).trim()
+  };
+
+  const result = await sendEmail(smtpConfig, {
+    to,
+    subject: 'MerlinSIP Telephony SMTP Connectivity Test',
+    text: `This is an automated test message confirming that your outbound SMTP gateway configuration is working properly on ${req.get('host') || 'your PBX server'}.\n\nTimestamp: ${new Date().toISOString()}`,
+    html: `<div style="font-family:sans-serif;padding:20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+      <h2 style="color:#2563eb;margin-top:0;">MerlinSIP SMTP Test</h2>
+      <p>This is a test notification confirming that the outbound SMTP mailer configuration on <strong>${req.get('host') || 'your server'}</strong> is functional.</p>
+      <p style="color:#64748b;font-size:12px;">Dispatched at: ${new Date().toUTCString()}</p>
+    </div>`
+  });
+
+  return res.json({
+    ok: result.success,
+    message: result.message
+  });
 });
 
 router.post('/api/admin/config/regenerate-api-key', adminAuth, requirePermission('manage_pbx'), (req: Request, res: Response) => {
