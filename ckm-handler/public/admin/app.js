@@ -212,6 +212,22 @@ function initApp() {
 
   };
 
+  window.jsAttr = function(str) {
+    return String(str ?? '')
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, '\\\'')
+      .replace(/\r/g, '')
+      .replace(/\n/g, ' ')
+      .replace(/</g, '\\u003c')
+      .replace(/>/g, '\\u003e');
+  };
+
+  const sidebarLabel = document.getElementById('sidebarOnlineLabel');
+  if (sidebarLabel) {
+    const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+    sidebarLabel.textContent = `Online (port ${port})`;
+  }
+
 
 
   function applyUserPermissions() {
@@ -416,7 +432,15 @@ function initApp() {
 
       }
 
-      return await res.json();
+      const json = await res.json().catch(() => null);
+      if (!json || typeof json !== 'object') {
+        return { ok: false, error: `Request failed (${res.status}).` };
+      }
+      if (!res.ok && json.ok !== false) {
+        json.ok = false;
+        json.error = json.error || `Request failed (${res.status}).`;
+      }
+      return json;
 
     } catch (e) {
 
@@ -760,6 +784,31 @@ function initApp() {
 
   // --------------------------------------------------------------------------
 
+  function applySystemPulse(components, probe) {
+    const title = document.getElementById('pulseTitle');
+    const sub = document.getElementById('pulseSubtitle');
+    const chip = document.getElementById('chipPbxHealth');
+    const failed = (components || []).filter(c => c.status === 'degraded' || c.status === 'error' || c.status === 'offline');
+    const unknown = (components || []).filter(c => c.status === 'unknown');
+    if (title && sub) {
+      if (failed.length) {
+        title.textContent = 'Attention required';
+        sub.textContent = failed.map(c => c.name).join(' · ');
+      } else if (unknown.length) {
+        title.textContent = 'Services online';
+        sub.textContent = 'PBX latency has not been measured. Provisioning, database, and firmware services are up.';
+      } else {
+        title.textContent = 'All measured services operational';
+        sub.textContent = 'Provisioning, database, and firmware services reported healthy.';
+      }
+    }
+    if (chip) {
+      if (probe && probe.reachable) chip.textContent = `PBX: ${probe.latencyMs} ms`;
+      else if (probe) chip.textContent = 'PBX: unreachable';
+      else chip.textContent = 'PBX: not probed';
+    }
+  }
+
   async function loadOverview() {
 
     const data = await fetchJson('/api/admin/overview');
@@ -816,6 +865,20 @@ function initApp() {
 
     document.getElementById('epSync').textContent = `${host}/api/v1/config/sync`;
 
+    const handlerNotice = document.getElementById('handlerUrlNotice');
+    const handlerSave = document.getElementById('btnUseLiveHandlerUrl');
+    const storedHandler = String(s.handlerUrlStored || '').replace(/\/$/, '');
+    const showHandlerPrompt = !!s.handlerUrlIsDefault && window.location.origin !== storedHandler;
+    if (handlerNotice && handlerSave) {
+      handlerNotice.classList.toggle('hidden', !showHandlerPrompt);
+      handlerSave.classList.toggle('hidden', !showHandlerPrompt);
+      if (showHandlerPrompt) {
+        handlerNotice.textContent = `Saved handler URL is still ${storedHandler}. Copies and new welcome cards use ${host} until you save this server.`;
+      }
+    }
+
+    applySystemPulse(data.components, s.pbxProbe);
+
 
 
     // Render Consolidated Component Health Matrix
@@ -830,7 +893,9 @@ function initApp() {
 
         const isOp = (c.status === 'operational');
 
-        const dotClass = isOp ? 'dot-op' : (c.status === 'degraded' ? 'dot-warn' : 'dot-err');
+        const isUnknown = c.status === 'unknown';
+
+        const dotClass = isOp ? 'dot-op' : ((isUnknown || c.status === 'degraded') ? 'dot-warn' : 'dot-err');
 
         const badgeLabel = c.badge || (isOp ? 'Active' : (c.status || 'Alert'));
 
@@ -852,7 +917,7 @@ function initApp() {
 
               <span class="health-latency">${c.latency}</span>
 
-              <span class="health-pill ${isOp ? 'op' : 'warn'}">${badgeLabel}</span>
+              <span class="health-pill ${isOp ? 'op' : (isUnknown ? 'idle' : 'warn')}">${badgeLabel}</span>
 
               <button class="health-log-btn" onclick="window.viewServiceLogs('${c.id}')" title="Filter live terminal to ${c.name} logs">
 
@@ -1112,7 +1177,10 @@ function initApp() {
 
         if (latEl) latEl.textContent = `${res.latencyMs} ms`;
 
-        if (details) details.textContent = `[SUCCESS] PBX responded in ${res.latencyMs}ms. SIP socket handshake verified over UDP.`;
+        const chip = document.getElementById('chipPbxHealth');
+        if (chip) chip.textContent = `PBX: ${res.latencyMs} ms`;
+
+        if (details) details.textContent = res.message || `PBX responded in ${res.latencyMs} ms.`;
 
       } else {
 
@@ -1128,7 +1196,10 @@ function initApp() {
 
         if (latEl) latEl.textContent = 'Timeout';
 
-        if (details) details.textContent = `[FAILURE] ${res ? (res.error || res.message) : 'Connection timed out.'}`;
+        const chip = document.getElementById('chipPbxHealth');
+        if (chip) chip.textContent = 'PBX: unreachable';
+
+        if (details) details.textContent = res ? (res.message || res.error || 'PBX did not respond.') : 'Connection timed out.';
 
       }
 
@@ -1148,13 +1219,30 @@ function initApp() {
 
       btn.disabled = false;
 
-      btn.textContent = 'Ping PBX Now';
+      btn.textContent = 'Probe Latency';
+
+      loadOverview();
 
     }
 
   });
 
 
+
+  document.getElementById('btnUseLiveHandlerUrl')?.addEventListener('click', async () => {
+    const res = await fetchJson('/api/admin/config/handler-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataHandlerUrl: window.location.origin })
+    });
+    if (res && res.ok) {
+      window.showToast(res.message || 'Handler URL saved.', 'success');
+      loadOverview();
+      if (typeof loadConfig === 'function') loadConfig();
+    } else {
+      window.showToast(res?.error || 'Could not save the handler URL.', 'error');
+    }
+  });
 
   window.copyEndpointText = (id) => {
 
@@ -1203,17 +1291,17 @@ function initApp() {
     tbody.innerHTML = list.map(ext => `
 
       <tr>
-        <td><strong>${ext.extension}</strong></td>
-        <td>${ext.display_name}</td>
+        <td><strong>${escapeHtml(ext.extension)}</strong></td>
+        <td>${escapeHtml(ext.display_name)}</td>
         <td>
           <div style="display: flex; align-items: center; gap: 6px;">
-            ${ext.email ? `<span style="font-weight: 500; color: #0284c7; font-family: ui-monospace, monospace; font-size: 12px;">${ext.email}</span>` : '<span class="muted" style="font-size: 11px; font-style: italic;">(None on PBX)</span>'}
-            ${canManage ? `<button class="btn btn-sm btn-light" style="padding: 1px 6px; font-size: 11px; line-height: 1.2;" onclick="window.editExtensionEmail('${ext.extension}', '${(ext.email || '').replace(/'/g, "\'")}')" title="Edit registered email">✎</button>` : ''}
+            ${ext.email ? `<span style="font-weight: 500; color: #0284c7; font-family: ui-monospace, monospace; font-size: 12px;">${escapeHtml(ext.email)}</span>` : '<span class="muted" style="font-size: 11px; font-style: italic;">(None on PBX)</span>'}
+            ${canManage ? `<button class="btn btn-sm btn-light" style="padding: 1px 6px; font-size: 11px; line-height: 1.2;" onclick="window.editExtensionEmail('${jsAttr(ext.extension)}', '${jsAttr(ext.email || '')}')" title="Edit registered email">✎</button>` : ''}
           </div>
         </td>
-        <td><code>${ext.sip_username}</code></td>
+        <td><code>${escapeHtml(ext.sip_username)}</code></td>
 
-        <td>${ext.active_pin ? `<strong style="color:#0284c7;font-size:15px;letter-spacing:1px;">${ext.active_pin}</strong>` : '<span class="muted">None active</span>'}</td>
+        <td>${ext.active_pin ? `<strong style="color:#0284c7;font-size:15px;letter-spacing:1px;">${escapeHtml(ext.active_pin)}</strong>` : '<span class="muted">None active</span>'}</td>
 
         <td>${ext.bound_handsets} handset(s)</td>
 
@@ -1223,13 +1311,13 @@ function initApp() {
 
           <div style="display: flex; gap: 4px; flex-wrap: wrap;">
 
-            <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('Ext ${ext.extension}', 'softphone', { ext: '${ext.extension}', name: '${(ext.display_name || '').replace(/'/g, "\\'")}', sip: '${ext.sip_username}', ip: '${ext.last_ip || ''}' })" title="View device telemetry & logs">Logs</button>
+            <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('Ext ${jsAttr(ext.extension)}', 'softphone', { ext: '${jsAttr(ext.extension)}', name: '${jsAttr(ext.display_name || '')}', sip: '${jsAttr(ext.sip_username)}', ip: '${jsAttr(ext.last_ip || '')}' })" title="View device telemetry & logs">Logs</button>
 
             ${canManage ? `
 
-              <button class="btn btn-sm btn-secondary" onclick="generatePin('${ext.extension}')">Generate PIN</button>
+              <button class="btn btn-sm btn-secondary" onclick="generatePin('${jsAttr(ext.extension)}')">Generate PIN</button>
 
-              <button class="btn btn-sm btn-danger" onclick="deleteExtension('${ext.extension}')">Delete</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteExtension('${jsAttr(ext.extension)}')">Delete</button>
 
             ` : '<span class="muted">Read Only</span>'}
 
@@ -1411,6 +1499,19 @@ function initApp() {
     const pass = document.getElementById('addExtPass').value.trim();
     const email = document.getElementById('addExtEmail')?.value.trim() || '';
 
+    if (!/^\d{2,10}$/.test(ext)) {
+      window.showToast('Extension must be 2 to 10 digits.', 'error');
+      return;
+    }
+    if (pass.length < 6) {
+      window.showToast('SIP password must be at least 6 characters.', 'error');
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      window.showToast('Enter a valid email address, or leave it blank.', 'error');
+      return;
+    }
+
     const res = await fetchJson('/api/admin/extensions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1427,9 +1528,9 @@ function initApp() {
 
       loadExtensions();
 
-    } else if (res) {
+    } else {
 
-      window.showToast(`Error: ${res.error || 'Failed to save extension'}`, 'error');
+      window.showToast(res?.error || 'Failed to save extension', 'error');
 
     }
 
@@ -1683,6 +1784,25 @@ function initApp() {
 
     };
 
+    if (!/^\d{2,10}$/.test(payload.extension)) {
+      window.showToast('Extension must be 2 to 10 digits.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Provision Extension';
+      return;
+    }
+    if (payload.sipPassword && payload.sipPassword.length < 6) {
+      window.showToast('SIP password must be at least 6 characters, or leave it blank.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Provision Extension';
+      return;
+    }
+    if (!Number.isFinite(payload.expiryHours) || payload.expiryHours < 1 || payload.expiryHours > 8760) {
+      window.showToast('PIN expiry must be between 1 and 8760 hours.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Provision Extension';
+      return;
+    }
+
 
 
     const res = await fetchJson('/api/admin/extensions/quick-provision', {
@@ -1699,7 +1819,7 @@ function initApp() {
 
     btn.disabled = false;
 
-    btn.textContent = 'Provision Now';
+    btn.textContent = 'Provision Extension';
 
 
 
@@ -1715,11 +1835,13 @@ function initApp() {
 
       document.getElementById('qpResultCard').value = res.userWelcomeCard;
 
+      if (res.warning) window.showToast(res.warning, 'warning');
+
       loadExtensions();
 
-    } else if (res) {
+    } else {
 
-      window.showToast(res.error || 'Provisioning failed. Check parameters.', 'error');
+      window.showToast(res?.error || 'Provisioning failed. Check parameters.', 'error');
 
     }
 
@@ -2533,7 +2655,7 @@ function initApp() {
 
         modelSel.innerHTML = brandObj.models.map(m => `
 
-          <option value="${m.id}">${m.name} (${m.series || 'Desktop'})</option>
+          <option value="${escapeHtml(m.id)}">${escapeHtml(m.name)} (${escapeHtml(m.series || 'Desktop')})</option>
 
         `).join('') + '<option value="Custom">Custom / Other Model</option>';
 
@@ -3591,11 +3713,11 @@ function initApp() {
 
           </td>
 
-          <td><strong>${h.brand.toUpperCase()}</strong> ${h.model || ''}</td>
+          <td><strong>${escapeHtml((h.brand || '').toUpperCase())}</strong> ${escapeHtml(h.model || '')}</td>
 
-          <td>Ext ${h.extension} (${h.display_name || ''})</td>
+          <td>Ext ${escapeHtml(h.extension)} (${escapeHtml(h.display_name || '')})</td>
 
-          <td>${h.line_label || 'Default'}</td>
+          <td>${escapeHtml(h.line_label || 'Default')}</td>
 
           <td>${h.last_provisioned_at ? new Date(h.last_provisioned_at).toLocaleString() : '<span class="muted">Never fetched</span>'}${h.ip_address ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">IP: <code>${h.ip_address}</code></div>` : ''}</td>
 
@@ -3603,7 +3725,7 @@ function initApp() {
 
             <div style="display: flex; gap: 4px; flex-wrap: wrap;">
 
-              <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${cleanMac}', 'handset', { mac: '${cleanMac.toUpperCase()}', brand: '${h.brand}', model: '${h.model || ''}', ext: '${h.extension}', ip: '${h.ip_address || ''}' })" title="Live Telemetry & Logs">Logs</button>
+              <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${jsAttr(cleanMac)}', 'handset', { mac: '${jsAttr(cleanMac.toUpperCase())}', brand: '${jsAttr(h.brand)}', model: '${jsAttr(h.model || '')}', ext: '${jsAttr(h.extension)}', ip: '${jsAttr(h.ip_address || '')}' })" title="Live Telemetry & Logs">Logs</button>
 
               <button class="btn btn-sm btn-primary" onclick="editHandsetConfig('${cleanMac}')">Edit Config</button>
 
@@ -3911,7 +4033,7 @@ function initApp() {
 
         sel.innerHTML = '<option value="">Select an extension...</option>' + cachedExtensions.map(e => `
 
-          <option value="${e.extension}">Ext ${e.extension} (${e.display_name})</option>
+          <option value="${escapeHtml(e.extension)}">Ext ${escapeHtml(e.extension)} (${escapeHtml(e.display_name)})</option>
 
         `).join('');
 
@@ -3943,6 +4065,20 @@ function initApp() {
 
     const label = document.getElementById('addHandsetLabel').value.trim();
 
+    const cleanMac = mac.toLowerCase().replace(/[^0-9a-f]/g, '');
+    if (!/^[0-9a-f]{12}$/.test(cleanMac)) {
+      window.showToast('MAC address must be 12 hex digits.', 'error');
+      return;
+    }
+    if (!ext) {
+      window.showToast('Select an extension before registering the handset.', 'error');
+      return;
+    }
+    if (!brand || !model) {
+      window.showToast('Phone brand and model are required.', 'error');
+      return;
+    }
+
 
 
     const res = await fetchJson('/api/admin/handsets', {
@@ -3965,9 +4101,9 @@ function initApp() {
 
       loadHandsets();
 
-    } else if (res) {
+    } else {
 
-      window.showToast(`Error: ${res.error || 'Failed to register handset'}`, 'error');
+      window.showToast(res?.error || 'Failed to register handset', 'error');
 
     }
 
@@ -4013,7 +4149,7 @@ function initApp() {
 
           <td>
 
-            <strong>${r.site_name}</strong>
+            <strong>${escapeHtml(r.site_name)}</strong>
 
             ${isCustom ? '<span class="tag badge-primary" style="margin-left:6px;font-size:10px;">Custom Script</span>' : ''}
 
@@ -4021,7 +4157,7 @@ function initApp() {
 
           </td>
 
-          <td><strong>${r.brand.toUpperCase()}</strong> ${r.model || ''}</td>
+          <td><strong>${escapeHtml((r.brand || '').toUpperCase())}</strong> ${escapeHtml(r.model || '')}</td>
 
           <td>VLAN ${r.voice_vlan_id}</td>
 
@@ -4035,11 +4171,11 @@ function initApp() {
 
             <div style="display: flex; gap: 4px; flex-wrap: wrap;">
 
-              <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${r.site_name.replace(/'/g, "\\'")}', 'router', { site: '${r.site_name.replace(/'/g, "\\'")}', brand: '${r.brand}', id: ${r.id} })" title="Live Telemetry & Logs">Logs</button>
+              <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${jsAttr(r.site_name)}', 'router', { site: '${jsAttr(r.site_name)}', brand: '${jsAttr(r.brand)}', id: ${Number(r.id) || 0} })" title="Live Telemetry & Logs">Logs</button>
 
               <button class="btn btn-sm btn-primary" onclick="editRouterScript(${r.id})">Edit Script</button>
 
-              <button class="btn btn-sm btn-secondary" onclick="downloadRouterScript(${r.id}, '${r.site_name.replace(/'/g, "\\'")}', '${r.brand}')">Download</button>
+              <button class="btn btn-sm btn-secondary" onclick="downloadRouterScript(${Number(r.id) || 0}, '${jsAttr(r.site_name)}', '${jsAttr(r.brand)}')">Download</button>
 
               <button class="btn btn-sm btn-secondary" onclick="copyRouterUrl(${r.id})">Boot URL</button>
 
@@ -5256,7 +5392,7 @@ function initApp() {
 
       const perms = isSuper ? ['Full Superadmin Access'] : (u.permissions || []);
 
-      const permPills = perms.map(p => `<span class="tag" style="margin: 2px 2px 2px 0;">${p}</span>`).join('');
+      const permPills = perms.map(p => `<span class="tag" style="margin: 2px 2px 2px 0;">${escapeHtml(p)}</span>`).join('');
 
       const isSelf = currentUser && currentUser.id === u.id;
 
@@ -5266,9 +5402,9 @@ function initApp() {
 
         <tr>
 
-          <td><strong>${u.username}</strong> ${isSelf ? '<span class="badge badge-secondary" style="font-size:10px;">YOU</span>' : ''}</td>
+          <td><strong>${escapeHtml(u.username)}</strong> ${isSelf ? '<span class="badge badge-secondary" style="font-size:10px;">YOU</span>' : ''}</td>
 
-          <td>${u.display_name}</td>
+          <td>${escapeHtml(u.display_name)}</td>
 
           <td><span class="badge ${isSuper ? 'badge-primary' : 'badge-secondary'}">${u.role.toUpperCase()}</span></td>
 
@@ -5282,7 +5418,7 @@ function initApp() {
 
             <button class="btn btn-sm btn-secondary" onclick="editUser(${u.id})">Edit</button>
 
-            ${!isSelf ? `<button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id}, '${u.username}')">Delete</button>` : ''}
+            ${!isSelf ? `<button class="btn btn-sm btn-danger" onclick="deleteUser(${Number(u.id) || 0}, '${jsAttr(u.username)}')">Delete</button>` : ''}
 
           </td>
 
@@ -6560,7 +6696,7 @@ function initApp() {
 
 
 
-  function openCommandPalette() {
+  async function openCommandPalette() {
 
     if (!modalPalette) return;
 
@@ -6575,6 +6711,22 @@ function initApp() {
     }
 
     renderPaletteResults('');
+
+    const jobs = [];
+
+    if (!cachedExtensions.length) jobs.push(loadExtensions());
+
+    if (!cachedHandsets.length) jobs.push(loadHandsets());
+
+    if (!cachedRouters.length) jobs.push(loadRouters());
+
+    if (jobs.length) {
+
+      await Promise.all(jobs);
+
+      if (!modalPalette.classList.contains('hidden')) renderPaletteResults(paletteInput?.value || '');
+
+    }
 
   }
 
@@ -6639,6 +6791,8 @@ function initApp() {
       { type: 'nav', id: 'handsets', title: 'Physical Deskphone Fleet & Profiles', tag: 'Navigation', icon: '☎️' },
 
       { type: 'nav', id: 'routers', title: 'Network Gateways & Firewall Scripts', tag: 'Navigation', icon: '🌐' },
+
+      { type: 'nav', id: 'firmware', title: 'Firmware Repository', tag: 'Navigation', icon: '📦' },
 
       { type: 'nav', id: 'shell', title: 'Live Device Connectivity Stream', tag: 'Navigation', icon: '💻' },
 
@@ -6830,9 +6984,7 @@ function initApp() {
 
     if (item.type === 'nav') {
 
-      const btn = document.querySelector(`.nav-btn[data-tab="${item.id}"]`);
-
-      btn?.click();
+      window.switchTab(item.id);
 
     } else if (item.type === 'action') {
 
@@ -7416,11 +7568,11 @@ function initApp() {
 
         <tr>
 
-          <td><code style="font-weight: 700;">${d.mac_address}</code></td>
+          <td><code style="font-weight: 700;">${escapeHtml(d.mac_address)}</code></td>
 
-          <td><strong>${(d.brand || 'Yealink').toUpperCase()}</strong> ${d.model || ''}</td>
+          <td><strong>${escapeHtml((d.brand || 'Yealink').toUpperCase())}</strong> ${escapeHtml(d.model || '')}</td>
 
-          <td><span class="font-mono">${d.ip_address}</span></td>
+          <td><span class="font-mono">${escapeHtml(d.ip_address)}</span></td>
 
           <td><span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">Pending Adoption</span></td>
 
@@ -7430,11 +7582,11 @@ function initApp() {
 
             <div style="display: inline-flex; gap: 4px;">
 
-              <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${d.mac_address}', 'discovered', { mac: '${d.mac_address}', brand: '${d.brand}', ip: '${d.ip_address}' })">Logs</button>
+              <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${jsAttr(d.mac_address)}', 'discovered', { mac: '${jsAttr(d.mac_address)}', brand: '${jsAttr(d.brand || '')}', ip: '${jsAttr(d.ip_address || '')}' })">Logs</button>
 
-              <button class="btn btn-sm btn-primary" onclick="window.openAdoptModal('${d.mac_address}', '${d.brand}', '${d.model}')">Adopt Device</button>
+              <button class="btn btn-sm btn-primary" onclick="window.openAdoptModal('${jsAttr(d.mac_address)}', '${jsAttr(d.brand || '')}', '${jsAttr(d.model || '')}')">Adopt Device</button>
 
-              <button class="btn btn-sm btn-secondary" onclick="window.ignoreDiscoveredDevice('${d.mac_address}')">Dismiss</button>
+              <button class="btn btn-sm btn-secondary" onclick="window.ignoreDiscoveredDevice('${jsAttr(d.mac_address)}')">Dismiss</button>
 
             </div>
 
@@ -7476,7 +7628,7 @@ function initApp() {
 
       sel.innerHTML = '<option value="">Select an extension...</option>' + 
 
-        extData.extensions.map(e => `<option value="${e.extension}">Ext ${e.extension} — ${e.display_name} (${e.sip_username})</option>`).join('');
+        extData.extensions.map(e => `<option value="${escapeHtml(e.extension)}">Ext ${escapeHtml(e.extension)} — ${escapeHtml(e.display_name)} (${escapeHtml(e.sip_username)})</option>`).join('');
 
     } else {
 
@@ -7898,7 +8050,7 @@ function initApp() {
 
       return `
         <tr>
-          <td><strong>${f.brandName.toUpperCase()}</strong> ${f.modelName}</td>
+          <td><strong>${escapeHtml(String(f.brandName || '').toUpperCase())}</strong> ${escapeHtml(f.modelName)}</td>
           <td><code>${f.version}</code></td>
           <td><code class="text-xs">${f.filename}</code></td>
           <td>${statusBadge}</td>
@@ -7907,11 +8059,11 @@ function initApp() {
             ${isDownloaded 
               ? '<span class="text-xs muted" style="color: #10b981; font-weight: 600;">✓ Option 66 Ready</span>' 
               : f.directDownloadUrl 
-                ? `<button class="btn btn-xs btn-primary" onclick="autoDownloadFirmware('${f.brandId}', '${f.id}')">⚡ Cache Locally</button>`
+                ? `<button class="btn btn-xs btn-primary" onclick="autoDownloadFirmware('${jsAttr(f.brandId)}', '${jsAttr(f.id)}')">⚡ Cache Locally</button>`
                 : `<div style="display: inline-flex; gap: 6px;">
-                     <button class="btn btn-xs btn-primary" onclick="openFirmwareUploadModal('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}')" title="Upload official binary file (.rom / .bin)">📁 Upload</button>
-                     <button class="btn btn-xs btn-secondary" onclick="promptCustomFirmwareUrl('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}')" title="Enter custom direct download URL">🔗 URL</button>
-                     ${f.portalUrl ? `<a href="${f.portalUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-secondary" title="Open vendor support portal in new tab" style="text-decoration: none;">↗ Portal</a>` : ''}
+                     <button class="btn btn-xs btn-primary" onclick="openFirmwareUploadModal('${jsAttr(f.brandId)}', '${jsAttr(f.id)}', '${jsAttr(f.brandName)}', '${jsAttr(f.modelName)}')" title="Upload official binary file (.rom / .bin)">📁 Upload</button>
+                     <button class="btn btn-xs btn-secondary" onclick="promptCustomFirmwareUrl('${jsAttr(f.brandId)}', '${jsAttr(f.id)}', '${jsAttr(f.brandName)}', '${jsAttr(f.modelName)}')" title="Enter custom direct download URL">🔗 URL</button>
+                     ${(typeof f.portalUrl === 'string' && /^https?:\/\//i.test(f.portalUrl)) ? `<a href="${escapeHtml(f.portalUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-secondary" title="Open vendor support portal in new tab" style="text-decoration: none;">↗ Portal</a>` : ''}
                    </div>`
             }
           </td>
@@ -7937,6 +8089,10 @@ function initApp() {
         window.showToast('Firmware binaries sync started in background.', 'success');
 
         loadFirmwareRepository();
+
+      } else {
+
+        window.showToast(res?.error || 'Failed to start firmware sync.', 'error');
 
       }
 
