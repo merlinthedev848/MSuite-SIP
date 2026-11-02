@@ -32,7 +32,7 @@ export function substituteTemplateVariables(raw: string, config: Partial<ServerC
 
 import { Router, Request, Response } from 'express';
 import systemDb, { logActivity } from '../database/systemDb';
-import { SERVER_DOMAIN } from '../config';
+import { resolvePublicHandlerUrl } from '../config';
 import { ServerConfigRow, HandsetWithExtensionRow, RouterRow, ExtensionRow } from '../types/models';
 import { broadcastDeviceLog } from '../services/telemetryStream';
 import { generateYealinkConfig, HandsetAccountConfig } from '../templates/yealink';
@@ -230,7 +230,9 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     metadata: { extension: handset.extension, brand: handset.brand, model: handset.model, customized: !!(handset.custom_config && handset.custom_config.trim()) }
   });
 
-  const config = getServerConfigStmt.get() as ServerConfigRow | undefined;
+  const storedConfig = getServerConfigStmt.get() as ServerConfigRow | undefined;
+  const dataHandlerUrl = resolvePublicHandlerUrl(storedConfig?.data_handler_url, req.get('host'), req.protocol);
+  const config = storedConfig ? { ...storedConfig, data_handler_url: dataHandlerUrl } : storedConfig;
 
   let blfKeys: Array<{ key: number; extension: string; label: string }> = [];
   if (handset.blf_keys_json) {
@@ -242,7 +244,6 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
   const pbxServer = config?.pbx_server || '127.0.0.1';
   const pbxPort = config?.pbx_port || 5060;
   const pbxTransport = config?.pbx_transport || 'UDP';
-  const dataHandlerUrl = config?.data_handler_url || 'https://handler.chriskendall.media';
 
   const accountCfg: HandsetAccountConfig = {
     extension: handset.extension,
@@ -306,7 +307,8 @@ router.get('/provision/router/:identifier', (req: Request, res: Response) => {
     return res.send(routerRec.custom_script);
   }
 
-  const config = getServerConfigStmt.get() as ServerConfigRow | undefined;
+  const storedRouterConfig = getServerConfigStmt.get() as ServerConfigRow | undefined;
+  const routerHandlerUrl = resolvePublicHandlerUrl(storedRouterConfig?.data_handler_url, req.get('host'), req.protocol);
 
   const params: RouterConfigParams = {
     siteName: routerRec.site_name,
@@ -316,8 +318,8 @@ router.get('/provision/router/:identifier', (req: Request, res: Response) => {
     lanSubnet: routerRec.lan_subnet || undefined,
     voiceVlanId: routerRec.voice_vlan_id || 20,
     voiceSubnet: routerRec.voice_subnet || '10.20.0.1/24',
-    pbxServer: config?.pbx_server || '127.0.0.1',
-    dataHandlerUrl: config?.data_handler_url || 'https://handler.chriskendall.media',
+    pbxServer: storedRouterConfig?.pbx_server || '127.0.0.1',
+    dataHandlerUrl: routerHandlerUrl,
     disableSipAlg: routerRec.disable_sip_alg === 1,
     enableQos: routerRec.enable_qos === 1
   };

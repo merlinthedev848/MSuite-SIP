@@ -35,3 +35,36 @@ export const DEFAULT_PBX_SERVER = process.env.PBX_SERVER || 'pbx.chriskendall.me
 export const DEFAULT_PBX_PORT = parseInt(process.env.PBX_PORT || '5060', 10);
 export const DEFAULT_PBX_TRANSPORT = process.env.PBX_TRANSPORT || 'UDP';
 export const LICENSE_KEY = process.env.LICENSE_KEY || 'MANAGED-STANDARD';
+
+const STOCK_HANDLER_HOST = 'handler.chriskendall.media';
+
+export function stockHandlerUrl(): string {
+  return `https://${SERVER_DOMAIN}`.replace(/\/$/, '');
+}
+
+/** True when the saved handler URL is still the built-in default and was not set via SERVER_DOMAIN. */
+export function isStockHandlerUrl(stored: string | null | undefined): boolean {
+  if (process.env.SERVER_DOMAIN) return false;
+  const value = String(stored || '').trim().replace(/\/$/, '');
+  return !value || value === stockHandlerUrl() || value.includes(STOCK_HANDLER_HOST);
+}
+
+/**
+ * Public URL phones and welcome cards should use.
+ * A fresh install keeps the stock domain in the database, but a dashboard opened
+ * on another host should advertise the host that actually answered the request
+ * until an operator saves a public URL.
+ */
+export function resolvePublicHandlerUrl(
+  stored: string | null | undefined,
+  requestHost?: string | null,
+  requestProtocol?: string | null
+): string {
+  const configured = String(stored || '').trim().replace(/\/$/, '');
+  const effective = configured || stockHandlerUrl();
+  const host = String(requestHost || '').trim();
+  if (!host || !isStockHandlerUrl(effective)) return effective;
+  if (host.includes(STOCK_HANDLER_HOST)) return effective;
+  const proto = requestProtocol === 'https' ? 'https' : 'http';
+  return `${proto}://${host}`.replace(/\/$/, '');
+}

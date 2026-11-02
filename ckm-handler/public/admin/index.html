@@ -6,7 +6,7 @@
   <title>CKM Handler — Enterprise Communications & Provisioning Gateway</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="shortcut icon" href="favicon.ico">
-  <link rel="stylesheet" href="style.css?v=1.5.0">
+  <link rel="stylesheet" href="style.css?v=1.5.1">
   <script>
     // Immediately populate live host domain across endpoints on DOM ready
     document.addEventListener('DOMContentLoaded', () => {
@@ -65,7 +65,7 @@
 
       <div class="sidebar-footer">
         <div class="status-indicator">
-          <span class="status-dot green"></span> Online (Port 443)
+          <span class="status-dot green" id="sidebarStatusDot"></span> <span id="sidebarOnlineLabel">Online</span>
         </div>
         <span class="muted" style="font-size: 11px;">v1.4.0</span>
       </div>
@@ -127,14 +127,14 @@
           <div class="pulse-left">
             <span class="pulse-radar-dot"></span>
             <div>
-              <div class="pulse-title">All Systems Operational</div>
-              <div class="pulse-subtitle">Zero-Touch Provisioning Active · PBX Core Synced · DHCP Option 66 Listening</div>
+              <div class="pulse-title" id="pulseTitle">Checking services</div>
+              <div class="pulse-subtitle" id="pulseSubtitle">Loading live provisioning status.</div>
             </div>
           </div>
           <div class="pulse-right">
-            <span class="pulse-chip" id="chipPbxHealth">PBX: < 1ms</span>
+            <span class="pulse-chip" id="chipPbxHealth">PBX: not probed</span>
             <span class="pulse-chip" id="chipAutoAdoptStatus">Auto-Adopt: Disabled</span>
-            <span class="pulse-chip" id="chipAutoSyncStatus">Auto-Sync: Active (5m)</span>
+            <span class="pulse-chip" id="chipAutoSyncStatus">Auto-Sync: …</span>
             <button class="btn btn-sm btn-light" id="btnOpenEndpointsModal" title="View Public Client & Provisioning URLs">Client Endpoints</button>
           </div>
         </div>
@@ -345,7 +345,7 @@
               </div>
               <div class="diag-metric-box">
                 <span class="diag-label">Probe Status</span>
-                <span class="status-pill operational" id="pingStatusPill">Connected</span>
+                <span class="status-pill" id="pingStatusPill">Not probed</span>
               </div>
               <div class="diag-metric-box">
                 <span class="diag-label">Protocol Standard</span>
@@ -353,10 +353,10 @@
               </div>
               <div class="diag-metric-box">
                 <span class="diag-label">Last Round-Trip RTT</span>
-                <span class="diag-val font-mono" id="pingLatencyVal">&lt; 1 ms</span>
+                <span class="diag-val font-mono" id="pingLatencyVal">—</span>
               </div>
             </div>
-            <div class="ping-telemetry-console" id="pingDetails">Automated background socket probe active. Sub-millisecond latency to PBX core.</div>
+            <div class="ping-telemetry-console" id="pingDetails">No probe has run yet. Use Probe Latency to measure the configured PBX.</div>
           </div>
         </div>
 
@@ -896,7 +896,7 @@
                 <div style="display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 14px;">
                   <div id="previewLogoBox" style="width: 40px; height: 40px; border-radius: 8px; background: #2563eb; display: flex; align-items: center; justify-content: center; overflow: hidden;">
                     <span id="previewLogoFallback" style="font-weight: 800; font-size: 18px;">M</span>
-                    <img id="previewLogoImg" src="" style="width: 100%; height: 100%; object-fit: contain; display: none;">
+                    <img id="previewLogoImg" alt="" style="width: 100%; height: 100%; object-fit: contain; display: none;">
                   </div>
                   <div>
                     <div id="previewBrandTitle" style="font-weight: 700; font-size: 15px;">MerlinSIP</div>
@@ -933,13 +933,14 @@
                     <th>Username</th>
                     <th>Display Name</th>
                     <th>Role</th>
+                    <th>Permissions</th>
                     <th>Status</th>
                     <th>Last Login</th>
                     <th style="text-align: right;">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="userTableBody">
-                  <tr><td colspan="6" class="text-center">Loading admin accounts...</td></tr>
+                  <tr><td colspan="7" class="text-center">Loading admin accounts...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -1643,7 +1644,58 @@
   <!-- Floating Toast Notifications Container -->
   <div id="toastContainer" class="toast-container"></div>
 
-  <script src="app.js?v=1.5.0"></script>
+  <div id="modalCommandPalette" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="paletteHeading">
+    <div class="command-palette-card">
+      <div class="palette-header">
+        <label id="paletteHeading" class="sr-only">Search the dashboard</label>
+        <input id="paletteSearchInput" class="palette-input" type="search" placeholder="Search extensions, handsets, routers, or jump to a page" autocomplete="off">
+        <button type="button" class="palette-esc" id="btnClosePalette">ESC</button>
+      </div>
+      <div id="paletteResults" class="palette-results"></div>
+    </div>
+  </div>
+
+  <div id="modalPreferences" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="prefHeading">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 id="prefHeading">Console preferences</h3>
+        <button class="modal-close" id="btnClosePreferences" type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formPreferences">
+          <div class="form-group">
+            <label for="prefPollRate">Overview refresh</label>
+            <select id="prefPollRate">
+              <option value="0">Off</option>
+              <option value="5000">Every 5 seconds</option>
+              <option value="15000" selected>Every 15 seconds</option>
+              <option value="30000">Every 30 seconds</option>
+              <option value="60000">Every minute</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="prefShellBuffer">Shell log buffer</label>
+            <select id="prefShellBuffer">
+              <option value="100">100 lines</option>
+              <option value="300" selected>300 lines</option>
+              <option value="1000">1000 lines</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
+              <input type="checkbox" id="prefShellAutoScroll" checked> Auto-scroll the live shell
+            </label>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" class="btn btn-secondary" id="btnCancelPreferences">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save preferences</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=1.5.1"></script>
 
   <!-- Omada One-Click Adopt Device Modal -->
   <div id="modalAdoptDevice" class="modal-backdrop hidden">
@@ -1698,6 +1750,8 @@
       </div>
       <div class="modal-body">
         <p class="muted" style="margin-bottom: 16px;">These are the public connection URLs used by VoIP deskphones, site routers, and softphone clients.</p>
+        <div id="handlerUrlNotice" class="alert hidden" style="margin-bottom: 14px;"></div>
+        <button type="button" class="btn btn-sm btn-primary hidden" id="btnUseLiveHandlerUrl" style="margin-bottom: 14px;">Save this server as the handler URL</button>
         <div class="endpoint-grid" style="display: flex; flex-direction: column; gap: 12px;">
           <div class="endpoint-card">
             <div class="endpoint-card-top">
