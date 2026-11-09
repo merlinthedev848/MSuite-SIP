@@ -1,8 +1,8 @@
-{
+﻿{
     "Version":  "1.3.9.4",
     "DownloadUrl":  "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.9.4-x64-faststart.msi",
-    "Sha256":  "6E924BE4EDC857ADBB7F83A07D7EA30E9582C91607EC07143C7B78298153BDAD",
+    "Sha256":  "AC1168AE5CA89A94F772F59B46F022278F801286512912D716443AE9F05495AE",
     "FileSizeBytes":  80638732,
     "ReleaseDate":  "2026-11-09",
-    "Notes":  "Release 1.3.9.4: Fix RFC 3550 RTP jitter calculation and false MOS collapse on early-media to connected call handovers, eradicate in-call button tofu glyphs with guaranteed vector fallbacks, prevent contact lookup suffix false-positives on feature codes (*2 Voicemail), and label handler monitor in settings about section."
+    "Notes":  "Release 1.3.9.4: Remove cross-tenant directory sync (GDPR fix), restore 44.1 kHz DTMF dial pips \u0026 outbound early-media RTP clocking/ringback, preserve measured Call Quality MOS/jitter snapshots on call end, replace unmeasured quality text in recents with a compact vector icon badge, and fix RFC 3550 jitter \u0026 feature-code contact lookups."
 }

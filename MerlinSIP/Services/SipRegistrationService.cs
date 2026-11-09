@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -142,7 +142,9 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
     public bool HasPendingIncomingCall => _pendingIncomingCall is not null;
 
-    public bool HasInboundRtpAudio => _audioSession?.ReceivedPackets > 0;
+    public bool HasInboundRtpAudio => _audioSession?.HasAudibleInboundAudio == true;
+
+    public bool IsAudioSessionRunning => _audioSession?.IsRunning == true;
 
     public float CurrentMicLevel => _audioSession?.CurrentMicLevel ?? 0f;
 
@@ -175,6 +177,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         }
 
         DebugLog.Write($"Clearing stale call state reason={reason} line1={_line1Call?.CallId} line2={_line2Call?.CallId} pending={_pendingIncomingCall?.CallId}");
+        CaptureAudioQualitySnapshot(_audioSession);
         _audioSession?.Dispose();
         _audioSession = null;
         _line1Call = null;
@@ -238,17 +241,38 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         return (true, path);
     }
 
-    public bool HasMeasuredCallQuality => _audioSession?.ReceivedPackets > 0;
+    private (double LossPercent, double JitterMs, double LatencyMs, int SignalBars, string QualityText) _lastCallQualityStats = (0.0, 0.0, 0.0, 0, "Not measured");
+    private bool _lastCallHadMeasuredQuality;
+    private string _lastCallCodec = "";
 
-    public string NegotiatedAudioCodec => _audioSession?.NegotiatedCodec ?? "";
+    private void ResetLastCallQualitySnapshot()
+    {
+        _lastCallQualityStats = (0.0, 0.0, 0.0, 0, "Not measured");
+        _lastCallHadMeasuredQuality = false;
+        _lastCallCodec = "";
+    }
+
+    private void CaptureAudioQualitySnapshot(RtpAudioSession? session)
+    {
+        if (session is not null && session.ReceivedPackets > 0)
+        {
+            _lastCallQualityStats = session.GetQualityStats();
+            _lastCallHadMeasuredQuality = true;
+            _lastCallCodec = session.NegotiatedCodec ?? "";
+        }
+    }
+
+    public bool HasMeasuredCallQuality => (_audioSession?.ReceivedPackets > 0) || _lastCallHadMeasuredQuality;
+
+    public string NegotiatedAudioCodec => _audioSession?.NegotiatedCodec ?? _lastCallCodec;
 
     public (double LossPercent, double JitterMs, double LatencyMs, int SignalBars, string QualityText) GetCallQualityStats()
     {
         if (_audioSession is null || _audioSession.ReceivedPackets <= 0)
         {
-            return (0.0, 0.0, 0.0, 0, "Not measured");
+            return _lastCallHadMeasuredQuality ? _lastCallQualityStats : (0.0, 0.0, 0.0, 0, "Not measured");
         }
-
+        CaptureAudioQualitySnapshot(_audioSession);
         return _audioSession.GetQualityStats();
     }
 
@@ -876,7 +900,9 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
         if (_audioSession is null)
         {
-            _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume);
+            ResetLastCallQualitySnapshot();
+        _audioSession?.Dispose();
+        _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume);
             try
             {
                 _audioSession.PrepareDevices();
@@ -900,6 +926,14 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         _line1Call = activeCall;
         var firstResponse = await SendAndWaitFromListenerAsync(invite, cancellationToken);
         DebugLog.Write($"INVITE RESPONSE line=1 code={firstResponse.Code} reason={firstResponse.Reason}");
+        if (!IsCurrentCall(callId) && firstResponse.Code >= 300)
+        {
+            try
+            {
+                await SendAckForFinalInviteResponseForCallAsync(activeCall with { RemoteTag = ExtractTag(firstResponse.Headers.GetValueOrDefault("to", "")) }, firstResponse, CancellationToken.None);
+            }
+            catch { }
+        }
         if (!IsCurrentCall(callId))
         {
             return new SipCallResult(false, "Call ended.");
@@ -934,6 +968,14 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             _line1Call = activeCall;
             var secondResponse = await SendAndWaitFromListenerAsync(secondInvite, cancellationToken);
             DebugLog.Write($"AUTH INVITE RESPONSE line=1 code={secondResponse.Code} reason={secondResponse.Reason}");
+            if (!IsCurrentCall(callId) && secondResponse.Code >= 300)
+            {
+                try
+                {
+                    await SendAckForFinalInviteResponseForCallAsync(activeCall with { RemoteTag = ExtractTag(secondResponse.Headers.GetValueOrDefault("to", "")) }, secondResponse, CancellationToken.None);
+                }
+                catch { }
+            }
             if (!IsCurrentCall(callId))
             {
                 return new SipCallResult(false, "Call ended.");
@@ -1006,7 +1048,9 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
         if (_audioSession is null)
         {
-            _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume);
+            ResetLastCallQualitySnapshot();
+        _audioSession?.Dispose();
+        _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume);
             try
             {
                 _audioSession.PrepareDevices();
@@ -1294,6 +1338,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             return new SipCallResult(false, "Unable to answer because the call did not include usable audio details.");
         }
 
+        _audioSession?.Dispose();
+        ResetLastCallQualitySnapshot();
         _audioSession?.Dispose();
         _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume);
         try
@@ -1959,13 +2005,14 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         await SendToServerAsync(payload, cancellationToken);
     }
 
-    private static void DisposeAudioSessionInBackground(RtpAudioSession? audioSession, string reason)
+    private void DisposeAudioSessionInBackground(RtpAudioSession? audioSession, string reason)
     {
         if (audioSession is null)
         {
             return;
         }
 
+        CaptureAudioQualitySnapshot(audioSession);
         _disposingAudioTask = Task.Run(() =>
         {
             try
@@ -3837,8 +3884,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
         string[] patterns = new[]
         {
-            "entity\\s*=\\s*[\"'’]?(?:sip:)?([^@\"'’>;]+)",
-            "<tuple\\s+id\\s*=\\s*[\"'’]?(?:sip:)?([^@\"'’>;]+)",
+            "entity\\s*=\\s*[\"'â€™]?(?:sip:)?([^@\"'â€™>;]+)",
+            "<tuple\\s+id\\s*=\\s*[\"'â€™]?(?:sip:)?([^@\"'â€™>;]+)",
             "<local>.*?<identity[^>]*>\\s*(?:sip:)?([^<@>;]+)",
             "<remote>.*?<identity[^>]*>\\s*(?:sip:)?([^<@>;]+)",
             "<identity[^>]*>\\s*(?:sip:)?([^<@>;]+)"
@@ -3913,19 +3960,19 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         if (body.Contains("dialog-info", StringComparison.OrdinalIgnoreCase))
         {
             // Ringing states
-            if (Regex.IsMatch(body, "<state>\\s*(?:early|trying)\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'’]?(?:early|trying)", RegexOptions.IgnoreCase))
+            if (Regex.IsMatch(body, "<state>\\s*(?:early|trying)\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'â€™]?(?:early|trying)", RegexOptions.IgnoreCase))
             {
                 return "Ringing";
             }
 
             // Confirmed / active call states
-            if (Regex.IsMatch(body, "<state>\\s*confirmed\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'’]?confirmed", RegexOptions.IgnoreCase))
+            if (Regex.IsMatch(body, "<state>\\s*confirmed\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'â€™]?confirmed", RegexOptions.IgnoreCase))
             {
                 return "Busy";
             }
 
             // Terminated or idle states -> Available
-            if (Regex.IsMatch(body, "<state>\\s*terminated\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'’]?terminated", RegexOptions.IgnoreCase))
+            if (Regex.IsMatch(body, "<state>\\s*terminated\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'â€™]?terminated", RegexOptions.IgnoreCase))
             {
                 return "Available";
             }

@@ -1,22 +1,7 @@
 import { Router, Request, Response } from 'express';
-import vaultDb from '../database/vaultDb';
-import systemDb from '../database/systemDb';
-import { ExtensionRow } from '../types/models';
 import { broadcastDeviceLog } from '../services/telemetryStream';
 
-interface VaultContactRow {
-  extension: string;
-  full_name?: string;
-  mobile?: string;
-  email?: string;
-  department?: string;
-}
-
 const router = Router();
-
-// Pre-compiled prepared statements for zero-overhead query execution
-const getVaultContactsStmt = vaultDb.prepare('SELECT extension, full_name, mobile, email, department FROM contacts');
-const getExtensionsStmt = systemDb.prepare('SELECT extension, display_name, email FROM extensions WHERE is_active = 1');
 
 // XML Special Characters Escaping for Hardware Deskphones
 function escapeXml(unsafe: string): string {
@@ -33,27 +18,9 @@ function escapeXml(unsafe: string): string {
 }
 
 // Helper to get unified contact entries
-function getUnifiedContacts() {
-  // Pull from vaultDb contacts first, then fallback to systemDb extensions
-  const vaultContacts = getVaultContactsStmt.all() as VaultContactRow[];
-  const extensions = getExtensionsStmt.all() as Pick<ExtensionRow, 'extension' | 'display_name'>[];
-
-  const map = new Map<string, { extension: string; name: string; email?: string; mobile?: string }>();
-  
-  for (const ext of (extensions as any)) {
-    map.set(ext.extension, { extension: ext.extension, name: ext.display_name, email: ext.email });
-  }
-
-  for (const vc of vaultContacts) {
-    map.set(vc.extension, {
-      extension: vc.extension,
-      name: vc.full_name || map.get(vc.extension)?.name || vc.extension,
-      email: vc.email,
-      mobile: vc.mobile
-    });
-  }
-
-  return Array.from(map.values()).sort((a, b) => a.extension.localeCompare(b.extension));
+// GDPR / Multi-Tenant Isolation: Never expose system-wide PBX extensions across tenants.
+function getUnifiedContacts(): Array<{ extension: string; name: string; email?: string; mobile?: string }> {
+  return [];
 }
 
 // 1. JSON Endpoint for MerlinSIP Softphones

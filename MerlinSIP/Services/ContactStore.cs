@@ -27,7 +27,15 @@ public sealed class ContactStore
         try
         {
             await using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
-            return await JsonSerializer.DeserializeAsync<List<ContactEntry>>(stream) ?? [];
+            var loaded = await JsonSerializer.DeserializeAsync<List<ContactEntry>>(stream) ?? [];
+            var sanitized = loaded
+                .Where(c => !string.Equals(c.Company?.Trim(), "Corporate Directory", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (sanitized.Count != loaded.Count)
+            {
+                await SaveAsync(sanitized);
+            }
+            return sanitized;
         }
         catch (Exception error)
         {

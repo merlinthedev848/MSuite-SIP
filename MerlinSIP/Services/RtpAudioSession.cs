@@ -122,6 +122,10 @@ public sealed class RtpAudioSession : IDisposable
 
 	private int _nonSilentInboundFrames;
 
+	private int _audibleInboundFrames;
+
+	private int _earlyMediaRingbackSampleIndex;
+
 	private int _speakerFramesWritten;
 
 	private int _audioPumpLateWarnings;
@@ -152,6 +156,10 @@ public sealed class RtpAudioSession : IDisposable
 	public int ReceivedPackets => Volatile.Read(in _receivedPackets);
 
 	public int SentPackets => Volatile.Read(in _sentPackets);
+
+	public bool IsRunning => _running;
+
+	public bool HasAudibleInboundAudio => Volatile.Read(in _audibleInboundFrames) >= 6;
 
 	public float CurrentMicLevel { get; private set; }
 
@@ -787,7 +795,25 @@ public sealed class RtpAudioSession : IDisposable
 		var peak = 0;
 		for (int i = 0; i < SamplesPerPacket; i++)
 		{
-			short sample = (short)Math.Clamp(call1Frame[i] + call2Frame[i], -32768, 32767);
+			short sample;
+			if (!_transmitMicrophone && !HasAudibleInboundAudio)
+			{
+				int pos = _earlyMediaRingbackSampleIndex++ % 24000;
+				if ((pos >= 0 && pos < 3200) || (pos >= 4800 && pos < 8000))
+				{
+					double t = (double)pos / SampleRate;
+					double wave = 0.25 * (Math.Sin(2.0 * Math.PI * 400.0 * t) + Math.Sin(2.0 * Math.PI * 450.0 * t));
+					sample = (short)(wave * 32767);
+				}
+				else
+				{
+					sample = 0;
+				}
+			}
+			else
+			{
+				sample = (short)Math.Clamp(call1Frame[i] + call2Frame[i], -32768, 32767);
+			}
 			sample = ApplyGain(sample, _outputGain);
 			var level = Math.Abs(sample);
 			if (level > peak)
@@ -806,14 +832,16 @@ public sealed class RtpAudioSession : IDisposable
 
 	private void SendPrimaryFrame(short[] micFrame, short[] call2Frame)
 	{
-		if (!_running || !_transmitMicrophone || _call1Held || _remoteEndPoint == null)
+		if (!_running || _call1Held || _remoteEndPoint == null)
 		{
 			return;
 		}
 
 		for (int i = 0; i < SamplesPerPacket; i++)
 		{
-			short sample = _conferenceMerged ? (short)Math.Clamp(micFrame[i] + call2Frame[i], -32768, 32767) : micFrame[i];
+			short sample = !_transmitMicrophone
+				? (short)0
+				: (_conferenceMerged ? (short)Math.Clamp(micFrame[i] + call2Frame[i], -32768, 32767) : micFrame[i]);
 			_payload1Buffer[i] = (_payloadType == 8) ? G711Codec.LinearToALaw(sample) : G711Codec.LinearToMuLaw(sample);
 		}
 
@@ -1002,6 +1030,10 @@ public sealed class RtpAudioSession : IDisposable
 						{
 							var extension = (udpReceiveResult.Buffer[0] & 0x10) != 0;
 							DebugLog.Write($"RTP first inbound packet remote={udpReceiveResult.RemoteEndPoint} payload={num3} bytes={udpReceiveResult.Buffer.Length} offset={payloadOffset} ext={extension} peak={peak} queue={rxQueue.Count}");
+						}
+						if (peak > 2200)
+						{
+							Interlocked.Increment(ref _audibleInboundFrames);
 						}
 						if (peak > 400 && Interlocked.Exchange(ref _nonSilentInboundFrames, 1) == 0)
 						{

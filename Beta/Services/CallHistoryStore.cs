@@ -33,10 +33,15 @@ public sealed class CallHistoryStore
             var loaded = await JsonSerializer.DeserializeAsync<List<CallHistoryEntry>>(stream) ?? [];
             return loaded.Where(call => !CallHistoryEntry.IsStockFiller(call)).Select(call =>
             {
+                var cleanedName = (call.Name ?? "").Replace("Corporate Directory", "", StringComparison.OrdinalIgnoreCase).Trim();
                 var feature = DeskPhone.GetFeatureCodeName(call.Number);
-                if (feature != null && (string.IsNullOrWhiteSpace(call.Name) || call.Name != feature))
+                if (feature != null && (string.IsNullOrWhiteSpace(cleanedName) || cleanedName != feature))
                 {
                     return call with { Name = feature };
+                }
+                if (cleanedName != (call.Name ?? ""))
+                {
+                    return call with { Name = string.IsNullOrWhiteSpace(cleanedName) ? call.Number : cleanedName };
                 }
                 return call;
             }).ToList();

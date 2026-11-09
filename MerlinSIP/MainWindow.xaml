@@ -1571,13 +1571,14 @@
                                                                     Cursor="Hand"
                                                                     HorizontalAlignment="Center"
                                                                     VerticalAlignment="Center"
-                                                                    ToolTip="View call quality: latency, jitter, bitrate (Tx/Rx) and packet loss">
+                                                                    ToolTip="{Binding QualityTooltip}">
                                                                 <Button.Template>
                                                                     <ControlTemplate TargetType="Button">
                                                                         <Border x:Name="QBadge" Background="{Binding QualityBadgeBackground}" CornerRadius="6" Padding="6,2">
                                                                             <StackPanel Orientation="Horizontal">
-                                                                                <TextBlock Text="{Binding QualitySummaryDisplay}" Foreground="{Binding QualityBadgeForeground}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center" />
-                                                                                <TextBlock Text="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="7" Foreground="{Binding QualityBadgeForeground}" Margin="4,1,0,0" VerticalAlignment="Center" />
+                                                                                <Path Data="M1,9 L2.8,9 L2.8,12 L1,12 Z M4.2,6.5 L6,6.5 L6,12 L4.2,12 Z M7.4,4 L9.2,4 L9.2,12 L7.4,12 Z M10.6,1.5 L12.4,1.5 L12.4,12 L10.6,12 Z" Fill="{Binding QualityBadgeForeground}" Width="12" Height="11" Stretch="Uniform" VerticalAlignment="Center" />
+                                                                                <TextBlock Text="{Binding QualityBadgeText}" Visibility="{Binding QualityTextVisibility}" Foreground="{Binding QualityBadgeForeground}" FontWeight="SemiBold" FontSize="10" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                                                                <!-- Vector icon replaces broken PUA glyph -->
                                                                             </StackPanel>
                                                                         </Border>
                                                                         <ControlTemplate.Triggers>
@@ -2057,8 +2058,12 @@
                                             <Border Grid.Column="4" Background="{Binding ResultBadgeBackground}" CornerRadius="6" Padding="6,3" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Result}" Foreground="{Binding ResultBadgeForeground}" FontWeight="SemiBold" FontSize="12" />
                                             </Border>
-                                            <Border Grid.Column="5" Background="{Binding QualityBadgeBackground}" CornerRadius="6" Padding="8,3" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="Mean Opinion Score (MOS) and Quality Level">
-                                                <TextBlock Text="{Binding QualitySummaryDisplay}" Foreground="{Binding QualityBadgeForeground}" FontWeight="SemiBold" FontSize="12" />
+                                            <Border Grid.Column="5" Background="{Binding QualityBadgeBackground}" CornerRadius="6" Padding="8,4" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="{Binding QualityTooltip}">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Path Data="M1,9 L2.8,9 L2.8,12 L1,12 Z M4.2,6.5 L6,6.5 L6,12 L4.2,12 Z M7.4,4 L9.2,4 L9.2,12 L7.4,12 Z M10.6,1.5 L12.4,1.5 L12.4,12 L10.6,12 Z" Fill="{Binding QualityBadgeForeground}" Width="13" Height="12" Stretch="Uniform" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding QualityBadgeText}" Visibility="{Binding QualityTextVisibility}" Foreground="{Binding QualityBadgeForeground}" FontWeight="SemiBold" FontSize="12" Margin="5,0,0,0" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                                <!-- QualityBadgeText rendered inside StackPanel above -->
                                             </Border>
                                             <Button Grid.Column="6"
                                                     Tag="{Binding}"

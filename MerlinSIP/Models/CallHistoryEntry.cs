@@ -44,6 +44,19 @@ public sealed record CallHistoryEntry
     public string MosDisplay => HasMeasuredQuality ? $"{MosScore:F1} MOS" : "Not measured";
 
     [System.Text.Json.Serialization.JsonIgnore]
+    public string QualityBadgeText => HasMeasuredQuality ? $"{MosScore:F1} MOS" : "";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public System.Windows.Visibility QualityTextVisibility => HasMeasuredQuality
+        ? System.Windows.Visibility.Visible
+        : System.Windows.Visibility.Collapsed;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string QualityTooltip => HasMeasuredQuality
+        ? $"Call Quality: {MosDisplay} ({QualityLevel}) — Click to inspect"
+        : "Quality not measured (call ended before audio measurement)";
+
+    [System.Text.Json.Serialization.JsonIgnore]
     public string QualitySummaryDisplay => HasMeasuredQuality
         ? QualityLevel switch
         {

@@ -36,10 +36,10 @@ public static class DtmfTonePlayer
 
     static DtmfTonePlayer()
     {
-        const int sampleRate = 8000;
-        const int durationMs = 120; // Crisp 120ms standard dial tone
+        const int sampleRate = 44100;
+        const int durationMs = 150; // Crisp 150ms standard dial pip at 44.1 kHz
         const int sampleCount = sampleRate * durationMs / 1000;
-        const int fadeSamples = sampleRate * 6 / 1000; // 6ms fade in/out to eliminate clicks
+        const int fadeSamples = sampleRate * 8 / 1000; // 8ms fade in/out to eliminate clicks
 
         foreach (var (digit, (low, high)) in Frequencies)
         {
@@ -57,7 +57,7 @@ public static class DtmfTonePlayer
                     envelope = (double)(sampleCount - i) / fadeSamples;
                 }
 
-                double val = envelope * 0.32 * (Math.Sin(2.0 * Math.PI * low * t) + Math.Sin(2.0 * Math.PI * high * t));
+                double val = envelope * 0.42 * (Math.Sin(2.0 * Math.PI * low * t) + Math.Sin(2.0 * Math.PI * high * t));
                 short sample = (short)(Math.Clamp(val, -1.0, 1.0) * 32767);
                 buffer[i * 2] = (byte)(sample & 0xFF);
                 buffer[i * 2 + 1] = (byte)((sample >> 8) & 0xFF);
@@ -87,9 +87,13 @@ public static class DtmfTonePlayer
         {
             try
             {
-                var format = WaveFormat.Pcm16Mono8k();
+                var format = WaveFormat.Pcm16Mono44k();
                 int openResult = WinMm.waveOutOpen(out var hWaveOut, deviceId, ref format, IntPtr.Zero, IntPtr.Zero, 0);
-                if (openResult != 0) return;
+                if (openResult != 0 && deviceId != -1)
+                {
+                    openResult = WinMm.waveOutOpen(out hWaveOut, -1, ref format, IntPtr.Zero, IntPtr.Zero, 0);
+                }
+                if (openResult != 0 || hWaveOut == IntPtr.Zero) return;
 
                 var gcHandle = GCHandle.Alloc(pcm, GCHandleType.Pinned);
                 IntPtr pHeader = IntPtr.Zero;
@@ -101,12 +105,24 @@ public static class DtmfTonePlayer
                         BufferLength = pcm.Length,
                         Flags = 0
                     };
-                    pHeader = Marshal.AllocHGlobal(Marshal.SizeOf<WaveHeader>());
+                    int headerSize = Marshal.SizeOf<WaveHeader>();
+                    pHeader = Marshal.AllocHGlobal(headerSize);
                     Marshal.StructureToPtr(header, pHeader, false);
-                    WinMm.waveOutPrepareHeader(hWaveOut, pHeader, Marshal.SizeOf<WaveHeader>());
-                    WinMm.waveOutWrite(hWaveOut, pHeader, Marshal.SizeOf<WaveHeader>());
-                    Thread.Sleep(140);
-                    WinMm.waveOutUnprepareHeader(hWaveOut, pHeader, Marshal.SizeOf<WaveHeader>());
+                    WinMm.waveOutPrepareHeader(hWaveOut, pHeader, headerSize);
+                    WinMm.waveOutWrite(hWaveOut, pHeader, headerSize);
+
+                    for (int wait = 0; wait < 28; wait++)
+                    {
+                        Thread.Sleep(10);
+                        var current = Marshal.PtrToStructure<WaveHeader>(pHeader);
+                        if ((current.Flags & 1) != 0)
+                        {
+                            break;
+                        }
+                    }
+
+                    WinMm.waveOutReset(hWaveOut);
+                    WinMm.waveOutUnprepareHeader(hWaveOut, pHeader, headerSize);
                 }
                 finally
                 {

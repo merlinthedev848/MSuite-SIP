@@ -28,7 +28,8 @@ public class DtmfTonePlayerTests
         var pcm = DtmfTonePlayer.GetTonePcm(digit);
         Assert.NotNull(pcm);
         // 8000 Hz, 16-bit mono = 16 bytes per ms. 120ms = 1920 bytes.
-        Assert.Equal(1920, pcm.Length);
+        // 44100 Hz, 16-bit mono = 88.2 bytes per ms. 150ms = 13230 bytes.
+        Assert.Equal(13230, pcm.Length);
     }
 
     [Fact]

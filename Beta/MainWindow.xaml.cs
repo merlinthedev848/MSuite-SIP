@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -1100,7 +1100,7 @@ public partial class MainWindow : Window
                     }
                     else
                     {
-                        UseRingbackIfEarlyMediaIsSilent();
+                        if (_sipRegistrationService.IsAudioSessionRunning) StopLocalRingback(); else StartLocalRingback();
                     }
                 }
                 else
@@ -1115,6 +1115,7 @@ public partial class MainWindow : Window
 
             if (e.Code == 100)
             {
+                if (_activeCallDirection == "Outbound" && !_sipRegistrationService.IsAudioSessionRunning) StartLocalRingback();
                 NoticeText.Text = "Call setup in progress.";
                 FooterStatusText.Text = "Call setup in progress.";
                 return;
@@ -2035,7 +2036,7 @@ public partial class MainWindow : Window
 
         ApplyGlobalSearchFilter();
         _ = RefreshPresenceSubscriptionsAsync();
-        _ = SyncRemoteDirectoryContactsAsync();
+        // GDPR / Multi-Tenant Isolation: Do not auto-sync global PBX extensions into local contacts.
     }
 
     
@@ -2853,6 +2854,9 @@ public partial class MainWindow : Window
 
     private void DestinationTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (ReferenceEquals(sender, DestinationTextBox) && e.Key >= Key.D0 && e.Key <= Key.D9 && Keyboard.Modifiers == ModifierKeys.None) DtmfTonePlayer.Play((char)('0' + (e.Key - Key.D0)), _config.AudioOutput);
+        else if (ReferenceEquals(sender, DestinationTextBox) && e.Key >= Key.NumPad0 && e.Key <= Key.NumPad9) DtmfTonePlayer.Play((char)('0' + (e.Key - Key.NumPad0)), _config.AudioOutput);
+        else if (ReferenceEquals(sender, DestinationTextBox) && (e.Key == Key.Multiply || (e.Key == Key.D8 && Keyboard.Modifiers == ModifierKeys.Shift))) DtmfTonePlayer.Play('*', _config.AudioOutput);
         if (e.Key == Key.Enter)
         {
             e.Handled = true;
@@ -5437,6 +5441,9 @@ del ""%~f0""
 
     private void ContactTextBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (ReferenceEquals(sender, DestinationTextBox) && e.Key >= Key.D0 && e.Key <= Key.D9 && Keyboard.Modifiers == ModifierKeys.None) DtmfTonePlayer.Play((char)('0' + (e.Key - Key.D0)), _config.AudioOutput);
+        else if (ReferenceEquals(sender, DestinationTextBox) && e.Key >= Key.NumPad0 && e.Key <= Key.NumPad9) DtmfTonePlayer.Play((char)('0' + (e.Key - Key.NumPad0)), _config.AudioOutput);
+        else if (ReferenceEquals(sender, DestinationTextBox) && (e.Key == Key.Multiply || (e.Key == Key.D8 && Keyboard.Modifiers == ModifierKeys.Shift))) DtmfTonePlayer.Play('*', _config.AudioOutput);
         if (e.Key == Key.Enter)
         {
             SaveContactButton_Click(this, new RoutedEventArgs());
