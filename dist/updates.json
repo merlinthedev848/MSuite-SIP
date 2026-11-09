@@ -1,10 +1,10 @@
 ﻿{
-    "fileSize":  80638732,
+    "fileSize": 80630540,
     "version":  "1.3.9.5",
     "releaseNotes":  "v1.3.9.5: Authenticated GDPR-isolated Global Shared Address Books with extension assignment and CSV bulk upload/export, secure deskphone/softphone feeds, vector signal call quality rendering, and auto-rotating debug logging.",
     "mandatory":  false,
     "url":  "https://handler.chriskendall.media/downloads/MerlinSIP-1.3.9.5-x64-faststart.msi",
     "fileName":  "MerlinSIP-1.3.9.5-x64-faststart.msi",
     "releaseDate":  "2026-11-09",
-    "sha256":  "88D7E167E0186B6642B93523335EE0AF825F5654FE998B4118259116D612963B"
+    "sha256": "210BBE3E347444D41DBA592209469AC072B83DFFD8B2131E3F93C9A31EFDD430"
 }
