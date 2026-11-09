@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -23,6 +23,7 @@ using WpfBrushes = System.Windows.Media.Brushes;
 using WpfColor = System.Windows.Media.Color;
 using WpfButton = System.Windows.Controls.Button;
 using WpfListBox = System.Windows.Controls.ListBox;
+using WpfPath = System.Windows.Shapes.Path;
 
 namespace MerlinSip;
 
@@ -129,7 +130,7 @@ public partial class MainWindow : Window
     private const int WM_DEVICECHANGE = 0x0219;
     private const int DBT_DEVNODES_CHANGED = 0x0007;
     private string _lastClipboardText = "";
-    private static readonly System.Windows.Media.FontFamily InCallIconFont = new("Segoe MDL2 Assets");
+    private static readonly System.Windows.Media.FontFamily InCallIconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol");
     private const string HangupIcon = "\uE778";
     private const string MicIcon = "\uE720";
     private const string MutedMicIcon = "\uE74F";
@@ -138,6 +139,9 @@ public partial class MainWindow : Window
     private const string ConferenceIcon = "\uE716";
     private const string TransferIcon = "\uE72A";
     private const string RecordIcon = "\uE7C8";
+    private const string StopRecordIcon = "\uE73B";
+    private const string AnswerIcon = "\uE717";
+    private const string VideoIcon = "\uE714";
 
         [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     private struct FLASHWINFO
@@ -262,14 +266,45 @@ public partial class MainWindow : Window
         AudioInputComboBox.SelectionChanged += (s, e) => { if (SettingsOverlay.Visibility == Visibility.Visible) StartMicVuMeter(); };
     }
 
-    private static TextBlock CreateInCallIcon(string glyph, double fontSize = 21)
+    private static FrameworkElement CreateInCallIcon(string glyph, double fontSize = 21, WpfBrush? foreground = null)
     {
+        string? pathData = glyph switch
+        {
+            HoldIcon => "M6 4h4v16H6V4zm8 0h4v16h-4V4z",
+            ResumeIcon => "M6 4l14 8-14 8V4z",
+            MicIcon => "M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z",
+            MutedMicIcon => "M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.95l.02-.95V5c0-1.66-1.34-3-3-3-.99 0-1.85.48-2.4 1.21l5.38 5.74zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.24-5.3-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c1.33-.19 2.53-.74 3.53-1.54l3.2 3.2 1.27-1.27L4.27 3z",
+            TransferIcon => "M14 4v3H3v4h11v3l5-5-5-5zm5 9v3H8v-3H6v5h13v3l5-5-5-5v2z",
+            ConferenceIcon => "M16.5 13c-1.2 0-3.07.34-4.5 1-1.43-.66-3.3-1-4.5-1C5.13 13 1 14.55 1 18v2h22v-2c0-3.45-4.13-5-5.5-5zm-9-2c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm9 0c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z",
+            RecordIcon => "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z",
+            StopRecordIcon or "\uE71A" => "M6 6h12v12H6z",
+            HangupIcon => "M12 9c-3.14 0-6.07 1.05-8.44 2.83l-1.89-1.9A1 1 0 0 1 2 9.21c3-2.6 6.84-4.21 11-4.21s8 1.61 11 4.21a1 1 0 0 1 .33.72l-1.89 1.9C20.07 10.05 17.14 9 14 9h-2zm-6.2 4.2l2.36 2.36A1 1 0 0 0 8.87 16l2.31-1.39A1 1 0 0 0 11.7 13.75V11a12.7 12.7 0 0 0-5.9 2.2zm12.4 0a12.7 12.7 0 0 0-5.9-2.2v2.75a1 1 0 0 0 .52.86l2.31 1.39a1 1 0 0 0 1.21-.14l2.36-2.36z",
+            AnswerIcon => "M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-2.2 2.2a15.053 15.053 0 0 1-6.59-6.59l2.2-2.21a.96.96 0 0 0 .25-1A11.36 11.36 0 0 1 8.5 3.99c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.49c0-.55-.45-1-.99-1.12z",
+            VideoIcon => "M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z",
+            _ => null
+        };
+
+        if (pathData != null)
+        {
+            return new WpfPath
+            {
+                Data = Geometry.Parse(pathData),
+                Fill = foreground ?? new SolidColorBrush(WpfColor.FromRgb(30, 41, 59)),
+                Width = fontSize,
+                Height = fontSize,
+                Stretch = Stretch.Uniform,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                VerticalAlignment = System.Windows.VerticalAlignment.Center
+            };
+        }
+
         return new TextBlock
         {
             Text = glyph,
             FontFamily = InCallIconFont,
             FontSize = fontSize,
             FontWeight = FontWeights.Normal,
+            Foreground = foreground ?? new SolidColorBrush(WpfColor.FromRgb(30, 41, 59)),
             HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
             VerticalAlignment = System.Windows.VerticalAlignment.Center
         };
@@ -277,24 +312,55 @@ public partial class MainWindow : Window
 
     private static void SetLineIconButton(WpfButton button, string glyph, string? tooltip = null, string? foregroundHex = null)
     {
-        var icon = CreateInCallIcon(glyph, 16);
+        WpfBrush? brush = null;
         if (!string.IsNullOrWhiteSpace(foregroundHex))
         {
-            var brush = (WpfBrush)new BrushConverter().ConvertFromString(foregroundHex)!;
-            icon.Foreground = brush;
+            brush = (WpfBrush)new BrushConverter().ConvertFromString(foregroundHex)!;
             button.Foreground = brush;
         }
+        else if (button.Name.Contains("Hangup", StringComparison.OrdinalIgnoreCase) ||
+                 button.Name.Contains("Decline", StringComparison.OrdinalIgnoreCase) ||
+                 button.Name.Contains("Answer", StringComparison.OrdinalIgnoreCase))
+        {
+            brush = WpfBrushes.White;
+        }
+        else if (button.Foreground is WpfBrush btnBrush && btnBrush != WpfBrushes.Black)
+        {
+            brush = btnBrush;
+        }
+        else
+        {
+            brush = new SolidColorBrush(WpfColor.FromRgb(30, 41, 59));
+        }
 
+        var icon = CreateInCallIcon(glyph, 15, brush);
         button.Content = icon;
         if (tooltip is not null)
         {
             button.ToolTip = tooltip;
+            System.Windows.Automation.AutomationProperties.SetName(button, tooltip);
         }
     }
 
     private static void SetIconButton(WpfButton button, string glyph, string label)
     {
-        button.Content = CreateInCallIcon(glyph);
+        WpfBrush? brush = null;
+        if (button.Name.Contains("Hangup", StringComparison.OrdinalIgnoreCase) ||
+            button.Name.Contains("Decline", StringComparison.OrdinalIgnoreCase) ||
+            button.Name.Contains("Answer", StringComparison.OrdinalIgnoreCase))
+        {
+            brush = WpfBrushes.White;
+        }
+        else if (button.Foreground is WpfBrush btnBrush && btnBrush != WpfBrushes.Black)
+        {
+            brush = btnBrush;
+        }
+        else
+        {
+            brush = new SolidColorBrush(WpfColor.FromRgb(30, 41, 59));
+        }
+
+        button.Content = CreateInCallIcon(glyph, 20, brush);
         button.ToolTip = label;
         System.Windows.Automation.AutomationProperties.SetName(button, label);
     }
