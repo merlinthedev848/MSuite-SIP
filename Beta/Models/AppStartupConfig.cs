@@ -58,7 +58,8 @@ public sealed record AppStartupConfig(
     string? PrimaryColor = "#2563EB",
     string? AccentColor = "#38BDF8",
     string? LogoUrl = null,
-    string? AppSecretToken = null)
+    string? AppSecretToken = null,
+    string? DisplayName = null)
 {
     public const string FixedSipServer = "pbx.chriskendall.media";
     public const string DefaultDataHandlerUrl = "https://handler.chriskendall.media";

@@ -755,10 +755,10 @@ public partial class MainWindow : Window
             var level = mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
 
             CallQualityPill.Visibility = Visibility.Visible;
-            CallQualityPill.ToolTip = $"Live Call Quality: {mos:F1} MOS ({level})\nJitter: {jitter:F1} ms â€¢ Latency: {latency:F0} ms â€¢ Loss: {loss:F1}%\nClick to open full analysis";
+            CallQualityPill.ToolTip = $"Live Call Quality: {mos:F1} MOS ({level})\nJitter: {jitter:F1} ms • Latency: {latency:F0} ms • Loss: {loss:F1}%\nClick to open full analysis";
             if (CallQualityIcon != null)
             {
-                CallQualityIcon.Foreground = level switch
+                CallQualityIcon.Fill = level switch
                 {
                     "Excellent" => (WpfBrush)new BrushConverter().ConvertFromString("#0E987E")!,
                     "Good" => (WpfBrush)new BrushConverter().ConvertFromString("#0284C7")!,

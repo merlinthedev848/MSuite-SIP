@@ -160,7 +160,8 @@ public sealed class ProvisioningService
                         BrandName: bName,
                         PrimaryColor: pColor,
                         AccentColor: aColor,
-                        LogoUrl: lUrl).WithFixedSipEndpoint();
+                        LogoUrl: lUrl,
+                        DisplayName: payload.Sip?.DisplayName).WithFixedSipEndpoint();
 
                     return ProvisioningResult.Ok(config);
                 }
@@ -223,6 +224,7 @@ public sealed class ProvisioningService
         [property: JsonPropertyName("password")] string? Password = null,
         [property: JsonPropertyName("secret")] string? Secret = null,
         [property: JsonPropertyName("username")] string? Username = null,
+        [property: JsonPropertyName("display_name")] string? DisplayName = null,
         [property: JsonPropertyName("server")] string? Server = null,
         [property: JsonPropertyName("port")] int? Port = null,
         [property: JsonPropertyName("domain")] string? Domain = null,

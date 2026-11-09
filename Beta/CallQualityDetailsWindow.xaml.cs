@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -29,7 +29,7 @@ public partial class CallQualityDetailsWindow : Window
             ? (mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor")
             : entry.QualityLevel;
 
-        QualityLevelTextBlock.Text = $"{level} Quality";
+        QualityLevelTextBlock.Text = (level is "Not measured" or "Unknown") ? "Not Measured" : $"{level} Quality";
         RFactorTextBlock.Text = $"R-Factor: {entry.RFactor:F1} / 100";
         
         var brushConverter = new BrushConverter();

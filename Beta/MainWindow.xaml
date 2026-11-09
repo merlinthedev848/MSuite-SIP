@@ -1056,13 +1056,7 @@
                                                 MouseDown="LiveCallStatisticsCard_MouseDown"
                                                 ToolTip="Check live call quality analysis (MOS, jitter, latency, packet loss)"
                                                 Visibility="Collapsed">
-                                            <TextBlock x:Name="CallQualityIcon"
-                                                       Text="&#xE9D2;"
-                                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                                       FontSize="13"
-                                                       Foreground="#0E987E"
-                                                       VerticalAlignment="Center"
-                                                       HorizontalAlignment="Center" />
+                                            <Path x:Name="CallQualityIcon" Data="M1,9 L2.8,9 L2.8,12 L1,12 Z M4.2,6.5 L6,6.5 L6,12 L4.2,12 Z M7.4,4 L9.2,4 L9.2,12 L7.4,12 Z M10.6,1.5 L12.4,1.5 L12.4,12 L10.6,12 Z" Fill="#0E987E" Width="13" Height="12" Stretch="Uniform" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                         </Border>
                                         <Border x:Name="CallTimerPill"
                                                 Background="#FFE2E2"
@@ -2077,13 +2071,13 @@
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
                                                         <Border x:Name="QIconBdr" Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6">
-                                                            <TextBlock x:Name="QIcon" Text="&#xE9D2;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="#475569" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                            <Path x:Name="QIcon" Data="M1,9 L2.8,9 L2.8,12 L1,12 Z M4.2,6.5 L6,6.5 L6,12 L4.2,12 Z M7.4,4 L9.2,4 L9.2,12 L7.4,12 Z M10.6,1.5 L12.4,1.5 L12.4,12 L10.6,12 Z" Fill="#475569" Width="12" Height="11" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                         </Border>
                                                         <ControlTemplate.Triggers>
                                                             <Trigger Property="IsMouseOver" Value="True">
                                                                 <Setter TargetName="QIconBdr" Property="Background" Value="#E2E8F0" />
                                                                 <Setter TargetName="QIconBdr" Property="BorderBrush" Value="#CBD5E1" />
-                                                                <Setter TargetName="QIcon" Property="Foreground" Value="#0F172A" />
+                                                                <Setter TargetName="QIcon" Property="Fill" Value="#0F172A" />
                                                             </Trigger>
                                                         </ControlTemplate.Triggers>
                                                     </ControlTemplate>
