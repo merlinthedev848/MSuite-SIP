@@ -1340,12 +1340,12 @@ public partial class MainWindow : Window
         ExtensionTextBox.Text = _config.Extension;
         if (_config.IsProvisioned)
         {
-            UsernameTextBox.Text = "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢";
+            UsernameTextBox.Text = "••••••••";
             UsernameTextBox.IsReadOnly = true;
             UsernameTextBox.IsEnabled = false;
-            PasswordBox.Password = "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢";
+            PasswordBox.Password = "••••••••••••";
             PasswordBox.IsEnabled = false;
-            PasswordTextBox.Text = "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢";
+            PasswordTextBox.Text = "••••••••••••";
             PasswordTextBox.Visibility = Visibility.Collapsed;
             PasswordBox.Visibility = Visibility.Visible;
             TogglePasswordButton.Visibility = Visibility.Collapsed;
@@ -3580,7 +3580,7 @@ public partial class MainWindow : Window
             PasswordTextBox.Text = PasswordBox.Password;
             PasswordBox.Visibility = Visibility.Collapsed;
             PasswordTextBox.Visibility = Visibility.Visible;
-            TogglePasswordButton.Content = "ðŸ”’";
+            // TogglePasswordButton uses vector icon template
             PasswordTextBox.Focus();
             PasswordTextBox.CaretIndex = PasswordTextBox.Text.Length;
         }
@@ -3589,7 +3589,7 @@ public partial class MainWindow : Window
             PasswordBox.Password = PasswordTextBox.Text;
             PasswordTextBox.Visibility = Visibility.Collapsed;
             PasswordBox.Visibility = Visibility.Visible;
-            TogglePasswordButton.Content = "ðŸ‘";
+            // TogglePasswordButton uses vector icon template
             PasswordBox.Focus();
         }
     }
@@ -4361,7 +4361,7 @@ public partial class MainWindow : Window
 
         if (isRinging)
         {
-            QueueStatusText.Text = string.IsNullOrWhiteSpace(caller) ? "â— Call Ringing" : $"â— Ringing: {caller}";
+            QueueStatusText.Text = string.IsNullOrWhiteSpace(caller) ? "● Call Ringing" : $"● Ringing: {caller}";
             QueueStatusText.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#15803D")!;
             if (QueueAccentBar != null)
             {
@@ -4399,7 +4399,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            QueueStatusText.Text = "â€¢ Idle";
+            QueueStatusText.Text = "● Idle";
             QueueStatusText.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#64748B")!;
             if (QueueAccentBar != null)
             {
@@ -5617,7 +5617,7 @@ del ""%~f0""
                 Line1Card.BorderBrush = (WpfBrush)new BrushConverter().ConvertFromString("#CBD5E1")!;
                 Line1BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#475569")!;
                 Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
-                Line1StatusText.Text = "Line 1  â€¢  Ready";
+                Line1StatusText.Text = "Line 1  •  Ready";
                 Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#475569")!;
             }
             else
@@ -5626,7 +5626,7 @@ del ""%~f0""
                 Line1Card.BorderBrush = (WpfBrush)new BrushConverter().ConvertFromString("#E2E8F0")!;
                 Line1BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
                 Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#CBD5E1")!;
-                Line1StatusText.Text = "Line 1  â€¢  Idle";
+                Line1StatusText.Text = "Line 1  •  Idle";
                 Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
             }
         }
@@ -5722,7 +5722,7 @@ del ""%~f0""
                     Line2Card.BorderBrush = (WpfBrush)new BrushConverter().ConvertFromString("#CBD5E1")!;
                     Line2BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#475569")!;
                     Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
-                    Line2StatusText.Text = "Line 2  â€¢  Ready";
+                    Line2StatusText.Text = "Line 2  •  Ready";
                     Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#475569")!;
                 }
                 else
@@ -5731,7 +5731,7 @@ del ""%~f0""
                     Line2Card.BorderBrush = (WpfBrush)new BrushConverter().ConvertFromString("#E2E8F0")!;
                     Line2BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
                     Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#CBD5E1")!;
-                    Line2StatusText.Text = "Line 2  â€¢  Idle";
+                    Line2StatusText.Text = "Line 2  •  Idle";
                     Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
                 }
             }

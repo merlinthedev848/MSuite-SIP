@@ -3884,8 +3884,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
         string[] patterns = new[]
         {
-            "entity\\s*=\\s*[\"'â€™]?(?:sip:)?([^@\"'â€™>;]+)",
-            "<tuple\\s+id\\s*=\\s*[\"'â€™]?(?:sip:)?([^@\"'â€™>;]+)",
+            "entity\\s*=\\s*[\"'\u201C\u201D]?(?:sip:)?([^@\"'\u2018\u2019\u201C\u201D>;]+)",
+            "<tuple\\s+id\\s*=\\s*[\"'\u201C\u201D]?(?:sip:)?([^@\"'\u2018\u2019\u201C\u201D>;]+)",
             "<local>.*?<identity[^>]*>\\s*(?:sip:)?([^<@>;]+)",
             "<remote>.*?<identity[^>]*>\\s*(?:sip:)?([^<@>;]+)",
             "<identity[^>]*>\\s*(?:sip:)?([^<@>;]+)"
@@ -3960,19 +3960,19 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         if (body.Contains("dialog-info", StringComparison.OrdinalIgnoreCase))
         {
             // Ringing states
-            if (Regex.IsMatch(body, "<state>\\s*(?:early|trying)\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'â€™]?(?:early|trying)", RegexOptions.IgnoreCase))
+            if (Regex.IsMatch(body, "<state>\\s*(?:early|trying)\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'\u201C\u201D]?(?:early|trying)", RegexOptions.IgnoreCase))
             {
                 return "Ringing";
             }
 
             // Confirmed / active call states
-            if (Regex.IsMatch(body, "<state>\\s*confirmed\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'â€™]?confirmed", RegexOptions.IgnoreCase))
+            if (Regex.IsMatch(body, "<state>\\s*confirmed\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'\u201C\u201D]?confirmed", RegexOptions.IgnoreCase))
             {
                 return "Busy";
             }
 
             // Terminated or idle states -> Available
-            if (Regex.IsMatch(body, "<state>\\s*terminated\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'â€™]?terminated", RegexOptions.IgnoreCase))
+            if (Regex.IsMatch(body, "<state>\\s*terminated\\s*</state>|<dialog[^>]*\\s+state\\s*=\\s*[\"'\u201C\u201D]?terminated", RegexOptions.IgnoreCase))
             {
                 return "Available";
             }

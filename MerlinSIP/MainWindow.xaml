@@ -1115,7 +1115,7 @@
                                                     <StackPanel x:Name="Line1InfoPanel" Orientation="Horizontal" VerticalAlignment="Center">
                                                         <Ellipse x:Name="Line1StatusDot" Width="8" Height="8" Fill="#94A3B8" Margin="0,0,8,0" VerticalAlignment="Center" />
                                                         <TextBlock x:Name="Line1Title" Text="Line 1" FontWeight="Bold" FontSize="13" Foreground="#111827" Margin="0,0,8,0" Visibility="Collapsed" />
-                                                        <TextBlock x:Name="Line1StatusText" Text="Line 1  â€¢  Ready" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" />
+                                                        <TextBlock x:Name="Line1StatusText" Text="Line 1  •  Ready" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" />
                                                         <Border x:Name="Line1VideoBadge" Background="#F5F3FF" BorderBrush="#DDD6FE" BorderThickness="1" CornerRadius="4" Padding="5,2" Margin="6,0,0,0" Visibility="Collapsed" Cursor="Hand" MouseDown="VideoBadge_MouseDown" ToolTip="Active Yeastar Video Call (Click to open video window)">
                                                             <StackPanel Orientation="Horizontal">
                                                                 <TextBlock Text="&#xE714;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Foreground="#7C3AED" Margin="0,0,3,0" VerticalAlignment="Center" />
@@ -1181,7 +1181,7 @@
                                                     <StackPanel x:Name="Line2InfoPanel" Orientation="Horizontal" VerticalAlignment="Center">
                                                         <Ellipse x:Name="Line2StatusDot" Width="8" Height="8" Fill="#CBD5E1" Margin="0,0,8,0" VerticalAlignment="Center" />
                                                         <TextBlock x:Name="Line2Title" Text="Line 2" FontWeight="Bold" FontSize="13" Foreground="#111827" Margin="0,0,8,0" Visibility="Collapsed" />
-                                                        <TextBlock x:Name="Line2StatusText" Text="Line 2  â€¢  Idle" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" VerticalAlignment="Center" />
+                                                        <TextBlock x:Name="Line2StatusText" Text="Line 2  •  Idle" FontSize="12" FontWeight="SemiBold" Foreground="#94A3B8" VerticalAlignment="Center" />
                                                         <Border x:Name="Line2VideoBadge" Background="#F5F3FF" BorderBrush="#DDD6FE" BorderThickness="1" CornerRadius="4" Padding="5,2" Margin="6,0,0,0" Visibility="Collapsed" Cursor="Hand" MouseDown="VideoBadge_MouseDown" ToolTip="Active Yeastar Video Call (Click to open video window)">
                                                             <StackPanel Orientation="Horizontal">
                                                                 <TextBlock Text="&#xE714;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Foreground="#7C3AED" Margin="0,0,3,0" VerticalAlignment="Center" />
@@ -1291,7 +1291,7 @@
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Border x:Name="QueueAccentBar" Width="3" Height="16" Background="#94A3B8" CornerRadius="1.5" Margin="0,0,8,0" />
                                             <TextBlock Text="Queues" FontWeight="Bold" FontSize="12.5" Foreground="#1E293B" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                            <TextBlock x:Name="QueueStatusText" Text="â€¢ Idle" FontSize="11" Foreground="#64748B" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="QueueStatusText" Text="● Idle" FontSize="11" Foreground="#64748B" FontWeight="SemiBold" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </DockPanel>
                                 </Border>
@@ -2230,7 +2230,7 @@
                                                         </Border>
                                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding Name}" Foreground="{Binding SenderForeground}" FontWeight="SemiBold" FontSize="12.5" VerticalAlignment="Center" />
-                                                            <TextBlock Text="â€¢" Foreground="#94A3B8" Margin="6,0" FontSize="11" VerticalAlignment="Center" />
+                                                            <TextBlock Text="•" Foreground="#94A3B8" Margin="6,0" FontSize="11" VerticalAlignment="Center" />
                                                             <TextBlock Text="{Binding FormattedTime}" Foreground="#64748B" FontSize="11" VerticalAlignment="Center" />
                                                         </StackPanel>
                                                     </DockPanel>
@@ -3035,7 +3035,7 @@
                             <DockPanel LastChildFill="True">
                                 <Border x:Name="SettingsSavedBanner" DockPanel.Dock="Left" Background="#DCFCE7" BorderBrush="#86EFAC" BorderThickness="1" CornerRadius="6" Padding="12,5" Visibility="Collapsed" VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="âœ“" Foreground="#15803D" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="✓" Foreground="#15803D" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" />
                                         <TextBlock Text="Settings saved successfully." Foreground="#15803D" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
