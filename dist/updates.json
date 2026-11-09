@@ -1,8 +1,8 @@
 {
     "Version":  "1.3.9.4",
     "DownloadUrl":  "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.9.4-x64-faststart.msi",
-    "Sha256":  "0FC23A645525F14C0A87284AECE7146F0F37F40F2C557148C166B578E0A5E74C",
-    "FileSizeBytes":  80712460,
+    "Sha256":  "5E4350AAB247E68CD98E89D6EF23D060DCA8FB5D0E6444A5DE8B53472625B630",
+    "FileSizeBytes":  80655116,
     "ReleaseDate":  "2026-11-09",
-    "Notes":  "Release 1.3.9.4: Migrated all external license and provisioning authentications to the CKM Handler gateway (handler.chriskendall.media), implemented unified licensing validation routes in ckm-handler, and resolved in-call action button glyphs with vector geometries."
+    "Notes":  "Release 1.3.9.4: Migrated all external license and provisioning authentications to the CKM Handler gateway (handler.chriskendall.media), implemented unified licensing validation routes in ckm-handler, labeled handler monitor in settings about section, and resolved in-call action button glyphs with vector geometries."
 }

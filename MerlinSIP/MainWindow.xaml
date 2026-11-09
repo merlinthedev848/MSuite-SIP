@@ -1,4 +1,4 @@
-﻿<Window x:Class="MerlinSip.MainWindow"
+<Window x:Class="MerlinSip.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Merlin SIP"
@@ -3002,7 +3002,7 @@
                                                     </Border>
                                                     <TextBlock x:Name="ServerStatusText" Text="Checking status" Foreground="#64748B" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0" />
                                                 </DockPanel>
-                                                <TextBlock Grid.Row="1" Text="Chat" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,0,8" />
+                                                <TextBlock Grid.Row="1" Text="Handler server" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,0,8" />
                                                 <DockPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
                                                     <Border x:Name="HandlerServerPill" Background="#FFF1D6" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="0,0,8,0">
                                                         <TextBlock x:Name="HandlerServerStatusPillText" Text="Connecting..." Foreground="#8A4F08" FontWeight="SemiBold" FontSize="10" Margin="0" />
@@ -3011,7 +3011,7 @@
                                                 </DockPanel>
                                                 <TextBlock Grid.Row="2" Text="PBX delay" Foreground="#64748B" Margin="0,0,0,8" />
                                                 <TextBlock Grid.Row="2" Grid.Column="1" x:Name="PingStatusText" Text="Not checked yet" Foreground="#0F172A" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                                <TextBlock Grid.Row="3" Text="Chat delay" Foreground="#64748B" Margin="0" />
+                                                <TextBlock Grid.Row="3" Text="Handler delay" Foreground="#64748B" Margin="0" />
                                                 <TextBlock Grid.Row="3" Grid.Column="1" x:Name="HandlerPingStatusText" Text="Not checked yet" Foreground="#0F172A" FontWeight="SemiBold" Margin="0" />
                                             </Grid>
                                         </Grid>
