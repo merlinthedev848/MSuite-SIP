@@ -31,7 +31,15 @@ public sealed class CallHistoryStore
         {
             await using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
             var loaded = await JsonSerializer.DeserializeAsync<List<CallHistoryEntry>>(stream) ?? [];
-            return loaded.Where(call => !CallHistoryEntry.IsStockFiller(call)).ToList();
+            return loaded.Where(call => !CallHistoryEntry.IsStockFiller(call)).Select(call =>
+            {
+                var feature = DeskPhone.GetFeatureCodeName(call.Number);
+                if (feature != null && (string.IsNullOrWhiteSpace(call.Name) || call.Name != feature))
+                {
+                    return call with { Name = feature };
+                }
+                return call;
+            }).ToList();
         }
         catch (Exception error)
         {

@@ -43,7 +43,7 @@ cp "${REPO_DIR}/ckm-handler/package-lock.json" "${APP_DIR}/" 2>/dev/null || true
 cp "${REPO_DIR}/ckm-handler/tsconfig.json" "${APP_DIR}/"
 
 # Also install update helper in /usr/local/bin and /var/www/ckm-handler
-cp "${REPO_DIR}/update-ckm-handler.sh" "${APP_DIR}/update.sh" 2>/dev/null || true
+cp "${REPO_DIR}/update.sh" "${APP_DIR}/update.sh" 2>/dev/null || true
 chmod +x "${APP_DIR}/update.sh" 2>/dev/null || true
 ln -sfn "${APP_DIR}/update.sh" /usr/local/bin/update-ckm 2>/dev/null || true
 ln -sfn "${APP_DIR}/update.sh" /usr/local/bin/update-ckm-handler 2>/dev/null || true

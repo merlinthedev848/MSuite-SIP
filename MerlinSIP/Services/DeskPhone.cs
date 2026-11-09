@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace MerlinSip.Services;
@@ -54,5 +56,66 @@ public static class DeskPhone
         }
 
         return code.Where(static c => c is '*' or '#' || char.IsDigit(c)).ToArray();
+    }
+
+    public static string? GetFeatureCodeName(string? code, MerlinSip.Models.AppStartupConfig? config = null)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return null;
+
+        var trimmed = code.Trim();
+
+        // Voicemail
+        if (trimmed == (config?.VoicemailNumber?.Trim()) ||
+            trimmed == Voicemail ||
+            trimmed == "*2" ||
+            trimmed == "*97" ||
+            trimmed == "*98")
+        {
+            return "Voicemail";
+        }
+
+        // Call Pickup
+        if (trimmed == (config?.CallPickupPrefix?.Trim()) ||
+            trimmed == GroupPickup ||
+            trimmed == "*4")
+        {
+            return "Group Pickup";
+        }
+
+        if (trimmed == (config?.CallRecordingCode?.Trim()) ||
+            trimmed == OneTouchRecord ||
+            trimmed == "*1")
+        {
+            return "One-Touch Record";
+        }
+
+        if (trimmed == Park || trimmed == "*6") return "Call Park";
+        if (trimmed == AttendedTransfer || trimmed == "*3") return "Attended Transfer";
+        if (trimmed == BlindTransfer || trimmed == "*03") return "Blind Transfer";
+        if (trimmed == DndOn || trimmed == "*74") return "DND On";
+        if (trimmed == DndOff || trimmed == "*074") return "DND Off";
+        if (trimmed == ForwardAllOn || trimmed == "*71") return "Forward All On";
+        if (trimmed == ForwardAllOff || trimmed == "*071") return "Forward All Off";
+        if (trimmed == ForwardBusyOn || trimmed == "*72") return "Forward Busy On";
+        if (trimmed == ForwardBusyOff || trimmed == "*072") return "Forward Busy Off";
+        if (trimmed == ForwardNoAnswerOn || trimmed == "*73") return "Forward No Answer On";
+        if (trimmed == ForwardNoAnswerOff || trimmed == "*073") return "Forward No Answer Off";
+
+        if (trimmed.StartsWith(Intercom, StringComparison.Ordinal) && trimmed.Length > Intercom.Length)
+        {
+            return $"Intercom ({trimmed[Intercom.Length..]})";
+        }
+
+        if (trimmed.StartsWith(DirectedPickup, StringComparison.Ordinal) && trimmed.Length > DirectedPickup.Length)
+        {
+            return $"Directed Pickup ({trimmed[DirectedPickup.Length..]})";
+        }
+
+        if (trimmed.StartsWith(DirectedPark, StringComparison.Ordinal) && trimmed.Length > DirectedPark.Length)
+        {
+            return $"Directed Park ({trimmed[DirectedPark.Length..]})";
+        }
+
+        return null;
     }
 }

@@ -137,20 +137,82 @@ public sealed class ContactStore
 
     public ContactEntry? FindByNumber(IEnumerable<ContactEntry> contacts, string number)
     {
-        var normalized = Normalize(number);
+        if (string.IsNullOrWhiteSpace(number)) return null;
+
+        var trimmed = number.Trim();
+
+        // 1. If it's a star or hash feature code (e.g. *2, *74, #0)
+        if (trimmed.StartsWith('*') || trimmed.StartsWith('#'))
+        {
+            // Only match if a contact explicitly has this exact code as their number
+            return contacts.FirstOrDefault(c => string.Equals(c.Number?.Trim(), trimmed, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var normalized = Normalize(trimmed);
         if (string.IsNullOrEmpty(normalized)) return null;
 
         var variants = BuildVariants(normalized);
-        return contacts.FirstOrDefault(contact =>
+
+        // 2. Exact match or country-code variant match first
+        var exactMatch = contacts.FirstOrDefault(contact =>
         {
-            var contactNorm = Normalize(contact.Number);
-            return variants.Contains(contactNorm) || contactNorm.EndsWith(normalized, StringComparison.Ordinal) || normalized.EndsWith(contactNorm, StringComparison.Ordinal);
+            if (string.IsNullOrWhiteSpace(contact.Number)) return false;
+            var contactTrimmed = contact.Number.Trim();
+            if (string.Equals(contactTrimmed, trimmed, StringComparison.OrdinalIgnoreCase)) return true;
+
+            var contactNorm = Normalize(contactTrimmed);
+            return variants.Contains(contactNorm);
         });
+
+        if (exactMatch != null) return exactMatch;
+
+        // 3. Suffix matching ONLY for full-length telephone numbers (at least 7 digits)
+        // Never suffix-match short extensions or codes (e.g. 2, 22, 503, 822) against each other!
+        if (normalized.Length >= 7)
+        {
+            return contacts.FirstOrDefault(contact =>
+            {
+                if (string.IsNullOrWhiteSpace(contact.Number)) return false;
+                var contactNorm = Normalize(contact.Number);
+                if (contactNorm.Length < 7) return false;
+
+                // Match if the last 7+ digits match between local and national/international format
+                return (contactNorm.Length >= normalized.Length && contactNorm.EndsWith(normalized, StringComparison.Ordinal))
+                    || (normalized.Length >= contactNorm.Length && normalized.EndsWith(contactNorm, StringComparison.Ordinal));
+            });
+        }
+
+        return null;
     }
 
     private static string Normalize(string value)
     {
-        return new string(value.Where(char.IsDigit).ToArray());
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+
+        // Fast-path: Check if already all digits to avoid allocation
+        bool allDigits = true;
+        for (int i = 0; i < value.Length; i++)
+        {
+            if (!char.IsDigit(value[i]))
+            {
+                allDigits = false;
+                break;
+            }
+        }
+        if (allDigits) return value;
+
+        // Zero-allocation stack buffer for typical phone numbers (<= 64 chars)
+        Span<char> buffer = value.Length <= 64 ? stackalloc char[value.Length] : new char[value.Length];
+        int count = 0;
+        for (int i = 0; i < value.Length; i++)
+        {
+            char c = value[i];
+            if (char.IsDigit(c))
+            {
+                buffer[count++] = c;
+            }
+        }
+        return count == 0 ? string.Empty : new string(buffer[..count]);
     }
 
     private static HashSet<string> BuildVariants(string normalized)
