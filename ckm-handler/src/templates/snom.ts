@@ -46,7 +46,7 @@ export function generateSnomConfig(cfg: HandsetAccountConfig): string {
     <tone_scheme perm="R">GB</tone_scheme>
 
     <!-- Remote Central XML Directory & Phonebook -->
-    <dkey_directory perm="R">url ${cfg.dataHandlerUrl}/phonebook/snom.xml</dkey_directory>
+    <dkey_directory perm="R">url ${cfg.dataHandlerUrl}/phonebook/snom.xml?extension=${encodeURIComponent(cfg.extension)}</dkey_directory>
 
     <!-- Auto-Provisioning & Firmware Update Policy -->
     <setting_server perm="R">${cfg.dataHandlerUrl}/provision/snom{mac}.xml</setting_server>

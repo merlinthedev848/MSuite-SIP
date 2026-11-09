@@ -1,4 +1,4 @@
-function initApp() {
+﻿function initApp() {
 
   // Global Clipboard Helper
   window.copyToClipboard = function(text, msg = 'Copied to clipboard!') {
@@ -31,7 +31,7 @@ function initApp() {
     const start = (currentPage - 1) * numericSize + 1;
     const end = Math.min(start + numericSize - 1, total);
 
-    infoEl.textContent = 'Showing ' + start + '–' + end + ' of ' + total;
+    infoEl.textContent = 'Showing ' + start + 'â€“' + end + ' of ' + total;
 
     if (totalPages <= 1) {
       btnsEl.innerHTML = '';
@@ -39,7 +39,7 @@ function initApp() {
     }
 
     let html = '';
-    html += '<button class="pagination-btn" ' + (currentPage === 1 ? 'disabled' : '') + ' onclick="' + onPageChangeName + '(' + (currentPage - 1) + ')" aria-label="Previous page">‹</button>';
+    html += '<button class="pagination-btn" ' + (currentPage === 1 ? 'disabled' : '') + ' onclick="' + onPageChangeName + '(' + (currentPage - 1) + ')" aria-label="Previous page">â€¹</button>';
 
     let startPage = Math.max(1, currentPage - 2);
     let endPage = Math.min(totalPages, startPage + 4);
@@ -49,7 +49,7 @@ function initApp() {
 
     if (startPage > 1) {
       html += '<button class="pagination-btn" onclick="' + onPageChangeName + '(1)">1</button>';
-      if (startPage > 2) html += '<span style="padding: 0 4px; color: #94a3b8;">…</span>';
+      if (startPage > 2) html += '<span style="padding: 0 4px; color: #94a3b8;">â€¦</span>';
     }
 
     for (let p = startPage; p <= endPage; p++) {
@@ -57,11 +57,11 @@ function initApp() {
     }
 
     if (endPage < totalPages) {
-      if (endPage < totalPages - 1) html += '<span style="padding: 0 4px; color: #94a3b8;">…</span>';
+      if (endPage < totalPages - 1) html += '<span style="padding: 0 4px; color: #94a3b8;">â€¦</span>';
       html += '<button class="pagination-btn" onclick="' + onPageChangeName + '(' + totalPages + ')">' + totalPages + '</button>';
     }
 
-    html += '<button class="pagination-btn" ' + (currentPage === totalPages ? 'disabled' : '') + ' onclick="' + onPageChangeName + '(' + (currentPage + 1) + ')" aria-label="Next page">›</button>';
+    html += '<button class="pagination-btn" ' + (currentPage === totalPages ? 'disabled' : '') + ' onclick="' + onPageChangeName + '(' + (currentPage + 1) + ')" aria-label="Next page">â€º</button>';
 
     btnsEl.innerHTML = html;
   }
@@ -581,6 +581,7 @@ function initApp() {
     overview: 'System Overview & Component Health',
 
     extensions: 'SIP Extensions & Softphone PINs',
+    addressbooks: 'Global Shared Address Books (GDPR Isolated)',
 
     handsets: 'Physical IP Handset Directory',
 
@@ -633,6 +634,7 @@ function initApp() {
         overview: 'Operations / Overview',
 
         extensions: 'Operations / Extensions & PINs',
+        addressbooks: 'Operations / Shared Address Books',
 
         handsets: 'Operations / Physical Handsets',
 
@@ -659,6 +661,7 @@ function initApp() {
         const sectionInfo = {
         overview: { section: 'Fleet & Operations', label: 'Overview Dashboard' },
         extensions: { section: 'Fleet & Operations', label: 'Extensions & Softphones' },
+        addressbooks: { section: 'Fleet & Operations', label: 'Shared Address Books' },
         handsets: { section: 'Fleet & Operations', label: 'IP Deskphone Fleet' },
         routers: { section: 'Fleet & Operations', label: 'Network Gateways' },
         firmware: { section: 'Services & Telemetry', label: 'Firmware Repository' },
@@ -700,6 +703,7 @@ function initApp() {
     if (tab === 'overview') loadOverview();
 
     else if (tab === 'extensions') loadExtensions();
+    else if (tab === 'addressbooks') loadAddressBooks();
 
     else if (tab === 'handsets') loadHandsets();
 
@@ -1347,7 +1351,7 @@ function initApp() {
         <td><span class="badge badge-secondary" style="font-weight:500;" title="${ext.pbx_host || ''}:${ext.pbx_port || 5060}">${ext.pbx_name || 'Primary Core'}</span></td>
         <td>
           <div style="display: flex; align-items: center; gap: 6px;">
-            ${ext.email ? `<span style="font-weight: 500; color: #0369a1; font-size: 12.5px;">${ext.email}</span>` : '<span class="text-muted" style="font-size: 11.5px; font-style: italic;">—</span>'}
+            ${ext.email ? `<span style="font-weight: 500; color: #0369a1; font-size: 12.5px;">${ext.email}</span>` : '<span class="text-muted" style="font-size: 11.5px; font-style: italic;">â€”</span>'}
             ${canManage ? `<button class="btn btn-sm btn-secondary" style="padding: 1px 6px; font-size: 11px; height: 22px; line-height: 20px;" onclick="window.editExtensionEmail('${ext.extension}', '${(ext.email || '').replace(/'/g, "\\'")}')" title="Edit registered email">Edit</button>` : ''}
           </div>
         </td>
@@ -1357,7 +1361,7 @@ function initApp() {
             <span class="pin-pill" onclick="window.copyToClipboard('${ext.active_pin}', 'PIN code copied!')" title="Click to copy active PIN">
               ${ext.active_pin}
             </span>
-          ` : '<span class="text-muted">—</span>'}
+          ` : '<span class="text-muted">â€”</span>'}
         </td>
         <td>
           ${ext.bound_handsets > 0 ? `<span class="badge badge-secondary">${ext.bound_handsets} Handset${ext.bound_handsets > 1 ? 's' : ''}</span>` : '<span class="text-muted">0</span>'}
@@ -2695,7 +2699,7 @@ function initApp() {
 
         expModelSel.innerHTML = brandObj.models.map(m => `
 
-          <option value="${m.id}">${m.name} — ${m.firmwareVersion || ''}</option>
+          <option value="${m.id}">${m.name} â€” ${m.firmwareVersion || ''}</option>
 
         `).join('');
 
@@ -2771,7 +2775,7 @@ function initApp() {
 
         expModelSel.innerHTML = brandObj.models.map(m => `
 
-          <option value="${m.id}">${m.name} — ${m.firmwareVersion || ''}</option>
+          <option value="${m.id}">${m.name} â€” ${m.firmwareVersion || ''}</option>
 
         `).join('');
 
@@ -3846,7 +3850,7 @@ function initApp() {
 
 
 
-    document.getElementById('editHandsetTitle').textContent = `Edit Provisioning Profile — ${res.brand.toUpperCase()} ${res.model || ''}`;
+    document.getElementById('editHandsetTitle').textContent = `Edit Provisioning Profile â€” ${res.brand.toUpperCase()} ${res.model || ''}`;
 
     document.getElementById('editHandsetSub').textContent = `Device MAC: ${mac.toUpperCase()} | Assigned to Extension ${res.extension} (${res.displayName})`;
 
@@ -4281,7 +4285,7 @@ function initApp() {
 
 
 
-    document.getElementById('editRouterTitle').textContent = `Edit VoIP Script — ${res.siteName} (${res.brand.toUpperCase()} ${res.model || ''})`;
+    document.getElementById('editRouterTitle').textContent = `Edit VoIP Script â€” ${res.siteName} (${res.brand.toUpperCase()} ${res.model || ''})`;
 
     document.getElementById('editRouterSub').textContent = `Target Platform: ${res.brand.toUpperCase()} | File: ${res.filename}`;
 
@@ -6416,7 +6420,7 @@ function initApp() {
 
       if (extraMeta.site) parts.push(`Site: ${extraMeta.site}`);
 
-      metaElem.textContent = parts.length ? `• ${parts.join(' | ')}` : '';
+      metaElem.textContent = parts.length ? `â€¢ ${parts.join(' | ')}` : '';
 
     }
 
@@ -6812,7 +6816,7 @@ function initApp() {
 
           id: e.extension,
 
-          title: `Ext ${e.extension} — ${e.display_name || 'Extension'}`,
+          title: `Ext ${e.extension} â€” ${e.display_name || 'Extension'}`,
 
           tag: 'Extension',
 
@@ -7598,7 +7602,7 @@ function initApp() {
 
       sel.innerHTML = '<option value="">Select an extension...</option>' + 
 
-        extData.extensions.map(e => `<option value="${e.extension}">Ext ${e.extension} — ${e.display_name} (${e.sip_username})</option>`).join('');
+        extData.extensions.map(e => `<option value="${e.extension}">Ext ${e.extension} â€” ${e.display_name} (${e.sip_username})</option>`).join('');
 
     } else {
 
@@ -8508,24 +8512,6 @@ function initApp() {
 
   });
 
-
-
-}
-
-
-
-if (document.readyState === 'loading') {
-
-  document.addEventListener('DOMContentLoaded', initApp);
-
-} else {
-
-  initApp();
-
-}
-
-
-
   // ==============================================================================
   // Multi-PBX Cluster & Core Management Engine
   // ==============================================================================
@@ -8592,7 +8578,7 @@ if (document.readyState === 'loading') {
     if (latEl) latEl.textContent = inst.last_ping_rtt ? `${inst.last_ping_rtt} ms` : '< 1 ms';
 
     const details = document.getElementById('pingDetails');
-    if (details) details.textContent = `[${inst.name}] Protocol: SIP RFC 3261 · Target: ${inst.host}:${inst.sip_port} (${inst.sip_transport}) · ${inst.extension_count || 0} extensions assigned.`;
+    if (details) details.textContent = `[${inst.name}] Protocol: SIP RFC 3261 Â· Target: ${inst.host}:${inst.sip_port} (${inst.sip_transport}) Â· ${inst.extension_count || 0} extensions assigned.`;
   };
 
   function renderPbxInstancesTable(instances) {
@@ -8920,3 +8906,528 @@ if (document.readyState === 'loading') {
       btn.textContent = 'Execute API Request';
     }
   });
+
+  // ==============================================================================
+  // Global Shared Address Books & Customer CSV Contact Upload Engine (GDPR Isolated)
+  // ==============================================================================
+  let cachedAddressBooks = [];
+  let activeAddressBookId = null;
+  let activeAddressBookData = null;
+  let selectedModalExtensions = new Set();
+
+  function escapeHtmlSafe(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  async function loadAddressBooks() {
+    const data = await fetchJson('/api/admin/address-books');
+    if (!data || !data.ok) return;
+    cachedAddressBooks = data.addressBooks || [];
+    renderAddressBooksTable(cachedAddressBooks);
+    if (activeAddressBookId) {
+      const stillExists = cachedAddressBooks.some(b => b.id === activeAddressBookId);
+      if (stillExists) {
+        await window.selectAddressBook(activeAddressBookId, false);
+      } else {
+        activeAddressBookId = null;
+        activeAddressBookData = null;
+        document.getElementById('addressBookDetailCard')?.classList.add('hidden');
+      }
+    }
+  }
+
+  function renderAddressBooksTable(books) {
+    const tbody = document.getElementById('addressBooksTableBody');
+    if (!tbody) return;
+
+    if (!books.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 24px;">No shared address books created yet. Click <strong>+ New Address Book</strong> above to create an isolated customer directory and assign extensions.</td></tr>';
+      return;
+    }
+
+    const origin = window.location.origin;
+    tbody.innerHTML = books.map(b => {
+      const exts = Array.isArray(b.extensions) ? b.extensions : [];
+      const extBadges = exts.length === 0
+        ? '<span class="muted" style="font-size: 12px;">No extensions assigned</span>'
+        : exts.slice(0, 6).map(e => `<span class="badge badge-secondary" style="margin-right: 4px; margin-bottom: 2px;">Ext ${escapeHtmlSafe(e)}</span>`).join('') +
+          (exts.length > 6 ? `<span class="badge badge-primary">+${exts.length - 6} more</span>` : '');
+
+      const syncBadge = b.include_assigned_extensions === 1
+        ? '<span class="badge badge-primary" title="Assigned extensions can also see each other as internal colleagues">Colleagues + Contacts</span>'
+        : '<span class="badge badge-secondary" title="Only manually added or CSV-imported contacts are shown">Contacts Only</span>';
+
+      const isSel = b.id === activeAddressBookId;
+      const jsonUrl = `${origin}/api/v1/contacts?book_id=${b.id}`;
+      const xmlUrl = `${origin}/phonebook/yealink.xml?book_id=${b.id}`;
+
+      return `
+        <tr style="${isSel ? 'background: #eff6ff;' : ''}">
+          <td>
+            <div style="font-weight: 600; color: #0f172a;">${escapeHtmlSafe(b.name)}</div>
+            <div class="muted" style="font-size: 11px;">Book ID #${b.id}</div>
+          </td>
+          <td><span style="font-size: 13px; color: #334155;">${escapeHtmlSafe(b.description || '—')}</span></td>
+          <td style="max-width: 280px;">${extBadges}</td>
+          <td>${syncBadge}</td>
+          <td><span class="badge badge-primary">${b.contact_count || 0} contacts</span></td>
+          <td>
+            <div style="display: flex; gap: 4px;">
+              <button type="button" class="btn btn-xs btn-secondary" onclick="window.copyToClipboard('${jsonUrl}', 'Copied JSON feed URL!')" title="Copy Scoped Softphone JSON URL">Copy JSON</button>
+              <button type="button" class="btn btn-xs btn-secondary" onclick="window.copyToClipboard('${xmlUrl}', 'Copied Yealink XML Phonebook URL!')" title="Copy Scoped Deskphone XML URL">Copy XML</button>
+            </div>
+          </td>
+          <td style="text-align: right;">
+            <div style="display: flex; gap: 6px; justify-content: flex-end;">
+              <button type="button" class="btn btn-sm btn-primary" onclick="window.selectAddressBook(${b.id}, true)">Manage Contacts &amp; CSV</button>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="window.openAddressBookModal(${b.id})">Edit / Assign Exts</button>
+              <button type="button" class="btn btn-sm btn-danger" onclick="window.deleteAddressBook(${b.id})">Delete</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  window.selectAddressBook = async (id, scrollToCard = true) => {
+    const res = await fetchJson(`/api/admin/address-books/${encodeURIComponent(id)}`);
+    if (!res || !res.ok || !res.addressBook) {
+      window.showToast(res?.error || 'Failed to load address book details.', 'error');
+      return;
+    }
+
+    activeAddressBookId = res.addressBook.id;
+    activeAddressBookData = res.addressBook;
+    renderAddressBooksTable(cachedAddressBooks);
+
+    const card = document.getElementById('addressBookDetailCard');
+    if (card) {
+      card.classList.remove('hidden');
+      if (scrollToCard) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    const titleEl = document.getElementById('abDetailTitle');
+    if (titleEl) titleEl.textContent = `${res.addressBook.name} — Contacts`;
+
+    const badgeEl = document.getElementById('abDetailExtCountBadge');
+    const exts = res.addressBook.extensions || [];
+    if (badgeEl) {
+      badgeEl.textContent = exts.length
+        ? `Attached to ${exts.length} Extension(s): ${exts.slice(0, 8).join(', ')}${exts.length > 8 ? '…' : ''}`
+        : 'No Extensions Attached';
+    }
+
+    const subEl = document.getElementById('abDetailSubtitle');
+    if (subEl) {
+      subEl.textContent = res.addressBook.description
+        ? `${res.addressBook.description} · Strictly isolated to assigned extensions only.`
+        : 'Strictly isolated to assigned extensions only (GDPR multi-tenant safe).';
+    }
+
+    renderActiveAddressBookContacts();
+  };
+
+  function renderActiveAddressBookContacts() {
+    const tbody = document.getElementById('abContactsTableBody');
+    if (!tbody || !activeAddressBookData) return;
+
+    const query = (document.getElementById('searchAbContacts')?.value || '').trim().toLowerCase();
+    const allContacts = activeAddressBookData.contacts || [];
+    const filtered = !query
+      ? allContacts
+      : allContacts.filter(c =>
+          (c.name || '').toLowerCase().includes(query) ||
+          (c.number || '').toLowerCase().includes(query) ||
+          (c.extension || '').toLowerCase().includes(query) ||
+          (c.mobile || '').toLowerCase().includes(query) ||
+          (c.email || '').toLowerCase().includes(query) ||
+          (c.company || '').toLowerCase().includes(query) ||
+          (c.department || '').toLowerCase().includes(query)
+        );
+
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 20px;">${
+        allContacts.length === 0
+          ? 'No contacts in this address book yet. Click <strong>Upload / Import CSV</strong> or <strong>+ Add Contact</strong> above.'
+          : 'No contacts match your filter.'
+      }</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(c => `
+      <tr>
+        <td style="font-weight: 500; color: #0f172a;">${escapeHtmlSafe(c.name)}</td>
+        <td><code>${escapeHtmlSafe(c.number)}</code></td>
+        <td>${c.extension ? `<span class="badge badge-secondary">${escapeHtmlSafe(c.extension)}</span>` : '—'}</td>
+        <td>${escapeHtmlSafe(c.mobile || '—')}</td>
+        <td>${escapeHtmlSafe(c.email || '—')}</td>
+        <td>${escapeHtmlSafe([c.company, c.department].filter(Boolean).join(' · ') || '—')}</td>
+        <td style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtmlSafe(c.notes || '—')}</td>
+        <td style="text-align: right;">
+          <div style="display: flex; gap: 6px; justify-content: flex-end;">
+            <button type="button" class="btn btn-xs btn-secondary" onclick="window.openAbContactModal(${c.id})">Edit</button>
+            <button type="button" class="btn btn-xs btn-danger" onclick="window.deleteAbContact(${c.id})">Delete</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  document.getElementById('searchAbContacts')?.addEventListener('input', renderActiveAddressBookContacts);
+
+  function renderAddressBookExtensionsChecklist() {
+    const container = document.getElementById('abExtensionsChecklist');
+    const countEl = document.getElementById('abSelectedExtCount');
+    if (countEl) countEl.textContent = String(selectedModalExtensions.size);
+    if (!container) return;
+
+    const filter = (document.getElementById('abExtSearchInput')?.value || '').trim().toLowerCase();
+    const list = (cachedExtensions || []).filter(e => {
+      if (!filter) return true;
+      return (
+        String(e.extension || '').toLowerCase().includes(filter) ||
+        String(e.display_name || '').toLowerCase().includes(filter) ||
+        String(e.pbx_id || '').toLowerCase().includes(filter)
+      );
+    });
+
+    if (!list.length) {
+      container.innerHTML = '<div class="muted" style="padding: 8px; font-size: 12px; grid-column: 1 / -1;">No matching extensions found.</div>';
+      return;
+    }
+
+    container.innerHTML = list.map(e => {
+      const extStr = String(e.extension);
+      const checked = selectedModalExtensions.has(extStr) ? 'checked' : '';
+      return `
+        <label style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid ${checked ? '#93c5fd' : '#e2e8f0'}; background: ${checked ? '#eff6ff' : '#f8fafc'}; border-radius: 5px; font-size: 12px; cursor: pointer; margin: 0;">
+          <input type="checkbox" class="ab-ext-checkbox" value="${escapeHtmlSafe(extStr)}" ${checked}>
+          <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <strong style="color: #0f172a;">Ext ${escapeHtmlSafe(extStr)}</strong>
+            <span class="muted" style="margin-left: 4px;">${escapeHtmlSafe(e.display_name || '')}</span>
+          </div>
+        </label>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.ab-ext-checkbox').forEach(cb => {
+      cb.addEventListener('change', (ev) => {
+        const val = ev.target.value;
+        if (ev.target.checked) selectedModalExtensions.add(val);
+        else selectedModalExtensions.delete(val);
+        renderAddressBookExtensionsChecklist();
+      });
+    });
+  }
+
+  document.getElementById('abExtSearchInput')?.addEventListener('input', renderAddressBookExtensionsChecklist);
+
+  document.getElementById('btnAbSelectAllExts')?.addEventListener('click', () => {
+    const filter = (document.getElementById('abExtSearchInput')?.value || '').trim().toLowerCase();
+    (cachedExtensions || []).forEach(e => {
+      if (
+        !filter ||
+        String(e.extension || '').toLowerCase().includes(filter) ||
+        String(e.display_name || '').toLowerCase().includes(filter) ||
+        String(e.pbx_id || '').toLowerCase().includes(filter)
+      ) {
+        selectedModalExtensions.add(String(e.extension));
+      }
+    });
+    renderAddressBookExtensionsChecklist();
+  });
+
+  document.getElementById('btnAbClearAllExts')?.addEventListener('click', () => {
+    selectedModalExtensions.clear();
+    renderAddressBookExtensionsChecklist();
+  });
+
+  window.openAddressBookModal = async (bookId) => {
+    if (!cachedExtensions || !cachedExtensions.length) {
+      const extData = await fetchJson('/api/admin/extensions');
+      if (extData && Array.isArray(extData.extensions)) {
+        cachedExtensions = extData.extensions;
+      }
+    }
+
+    const form = document.getElementById('formAddressBook');
+    form?.reset();
+    document.getElementById('abExtSearchInput').value = '';
+    selectedModalExtensions = new Set();
+
+    if (bookId) {
+      const book = cachedAddressBooks.find(b => b.id === bookId);
+      if (book) {
+        document.getElementById('modalAddressBookTitle').textContent = `Edit Shared Address Book: ${book.name}`;
+        document.getElementById('abId').value = String(book.id);
+        document.getElementById('abName').value = book.name || '';
+        document.getElementById('abDescription').value = book.description || '';
+        document.getElementById('abIncludeAssignedExts').checked = book.include_assigned_extensions === 1;
+        (book.extensions || []).forEach(e => selectedModalExtensions.add(String(e)));
+      }
+    } else {
+      document.getElementById('modalAddressBookTitle').textContent = '+ New Shared Address Book';
+      document.getElementById('abId').value = '';
+      document.getElementById('abIncludeAssignedExts').checked = true;
+    }
+
+    renderAddressBookExtensionsChecklist();
+    openModal('modalAddressBook');
+  };
+
+  document.getElementById('btnOpenAddAddressBookModal')?.addEventListener('click', () => window.openAddressBookModal(null));
+
+  document.getElementById('formAddressBook')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('abId')?.value.trim();
+    const name = document.getElementById('abName')?.value.trim();
+    const description = document.getElementById('abDescription')?.value.trim();
+    const includeAssigned = document.getElementById('abIncludeAssignedExts')?.checked ? 1 : 0;
+    const extensions = Array.from(selectedModalExtensions);
+
+    if (!name) {
+      window.showToast('Please enter an Address Book Name.', 'warning');
+      return;
+    }
+
+    const url = id ? `/api/admin/address-books/${encodeURIComponent(id)}` : '/api/admin/address-books';
+    const method = id ? 'PUT' : 'POST';
+
+    const res = await fetchJson(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        description,
+        include_assigned_extensions: includeAssigned,
+        extensions
+      })
+    });
+
+    if (res && res.ok) {
+      window.showToast(res.message || 'Shared Address Book saved.', 'success');
+      closeModal('modalAddressBook');
+      if (!id && res.id) {
+        activeAddressBookId = res.id;
+      }
+      await loadAddressBooks();
+    } else {
+      window.showToast(res?.error || 'Failed to save address book.', 'error');
+    }
+  });
+
+  window.deleteAddressBook = async (id) => {
+    const book = cachedAddressBooks.find(b => b.id === id);
+    const name = book ? book.name : `#${id}`;
+    if (!confirm(`Are you sure you want to delete Shared Address Book "${name}" and all contacts inside it?`)) {
+      return;
+    }
+
+    const res = await fetchJson(`/api/admin/address-books/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (res && res.ok) {
+      window.showToast(res.message || 'Address book deleted.', 'success');
+      if (activeAddressBookId === id) {
+        activeAddressBookId = null;
+        activeAddressBookData = null;
+        document.getElementById('addressBookDetailCard')?.classList.add('hidden');
+      }
+      await loadAddressBooks();
+    } else {
+      window.showToast(res?.error || 'Failed to delete address book.', 'error');
+    }
+  };
+
+  // Add / Edit Single Contact in Active Address Book
+  window.openAbContactModal = (contactId) => {
+    if (!activeAddressBookId || !activeAddressBookData) {
+      window.showToast('Please select an address book first.', 'warning');
+      return;
+    }
+    const form = document.getElementById('formAddressBookContact');
+    form?.reset();
+
+    if (contactId) {
+      const c = (activeAddressBookData.contacts || []).find(item => item.id === contactId);
+      if (c) {
+        document.getElementById('modalAbContactTitle').textContent = `Edit Contact: ${c.name}`;
+        document.getElementById('abContactId').value = String(c.id);
+        document.getElementById('abContactName').value = c.name || '';
+        document.getElementById('abContactNumber').value = c.number || '';
+        document.getElementById('abContactExt').value = c.extension || '';
+        document.getElementById('abContactMobile').value = c.mobile || '';
+        document.getElementById('abContactEmail').value = c.email || '';
+        document.getElementById('abContactCompany').value = c.company || '';
+        document.getElementById('abContactDept').value = c.department || '';
+        document.getElementById('abContactNotes').value = c.notes || '';
+      }
+    } else {
+      document.getElementById('modalAbContactTitle').textContent = `+ Add Contact to ${activeAddressBookData.name}`;
+      document.getElementById('abContactId').value = '';
+      document.getElementById('abContactCompany').value = activeAddressBookData.name || '';
+    }
+
+    openModal('modalAddressBookContact');
+  };
+
+  document.getElementById('btnOpenAddAbContactModal')?.addEventListener('click', () => window.openAbContactModal(null));
+
+  document.getElementById('formAddressBookContact')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!activeAddressBookId) return;
+
+    const contactId = document.getElementById('abContactId')?.value.trim();
+    const payload = {
+      name: document.getElementById('abContactName')?.value.trim(),
+      number: document.getElementById('abContactNumber')?.value.trim(),
+      extension: document.getElementById('abContactExt')?.value.trim(),
+      mobile: document.getElementById('abContactMobile')?.value.trim(),
+      email: document.getElementById('abContactEmail')?.value.trim(),
+      company: document.getElementById('abContactCompany')?.value.trim(),
+      department: document.getElementById('abContactDept')?.value.trim(),
+      notes: document.getElementById('abContactNotes')?.value.trim()
+    };
+
+    const url = contactId
+      ? `/api/admin/address-books/${encodeURIComponent(activeAddressBookId)}/contacts/${encodeURIComponent(contactId)}`
+      : `/api/admin/address-books/${encodeURIComponent(activeAddressBookId)}/contacts`;
+    const method = contactId ? 'PUT' : 'POST';
+
+    const res = await fetchJson(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res && res.ok) {
+      window.showToast(res.message || 'Contact saved.', 'success');
+      closeModal('modalAddressBookContact');
+      await loadAddressBooks();
+    } else {
+      window.showToast(res?.error || 'Failed to save contact.', 'error');
+    }
+  });
+
+  window.deleteAbContact = async (contactId) => {
+    if (!activeAddressBookId) return;
+    if (!confirm('Remove this contact from the shared address book?')) return;
+
+    const res = await fetchJson(`/api/admin/address-books/${encodeURIComponent(activeAddressBookId)}/contacts/${encodeURIComponent(contactId)}`, {
+      method: 'DELETE'
+    });
+    if (res && res.ok) {
+      window.showToast('Contact removed.', 'success');
+      await loadAddressBooks();
+    } else {
+      window.showToast(res?.error || 'Failed to remove contact.', 'error');
+    }
+  };
+
+  // CSV Upload / Import Modal & Sample CSV Generator
+  function downloadSampleAddressBookCsv() {
+    const sample = [
+      'Name,Number,Extension,Mobile,Email,Company,Department,Notes',
+      '"Smith, John",02036567447,501,07700900111,john.smith@example.co.uk,Company 1 Ltd,Sales,Account Director',
+      '"Reception Desk",500,500,,reception@example.co.uk,Company 1 Ltd,Front Desk,Main Switchboard',
+      '"Sarah Taylor",07700900222,,07700900222,sarah@supplier.co.uk,External Supplier,Support,24/7 Escalation'
+    ].join('\r\n');
+
+    const blob = new Blob([sample], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sample_shared_address_book.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById('btnDownloadSampleAbCsv')?.addEventListener('click', downloadSampleAddressBookCsv);
+  document.getElementById('linkModalDownloadSampleCsv')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    downloadSampleAddressBookCsv();
+  });
+
+  document.getElementById('btnOpenImportAbCsvModal')?.addEventListener('click', () => {
+    if (!activeAddressBookId || !activeAddressBookData) {
+      window.showToast('Please select an address book first.', 'warning');
+      return;
+    }
+    document.getElementById('formImportAddressBookCsv')?.reset();
+    document.getElementById('modalImportAbCsvTitle').textContent = `Upload / Import CSV — ${activeAddressBookData.name}`;
+    openModal('modalImportAddressBookCsv');
+  });
+
+  document.getElementById('abCsvFileInput')?.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const txtEl = document.getElementById('abCsvTextInput');
+      if (txtEl && typeof reader.result === 'string') {
+        txtEl.value = reader.result;
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById('formImportAddressBookCsv')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!activeAddressBookId) return;
+
+    const csvText = document.getElementById('abCsvTextInput')?.value || '';
+    const mode = document.getElementById('abCsvImportMode')?.value || 'append';
+    if (!csvText.trim()) {
+      window.showToast('Please select a CSV file or paste CSV rows first.', 'warning');
+      return;
+    }
+
+    const btn = document.getElementById('btnSubmitAbCsvImport');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Importing...';
+    }
+
+    try {
+      const res = await fetchJson(`/api/admin/address-books/${encodeURIComponent(activeAddressBookId)}/import-csv`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csvText, mode })
+      });
+
+      if (res && res.ok) {
+        window.showToast(res.message || `Imported ${res.importedCount} contacts!`, 'success');
+        closeModal('modalImportAddressBookCsv');
+        await loadAddressBooks();
+      } else {
+        window.showToast(res?.error || 'CSV import failed.', 'error');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Import Contacts';
+      }
+    }
+  });
+
+  document.getElementById('btnExportAbCsv')?.addEventListener('click', () => {
+    if (!activeAddressBookId) return;
+    const token = getAuthToken();
+    const url = `/api/admin/address-books/${encodeURIComponent(activeAddressBookId)}/export-csv${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    window.open(url, '_blank');
+  });
+
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}

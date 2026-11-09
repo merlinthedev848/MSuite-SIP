@@ -40,7 +40,7 @@ export function generateFanvilConfig(cfg: HandsetAccountConfig): string {
 
     <!-- Corporate Remote Phonebook -->
     <Phonebook>
-      <Cloud_URL_1>${cfg.dataHandlerUrl}/phonebook/fanvil.xml</Cloud_URL_1>
+      <Cloud_URL_1>${cfg.dataHandlerUrl}/phonebook/fanvil.xml?extension=${encodeURIComponent(cfg.extension)}</Cloud_URL_1>
       <Cloud_Name_1>Company Directory</Cloud_Name_1>
       <Auto_Update>1</Auto_Update>
     </Phonebook>

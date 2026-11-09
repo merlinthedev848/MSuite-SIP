@@ -2036,7 +2036,7 @@ public partial class MainWindow : Window
 
         ApplyGlobalSearchFilter();
         _ = RefreshPresenceSubscriptionsAsync();
-        // GDPR / Multi-Tenant Isolation: Do not auto-sync global PBX extensions into local contacts.
+        _ = SyncRemoteDirectoryContactsAsync();
     }
 
     
@@ -2048,7 +2048,10 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(handlerUrl)) return;
 
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            using var req = new HttpRequestMessage(HttpMethod.Get, $"{handlerUrl}/api/v1/contacts");
+            var myExt = (_config.Extension ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(myExt)) return;
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"{handlerUrl}/api/v1/contacts?extension={Uri.EscapeDataString(myExt)}");
+            req.Headers.Add("X-MerlinSIP-Extension", myExt);
             req.Headers.Add("User-Agent", "MerlinSIP/1.4.0");
             using var res = await HttpClientHelper.SharedClient.SendAsync(req, cts.Token);
             if (!res.IsSuccessStatusCode) return;
@@ -2079,7 +2082,11 @@ public partial class MainWindow : Window
                     {
                         Name = !string.IsNullOrWhiteSpace(name) ? name.Trim() : $"Ext {effectiveNumber}",
                         Number = effectiveNumber,
-                        Company = "Corporate Directory",
+                        Company = item.TryGetProperty("company", out var compEl) && !string.IsNullOrWhiteSpace(compEl.GetString())
+                            ? compEl.GetString()!.Trim()
+                            : (item.TryGetProperty("address_book_name", out var abEl) && !string.IsNullOrWhiteSpace(abEl.GetString())
+                                ? abEl.GetString()!.Trim()
+                                : "Shared Address Book"),
                         Notes = email ?? "",
                         IsFavorite = false
                     };

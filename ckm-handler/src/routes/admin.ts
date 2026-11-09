@@ -1978,4 +1978,540 @@ router.get('/branding/logo', (req: Request, res: Response) => {
   return res.status(404).send('No custom logo uploaded yet.');
 });
 
+// ==============================================================================
+// Global Shared Address Books (GDPR-Isolated Multi-Tenant Customer Directories)
+// ==============================================================================
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB max CSV upload
+});
+
+function parseCsvRows(csvText: string): string[][] {
+  const rows: string[][] = [];
+  const clean = String(csvText || '').replace(/^\uFEFF/, '');
+  const lines = clean.split(/\r?\n/);
+  const firstNonEmpty = lines.find(l => l.trim().length > 0) || '';
+  const delimiter = (firstNonEmpty.split(';').length > firstNonEmpty.split(',').length) ? ';' : ',';
+
+  for (const rawLine of lines) {
+    if (!rawLine.trim()) continue;
+    const cols: string[] = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < rawLine.length; i++) {
+      const ch = rawLine[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (i + 1 < rawLine.length && rawLine[i + 1] === '"') {
+            cur += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          cur += ch;
+        }
+      } else {
+        if (ch === '"') {
+          inQuotes = true;
+        } else if (ch === delimiter) {
+          cols.push(cur.trim());
+          cur = '';
+        } else {
+          cur += ch;
+        }
+      }
+    }
+    cols.push(cur.trim());
+    if (cols.some(c => c.length > 0)) {
+      rows.push(cols);
+    }
+  }
+  return rows;
+}
+
+function escapeCsvField(val: string): string {
+  const str = String(val ?? '');
+  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+// GET /api/admin/address-books - List all shared address books with assigned extensions and contact counts
+router.get('/api/admin/address-books', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
+  const books = systemDb.prepare(`
+    SELECT b.id, b.name, b.description, b.include_assigned_extensions, b.created_at, b.updated_at,
+           (SELECT COUNT(*) FROM address_book_contacts c WHERE c.address_book_id = b.id) AS contact_count
+    FROM shared_address_books b
+    ORDER BY b.name COLLATE NOCASE ASC, b.id ASC
+  `).all() as Array<{
+    id: number;
+    name: string;
+    description: string;
+    include_assigned_extensions: number;
+    created_at: string;
+    updated_at: string;
+    contact_count: number;
+  }>;
+
+  const getBookExtsStmt = systemDb.prepare(`
+    SELECT abe.extension, e.display_name
+    FROM address_book_extensions abe
+    LEFT JOIN extensions e ON abe.extension = e.extension
+    WHERE abe.address_book_id = ?
+    ORDER BY CAST(abe.extension AS INTEGER) ASC, abe.extension ASC
+  `);
+
+  const enriched = books.map(b => {
+    const extRows = getBookExtsStmt.all(b.id) as Array<{ extension: string; display_name: string | null }>;
+    return {
+      ...b,
+      extensions: extRows.map(r => r.extension),
+      extension_details: extRows.map(r => ({
+        extension: r.extension,
+        display_name: r.display_name || `Ext ${r.extension}`
+      }))
+    };
+  });
+
+  return res.json({ ok: true, addressBooks: enriched });
+});
+
+// GET /api/admin/address-books/:id - Get single address book with assigned extensions and all contacts
+router.get('/api/admin/address-books/:id', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
+  const bookId = parseInt(String(req.params.id), 10);
+  if (isNaN(bookId)) {
+    return res.status(400).json({ ok: false, error: 'Invalid address book ID.' });
+  }
+
+  const book = systemDb.prepare('SELECT * FROM shared_address_books WHERE id = ?').get(bookId) as {
+    id: number;
+    name: string;
+    description: string;
+    include_assigned_extensions: number;
+    created_at: string;
+    updated_at: string;
+  } | undefined;
+
+  if (!book) {
+    return res.status(404).json({ ok: false, error: 'Address book not found.' });
+  }
+
+  const extRows = systemDb.prepare(`
+    SELECT abe.extension, e.display_name
+    FROM address_book_extensions abe
+    LEFT JOIN extensions e ON abe.extension = e.extension
+    WHERE abe.address_book_id = ?
+    ORDER BY CAST(abe.extension AS INTEGER) ASC, abe.extension ASC
+  `).all(bookId) as Array<{ extension: string; display_name: string | null }>;
+
+  const contacts = systemDb.prepare(`
+    SELECT id, address_book_id, name, number, extension, mobile, email, company, department, notes, created_at
+    FROM address_book_contacts
+    WHERE address_book_id = ?
+    ORDER BY name COLLATE NOCASE ASC, id ASC
+  `).all(bookId);
+
+  return res.json({
+    ok: true,
+    addressBook: {
+      ...book,
+      extensions: extRows.map(r => r.extension),
+      extension_details: extRows.map(r => ({
+        extension: r.extension,
+        display_name: r.display_name || `Ext ${r.extension}`
+      })),
+      contacts
+    }
+  });
+});
+
+// POST /api/admin/address-books - Create a new Global Shared Address Book & assign extensions
+router.post('/api/admin/address-books', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
+  const { name, description, include_assigned_extensions, extensions } = req.body;
+  const cleanName = String(name || '').trim();
+  if (!cleanName) {
+    return res.status(400).json({ ok: false, error: 'Address book name is required.' });
+  }
+
+  const cleanDesc = String(description || '').trim();
+  const includeExts = include_assigned_extensions ? 1 : 0;
+  const extList: string[] = Array.isArray(extensions)
+    ? Array.from(new Set(extensions.map((e: unknown) => String(e || '').trim()).filter(Boolean)))
+    : [];
+
+  const createTx = systemDb.transaction(() => {
+    const info = systemDb.prepare(`
+      INSERT INTO shared_address_books (name, description, include_assigned_extensions)
+      VALUES (?, ?, ?)
+    `).run(cleanName, cleanDesc, includeExts);
+
+    const newBookId = Number(info.lastInsertRowid);
+    const checkExtStmt = systemDb.prepare('SELECT extension FROM extensions WHERE extension = ?');
+    const insertExtStmt = systemDb.prepare(`
+      INSERT OR IGNORE INTO address_book_extensions (address_book_id, extension)
+      VALUES (?, ?)
+    `);
+
+    for (const ext of extList) {
+      if (checkExtStmt.get(ext)) {
+        insertExtStmt.run(newBookId, ext);
+      }
+    }
+    return newBookId;
+  });
+
+  const bookId = createTx();
+  logActivity('ADDRESS_BOOK_CREATED', `Shared Address Book [${cleanName}] (#${bookId}) created with ${extList.length} assigned extension(s)`, req.ip);
+
+  return res.json({
+    ok: true,
+    id: bookId,
+    message: `Shared Address Book "${cleanName}" created and attached to ${extList.length} extension(s).`
+  });
+});
+
+// PUT /api/admin/address-books/:id - Update Address Book metadata & assigned extensions
+router.put('/api/admin/address-books/:id', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
+  const bookId = parseInt(String(req.params.id), 10);
+  if (isNaN(bookId)) {
+    return res.status(400).json({ ok: false, error: 'Invalid address book ID.' });
+  }
+
+  const existing = systemDb.prepare('SELECT id, name FROM shared_address_books WHERE id = ?').get(bookId) as { id: number; name: string } | undefined;
+  if (!existing) {
+    return res.status(404).json({ ok: false, error: 'Address book not found.' });
+  }
+
+  const { name, description, include_assigned_extensions, extensions } = req.body;
+  const cleanName = String(name || existing.name).trim();
+  if (!cleanName) {
+    return res.status(400).json({ ok: false, error: 'Address book name is required.' });
+  }
+
+  const cleanDesc = String(description ?? '').trim();
+  const includeExts = include_assigned_extensions ? 1 : 0;
+  const extList: string[] | null = Array.isArray(extensions)
+    ? Array.from(new Set(extensions.map((e: unknown) => String(e || '').trim()).filter(Boolean)))
+    : null;
+
+  const updateTx = systemDb.transaction(() => {
+    systemDb.prepare(`
+      UPDATE shared_address_books
+      SET name = ?, description = ?, include_assigned_extensions = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(cleanName, cleanDesc, includeExts, bookId);
+
+    if (extList !== null) {
+      systemDb.prepare('DELETE FROM address_book_extensions WHERE address_book_id = ?').run(bookId);
+      const checkExtStmt = systemDb.prepare('SELECT extension FROM extensions WHERE extension = ?');
+      const insertExtStmt = systemDb.prepare(`
+        INSERT OR IGNORE INTO address_book_extensions (address_book_id, extension)
+        VALUES (?, ?)
+      `);
+      for (const ext of extList) {
+        if (checkExtStmt.get(ext)) {
+          insertExtStmt.run(bookId, ext);
+        }
+      }
+    }
+  });
+
+  updateTx();
+  logActivity('ADDRESS_BOOK_UPDATED', `Shared Address Book [${cleanName}] (#${bookId}) updated`, req.ip);
+
+  return res.json({
+    ok: true,
+    message: `Shared Address Book "${cleanName}" updated successfully.`
+  });
+});
+
+// DELETE /api/admin/address-books/:id - Delete a Shared Address Book and its contacts/assignments
+router.delete('/api/admin/address-books/:id', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
+  const bookId = parseInt(String(req.params.id), 10);
+  if (isNaN(bookId)) {
+    return res.status(400).json({ ok: false, error: 'Invalid address book ID.' });
+  }
+
+  const existing = systemDb.prepare('SELECT id, name FROM shared_address_books WHERE id = ?').get(bookId) as { id: number; name: string } | undefined;
+  if (!existing) {
+    return res.status(404).json({ ok: false, error: 'Address book not found.' });
+  }
+
+  systemDb.prepare('DELETE FROM address_book_contacts WHERE address_book_id = ?').run(bookId);
+  systemDb.prepare('DELETE FROM address_book_extensions WHERE address_book_id = ?').run(bookId);
+  systemDb.prepare('DELETE FROM shared_address_books WHERE id = ?').run(bookId);
+
+  logActivity('ADDRESS_BOOK_DELETED', `Shared Address Book [${existing.name}] (#${bookId}) deleted`, req.ip);
+  return res.json({ ok: true, message: `Shared Address Book "${existing.name}" deleted.` });
+});
+
+// POST /api/admin/address-books/:id/contacts - Add a contact to a Shared Address Book
+router.post('/api/admin/address-books/:id/contacts', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
+  const bookId = parseInt(String(req.params.id), 10);
+  if (isNaN(bookId)) {
+    return res.status(400).json({ ok: false, error: 'Invalid address book ID.' });
+  }
+
+  const book = systemDb.prepare('SELECT id, name FROM shared_address_books WHERE id = ?').get(bookId) as { id: number; name: string } | undefined;
+  if (!book) {
+    return res.status(404).json({ ok: false, error: 'Address book not found.' });
+  }
+
+  const { name, number, extension, mobile, email, company, department, notes } = req.body;
+  const cleanName = String(name || '').trim();
+  const cleanNumber = String(number || extension || mobile || '').trim();
+  if (!cleanName || !cleanNumber) {
+    return res.status(400).json({ ok: false, error: 'Contact Name and Phone Number / Extension are required.' });
+  }
+
+  const info = systemDb.prepare(`
+    INSERT INTO address_book_contacts (address_book_id, name, number, extension, mobile, email, company, department, notes)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    bookId,
+    cleanName,
+    cleanNumber,
+    String(extension || '').trim(),
+    String(mobile || '').trim(),
+    String(email || '').trim(),
+    String(company || '').trim(),
+    String(department || '').trim(),
+    String(notes || '').trim()
+  );
+
+  systemDb.prepare('UPDATE shared_address_books SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(bookId);
+  return res.json({
+    ok: true,
+    contactId: Number(info.lastInsertRowid),
+    message: `Contact "${cleanName}" added to ${book.name}.`
+  });
+});
+
+// PUT /api/admin/address-books/:id/contacts/:contactId - Edit a contact in a Shared Address Book
+router.put('/api/admin/address-books/:id/contacts/:contactId', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
+  const bookId = parseInt(String(req.params.id), 10);
+  const contactId = parseInt(String(req.params.contactId), 10);
+  if (isNaN(bookId) || isNaN(contactId)) {
+    return res.status(400).json({ ok: false, error: 'Invalid address book or contact ID.' });
+  }
+
+  const { name, number, extension, mobile, email, company, department, notes } = req.body;
+  const cleanName = String(name || '').trim();
+  const cleanNumber = String(number || extension || mobile || '').trim();
+  if (!cleanName || !cleanNumber) {
+    return res.status(400).json({ ok: false, error: 'Contact Name and Phone Number / Extension are required.' });
+  }
+
+  const result = systemDb.prepare(`
+    UPDATE address_book_contacts
+    SET name = ?, number = ?, extension = ?, mobile = ?, email = ?, company = ?, department = ?, notes = ?
+    WHERE id = ? AND address_book_id = ?
+  `).run(
+    cleanName,
+    cleanNumber,
+    String(extension || '').trim(),
+    String(mobile || '').trim(),
+    String(email || '').trim(),
+    String(company || '').trim(),
+    String(department || '').trim(),
+    String(notes || '').trim(),
+    contactId,
+    bookId
+  );
+
+  if (result.changes === 0) {
+    return res.status(404).json({ ok: false, error: 'Contact not found in this address book.' });
+  }
+
+  systemDb.prepare('UPDATE shared_address_books SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(bookId);
+  return res.json({ ok: true, message: `Contact "${cleanName}" updated.` });
+});
+
+// DELETE /api/admin/address-books/:id/contacts/:contactId - Remove a contact from a Shared Address Book
+router.delete('/api/admin/address-books/:id/contacts/:contactId', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
+  const bookId = parseInt(String(req.params.id), 10);
+  const contactId = parseInt(String(req.params.contactId), 10);
+  if (isNaN(bookId) || isNaN(contactId)) {
+    return res.status(400).json({ ok: false, error: 'Invalid address book or contact ID.' });
+  }
+
+  systemDb.prepare('DELETE FROM address_book_contacts WHERE id = ? AND address_book_id = ?').run(contactId, bookId);
+  systemDb.prepare('UPDATE shared_address_books SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(bookId);
+  return res.json({ ok: true, message: 'Contact removed from address book.' });
+});
+
+// POST /api/admin/address-books/:id/import-csv - Bulk upload / import CSV contacts into a Shared Address Book
+router.post('/api/admin/address-books/:id/import-csv', adminAuth, requirePermission('manage_extensions'), csvUpload.single('file'), (req: Request, res: Response) => {
+  const bookId = parseInt(String(req.params.id), 10);
+  if (isNaN(bookId)) {
+    return res.status(400).json({ ok: false, error: 'Invalid address book ID.' });
+  }
+
+  const book = systemDb.prepare('SELECT id, name FROM shared_address_books WHERE id = ?').get(bookId) as { id: number; name: string } | undefined;
+  if (!book) {
+    return res.status(404).json({ ok: false, error: 'Address book not found.' });
+  }
+
+  const csvText = req.file
+    ? req.file.buffer.toString('utf-8')
+    : String(req.body?.csvText || req.body?.csv || '');
+
+  if (!csvText.trim()) {
+    return res.status(400).json({ ok: false, error: 'No CSV content provided.' });
+  }
+
+  const rows = parseCsvRows(csvText);
+  if (rows.length === 0) {
+    return res.status(400).json({ ok: false, error: 'CSV file contains no readable rows.' });
+  }
+
+  const firstRowLower = rows[0].map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const headerKeywords = ['name', 'fullname', 'firstname', 'lastname', 'number', 'phone', 'telephone', 'extension', 'ext', 'mobile', 'cell', 'email', 'company', 'department', 'notes'];
+  const hasHeader = firstRowLower.some(h => headerKeywords.includes(h));
+
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+  const colIndex = (candidates: string[], fallbackIdx: number): number => {
+    if (!hasHeader) return fallbackIdx;
+    return firstRowLower.findIndex(h => candidates.includes(h));
+  };
+
+  const idxName = colIndex(['name', 'fullname', 'contactname', 'displayname'], 0);
+  const idxFirstName = hasHeader ? firstRowLower.findIndex(h => ['firstname', 'first', 'givenname'].includes(h)) : -1;
+  const idxLastName = hasHeader ? firstRowLower.findIndex(h => ['lastname', 'last', 'surname', 'familyname'].includes(h)) : -1;
+  const idxNumber = colIndex(['number', 'phone', 'phonenumber', 'telephone', 'primarynumber', 'tel', 'ddi'], 1);
+  const idxExt = colIndex(['extension', 'ext', 'internalextension'], 2);
+  const idxMobile = colIndex(['mobile', 'mobilephone', 'cell', 'cellphone'], 3);
+  const idxEmail = colIndex(['email', 'emailaddress', 'mail'], 4);
+  const idxCompany = colIndex(['company', 'organization', 'organisation', 'business', 'customer'], 5);
+  const idxDept = colIndex(['department', 'dept', 'role', 'jobtitle', 'title'], 6);
+  const idxNotes = colIndex(['notes', 'note', 'comment', 'comments', 'description'], 7);
+
+  const mode = String(req.body?.mode || 'append').toLowerCase() === 'replace' ? 'replace' : 'append';
+
+  let importedCount = 0;
+  let skippedCount = 0;
+
+  const importTx = systemDb.transaction(() => {
+    if (mode === 'replace') {
+      systemDb.prepare('DELETE FROM address_book_contacts WHERE address_book_id = ?').run(bookId);
+    }
+
+    const findExistingStmt = systemDb.prepare(`
+      SELECT id FROM address_book_contacts
+      WHERE address_book_id = ? AND LOWER(number) = LOWER(?)
+      LIMIT 1
+    `);
+    const updateExistingStmt = systemDb.prepare(`
+      UPDATE address_book_contacts
+      SET name = ?, extension = ?, mobile = ?, email = ?, company = ?, department = ?, notes = ?
+      WHERE id = ?
+    `);
+    const insertStmt = systemDb.prepare(`
+      INSERT INTO address_book_contacts (address_book_id, name, number, extension, mobile, email, company, department, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const r of dataRows) {
+      let name = idxName >= 0 && idxName < r.length ? r[idxName].trim() : '';
+      if (!name && (idxFirstName >= 0 || idxLastName >= 0)) {
+        const fn = idxFirstName >= 0 && idxFirstName < r.length ? r[idxFirstName].trim() : '';
+        const ln = idxLastName >= 0 && idxLastName < r.length ? r[idxLastName].trim() : '';
+        name = `${fn} ${ln}`.trim();
+      }
+
+      const ext = idxExt >= 0 && idxExt < r.length ? r[idxExt].trim() : '';
+      const mobile = idxMobile >= 0 && idxMobile < r.length ? r[idxMobile].trim() : '';
+      let number = idxNumber >= 0 && idxNumber < r.length ? r[idxNumber].trim() : '';
+      if (!number) number = ext || mobile;
+
+      if (!name && !number) {
+        skippedCount++;
+        continue;
+      }
+      if (!number) {
+        skippedCount++;
+        continue;
+      }
+      if (!name) {
+        name = ext ? `Ext ${ext}` : number;
+      }
+
+      const email = idxEmail >= 0 && idxEmail < r.length ? r[idxEmail].trim() : '';
+      const company = idxCompany >= 0 && idxCompany < r.length ? r[idxCompany].trim() : '';
+      const department = idxDept >= 0 && idxDept < r.length ? r[idxDept].trim() : '';
+      const notes = idxNotes >= 0 && idxNotes < r.length ? r[idxNotes].trim() : '';
+
+      const existing = findExistingStmt.get(bookId, number) as { id: number } | undefined;
+      if (existing) {
+        updateExistingStmt.run(name, ext, mobile, email, company, department, notes, existing.id);
+      } else {
+        insertStmt.run(bookId, name, number, ext, mobile, email, company, department, notes);
+      }
+      importedCount++;
+    }
+
+    systemDb.prepare('UPDATE shared_address_books SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(bookId);
+  });
+
+  importTx();
+  logActivity('ADDRESS_BOOK_CSV_IMPORT', `Imported ${importedCount} contact(s) via CSV into Shared Address Book [${book.name}] (#${bookId}, mode=${mode})`, req.ip);
+
+  return res.json({
+    ok: true,
+    importedCount,
+    skippedCount,
+    message: `Successfully imported ${importedCount} contact(s) into "${book.name}"${skippedCount > 0 ? ` (${skippedCount} empty/invalid rows skipped)` : ''}.`
+  });
+});
+
+// GET /api/admin/address-books/:id/export-csv - Export contacts of a Shared Address Book as CSV
+router.get('/api/admin/address-books/:id/export-csv', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
+  const bookId = parseInt(String(req.params.id), 10);
+  if (isNaN(bookId)) {
+    return res.status(400).json({ ok: false, error: 'Invalid address book ID.' });
+  }
+
+  const book = systemDb.prepare('SELECT id, name FROM shared_address_books WHERE id = ?').get(bookId) as { id: number; name: string } | undefined;
+  if (!book) {
+    return res.status(404).json({ ok: false, error: 'Address book not found.' });
+  }
+
+  const contacts = systemDb.prepare(`
+    SELECT name, number, extension, mobile, email, company, department, notes
+    FROM address_book_contacts
+    WHERE address_book_id = ?
+    ORDER BY name COLLATE NOCASE ASC, id ASC
+  `).all(bookId) as Array<{
+    name: string;
+    number: string;
+    extension: string;
+    mobile: string;
+    email: string;
+    company: string;
+    department: string;
+    notes: string;
+  }>;
+
+  const lines = ['Name,Number,Extension,Mobile,Email,Company,Department,Notes'];
+  for (const c of contacts) {
+    lines.push([
+      escapeCsvField(c.name),
+      escapeCsvField(c.number),
+      escapeCsvField(c.extension),
+      escapeCsvField(c.mobile),
+      escapeCsvField(c.email),
+      escapeCsvField(c.company),
+      escapeCsvField(c.department),
+      escapeCsvField(c.notes)
+    ].join(','));
+  }
+
+  const safeFilename = book.name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase() || `address_book_${bookId}`;
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}_contacts.csv"`);
+  return res.send(lines.join('\r\n'));
+});
+
 export default router;

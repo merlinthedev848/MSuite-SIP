@@ -322,6 +322,42 @@ try {
   systemDb.exec(`
     CREATE INDEX IF NOT EXISTS idx_extensions_email ON extensions (email);
     CREATE INDEX IF NOT EXISTS idx_extensions_pbx_id ON extensions (pbx_id);
+
+    CREATE TABLE IF NOT EXISTS shared_address_books (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      include_assigned_extensions INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS address_book_extensions (
+      address_book_id INTEGER NOT NULL,
+      extension TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (address_book_id, extension),
+      FOREIGN KEY (address_book_id) REFERENCES shared_address_books (id) ON DELETE CASCADE,
+      FOREIGN KEY (extension) REFERENCES extensions (extension) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS address_book_contacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      address_book_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      number TEXT NOT NULL,
+      extension TEXT DEFAULT '',
+      mobile TEXT DEFAULT '',
+      email TEXT DEFAULT '',
+      company TEXT DEFAULT '',
+      department TEXT DEFAULT '',
+      notes TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (address_book_id) REFERENCES shared_address_books (id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ab_ext_extension ON address_book_extensions (extension);
+    CREATE INDEX IF NOT EXISTS idx_ab_contacts_book ON address_book_contacts (address_book_id);
   `);
 } catch {}
 

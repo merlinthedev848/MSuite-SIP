@@ -44,6 +44,9 @@
         <button class="nav-btn" data-tab="extensions">
           <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></span> Extensions & Softphones
         </button>
+        <button class="nav-btn" data-tab="addressbooks" id="navBtnAddressBooks">
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><circle cx="12" cy="10" r="2"></circle><path d="M9 15c.6-1.5 1.8-2 3-2s2.4.5 3 2"></path></svg></span> Shared Address Books
+        </button>
         <button class="nav-btn" data-tab="handsets" id="navBtnHandsets">
           <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></span> IP Deskphone Fleet
           <span class="nav-badge-pending hidden" id="navBadgeDiscovered">0 Pending</span>
@@ -1195,6 +1198,78 @@
           </div>
         </div>
       </section>
+      <!-- TAB 9: GLOBAL SHARED ADDRESS BOOKS (GDPR ISOLATED) -->
+      <section class="tab-pane" id="pane-addressbooks">
+        <div class="section-header-panel">
+          <div class="section-header-info">
+            <h2>Global Shared Address Books</h2>
+            <p class="section-subtitle">Create GDPR-isolated company address books, assign applicable extensions, and upload/import customer contacts via CSV.</p>
+          </div>
+          <div class="section-header-actions">
+            <button type="button" class="btn btn-secondary" id="btnDownloadSampleAbCsv" title="Download sample CSV file format for customer contact uploads">
+              Download CSV Template
+            </button>
+            <button type="button" class="btn btn-primary" id="btnOpenAddAddressBookModal">
+              + New Address Book
+            </button>
+          </div>
+        </div>
+
+        <div class="table-card" style="margin-bottom: 20px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Address Book Name</th>
+                <th>Description / Customer</th>
+                <th>Assigned Extensions (Users)</th>
+                <th>Colleague Sync</th>
+                <th>Saved Contacts</th>
+                <th>Scoped XML / JSON Feed</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="addressBooksTableBody">
+              <tr><td colspan="7" class="text-center">Loading shared address books...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Selected Address Book Contacts & CSV Manager Panel -->
+        <div id="addressBookDetailCard" class="table-card hidden" style="border: 1px solid #cbd5e1;">
+          <div class="section-header-panel" style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0; margin-bottom: 0; background: #f8fafc;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <h3 id="abDetailTitle" style="margin: 0; font-size: 16px; font-weight: 600; color: #0f172a;">Address Book Contacts</h3>
+                <span id="abDetailExtCountBadge" class="badge badge-primary">0 Extensions Attached</span>
+              </div>
+              <p id="abDetailSubtitle" class="muted" style="margin: 4px 0 0 0; font-size: 12.5px;">Manage contacts inside this isolated address book or bulk-import from a CSV file.</p>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <input type="text" id="searchAbContacts" class="search-input" style="width: 220px; padding: 6px 10px; font-size: 12.5px;" placeholder="Filter contacts...">
+              <button type="button" class="btn btn-sm btn-secondary" id="btnExportAbCsv">Export CSV</button>
+              <button type="button" class="btn btn-sm btn-secondary" id="btnOpenImportAbCsvModal" style="border-color: #2563eb; color: #2563eb; font-weight: 600;">Upload / Import CSV</button>
+              <button type="button" class="btn btn-sm btn-primary" id="btnOpenAddAbContactModal">+ Add Contact</button>
+            </div>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Contact Name</th>
+                <th>Primary Number</th>
+                <th>Ext</th>
+                <th>Mobile</th>
+                <th>Email</th>
+                <th>Company / Dept</th>
+                <th>Notes</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="abContactsTableBody">
+              <tr><td colspan="8" class="text-center">Select an address book above to view and manage its contacts.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -1906,7 +1981,7 @@
   <!-- Floating Toast Notifications Container -->
   <div id="toastContainer" class="toast-container"></div>
 
-  <script src="app.js?v=1.5.0"></script>
+
 
   <!-- Omada One-Click Adopt Device Modal -->
   <div id="modalAdoptDevice" class="modal-backdrop hidden">
@@ -2116,5 +2191,165 @@
     </div>
   </div>
 
+  <!-- Modal: Create / Edit Global Shared Address Book & Select Applicable Extensions -->
+  <div id="modalAddressBook" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modalAddressBookTitle">
+    <div class="modal-card modal-lg" style="max-width: 680px; width: 95%;">
+      <div class="modal-header">
+        <div>
+          <h3 id="modalAddressBookTitle">+ New Shared Address Book</h3>
+          <p class="muted" style="margin-top: 2px; font-size: 12.5px;">Isolated customer directory — only selected extensions will receive this address book.</p>
+        </div>
+        <button type="button" class="modal-close" onclick="closeModal('modalAddressBook')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formAddressBook">
+          <input type="hidden" id="abId" value="">
+          <div class="form-row">
+            <div class="form-group" style="flex: 1.4;">
+              <label for="abName">Address Book Name *</label>
+              <input type="text" id="abName" required placeholder="e.g. Company Address Book 1">
+            </div>
+            <div class="form-group" style="flex: 1.6;">
+              <label for="abDescription">Customer / Description</label>
+              <input type="text" id="abDescription" placeholder="e.g. CK Media Services Main Office">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 4px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px;">
+            <label style="display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 500; cursor: pointer;">
+              <input type="checkbox" id="abIncludeAssignedExts" checked>
+              <span>Also include the selected extensions below as internal colleague contacts inside this address book</span>
+            </label>
+            <small class="muted" style="display: block; margin-top: 4px; margin-left: 22px;">
+              Keeping this checked allows users in this company address book to see each other without ever seeing extensions from other businesses.
+            </small>
+          </div>
+
+          <div class="form-group" style="margin-top: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; flex-wrap: wrap;">
+              <label style="margin: 0;">Select Applicable Extensions (<span id="abSelectedExtCount">0</span> selected)</label>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <input type="text" id="abExtSearchInput" class="search-input" style="width: 190px; padding: 4px 8px; font-size: 12px;" placeholder="Filter extensions...">
+                <button type="button" class="btn btn-xs btn-secondary" id="btnAbSelectAllExts">Select Filtered</button>
+                <button type="button" class="btn btn-xs btn-secondary" id="btnAbClearAllExts">Clear All</button>
+              </div>
+            </div>
+            <div id="abExtensionsChecklist" style="max-height: 230px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px; background: #ffffff; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px;">
+              <div class="muted" style="padding: 8px; font-size: 12px;">Loading extensions...</div>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modalAddressBook')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Address Book</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add / Edit Contact in Shared Address Book -->
+  <div id="modalAddressBookContact" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modalAbContactTitle">
+    <div class="modal-card" style="max-width: 540px; width: 95%;">
+      <div class="modal-header">
+        <h3 id="modalAbContactTitle">+ Add Contact to Address Book</h3>
+        <button type="button" class="modal-close" onclick="closeModal('modalAddressBookContact')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formAddressBookContact">
+          <input type="hidden" id="abContactId" value="">
+          <div class="form-row">
+            <div class="form-group" style="flex: 1.3;">
+              <label for="abContactName">Full Name *</label>
+              <input type="text" id="abContactName" required placeholder="e.g. Jane Doe">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="abContactNumber">Primary Number / DDI *</label>
+              <input type="text" id="abContactNumber" required placeholder="e.g. 02036567447 or 501">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex: 1;">
+              <label for="abContactExt">Internal Extension</label>
+              <input type="text" id="abContactExt" placeholder="e.g. 501">
+            </div>
+            <div class="form-group" style="flex: 1.3;">
+              <label for="abContactMobile">Mobile Number</label>
+              <input type="text" id="abContactMobile" placeholder="e.g. 07700900123">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex: 1;">
+              <label for="abContactEmail">Email Address</label>
+              <input type="email" id="abContactEmail" placeholder="jane@company.co.uk">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="abContactCompany">Company</label>
+              <input type="text" id="abContactCompany" placeholder="Company Name">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex: 1;">
+              <label for="abContactDept">Department / Role</label>
+              <input type="text" id="abContactDept" placeholder="e.g. Sales / Reception">
+            </div>
+            <div class="form-group" style="flex: 1.2;">
+              <label for="abContactNotes">Notes</label>
+              <input type="text" id="abContactNotes" placeholder="Optional notes">
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modalAddressBookContact')">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Contact</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Upload / Import CSV into Shared Address Book -->
+  <div id="modalImportAddressBookCsv" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modalImportAbCsvTitle">
+    <div class="modal-card" style="max-width: 600px; width: 95%;">
+      <div class="modal-header">
+        <div>
+          <h3 id="modalImportAbCsvTitle">Upload / Import Contacts CSV</h3>
+          <p id="modalImportAbCsvSubtitle" class="muted" style="margin-top: 2px; font-size: 12.5px;">Bulk upload customer contacts into this isolated address book.</p>
+        </div>
+        <button type="button" class="modal-close" onclick="closeModal('modalImportAddressBookCsv')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formImportAddressBookCsv">
+          <div class="form-group">
+            <label for="abCsvFileInput">Select CSV File (.csv)</label>
+            <input type="file" id="abCsvFileInput" accept=".csv,text/csv,text/plain" class="form-control" style="padding: 8px;">
+            <small class="muted" style="display: block; margin-top: 4px;">
+              Supported columns: <code>Name, Number, Extension, Mobile, Email, Company, Department, Notes</code>
+              (<a href="#" id="linkModalDownloadSampleCsv" style="color: #2563eb; text-decoration: underline;">Download sample CSV</a>)
+            </small>
+          </div>
+
+          <div class="form-group">
+            <label for="abCsvTextInput">Or Paste CSV Rows Directly</label>
+            <textarea id="abCsvTextInput" rows="6" style="width: 100%; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px;" placeholder="Name,Number,Extension,Mobile,Email,Company,Department,Notes&#10;John Smith,02036567447,501,07700900111,john@acme.co.uk,Acme Ltd,Sales,Main Account"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="abCsvImportMode">Import Mode</label>
+            <select id="abCsvImportMode" class="form-select">
+              <option value="append" selected>Append &amp; Update (Keep existing contacts, update matching numbers)</option>
+              <option value="replace">Replace All (Clear existing contacts in this book before importing)</option>
+            </select>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modalImportAddressBookCsv')">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btnSubmitAbCsvImport">Import Contacts</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=1.5.2"></script>
 </body>
 </html>
