@@ -1,6 +1,6 @@
 import { Response } from 'express';
 
-export type LogCategory = 'DESKPHONE' | 'SOFTPHONE' | 'SOCKET' | 'ROUTER' | 'SECURITY' | 'PBX' | 'SYSTEM' | 'FIRMWARE';
+export type LogCategory = 'DESKPHONE' | 'SOFTPHONE' | 'SOCKET' | 'ROUTER' | 'SECURITY' | 'PBX' | 'SYSTEM' | 'FIRMWARE' | 'BILLING';
 export type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
 
 export interface DeviceLogEvent {

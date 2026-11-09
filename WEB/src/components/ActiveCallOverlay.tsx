@@ -1,8 +1,8 @@
-import React from 'react';
-import { User, Mic, Play, PhoneCall, PhoneOff } from 'lucide-react';
+import React, { useState } from 'react';
+import { User, Mic, MicOff, Play, Pause, PhoneCall, PhoneOff, ArrowRight } from 'lucide-react';
 import type { ActiveCall } from '../types';
 
-interface ActiveCallOverlayProps {
+export interface ActiveCallOverlayProps {
   call: ActiveCall;
   onToggleMute: () => void;
   onToggleHold: () => void;
@@ -17,93 +17,138 @@ export const ActiveCallOverlay: React.FC<ActiveCallOverlayProps> = ({
   onHangUp,
   onTransfer
 }) => {
-  const [showTransferInput, setShowTransferInput] = React.useState(false);
-  const [transferTarget, setTransferTarget] = React.useState('');
-  const durationText = `${Math.floor(call.duration / 60)}:${(call.duration % 60).toString().padStart(2, '0')}`;
+  const [showTransferInput, setShowTransferInput] = useState(false);
+  const [transferTarget, setTransferTarget] = useState('');
 
-  const handleTransfer = () => {
-    if (!showTransferInput) {
-      setShowTransferInput(true);
-      return;
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleTransferSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const target = transferTarget.trim();
+    if (!target) return;
+
+    if (onTransfer) {
+      onTransfer(target);
     }
-    if (transferTarget.trim()) {
-      if (onTransfer) {
-        onTransfer(transferTarget.trim());
-      } else {
-        alert(`Transferred call to ${transferTarget.trim()}`);
-        onHangUp();
-      }
-      setShowTransferInput(false);
-      setTransferTarget('');
+    setShowTransferInput(false);
+    setTransferTarget('');
+  };
+
+  const getStatusText = () => {
+    switch (call.state) {
+      case 'dialing':
+        return 'Dialing...';
+      case 'ringing':
+        return 'Ringing...';
+      case 'connected':
+        return `Connected (${formatDuration(call.duration)})`;
+      case 'hold':
+        return 'Call On Hold';
+      default:
+        return 'Active Call';
     }
   };
 
+  const isHold = call.state === 'hold';
+
   return (
-    <div className="active-call-overlay">
-      <div className="call-avatar">
-        <User size={36} />
+    <div
+      className="active-call-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Call with ${call.destination}`}
+    >
+      <div className={`call-avatar ${call.state === 'ringing' ? 'pulse-avatar' : ''}`}>
+        <User size={38} aria-hidden="true" />
       </div>
+
       <div className="call-target">{call.destination}</div>
-      <div className="call-status">
-        {call.state === 'dialing' && 'Dialing...'}
-        {call.state === 'ringing' && 'Ringing...'}
-        {call.state === 'connected' && `Connected (${durationText})`}
-        {call.state === 'hold' && 'On Hold'}
+      <div className={`call-status ${isHold ? 'call-status-hold' : ''}`} aria-live="polite">
+        {getStatusText()}
       </div>
 
       {showTransferInput && (
-        <div style={{ display: 'flex', gap: 6, width: '100%', maxWidth: 260, margin: '8px 0' }}>
-          <input 
-            type="text" 
-            className="form-input" 
-            placeholder="Target extension..." 
+        <form onSubmit={handleTransferSubmit} className="transfer-box" role="search">
+          <label htmlFor="transfer-target-input" className="sr-only">
+            Transfer target extension
+          </label>
+          <input
+            id="transfer-target-input"
+            type="text"
+            className="form-input transfer-input"
+            placeholder="Transfer to ext..."
             value={transferTarget}
             onChange={e => setTransferTarget(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleTransfer(); }}
-            style={{ padding: '6px 10px', fontSize: 13 }}
             autoFocus
           />
-          <button className="btn btn-primary" onClick={handleTransfer} style={{ padding: '6px 12px', fontSize: 12 }}>
-            OK
+          <button
+            type="submit"
+            className="transfer-confirm-btn"
+            disabled={!transferTarget.trim()}
+            aria-label="Confirm transfer"
+          >
+            <ArrowRight size={16} aria-hidden="true" />
           </button>
-        </div>
+        </form>
       )}
 
-      <div className="call-actions-grid">
-        <button 
+      <div className="call-actions-grid" role="group" aria-label="Call controls">
+        <button
+          type="button"
           className={`call-action-btn ${call.muted ? 'active' : ''}`}
           onClick={onToggleMute}
+          aria-pressed={call.muted}
+          aria-label={call.muted ? 'Unmute microphone' : 'Mute microphone'}
         >
           <div className="action-icon-circle">
-            <Mic size={18} />
+            {call.muted ? <MicOff size={20} aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
           </div>
-          <span>Mute</span>
+          <span>{call.muted ? 'Muted' : 'Mute'}</span>
         </button>
 
-        <button 
-          className={`call-action-btn ${call.state === 'hold' ? 'active' : ''}`}
+        <button
+          type="button"
+          className={`call-action-btn ${isHold ? 'active' : ''}`}
           onClick={onToggleHold}
+          aria-pressed={isHold}
+          aria-label={isHold ? 'Resume active call' : 'Put call on hold'}
         >
           <div className="action-icon-circle">
-            <Play size={18} />
+            {isHold ? <Play size={20} aria-hidden="true" /> : <Pause size={20} aria-hidden="true" />}
           </div>
-          <span>{call.state === 'hold' ? 'Resume' : 'Hold'}</span>
+          <span>{isHold ? 'Resume' : 'Hold'}</span>
         </button>
 
-        <button 
-          className={`call-action-btn ${showTransferInput ? 'active' : ''}`} 
-          onClick={handleTransfer}
+        <button
+          type="button"
+          className={`call-action-btn ${showTransferInput ? 'active' : ''}`}
+          onClick={() => setShowTransferInput(prev => !prev)}
+          aria-expanded={showTransferInput}
+          aria-label="Transfer call to another extension"
         >
           <div className="action-icon-circle">
-            <PhoneCall size={18} />
+            <PhoneCall size={20} aria-hidden="true" />
           </div>
           <span>Transfer</span>
         </button>
       </div>
 
-      <button className="btn btn-danger" onClick={onHangUp} style={{ width: 140 }}>
-        <PhoneOff size={16} /> Hang Up
-      </button>
+      <div className="hangup-action">
+        <button
+          type="button"
+          className="hangup-btn"
+          onClick={onHangUp}
+          aria-label="End call"
+          title="End call"
+        >
+          <PhoneOff size={24} aria-hidden="true" />
+          <span className="sr-only">End Call</span>
+        </button>
+      </div>
     </div>
   );
 };

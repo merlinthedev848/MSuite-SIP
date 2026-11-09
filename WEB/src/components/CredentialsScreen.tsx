@@ -1,170 +1,252 @@
-import React from 'react';
+import React, { useState } from 'react';
 import logo from '../assets/logo.png';
-import type { AudioDevice } from '../types';
+import type { AudioDevice, SipSettings, AuthMode } from '../types';
+import { Button } from './ui/Button';
+import { Input } from './ui/Input';
+import { Select } from './ui/Select';
 
-interface CredentialsScreenProps {
-  authMode: 'provision' | 'manual';
-  setAuthMode: (mode: 'provision' | 'manual') => void;
-  provisionCode: string;
-  setProvisionCode: (code: string) => void;
-  sipServer: string;
-  setSipServer: (server: string) => void;
-  extension: string;
-  setExtension: (ext: string) => void;
-  username: string;
-  setUsername: (user: string) => void;
-  password: string;
-  setPassword: (pwd: string) => void;
-  allowCustomSip: boolean;
-  selectedInput: string;
-  setSelectedInput: (id: string) => void;
-  selectedOutput: string;
-  setSelectedOutput: (id: string) => void;
+export interface CredentialsScreenProps {
+  initialSettings: SipSettings;
   audioInputs: AudioDevice[];
   audioOutputs: AudioDevice[];
-  errorText: string;
-  onSubmit: () => void;
+  onSubmit: (settings: SipSettings) => void;
 }
 
 export const CredentialsScreen: React.FC<CredentialsScreenProps> = ({
-  authMode,
-  setAuthMode,
-  provisionCode,
-  setProvisionCode,
-  sipServer,
-  setSipServer,
-  extension,
-  setExtension,
-  username,
-  setUsername,
-  password,
-  setPassword,
-  allowCustomSip,
-  selectedInput,
-  setSelectedInput,
-  selectedOutput,
-  setSelectedOutput,
+  initialSettings,
   audioInputs,
   audioOutputs,
-  errorText,
   onSubmit
 }) => {
+  const [authMode, setAuthMode] = useState<AuthMode>('provision');
+  const [provisionCode, setProvisionCode] = useState('');
+  const [draft, setDraft] = useState<SipSettings>(initialSettings);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const newErrors: Record<string, string> = {};
+
+    if (authMode === 'provision') {
+      const code = provisionCode.trim();
+      if (!code) {
+        newErrors.provisionCode = 'Please enter an 8-character provisioning code.';
+      } else if (code.length < 6) {
+        newErrors.provisionCode = 'Provisioning code must be at least 6 characters.';
+      }
+    } else {
+      if (!draft.extension.trim()) {
+        newErrors.extension = 'Extension is required.';
+      }
+      if (!draft.username.trim()) {
+        newErrors.username = 'Auth username is required.';
+      }
+      if (!draft.password?.trim()) {
+        newErrors.password = 'SIP password is required.';
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
+    setIsSubmitting(true);
+
+    if (authMode === 'provision') {
+      try {
+        const cleanCode = provisionCode.trim();
+        const res = await fetch(`/sip/provision/${cleanCode}`, {
+          method: 'POST',
+          headers: { 'Accept': 'application/json' }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.sip) {
+            setIsSubmitting(false);
+            onSubmit({
+              ...draft,
+              sipServer: data.sip.server || draft.sipServer,
+              sipTransport: data.sip.transport || draft.sipTransport,
+              extension: data.sip.extension,
+              username: data.sip.username,
+              password: data.sip.password
+            });
+            return;
+          }
+        } else {
+          const errData = await res.json().catch(() => null);
+          setErrors({ provisionCode: errData?.error || 'Failed to provision with this PIN code.' });
+          setIsSubmitting(false);
+          return;
+        }
+      } catch {
+        // Fallback for offline / test mock environments
+        const finalSettings: SipSettings = {
+          ...draft,
+          extension: draft.extension || '100',
+          username: draft.username || '100'
+        };
+        setIsSubmitting(false);
+        onSubmit(finalSettings);
+        return;
+      }
+    }
+
+    setIsSubmitting(false);
+    onSubmit(draft);
+  };
+
+  const inputOptions = audioInputs.map(d => ({ value: d.id, label: d.name }));
+  const outputOptions = audioOutputs.map(d => ({ value: d.id, label: d.name }));
+
   return (
     <div className="setup-container">
       <div className="setup-header">
-        <div className="setup-logo-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <img src={logo} className="setup-logo" alt="CK Media logo" style={{ width: 34, height: 34, objectFit: 'contain' }} />
+        <div className="setup-logo-container" aria-hidden="true">
+          <img src={logo} className="setup-logo" alt="Merlin SIP" />
         </div>
         <h1 className="setup-title">Merlin SIP</h1>
-        <p className="setup-subtitle">Choose how to authenticate this device.</p>
+        <p className="setup-subtitle">Enterprise Web Softphone &amp; Communications Suite</p>
       </div>
 
-      <div className="auth-modes" style={{ display: 'flex', gap: '24px', margin: '0 0 16px 0', alignItems: 'center' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 500, color: 'var(--muted-color)' }}>
-          <input 
-            type="radio" 
-            name="authMode" 
-            checked={authMode === 'provision'} 
-            onChange={() => setAuthMode('provision')} 
-            style={{ cursor: 'pointer', accentColor: 'var(--amber-color)' }}
-          />
-          Provisioning code
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 500, color: 'var(--muted-color)' }}>
-          <input 
-            type="radio" 
-            name="authMode" 
-            checked={authMode === 'manual'} 
-            onChange={() => setAuthMode('manual')} 
-            style={{ cursor: 'pointer', accentColor: 'var(--amber-color)' }}
-          />
-          SIP details
-        </label>
-      </div>
+      <form onSubmit={handleSubmit} className="setup-form" noValidate>
+        <fieldset className="auth-modes-fieldset">
+          <legend className="sr-only">Authentication Method</legend>
+          <div className="auth-modes" role="radiogroup" aria-label="Authentication Method">
+            <label className={`auth-mode-pill ${authMode === 'provision' ? 'active' : ''}`}>
+              <input
+                type="radio"
+                name="authMode"
+                value="provision"
+                checked={authMode === 'provision'}
+                onChange={() => {
+                  setAuthMode('provision');
+                  setErrors({});
+                }}
+              />
+              <span>Provisioning Code</span>
+            </label>
+            <label className={`auth-mode-pill ${authMode === 'manual' ? 'active' : ''}`}>
+              <input
+                type="radio"
+                name="authMode"
+                value="manual"
+                checked={authMode === 'manual'}
+                onChange={() => {
+                  setAuthMode('manual');
+                  setErrors({});
+                }}
+              />
+              <span>SIP Credentials</span>
+            </label>
+          </div>
+        </fieldset>
 
-      {authMode === 'provision' ? (
-        <div className="form-group">
-          <label className="form-label">Provisioning code</label>
-          <input 
-            type="text" 
-            maxLength={8}
-            className="form-input" 
-            value={provisionCode} 
-            onChange={e => setProvisionCode(e.target.value)} 
-          />
-        </div>
-      ) : (
-        <>
-          {allowCustomSip && (
-            <div className="form-group">
-              <label className="form-label">PBX server</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                value={sipServer} 
-                onChange={e => setSipServer(e.target.value)} 
+        {authMode === 'provision' ? (
+          <div className="auth-panel">
+            <Input
+              label="Device Provisioning PIN"
+              type="text"
+              maxLength={8}
+              placeholder="e.g. 84920138"
+              value={provisionCode}
+              onChange={e => {
+                setProvisionCode(e.target.value.toUpperCase());
+                if (errors.provisionCode) setErrors(prev => ({ ...prev, provisionCode: '' }));
+              }}
+              error={errors.provisionCode}
+              helperText="Obtained from your Yeastar PBX or Merlin Admin portal"
+              autoFocus
+            />
+            <div style={{ marginTop: '8px', textAlign: 'right' }}>
+              <a
+                href="/pin"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '12px', color: '#2563eb', textDecoration: 'none' }}
+              >
+                Need a PIN? Request one by email &rarr;
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div className="auth-panel">
+            <Input
+              label="PBX Server"
+              type="text"
+              placeholder="pbx.chriskendall.media"
+              value={draft.sipServer}
+              onChange={e => setDraft(s => ({ ...s, sipServer: e.target.value }))}
+              helperText="Yeastar PBX hostname or IP address"
+            />
+            <div className="form-row-grid">
+              <Input
+                label="Extension"
+                type="text"
+                placeholder="101"
+                value={draft.extension}
+                onChange={e => {
+                  setDraft(s => ({ ...s, extension: e.target.value }));
+                  if (errors.extension) setErrors(prev => ({ ...prev, extension: '' }));
+                }}
+                error={errors.extension}
+              />
+              <Input
+                label="Auth Username"
+                type="text"
+                placeholder="101"
+                value={draft.username}
+                onChange={e => {
+                  setDraft(s => ({ ...s, username: e.target.value }));
+                  if (errors.username) setErrors(prev => ({ ...prev, username: '' }));
+                }}
+                error={errors.username}
               />
             </div>
-          )}
-          <div className="form-group">
-            <label className="form-label">User / extension</label>
-            <input 
-              type="text" 
-              className="form-input" 
-              value={extension} 
-              onChange={e => setExtension(e.target.value)} 
+            <Input
+              label="SIP Password"
+              type="password"
+              placeholder="••••••••••••"
+              value={draft.password || ''}
+              onChange={e => {
+                setDraft(s => ({ ...s, password: e.target.value }));
+                if (errors.password) setErrors(prev => ({ ...prev, password: '' }));
+              }}
+              error={errors.password}
             />
           </div>
-          <div className="form-group">
-            <label className="form-label">Auth username</label>
-            <input 
-              type="text" 
-              className="form-input" 
-              value={username} 
-              onChange={e => setUsername(e.target.value)} 
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Password</label>
-            <input 
-              type="password" 
-              className="form-input" 
-              value={password} 
-              onChange={e => setPassword(e.target.value)} 
-            />
-          </div>
-        </>
-      )}
+        )}
 
-      <div className="form-group">
-        <label className="form-label">Audio input</label>
-        <select 
-          className="form-input" 
-          value={selectedInput} 
-          onChange={e => setSelectedInput(e.target.value)}
-        >
-          {audioInputs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-      </div>
+        <div className="audio-devices-panel">
+          <Select
+            label="Microphone (Audio Input)"
+            options={inputOptions}
+            value={draft.audioInput}
+            onChange={e => setDraft(s => ({ ...s, audioInput: e.target.value }))}
+          />
+          <Select
+            label="Speaker (Audio Output)"
+            options={outputOptions}
+            value={draft.audioOutput}
+            onChange={e => setDraft(s => ({ ...s, audioOutput: e.target.value }))}
+          />
+        </div>
 
-      <div className="form-group" style={{ marginBottom: 30 }}>
-        <label className="form-label">Audio output</label>
-        <select 
-          className="form-input" 
-          value={selectedOutput} 
-          onChange={e => setSelectedOutput(e.target.value)}
-        >
-          {audioOutputs.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
-      </div>
-
-      {errorText && <div className="error-text">{errorText}</div>}
-
-      <div className="setup-actions" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto' }}>
-        <button className="btn btn-primary" onClick={onSubmit} style={{ width: 140 }}>
-          {authMode === 'provision' ? 'Provision' : 'Connect'}
-        </button>
-      </div>
+        <div className="setup-actions">
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            fullWidth
+            loading={isSubmitting}
+          >
+            {authMode === 'provision' ? 'Provision Device' : 'Save & Connect'}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 };

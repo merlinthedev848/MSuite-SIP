@@ -193,6 +193,33 @@ systemDb.exec(`
     UNIQUE(brand, model, filename)
   );
 
+  CREATE TABLE IF NOT EXISTS pbx_instances (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    host TEXT NOT NULL,
+    sip_port INTEGER NOT NULL DEFAULT 5060,
+    sip_transport TEXT NOT NULL DEFAULT 'UDP',
+    pbx_type TEXT NOT NULL DEFAULT 'yeastar_api',
+    api_host TEXT DEFAULT '',
+    api_port INTEGER DEFAULT 8260,
+    api_protocol TEXT DEFAULT 'https',
+    api_path TEXT DEFAULT 'api/v2.0.0',
+    api_user TEXT DEFAULT '',
+    api_secret TEXT DEFAULT '',
+    verify_ssl INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    is_default INTEGER DEFAULT 0,
+    auto_sync_enabled INTEGER DEFAULT 1,
+    auto_sync_interval_mins INTEGER DEFAULT 5,
+    last_sync_at DATETIME,
+    last_sync_status TEXT DEFAULT 'IDLE',
+    last_ping_status TEXT DEFAULT 'PENDING',
+    last_ping_rtt TEXT DEFAULT '',
+    last_ping_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE INDEX IF NOT EXISTS idx_pins_extension ON softphone_pins (extension);
   CREATE INDEX IF NOT EXISTS idx_handsets_extension ON physical_handsets (extension);
   CREATE INDEX IF NOT EXISTS idx_routers_mac ON routers (mac_address);
@@ -200,6 +227,12 @@ systemDb.exec(`
   CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON admin_sessions (token);
   CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_activity_logs (id DESC);
   CREATE INDEX IF NOT EXISTS idx_firmware_lookup ON firmware_binaries (brand, model);
+  CREATE INDEX IF NOT EXISTS idx_pins_claimed_expires ON softphone_pins (claimed, expires_at);
+  CREATE INDEX IF NOT EXISTS idx_handsets_clean_mac ON physical_handsets (LOWER(REPLACE(mac_address, ':', '')));
+  CREATE INDEX IF NOT EXISTS idx_routers_clean_mac ON routers (LOWER(REPLACE(mac_address, ':', '')));
+  CREATE INDEX IF NOT EXISTS idx_extensions_email ON extensions (email);
+  CREATE INDEX IF NOT EXISTS idx_extensions_pbx_id ON extensions (pbx_id);
+  CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_activity_logs (created_at);
 `);
 
 export function logActivity(eventType: string, details: string, ipAddress: string = '127.0.0.1') {
@@ -280,6 +313,49 @@ addColumnIfNotExists('extensions', 'last_registered_at', 'DATETIME');
 addColumnIfNotExists('extensions', 'last_ip', "TEXT DEFAULT ''");
 addColumnIfNotExists('extensions', 'user_agent', "TEXT DEFAULT ''");
 addColumnIfNotExists('extensions', 'email', "TEXT DEFAULT ''");
+addColumnIfNotExists('extensions', 'pbx_id', "TEXT DEFAULT 'default'");
+
+// Ensure default PBX instance exists and mirrors server_config
+try {
+  const pbxCount = (systemDb.prepare('SELECT COUNT(*) as count FROM pbx_instances').get() as { count: number }).count;
+  if (pbxCount === 0) {
+    const cfg = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;
+    const defHost = cfg?.pbx_server || DEFAULT_PBX_SERVER || 'pbx.chriskendall.media';
+    const defPort = cfg?.pbx_port || DEFAULT_PBX_PORT || 5060;
+    const defTransport = cfg?.pbx_transport || DEFAULT_PBX_TRANSPORT || 'UDP';
+    const defType = cfg?.pbx_type || 'yeastar_api';
+    const defApiHost = cfg?.api_host || '';
+    const defApiPort = cfg?.api_port || (defType === 'yeastar_api' ? 8260 : 5038);
+    const defApiProto = cfg?.api_protocol || 'https';
+    const defApiPath = cfg?.api_path || 'api/v2.0.0';
+    const defApiUser = cfg?.api_user || '';
+    const defApiSecret = cfg?.api_secret || '';
+    const defVerifySsl = cfg?.verify_ssl || 0;
+    const defAutoSync = cfg?.auto_sync_enabled !== undefined ? cfg?.auto_sync_enabled : 1;
+    const defInterval = cfg?.auto_sync_interval_mins || 5;
+
+    systemDb.prepare(`
+      INSERT INTO pbx_instances (
+        id, name, host, sip_port, sip_transport, pbx_type,
+        api_host, api_port, api_protocol, api_path, api_user, api_secret,
+        verify_ssl, is_active, is_default, auto_sync_enabled, auto_sync_interval_mins,
+        last_sync_at, last_sync_status
+      ) VALUES (
+        'default', 'Primary Asterisk / FreePBX Core', ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?,
+        ?, 1, 1, ?, ?,
+        ?, ?
+      )
+    `).run(
+      defHost, defPort, defTransport, defType,
+      defApiHost, defApiPort, defApiProto, defApiPath, defApiUser, defApiSecret,
+      defVerifySsl, defAutoSync, defInterval,
+      cfg?.last_sync_at || null, cfg?.last_sync_status || 'IDLE'
+    );
+  }
+} catch (err: unknown) {
+  console.warn('[SystemDB Migration] Notice seeding default PBX instance:', err);
+}
 
 // Generate default secure API key if not set
 const cfgRow = systemDb.prepare('SELECT api_key FROM server_config WHERE id = 1').get() as { api_key: string | null } | undefined;

@@ -1,12 +1,18 @@
 import React from 'react';
+import { AlertTriangle, RotateCcw, RefreshCw } from 'lucide-react';
+import { Button } from './ui/Button';
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
 
 interface ErrorBoundaryState {
   hasError: boolean;
   errorMessage: string;
 }
 
-export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, ErrorBoundaryState> {
-  constructor(props: { children: React.ReactNode }) {
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, errorMessage: '' };
   }
@@ -39,18 +45,34 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
   render(): React.ReactNode {
     if (this.state.hasError) {
       return (
-        <div className="app-container" style={{ padding: 28, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 14 }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Merlin SIP encountered an error</h2>
-          <p className="item-subtitle" style={{ lineHeight: 1.5 }}>
-            {this.state.errorMessage}
-          </p>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button className="btn btn-primary" onClick={this.handleReload}>
-              Reload App
-            </button>
-            <button className="btn btn-secondary" onClick={this.handleResetCache}>
-              Reset Cache &amp; Reload
-            </button>
+        <div className="error-fallback-container" role="alert">
+          <div className="error-fallback-card">
+            <div className="error-icon-wrapper" aria-hidden="true">
+              <AlertTriangle size={32} />
+            </div>
+            <h2 className="error-fallback-title">Something went wrong</h2>
+            <p className="error-fallback-desc">
+              Merlin SIP encountered an unexpected runtime error. You can reload the application or reset stored cached data.
+            </p>
+            <div className="error-msg-box" tabIndex={0}>
+              <code>{this.state.errorMessage}</code>
+            </div>
+            <div className="error-fallback-actions">
+              <Button
+                variant="primary"
+                icon={<RefreshCw size={16} aria-hidden="true" />}
+                onClick={this.handleReload}
+              >
+                Reload Application
+              </Button>
+              <Button
+                variant="danger"
+                icon={<RotateCcw size={16} aria-hidden="true" />}
+                onClick={this.handleResetCache}
+              >
+                Reset Cache &amp; Reload
+              </Button>
+            </div>
           </div>
         </div>
       );

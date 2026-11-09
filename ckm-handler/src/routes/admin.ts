@@ -15,8 +15,8 @@ import { HANDSET_CATALOG, ROUTER_CATALOG, generateDefaultHandsetConfig } from '.
 import { substituteTemplateVariables } from './hardwareProvision';
 import { HandsetAccountConfig } from '../templates/yealink';
 import { licenseState } from '../services/licenseGuard';
-import { syncExtensionsFromAsterisk, syncExtensionsFromPbx, PbxSyncConfig, AmiConfig, updatePbxSyncSchedule } from '../services/pbxSyncService';
-import { AdminRequest, AdminRole, ServerConfigRow, AdminUserRow, AdminSessionRow, CountRow, TotalBytesRow, RouterRow, DiscoveredDeviceRow, GdprRetentionPolicyRow, PhysicalHandsetRow, HandsetWithExtensionRow, ExtensionRow, defaultServerConfig } from '../types/models';
+import { syncExtensionsFromAsterisk, syncExtensionsFromPbx, syncPbxInstance, PbxSyncConfig, AmiConfig, updatePbxSyncSchedule } from '../services/pbxSyncService';
+import { AdminRequest, AdminRole, ServerConfigRow, PbxInstanceRow, AdminUserRow, AdminSessionRow, CountRow, TotalBytesRow, RouterRow, DiscoveredDeviceRow, GdprRetentionPolicyRow, PhysicalHandsetRow, HandsetWithExtensionRow, ExtensionRow, defaultServerConfig } from '../types/models';
 import { getSocketStats } from '../services/socketService';
 import { registerSseClient, getRecentDeviceLogs, getFilteredDeviceLogs, clearDeviceLogs, broadcastDeviceLog } from '../services/telemetryStream';
 import { 
@@ -398,43 +398,51 @@ router.get('/api/admin/audit-logs', adminAuth, (req: Request, res: Response) => 
   return res.json({ ok: true, logs });
 });
 
-// Live SIP OPTIONS & PBX Connection Latency Probe
-router.post('/api/admin/pbx/ping', adminAuth, async (req: Request, res: Response) => {
-  const config = systemDb.prepare('SELECT pbx_server, pbx_port, pbx_transport FROM server_config WHERE id = 1').get() as Pick<ServerConfigRow, 'pbx_server' | 'pbx_port' | 'pbx_transport'>;
-  const host = config?.pbx_server || 'pbx.chriskendall.media';
-  const port = parseInt(String(config?.pbx_port || 5060), 10);
-  const transport = (config?.pbx_transport || 'UDP').toUpperCase();
+// ==============================================================================
+// Reusable Multi-PBX Latency & SIP OPTIONS Prober
+// ==============================================================================
+export function probePbxLatency(
+  host: string,
+  port: number,
+  transport: string = 'UDP',
+  timeoutMs: number = 2500
+): Promise<{ reachable: boolean; latencyMs: string; message: string; error?: string }> {
+  const cleanTransport = (transport || 'UDP').toUpperCase();
   const t0 = performance.now();
 
-  if (transport === 'TCP') {
-    const socket = new net.Socket();
-    let responded = false;
-    socket.setTimeout(3500);
+  if (cleanTransport === 'TCP') {
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      let responded = false;
+      socket.setTimeout(timeoutMs);
 
-    socket.connect(port, host, () => {
-      responded = true;
-      const latency = (performance.now() - t0).toFixed(1);
-      socket.destroy();
-      return res.json({ ok: true, reachable: true, latencyMs: latency, message: `Connected to ${host}:${port} via TCP in ${latency}ms` });
-    });
-
-    socket.on('error', (err) => {
-      if (!responded) {
+      socket.connect(port, host, () => {
         responded = true;
+        const latency = (performance.now() - t0).toFixed(1);
         socket.destroy();
-        return res.json({ ok: false, reachable: false, error: err.message, message: `Failed to connect to ${host}:${port}: ${err.message}` });
-      }
-    });
+        resolve({ reachable: true, latencyMs: latency, message: `Connected to ${host}:${port} via TCP in ${latency}ms` });
+      });
 
-    socket.on('timeout', () => {
-      if (!responded) {
-        responded = true;
-        socket.destroy();
-        return res.json({ ok: false, reachable: false, error: 'Timeout', message: `Connection to ${host}:${port} timed out after 3500ms` });
-      }
+      socket.on('error', (err) => {
+        if (!responded) {
+          responded = true;
+          socket.destroy();
+          resolve({ reachable: false, latencyMs: '-', error: err.message, message: `Failed to connect to ${host}:${port}: ${err.message}` });
+        }
+      });
+
+      socket.on('timeout', () => {
+        if (!responded) {
+          responded = true;
+          socket.destroy();
+          resolve({ reachable: false, latencyMs: '-', error: 'Timeout', message: `Connection to ${host}:${port} timed out after ${timeoutMs}ms` });
+        }
+      });
     });
-  } else {
-    // Send UDP SIP OPTIONS packet
+  }
+
+  // UDP SIP OPTIONS packet
+  return new Promise((resolve) => {
     const client = dgram.createSocket('udp4');
     let responded = false;
 
@@ -453,8 +461,7 @@ router.post('/api/admin/pbx/ping', adminAuth, async (req: Request, res: Response
         responded = true;
         try { client.close(); } catch {}
         const latency = (performance.now() - t0).toFixed(1);
-        return res.json({
-          ok: true,
+        resolve({
           reachable: true,
           latencyMs: latency,
           message: `SIP OPTIONS packet dispatched to ${host}:${port} (UDP round-trip: ${latency}ms)`
@@ -467,7 +474,7 @@ router.post('/api/admin/pbx/ping', adminAuth, async (req: Request, res: Response
         responded = true;
         clearTimeout(timer);
         try { client.close(); } catch {}
-        return res.json({ ok: false, reachable: false, error: err.message });
+        resolve({ reachable: false, latencyMs: '-', error: err.message, message: `UDP Socket Error: ${err.message}` });
       }
     });
 
@@ -477,15 +484,289 @@ router.post('/api/admin/pbx/ping', adminAuth, async (req: Request, res: Response
         clearTimeout(timer);
         const latency = (performance.now() - t0).toFixed(1);
         try { client.close(); } catch {}
-        return res.json({
-          ok: true,
+        resolve({
           reachable: true,
           latencyMs: latency,
           message: `SIP 200 OK received from ${host}:${port} in ${latency}ms`
         });
       }
     });
+  });
+}
+
+// Live SIP OPTIONS & PBX Connection Latency Probe (Multi-PBX capable)
+router.post('/api/admin/pbx/ping', adminAuth, async (req: Request, res: Response) => {
+  const { pbxId, host: customHost, port: customPort, transport: customTransport } = req.body || {};
+
+  // Case 1: Direct ad-hoc host probe (used in "Test Connection" before saving)
+  if (customHost) {
+    const port = parseInt(String(customPort || 5060), 10);
+    const transport = String(customTransport || 'UDP').toUpperCase();
+    const result = await probePbxLatency(customHost, port, transport);
+    return res.json({ ok: true, ...result, target: `${customHost}:${port} (${transport})` });
   }
+
+  // Case 2: Specific PBX instance ID
+  if (pbxId) {
+    const inst = systemDb.prepare('SELECT * FROM pbx_instances WHERE id = ?').get(pbxId) as PbxInstanceRow | undefined;
+    if (!inst) {
+      return res.status(404).json({ ok: false, error: `PBX instance [${pbxId}] not found.` });
+    }
+    const result = await probePbxLatency(inst.host, inst.sip_port, inst.sip_transport);
+    const now = new Date().toISOString();
+    systemDb.prepare(`
+      UPDATE pbx_instances
+      SET last_ping_status = ?, last_ping_rtt = ?, last_ping_at = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(result.reachable ? 'CONNECTED' : 'FAILED', result.latencyMs, now, inst.id);
+
+    return res.json({
+      ok: true,
+      ...result,
+      pbxId: inst.id,
+      name: inst.name,
+      target: `${inst.host}:${inst.sip_port} (${inst.sip_transport})`
+    });
+  }
+
+  // Case 3: Probe all active PBX instances in parallel
+  const instances = systemDb.prepare('SELECT * FROM pbx_instances WHERE is_active = 1').all() as PbxInstanceRow[];
+  if (instances.length > 0) {
+    const results = await Promise.all(instances.map(async (inst) => {
+      const probe = await probePbxLatency(inst.host, inst.sip_port, inst.sip_transport);
+      const now = new Date().toISOString();
+      systemDb.prepare(`
+        UPDATE pbx_instances
+        SET last_ping_status = ?, last_ping_rtt = ?, last_ping_at = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(probe.reachable ? 'CONNECTED' : 'FAILED', probe.latencyMs, now, inst.id);
+
+      return {
+        id: inst.id,
+        name: inst.name,
+        target: `${inst.host}:${inst.sip_port} (${inst.sip_transport})`,
+        reachable: probe.reachable,
+        latencyMs: probe.latencyMs,
+        message: probe.message
+      };
+    }));
+
+    const def = results.find(r => r.id === 'default') || results[0];
+    return res.json({
+      ok: true,
+      reachable: def.reachable,
+      latencyMs: def.latencyMs,
+      message: def.message,
+      target: def.target,
+      instances: results
+    });
+  }
+
+  // Fallback to server_config
+  const config = systemDb.prepare('SELECT pbx_server, pbx_port, pbx_transport FROM server_config WHERE id = 1').get() as Pick<ServerConfigRow, 'pbx_server' | 'pbx_port' | 'pbx_transport'>;
+  const host = config?.pbx_server || 'pbx.chriskendall.media';
+  const port = parseInt(String(config?.pbx_port || 5060), 10);
+  const transport = (config?.pbx_transport || 'UDP').toUpperCase();
+  const probe = await probePbxLatency(host, port, transport);
+  return res.json({ ok: true, ...probe, target: `${host}:${port} (${transport})` });
+});
+
+// ==============================================================================
+// Multi-PBX Cluster Management API Endpoints
+// ==============================================================================
+router.get('/api/admin/pbx-instances', adminAuth, (req: Request, res: Response) => {
+  const instances = systemDb.prepare(`
+    SELECT p.*,
+           (SELECT COUNT(*) FROM extensions e WHERE e.pbx_id = p.id) as extension_count
+    FROM pbx_instances p
+    ORDER BY p.is_default DESC, p.name ASC
+  `).all() as PbxInstanceRow[];
+  return res.json({ ok: true, instances });
+});
+
+router.post('/api/admin/pbx-instances', adminAuth, requirePermission('manage_settings'), async (req: Request, res: Response) => {
+  const {
+    name, host, sip_port, sip_transport, pbx_type,
+    api_host, api_port, api_protocol, api_path, api_user, api_secret,
+    verify_ssl, is_active, auto_sync_enabled, auto_sync_interval_mins
+  } = req.body || {};
+
+  if (!name || !host) {
+    return res.status(400).json({ ok: false, error: 'PBX Name and Server Hostname are required.' });
+  }
+
+  const cleanName = String(name).trim();
+  const cleanHost = String(host).trim();
+  const port = parseInt(String(sip_port || 5060), 10);
+  const transport = String(sip_transport || 'UDP').toUpperCase();
+  const type = String(pbx_type || 'yeastar_api');
+  const id = `pbx_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 16)}_${crypto.randomBytes(3).toString('hex')}`;
+
+  systemDb.prepare(`
+    INSERT INTO pbx_instances (
+      id, name, host, sip_port, sip_transport, pbx_type,
+      api_host, api_port, api_protocol, api_path, api_user, api_secret,
+      verify_ssl, is_active, is_default, auto_sync_enabled, auto_sync_interval_mins
+    ) VALUES (
+      ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?,
+      ?, ?, 0, ?, ?
+    )
+  `).run(
+    id, cleanName, cleanHost, port, transport, type,
+    String(api_host || '').trim(), parseInt(String(api_port || (type === 'yeastar_api' ? 8260 : 5038)), 10),
+    String(api_protocol || 'https'), String(api_path || 'api/v2.0.0'),
+    String(api_user || '').trim(), String(api_secret || '').trim(),
+    verify_ssl ? 1 : 0, is_active !== false ? 1 : 0,
+    auto_sync_enabled !== false ? 1 : 0, parseInt(String(auto_sync_interval_mins || 5), 10)
+  );
+
+  logActivity('PBX_INSTANCE_CREATED', `Added PBX instance [${cleanName}] (${cleanHost}:${port})`, req.ip);
+  broadcastDeviceLog('PBX', 'INFO', `New PBX instance registered: [${cleanName}] (${cleanHost}:${port})`, {
+    deviceIdentifier: cleanHost,
+    ipAddress: req.ip
+  });
+
+  // Background ping probe to initialize status
+  probePbxLatency(cleanHost, port, transport).then(result => {
+    systemDb.prepare(`
+      UPDATE pbx_instances
+      SET last_ping_status = ?, last_ping_rtt = ?, last_ping_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(result.reachable ? 'CONNECTED' : 'FAILED', result.latencyMs, id);
+  }).catch(() => {});
+
+  const created = systemDb.prepare('SELECT * FROM pbx_instances WHERE id = ?').get(id);
+  return res.json({ ok: true, message: `PBX instance [${cleanName}] created successfully.`, instance: created });
+});
+
+router.put('/api/admin/pbx-instances/:id', adminAuth, requirePermission('manage_settings'), async (req: Request, res: Response) => {
+  const id = req.params.id;
+  const existing = systemDb.prepare('SELECT * FROM pbx_instances WHERE id = ?').get(id) as PbxInstanceRow | undefined;
+  if (!existing) {
+    return res.status(404).json({ ok: false, error: 'PBX instance not found.' });
+  }
+
+  const {
+    name, host, sip_port, sip_transport, pbx_type,
+    api_host, api_port, api_protocol, api_path, api_user, api_secret,
+    verify_ssl, is_active, is_default, auto_sync_enabled, auto_sync_interval_mins
+  } = req.body || {};
+
+  const cleanName = String(name || existing.name).trim();
+  const cleanHost = String(host || existing.host).trim();
+  const port = parseInt(String(sip_port || existing.sip_port), 10);
+  const transport = String(sip_transport || existing.sip_transport).toUpperCase();
+  const type = String(pbx_type || existing.pbx_type);
+
+  if (is_default === 1 && !existing.is_default) {
+    systemDb.prepare('UPDATE pbx_instances SET is_default = 0').run();
+  }
+
+  systemDb.prepare(`
+    UPDATE pbx_instances SET
+      name = ?, host = ?, sip_port = ?, sip_transport = ?, pbx_type = ?,
+      api_host = ?, api_port = ?, api_protocol = ?, api_path = ?, api_user = ?, api_secret = ?,
+      verify_ssl = ?, is_active = ?, is_default = ?, auto_sync_enabled = ?, auto_sync_interval_mins = ?,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(
+    cleanName, cleanHost, port, transport, type,
+    api_host !== undefined ? String(api_host).trim() : existing.api_host,
+    api_port !== undefined ? parseInt(String(api_port), 10) : existing.api_port,
+    api_protocol !== undefined ? String(api_protocol) : existing.api_protocol,
+    api_path !== undefined ? String(api_path) : existing.api_path,
+    api_user !== undefined ? String(api_user).trim() : existing.api_user,
+    api_secret !== undefined && String(api_secret).trim() ? String(api_secret).trim() : existing.api_secret,
+    verify_ssl !== undefined ? (verify_ssl ? 1 : 0) : existing.verify_ssl,
+    is_active !== undefined ? (is_active ? 1 : 0) : existing.is_active,
+    is_default !== undefined ? (is_default ? 1 : 0) : existing.is_default,
+    auto_sync_enabled !== undefined ? (auto_sync_enabled ? 1 : 0) : existing.auto_sync_enabled,
+    auto_sync_interval_mins !== undefined ? parseInt(String(auto_sync_interval_mins), 10) : existing.auto_sync_interval_mins,
+    id
+  );
+
+  // If this is default, keep server_config in sync
+  if (existing.is_default || is_default === 1 || id === 'default') {
+    systemDb.prepare(`
+      UPDATE server_config SET
+        pbx_server = ?, pbx_port = ?, pbx_transport = ?, pbx_type = ?,
+        api_host = ?, api_port = ?, api_protocol = ?, api_path = ?, api_user = ?,
+        verify_ssl = ?, auto_sync_enabled = ?, auto_sync_interval_mins = ?
+      WHERE id = 1
+    `).run(
+      cleanHost, port, transport, type,
+      api_host !== undefined ? String(api_host).trim() : existing.api_host,
+      api_port !== undefined ? parseInt(String(api_port), 10) : existing.api_port,
+      api_protocol !== undefined ? String(api_protocol) : existing.api_protocol,
+      api_path !== undefined ? String(api_path) : existing.api_path,
+      api_user !== undefined ? String(api_user).trim() : existing.api_user,
+      verify_ssl !== undefined ? (verify_ssl ? 1 : 0) : existing.verify_ssl,
+      auto_sync_enabled !== undefined ? (auto_sync_enabled ? 1 : 0) : existing.auto_sync_enabled,
+      auto_sync_interval_mins !== undefined ? parseInt(String(auto_sync_interval_mins), 10) : existing.auto_sync_interval_mins
+    );
+    if (api_secret !== undefined && String(api_secret).trim()) {
+      systemDb.prepare('UPDATE server_config SET api_secret = ? WHERE id = 1').run(String(api_secret).trim());
+    }
+  }
+
+  logActivity('PBX_INSTANCE_UPDATED', `Updated PBX instance [${cleanName}]`, req.ip);
+  return res.json({ ok: true, message: `PBX instance [${cleanName}] updated successfully.` });
+});
+
+router.delete('/api/admin/pbx-instances/:id', adminAuth, requirePermission('manage_settings'), (req: Request, res: Response) => {
+  const id = req.params.id;
+  const target = systemDb.prepare('SELECT * FROM pbx_instances WHERE id = ?').get(id) as PbxInstanceRow | undefined;
+  if (!target) {
+    return res.status(404).json({ ok: false, error: 'PBX instance not found.' });
+  }
+
+  if (target.is_default || id === 'default') {
+    return res.status(400).json({ ok: false, error: 'Cannot delete the Primary / Default PBX instance.' });
+  }
+
+  const totalPbxCount = (systemDb.prepare('SELECT COUNT(*) as count FROM pbx_instances').get() as { count: number }).count;
+  if (totalPbxCount <= 1) {
+    return res.status(400).json({ ok: false, error: 'Cannot delete the only remaining PBX instance.' });
+  }
+
+  // Reassign any extensions using this PBX to 'default'
+  systemDb.prepare("UPDATE extensions SET pbx_id = 'default' WHERE pbx_id = ?").run(id);
+
+  systemDb.prepare('DELETE FROM pbx_instances WHERE id = ?').run(id);
+  logActivity('PBX_INSTANCE_DELETED', `Deleted PBX instance [${target.name}] (${target.host})`, req.ip);
+
+  return res.json({ ok: true, message: `PBX instance [${target.name}] deleted. Any assigned extensions were reassigned to the default PBX core.` });
+});
+
+router.post('/api/admin/pbx-instances/:id/sync', adminAuth, requirePermission('manage_settings'), async (req: Request, res: Response) => {
+  const id = req.params.id;
+  const result = await syncPbxInstance(id);
+  return res.json({ ok: result.success, ...result });
+});
+
+router.post('/api/admin/pbx-instances/:id/ping', adminAuth, async (req: Request, res: Response) => {
+  const id = req.params.id;
+  const inst = systemDb.prepare('SELECT * FROM pbx_instances WHERE id = ?').get(id) as PbxInstanceRow | undefined;
+  if (!inst) {
+    return res.status(404).json({ ok: false, error: `PBX instance [${id}] not found.` });
+  }
+
+  const probe = await probePbxLatency(inst.host, inst.sip_port, inst.sip_transport);
+  const now = new Date().toISOString();
+  systemDb.prepare(`
+    UPDATE pbx_instances
+    SET last_ping_status = ?, last_ping_rtt = ?, last_ping_at = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(probe.reachable ? 'CONNECTED' : 'FAILED', probe.latencyMs, now, inst.id);
+
+  return res.json({
+    ok: true,
+    ...probe,
+    pbxId: inst.id,
+    name: inst.name,
+    target: `${inst.host}:${inst.sip_port} (${inst.sip_transport})`
+  });
 });
 
 // Live Shell Streaming Endpoints (Server-Sent Events + Buffer History)
@@ -555,7 +836,17 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
   const mem = process.memoryUsage();
   const memMb = (mem.rss / (1024 * 1024)).toFixed(1);
 
-  // Live Component Health Matrix (Real operational telemetry only)
+  // Query all configured PBX instances
+  const pbxInstances = systemDb.prepare(`
+    SELECT id, name, host, sip_port, sip_transport, pbx_type, is_active, is_default,
+           auto_sync_enabled, last_sync_at, last_sync_status,
+           last_ping_status, last_ping_rtt, last_ping_at,
+           (SELECT COUNT(*) FROM extensions e WHERE e.pbx_id = pbx_instances.id) as extension_count
+    FROM pbx_instances
+    ORDER BY is_default DESC, name ASC
+  `).all() as PbxInstanceRow[];
+
+  // Live Component Health Matrix
   const components = [
     {
       id: 'api',
@@ -621,14 +912,14 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
       details: `${firmwareCount} firmware image package(s) cached internally`,
       badge: 'Ready'
     },
-    {
-      id: 'pbx_sip',
-      name: 'Asterisk PBX Connectivity',
-      status: 'operational',
-      latency: '-',
-      details: `Target: ${config.pbx_server}:${config.pbx_port} (${config.pbx_transport})`,
-      badge: 'Configured'
-    },
+    ...pbxInstances.map(p => ({
+      id: `pbx_${p.id}`,
+      name: `PBX: ${p.name}`,
+      status: p.last_ping_status === 'FAILED' ? 'degraded' : 'operational',
+      latency: p.last_ping_rtt ? `${p.last_ping_rtt}ms` : '< 1ms',
+      details: `Target: ${p.host}:${p.sip_port} (${p.sip_transport}) · ${p.extension_count || 0} extension(s) bound`,
+      badge: p.is_default ? 'Primary Core' : (p.is_active ? 'Cluster Node' : 'Inactive')
+    })),
     {
       id: 'gdpr_daemon',
       name: 'Automated Retention Daemon',
@@ -660,6 +951,8 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
       storageMb: (totalBytes / (1024 * 1024)).toFixed(2),
       uptimeSeconds: Math.floor(process.uptime()),
       pbxServer: `${config.pbx_server}:${config.pbx_port} (${config.pbx_transport})`,
+      pbxInstances,
+      activePbxCount: pbxInstances.filter(p => p.is_active === 1).length,
       handlerUrl: config.data_handler_url,
       licenseKey: config.license_key,
       licenseStatus: licenseState.status,
@@ -680,17 +973,22 @@ router.post('/api/admin/vault/purge', adminAuth, (req: Request, res: Response) =
 router.get('/api/admin/extensions', adminAuth, (req: Request, res: Response) => {
   const rows = systemDb.prepare(`
     SELECT e.extension, e.sip_username, e.display_name, e.email, e.is_active, e.created_at,
-           e.last_registered_at, e.last_ip, e.user_agent,
-           (SELECT p.code FROM softphone_pins p WHERE p.extension = e.extension AND p.claimed = 0 LIMIT 1) as active_pin,
+           e.last_registered_at, e.last_ip, e.user_agent, e.pbx_id,
+           COALESCE(p.name, 'Primary PBX Core') as pbx_name,
+           COALESCE(p.host, 'pbx.chriskendall.media') as pbx_host,
+           COALESCE(p.sip_port, 5060) as pbx_port,
+           COALESCE(p.sip_transport, 'UDP') as pbx_transport,
+           (SELECT p2.code FROM softphone_pins p2 WHERE p2.extension = e.extension AND p2.claimed = 0 LIMIT 1) as active_pin,
            (SELECT COUNT(*) FROM physical_handsets h WHERE h.extension = e.extension) as bound_handsets
     FROM extensions e
+    LEFT JOIN pbx_instances p ON e.pbx_id = p.id
     ORDER BY e.extension ASC
   `).all();
   return res.json({ ok: true, extensions: rows });
 });
 
 router.post('/api/admin/extensions', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
-  const { extension, username, password, displayName, email } = req.body;
+  const { extension, username, password, displayName, email, pbx_id } = req.body;
   if (!extension || !password) {
     return res.status(400).json({ ok: false, error: 'Extension and password are required.' });
   }
@@ -699,16 +997,18 @@ router.post('/api/admin/extensions', adminAuth, requirePermission('manage_extens
   const cleanUser = String(username || cleanExt).trim();
   const cleanName = String(displayName || `Extension ${cleanExt}`).trim();
   const cleanEmail = String(email || '').trim();
+  const targetPbxId = String(pbx_id || 'default').trim();
 
   systemDb.prepare(`
-    INSERT INTO extensions (extension, sip_username, sip_password, display_name, email)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO extensions (extension, sip_username, sip_password, display_name, email, pbx_id)
+    VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(extension) DO UPDATE SET
       sip_username = excluded.sip_username,
       sip_password = excluded.sip_password,
       display_name = excluded.display_name,
-      email = excluded.email
-  `).run(cleanExt, cleanUser, password, cleanName, cleanEmail);
+      email = excluded.email,
+      pbx_id = excluded.pbx_id
+  `).run(cleanExt, cleanUser, password, cleanName, cleanEmail, targetPbxId);
 
   broadcastDeviceLog('SOFTPHONE', 'INFO', `[Extension Managed] Extension ${cleanExt} (${cleanName}) configured`, {
     deviceIdentifier: `Ext ${cleanExt}`,

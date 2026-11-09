@@ -1,8 +1,8 @@
-import React from 'react';
-import { Search, User, Phone, Video } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Search, User, Phone, Video, X } from 'lucide-react';
 import type { Contact } from '../types';
 
-interface ContactListProps {
+export interface ContactListProps {
   contacts: Contact[];
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -17,69 +17,114 @@ export const ContactList: React.FC<ContactListProps> = ({
   onSelectDestination,
   onVideoCallDestination
 }) => {
-  const filteredContacts = contacts.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    c.number.includes(searchQuery)
-  );
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
+  const filteredContacts = useMemo(() => {
+    if (!normalizedQuery) return contacts;
+    return contacts.filter(c =>
+      c.name.toLowerCase().includes(normalizedQuery) ||
+      c.number.includes(normalizedQuery) ||
+      (c.company && c.company.toLowerCase().includes(normalizedQuery))
+    );
+  }, [contacts, normalizedQuery]);
 
   return (
-    <div className="list-container">
+    <div className="list-container" role="region" aria-label="Contacts Directory">
       <div className="search-bar">
-        <Search size={16} className="text-slate-400" />
-        <input 
-          type="text" 
-          className="search-input" 
-          placeholder="Search contacts..." 
+        <label htmlFor="contacts-search-input" className="sr-only">
+          Search contacts directory
+        </label>
+        <Search size={16} className="search-icon" aria-hidden="true" />
+        <input
+          id="contacts-search-input"
+          type="text"
+          className="search-input"
+          placeholder="Search by name, extension, department..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
+          aria-label="Search contacts"
         />
+        {searchQuery && (
+          <button
+            type="button"
+            className="search-clear-btn"
+            onClick={() => setSearchQuery('')}
+            aria-label="Clear search input"
+          >
+            <X size={15} aria-hidden="true" />
+          </button>
+        )}
       </div>
-      <div className="list-scroll">
+
+      <div className="list-scroll" tabIndex={0} aria-label="Contacts list">
         {filteredContacts.length > 0 ? (
-          filteredContacts.map(c => (
-            <div key={c.number} className="list-item" onClick={() => onSelectDestination(c.number)}>
-              <div className="item-info">
-                <span className="item-title">{c.name}</span>
-                <span className="item-subtitle">Extension {c.number}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ 
-                  fontSize: 10, 
-                  color: c.presence === 'online' ? 'var(--success-color)' : c.presence === 'busy' ? '#f59e0b' : 'var(--muted-color)' 
-                }}>
-                  {c.presence}
-                </span>
-                <button
-                  type="button"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 22,
-                    height: 22,
-                    borderRadius: 11,
-                    background: '#ede9fe',
-                    border: '1px solid #c4b5fd',
-                    cursor: 'pointer',
-                    padding: 0
-                  }}
-                  title="Video call contact (Yeastar SIP/WebRTC)"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (onVideoCallDestination) onVideoCallDestination(c.number);
-                    else onSelectDestination(c.number);
-                  }}
-                >
-                  <Video size={12} style={{ color: '#7c3aed' }} />
-                </button>
-                <Phone size={14} style={{ color: 'var(--muted-color)' }} />
-              </div>
-            </div>
-          ))
+          <div className="list-items-stack" role="list">
+            {filteredContacts.map(c => {
+              const presenceClass = `presence-${c.presence}`;
+              return (
+                <div key={c.number} role="listitem" className="list-item">
+                  <button
+                    type="button"
+                    className="list-item-btn"
+                    onClick={() => onSelectDestination(c.number)}
+                    aria-label={`Call ${c.name}, extension ${c.number}, status ${c.presence}`}
+                  >
+                    <div className="avatar-circle" aria-hidden="true">
+                      <User size={16} />
+                      <span className={`avatar-presence-dot ${presenceClass}`} />
+                    </div>
+                    <div className="item-info">
+                      <span className="item-title">{c.name}</span>
+                      <span className="item-subtitle">
+                        Ext {c.number} {c.company ? `\u2022 ${c.company}` : ''}
+                      </span>
+                    </div>
+                  </button>
+
+                  <div className="item-actions">
+                    <button
+                      type="button"
+                      className="contact-action-btn action-video"
+                      title={`Video call ${c.name}`}
+                      aria-label={`Video call ${c.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onVideoCallDestination) onVideoCallDestination(c.number);
+                        else onSelectDestination(c.number);
+                      }}
+                    >
+                      <Video size={14} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="contact-action-btn action-call"
+                      title={`Voice call ${c.name}`}
+                      aria-label={`Voice call ${c.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectDestination(c.number);
+                      }}
+                    >
+                      <Phone size={14} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
-          <div className="empty-state">
-            <User size={32} />
-            <span>No contacts found.</span>
+          <div className="empty-state" role="status">
+            <div className="empty-icon-circle">
+              <User size={28} aria-hidden="true" />
+            </div>
+            <p className="empty-title">
+              {contacts.length === 0 ? 'No contacts available' : 'No matching contacts'}
+            </p>
+            <p className="empty-desc">
+              {contacts.length === 0
+                ? 'Contacts will appear when loaded from PBX or local phonebook.'
+                : 'Try adjusting your search criteria.'}
+            </p>
           </div>
         )}
       </div>

@@ -1,20 +1,27 @@
+export type PresenceStatus = 'online' | 'offline' | 'busy';
+
 export interface Contact {
   name: string;
   number: string;
-  presence: 'online' | 'offline' | 'busy';
+  presence: PresenceStatus;
+  company?: string;
 }
+
+export type CallDirection = 'incoming' | 'outgoing' | 'missed';
 
 export interface CallRecord {
   id: string;
   destination: string;
-  type: 'incoming' | 'outgoing' | 'missed';
+  type: CallDirection;
   time: string;
   duration?: string;
 }
 
+export type CallState = 'dialing' | 'ringing' | 'connected' | 'hold';
+
 export interface ActiveCall {
   destination: string;
-  state: 'dialing' | 'ringing' | 'connected' | 'hold';
+  state: CallState;
   duration: number;
   muted: boolean;
 }
@@ -28,6 +35,11 @@ export interface VideoDevice {
   id: string;
   name: string;
 }
+
+export type AuthMode = 'provision' | 'manual';
+export type AppStep = 'credentials' | 'main';
+export type MainTab = 'phone' | 'history' | 'contacts';
+export type SettingsTab = 'general' | 'account' | 'handling' | 'audio' | 'diagnostics' | 'about';
 
 export interface SipSettings {
   sipServer: string;

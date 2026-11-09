@@ -22,7 +22,7 @@ function initApp() {
 
     toast.className = `toast toast-${type}`;
 
-    let icon = 'ℹ️';
+    let icon = '';
 
     if (type === 'success') icon = '';
 
@@ -738,6 +738,32 @@ function initApp() {
 
 
 
+  
+  // Mobile / Responsive Navigation Drawer Handlers
+  const btnToggleSidebar = document.getElementById('btnToggleSidebar');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  const appLayout = document.querySelector('.app-layout');
+  const sidebar = document.querySelector('.sidebar');
+
+  function toggleSidebar(open) {
+    if (!appLayout) return;
+    const shouldOpen = open !== undefined ? open : !appLayout.classList.contains('sidebar-open');
+    appLayout.classList.toggle('sidebar-open', shouldOpen);
+    if (sidebar) sidebar.classList.toggle('open', shouldOpen);
+  }
+
+  btnToggleSidebar?.addEventListener('click', () => toggleSidebar());
+  sidebarBackdrop?.addEventListener('click', () => toggleSidebar(false));
+
+  // Auto-close drawer on nav click on mobile viewports
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (window.innerWidth <= 1024) {
+        toggleSidebar(false);
+      }
+    });
+  });
+
   document.querySelectorAll('.modal-backdrop').forEach(modal => {
 
     modal.addEventListener('click', (e) => {
@@ -796,7 +822,17 @@ function initApp() {
 
     const formattedPbx = `${cleanPbxHost}:${pbxPort} (${pbxTransport})`;
 
-    document.getElementById('pbxBadge').textContent = `PBX: ${formattedPbx}`;
+    if (s.activePbxCount && s.activePbxCount > 1) {
+      document.getElementById('pbxBadge').textContent = `PBX Cluster: ${s.activePbxCount} Cores Active`;
+    } else {
+      document.getElementById('pbxBadge').textContent = `PBX: ${formattedPbx}`;
+    }
+    if (s.pbxInstances && Array.isArray(s.pbxInstances)) {
+      cachedPbxInstances = s.pbxInstances;
+      renderPbxPills(cachedPbxInstances);
+      renderPbxInstancesTable(cachedPbxInstances);
+      updatePbxSelectDropdowns(cachedPbxInstances);
+    }
 
     document.getElementById('licenseBadge').textContent = `License: ${s.licenseKey || 'Active'}`;
 
@@ -815,6 +851,8 @@ function initApp() {
     document.getElementById('epPhonebook').textContent = `${host}/phonebook/yealink.xml`;
 
     document.getElementById('epSync').textContent = `${host}/api/v1/config/sync`;
+    const epBilling = document.getElementById('epBillingReset');
+    if (epBilling) epBilling.textContent = `${host}/api/v1/billing/reset-pin`;
 
 
 
@@ -1179,6 +1217,8 @@ function initApp() {
   // --------------------------------------------------------------------------
 
   let cachedExtensions = [];
+  let cachedPbxInstances = [];
+  let selectedPbxId = "default";
 
 
 
@@ -1190,7 +1230,7 @@ function initApp() {
 
     if (!list.length) {
 
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center">No extensions match your search.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center">No extensions match your search.</td></tr>';
 
       return;
 
@@ -1203,17 +1243,18 @@ function initApp() {
     tbody.innerHTML = list.map(ext => `
 
       <tr>
-        <td><strong>${ext.extension}</strong></td>
+        <td class="font-mono" style="font-weight: 500;">${ext.extension}</td>
         <td>${ext.display_name}</td>
+        <td><span class="badge badge-secondary" style="font-weight:600;" title="${ext.pbx_host || ''}:${ext.pbx_port || 5060}">${ext.pbx_name || 'Primary Core'}</span></td>
         <td>
           <div style="display: flex; align-items: center; gap: 6px;">
             ${ext.email ? `<span style="font-weight: 500; color: #0284c7; font-family: ui-monospace, monospace; font-size: 12px;">${ext.email}</span>` : '<span class="muted" style="font-size: 11px; font-style: italic;">(None on PBX)</span>'}
-            ${canManage ? `<button class="btn btn-sm btn-light" style="padding: 1px 6px; font-size: 11px; line-height: 1.2;" onclick="window.editExtensionEmail('${ext.extension}', '${(ext.email || '').replace(/'/g, "\'")}')" title="Edit registered email">✎</button>` : ''}
+            ${canManage ? `<button class="btn btn-sm btn-light" style="padding: 1px 6px; font-size: 11px; line-height: 1.2;" onclick="window.editExtensionEmail('${ext.extension}', '${(ext.email || '').replace(/'/g, "\'")}')" title="Edit registered email">Edit</button>` : ''}
           </div>
         </td>
         <td><code>${ext.sip_username}</code></td>
 
-        <td>${ext.active_pin ? `<strong style="color:#0284c7;font-size:15px;letter-spacing:1px;">${ext.active_pin}</strong>` : '<span class="muted">None active</span>'}</td>
+        <td>${ext.active_pin ? `<span class="font-mono" style="color:#0284c7;font-size:14px;font-weight:600;letter-spacing:1px;">${ext.active_pin}</span>` : '<span class="muted">None active</span>'}</td>
 
         <td>${ext.bound_handsets} handset(s)</td>
 
@@ -1247,33 +1288,28 @@ function initApp() {
 
   // Instant Live Search for Extensions
 
-  document.getElementById('searchExt')?.addEventListener('input', (e) => {
+  function filterAndRenderExtensions() {
+    const query = document.getElementById('searchExt')?.value.toLowerCase().trim() || '';
+    const pbxFilter = document.getElementById('filterExtPbx')?.value || '';
 
-    const query = e.target.value.toLowerCase().trim();
-
-    if (!query) {
-
-      renderExtensionsTable(cachedExtensions);
-
-      return;
-
+    let filtered = cachedExtensions;
+    if (pbxFilter) {
+      filtered = filtered.filter(ext => (ext.pbx_id || 'default') === pbxFilter);
     }
-
-    const filtered = cachedExtensions.filter(ext =>
-
-      (ext.extension && String(ext.extension).toLowerCase().includes(query)) ||
-
-      (ext.display_name && ext.display_name.toLowerCase().includes(query)) ||
-
-      (ext.sip_username && ext.sip_username.toLowerCase().includes(query)) ||
-
-      (ext.active_pin && String(ext.active_pin).includes(query))
-
-    );
-
+    if (query) {
+      filtered = filtered.filter(ext =>
+        (ext.extension && String(ext.extension).toLowerCase().includes(query)) ||
+        (ext.display_name && ext.display_name.toLowerCase().includes(query)) ||
+        (ext.sip_username && ext.sip_username.toLowerCase().includes(query)) ||
+        (ext.email && ext.email.toLowerCase().includes(query)) ||
+        (ext.pbx_name && ext.pbx_name.toLowerCase().includes(query))
+      );
+    }
     renderExtensionsTable(filtered);
+  }
 
-  });
+  document.getElementById('searchExt')?.addEventListener('input', filterAndRenderExtensions);
+  document.getElementById('filterExtPbx')?.addEventListener('change', filterAndRenderExtensions);
 
 
 
@@ -1285,7 +1321,7 @@ function initApp() {
 
     if (!data || !data.ok || !data.extensions.length) {
 
-      if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center">No extensions registered yet. Click "+ New Extension" to create one.</td></tr>';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="text-center">No extensions registered yet. Click "+ New Extension" to create one.</td></tr>';
 
       cachedExtensions = [];
 
@@ -1410,11 +1446,12 @@ function initApp() {
 
     const pass = document.getElementById('addExtPass').value.trim();
     const email = document.getElementById('addExtEmail')?.value.trim() || '';
+    const pbxId = document.getElementById('addExtPbx')?.value || 'default';
 
     const res = await fetchJson('/api/admin/extensions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ extension: ext, displayName: name, username: user, password: pass, email: email })
+      body: JSON.stringify({ extension: ext, displayName: name, username: user, password: pass, email: email, pbx_id: pbxId })
     });
 
 
@@ -1561,7 +1598,7 @@ function initApp() {
 
     btn.disabled = true;
 
-    btn.textContent = '⚡ Synchronizing with PBX...';
+    btn.textContent = 'Synchronizing with PBX...';
 
 
 
@@ -1595,7 +1632,7 @@ function initApp() {
 
     btn.disabled = false;
 
-    btn.textContent = '⚡ Start PBX Synchronization';
+    btn.textContent = 'Synchronize PBX Extensions';
 
 
 
@@ -2719,7 +2756,7 @@ function initApp() {
 
             if (badge) {
 
-              badge.textContent = `● Stored Internally (${modelObj.fileSizeFormatted})`;
+              badge.textContent = `Stored Internally (${modelObj.fileSizeFormatted})`;
 
               badge.className = 'badge badge-firmware-cached';
 
@@ -2733,7 +2770,7 @@ function initApp() {
 
             if (badge) {
 
-              badge.textContent = '○ Not Stored Internally';
+              badge.textContent = 'Not Stored Internally';
 
               badge.className = 'badge badge-firmware-missing';
 
@@ -2805,7 +2842,7 @@ function initApp() {
 
             if (badge) {
 
-              badge.textContent = `● Stored Internally (${modelObj.fileSizeFormatted})`;
+              badge.textContent = `Stored Internally (${modelObj.fileSizeFormatted})`;
 
               badge.className = 'badge badge-firmware-cached';
 
@@ -2819,7 +2856,7 @@ function initApp() {
 
             if (badge) {
 
-              badge.textContent = '○ Not Stored Internally';
+              badge.textContent = 'Not Stored Internally';
 
               badge.className = 'badge badge-firmware-missing';
 
@@ -3157,7 +3194,7 @@ function initApp() {
 
     btn.disabled = true;
 
-    btn.innerHTML = '<span>⏳</span> Downloading...';
+    btn.innerHTML = 'Downloading...';
 
     window.showToast(`Contacting vendor repository for ${brand.toUpperCase()} ${model} firmware...`, 'info');
 
@@ -3335,7 +3372,7 @@ function initApp() {
 
     btn.disabled = true;
 
-    btn.innerHTML = '<span>⏳</span> Downloading...';
+    btn.innerHTML = 'Downloading...';
 
     window.showToast(`Contacting vendor repository for ${brand.toUpperCase()} ${model} firmware...`, 'info');
 
@@ -3591,7 +3628,7 @@ function initApp() {
 
           </td>
 
-          <td><strong>${h.brand.toUpperCase()}</strong> ${h.model || ''}</td>
+          <td style="font-weight: 500;">${h.brand.toUpperCase()} ${h.model || ''}</td>
 
           <td>Ext ${h.extension} (${h.display_name || ''})</td>
 
@@ -4013,7 +4050,7 @@ function initApp() {
 
           <td>
 
-            <strong>${r.site_name}</strong>
+            <span style="font-weight: 500;">${r.site_name}</span>
 
             ${isCustom ? '<span class="tag badge-primary" style="margin-left:6px;font-size:10px;">Custom Script</span>' : ''}
 
@@ -4021,7 +4058,7 @@ function initApp() {
 
           </td>
 
-          <td><strong>${r.brand.toUpperCase()}</strong> ${r.model || ''}</td>
+          <td style="font-weight: 500;">${r.brand.toUpperCase()} ${r.model || ''}</td>
 
           <td>VLAN ${r.voice_vlan_id}</td>
 
@@ -4762,6 +4799,7 @@ function initApp() {
 
 
   async function loadConfig() {
+    loadPbxInstances();
 
     const data = await fetchJson('/api/admin/config');
 
@@ -4828,13 +4866,10 @@ function initApp() {
 
     const base = url || window.location.origin;
 
-    curlEl.textContent = `curl -X POST "${base}/api/v1/integrations/provision-user" \\
-
-  -H "X-API-Key: ${key || 'YOUR_API_KEY'}" \\
-
-  -H "Content-Type: application/json" \\
-
-  -d '{"extension":"101","displayName":"Alice Walker","queryPbx":true}'`;
+    curlEl.textContent = `curl -X POST "${base}/api/v1/billing/reset-pin" \
+  -H "X-API-Key: ${key || 'YOUR_API_KEY'}" \
+  -H "Content-Type: application/json" \
+  -d '{"extension":"101","email":"customer@company.com","dispatchEmail":true}'`;
 
   }
 
@@ -4944,7 +4979,7 @@ function initApp() {
           out.style.background = '#f0fdf4';
           out.style.borderColor = '#bbf7d0';
           out.style.color = '#166534';
-          out.textContent = `✓ SMTP Test Succeeded: ${res.message}`;
+          out.textContent = `SMTP Test Succeeded: ${res.message}`;
         }
         window.showToast?.('Test email sent successfully!', 'success');
       } else {
@@ -4952,7 +4987,7 @@ function initApp() {
           out.style.background = '#fef2f2';
           out.style.borderColor = '#fecaca';
           out.style.color = '#991b1b';
-          out.textContent = `✗ SMTP Test Failed: ${res?.error || res?.message || 'Connection failed'}`;
+          out.textContent = `SMTP Test Failed: ${res?.error || res?.message || 'Connection failed'}`;
         }
         window.showToast?.(res?.error || 'SMTP test failed', 'error');
       }
@@ -4961,7 +4996,7 @@ function initApp() {
         out.style.background = '#fef2f2';
         out.style.borderColor = '#fecaca';
         out.style.color = '#991b1b';
-        out.textContent = `✗ Network Error: ${err.message}`;
+        out.textContent = `Network Error: ${err.message}`;
       }
     }
   });
@@ -4978,7 +5013,7 @@ function initApp() {
 
     btn.disabled = true;
 
-    btn.textContent = '⚡ Testing Connection...';
+    btn.textContent = 'Testing Connection...';
 
     out.classList.remove('hidden');
 
@@ -5030,7 +5065,7 @@ function initApp() {
 
     btn.disabled = false;
 
-    btn.textContent = '⚡ Test PBX Connection';
+    btn.textContent = 'Test PBX Connection';
 
 
 
@@ -5186,7 +5221,7 @@ function initApp() {
 
       resultBox.classList.remove('hidden');
 
-      resultBox.innerHTML = `<strong>Article 17 Erasure Executed!</strong><br>SHA-256 Audit Certificate: <code>${res.certificateHash || 'Generated'}</code>`;
+      resultBox.innerHTML = `<span style="font-weight: 600;">Article 17 Erasure Executed</span><br>SHA-256 Audit Certificate: <code>${res.certificateHash || 'Generated'}</code>`;
 
       window.showToast(`Extension ${ext} records purged under GDPR Article 17`, 'success');
 
@@ -5266,7 +5301,7 @@ function initApp() {
 
         <tr>
 
-          <td><strong>${u.username}</strong> ${isSelf ? '<span class="badge badge-secondary" style="font-size:10px;">YOU</span>' : ''}</td>
+          <td style="font-weight: 500;">${u.username}</td> ${isSelf ? '<span class="badge badge-secondary" style="font-size:10px;">YOU</span>' : ''}</td>
 
           <td>${u.display_name}</td>
 
@@ -6026,13 +6061,13 @@ function initApp() {
 
     if (isShellPaused) {
 
-      btn.textContent = '▶ Resume';
+      btn.textContent = 'Resume Stream';
 
       btn.className = 'btn btn-sm btn-primary';
 
     } else {
 
-      btn.textContent = '⏸ Pause';
+      btn.textContent = 'Pause Stream';
 
       btn.className = 'btn btn-sm btn-secondary';
 
@@ -6138,7 +6173,7 @@ function initApp() {
 
     const btn = document.getElementById('btnMinimizeDrawer');
 
-    btn.textContent = shellDrawer.classList.contains('minimized') ? '▲ Expand' : '_ Minimize';
+    btn.textContent = shellDrawer.classList.contains('minimized') ? 'Expand' : 'Minimize';
 
   });
 
@@ -6612,10 +6647,16 @@ function initApp() {
 
       }
 
-    } else if (e.key === 'Escape' && modalPalette && !modalPalette.classList.contains('hidden')) {
-
-      closeCommandPalette();
-
+    } else if (e.key === 'Escape') {
+      if (modalPalette && !modalPalette.classList.contains('hidden')) {
+        closeCommandPalette();
+      } else {
+        const openModals = Array.from(document.querySelectorAll('.modal-backdrop:not(.hidden)'));
+        const closable = openModals.filter(m => m.id !== 'modalLogin');
+        if (closable.length) {
+          closable[closable.length - 1].classList.add('hidden');
+        }
+      }
     }
 
   });
@@ -6632,35 +6673,35 @@ function initApp() {
 
     const staticCommands = [
 
-      { type: 'nav', id: 'overview', title: 'System Overview & Telemetry', tag: 'Navigation', icon: '📊' },
+      { type: 'nav', id: 'overview', title: 'System Overview & Telemetry', tag: 'Navigation', icon: 'STAT' },
 
-      { type: 'nav', id: 'extensions', title: 'SIP Extensions & Softphone PINs', tag: 'Navigation', icon: '📱' },
+      { type: 'nav', id: 'extensions', title: 'SIP Extensions & Softphone PINs', tag: 'Navigation', icon: 'SIP' },
 
-      { type: 'nav', id: 'handsets', title: 'Physical Deskphone Fleet & Profiles', tag: 'Navigation', icon: '☎️' },
+      { type: 'nav', id: 'handsets', title: 'Physical Deskphone Fleet & Profiles', tag: 'Navigation', icon: 'TEL' },
 
-      { type: 'nav', id: 'routers', title: 'Network Gateways & Firewall Scripts', tag: 'Navigation', icon: '🌐' },
+      { type: 'nav', id: 'routers', title: 'Network Gateways & Firewall Scripts', tag: 'Navigation', icon: 'NET' },
 
-      { type: 'nav', id: 'shell', title: 'Live Device Connectivity Stream', tag: 'Navigation', icon: '💻' },
+      { type: 'nav', id: 'shell', title: 'Live Device Connectivity Stream', tag: 'Navigation', icon: 'LOG' },
 
-      { type: 'nav', id: 'users', title: 'Administrator Accounts & RBAC', tag: 'Navigation', icon: '👥' },
+      { type: 'nav', id: 'users', title: 'Administrator Accounts & RBAC', tag: 'Navigation', icon: 'SEC' },
 
-      { type: 'nav', id: 'branding', title: 'Whitelabel Branding & Assets', tag: 'Navigation', icon: '🎨' },
+      { type: 'nav', id: 'branding', title: 'Whitelabel Branding & Assets', tag: 'Navigation', icon: 'UI' },
 
-      { type: 'nav', id: 'config', title: 'PBX Core & Integration Settings', tag: 'Navigation', icon: '⚙️' },
+      { type: 'nav', id: 'config', title: 'PBX Core & Integration Settings', tag: 'Navigation', icon: 'CFG' },
 
-      { type: 'nav', id: 'gdpr', title: 'GDPR Compliance & Storage Vault', tag: 'Navigation', icon: '🔒' },
+      { type: 'nav', id: 'gdpr', title: 'GDPR Compliance & Storage Vault', tag: 'Navigation', icon: 'VAULT' },
 
-      { type: 'action', action: 'addExt', title: 'Create New SIP Extension', tag: 'Action', icon: '➕' },
+      { type: 'action', action: 'addExt', title: 'Create New SIP Extension', tag: 'Action', icon: 'ADD' },
 
-      { type: 'action', action: 'addHandset', title: 'Register Physical Deskphone MAC', tag: 'Action', icon: '➕' },
+      { type: 'action', action: 'addHandset', title: 'Register Physical Deskphone MAC', tag: 'Action', icon: 'ADD' },
 
-      { type: 'action', action: 'addRouter', title: 'Create New Router Profile', tag: 'Action', icon: '➕' },
+      { type: 'action', action: 'addRouter', title: 'Create New Router Profile', tag: 'Action', icon: 'ADD' },
 
-      { type: 'action', action: 'syncPbx', title: 'Synchronize All PBX Accounts', tag: 'Action', icon: '🔄' },
+      { type: 'action', action: 'syncPbx', title: 'Synchronize All PBX Accounts', tag: 'Action', icon: 'SYNC' },
 
-      { type: 'action', action: 'clearShell', title: 'Clear Device Log Buffer', tag: 'Action', icon: '🗑️' },
+      { type: 'action', action: 'clearShell', title: 'Clear Device Log Buffer', tag: 'Action', icon: 'PURGE' },
 
-      { type: 'action', action: 'exportLogs', title: 'Export Device Connectivity Logs', tag: 'Action', icon: '📥' }
+      { type: 'action', action: 'exportLogs', title: 'Export Device Connectivity Logs', tag: 'Action', icon: 'EXPORT' }
 
     ];
 
@@ -6694,7 +6735,7 @@ function initApp() {
 
           tag: 'Extension',
 
-          icon: '📱'
+          icon: 'EXT'
 
         }));
 
@@ -6726,7 +6767,7 @@ function initApp() {
 
           tag: 'Handset',
 
-          icon: '☎️'
+          icon: 'PHONE'
 
         }));
 
@@ -6758,7 +6799,7 @@ function initApp() {
 
           tag: 'Router',
 
-          icon: '🌐'
+          icon: 'GATEWAY'
 
         }));
 
@@ -7416,9 +7457,9 @@ function initApp() {
 
         <tr>
 
-          <td><code style="font-weight: 700;">${d.mac_address}</code></td>
+          <td><code style="font-weight: 500;">${d.mac_address}</code></td>
 
-          <td><strong>${(d.brand || 'Yealink').toUpperCase()}</strong> ${d.model || ''}</td>
+          <td>${(d.brand || 'Yealink').toUpperCase()} ${d.model || ''}</td>
 
           <td><span class="font-mono">${d.ip_address}</span></td>
 
@@ -7898,20 +7939,20 @@ function initApp() {
 
       return `
         <tr>
-          <td><strong>${f.brandName.toUpperCase()}</strong> ${f.modelName}</td>
+          <td>${f.brandName.toUpperCase()} ${f.modelName}</td>
           <td><code>${f.version}</code></td>
           <td><code class="text-xs">${f.filename}</code></td>
           <td>${statusBadge}</td>
           <td>${f.fileSizeFormatted}</td>
           <td style="text-align: right; white-space: nowrap;">
             ${isDownloaded 
-              ? '<span class="text-xs muted" style="color: #10b981; font-weight: 600;">✓ Option 66 Ready</span>' 
+              ? '<span class="text-xs muted" style="color: #10b981; font-weight: 600;">Option 66 Ready</span>' 
               : f.directDownloadUrl 
-                ? `<button class="btn btn-xs btn-primary" onclick="autoDownloadFirmware('${f.brandId}', '${f.id}')">⚡ Cache Locally</button>`
+                ? `<button class="btn btn-xs btn-primary" onclick="autoDownloadFirmware('${f.brandId}', '${f.id}')">Cache Locally</button>`
                 : `<div style="display: inline-flex; gap: 6px;">
-                     <button class="btn btn-xs btn-primary" onclick="openFirmwareUploadModal('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}')" title="Upload official binary file (.rom / .bin)">📁 Upload</button>
-                     <button class="btn btn-xs btn-secondary" onclick="promptCustomFirmwareUrl('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}')" title="Enter custom direct download URL">🔗 URL</button>
-                     ${f.portalUrl ? `<a href="${f.portalUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-secondary" title="Open vendor support portal in new tab" style="text-decoration: none;">↗ Portal</a>` : ''}
+                     <button class="btn btn-xs btn-primary" onclick="openFirmwareUploadModal('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}')" title="Upload official binary file (.rom / .bin)">Upload</button>
+                     <button class="btn btn-xs btn-secondary" onclick="promptCustomFirmwareUrl('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}')" title="Enter custom direct download URL">URL</button>
+                     ${f.portalUrl ? `<a href="${f.portalUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-secondary" title="Open vendor support portal in new tab" style="text-decoration: none;">Portal</a>` : ''}
                    </div>`
             }
           </td>
@@ -8402,3 +8443,399 @@ if (document.readyState === 'loading') {
 
 }
 
+
+
+  // ==============================================================================
+  // Multi-PBX Cluster & Core Management Engine
+  // ==============================================================================
+  async function loadPbxInstances() {
+    const data = await fetchJson('/api/admin/pbx-instances');
+    if (!data || !data.ok || !data.instances) return;
+    cachedPbxInstances = data.instances;
+    renderPbxInstancesTable(cachedPbxInstances);
+    renderPbxPills(cachedPbxInstances);
+    updatePbxSelectDropdowns(cachedPbxInstances);
+  }
+
+  function renderPbxPills(instances) {
+    const container = document.getElementById('pbxPillStrip');
+    if (!container) return;
+    if (!instances || !instances.length) {
+      container.innerHTML = '<span class="muted" style="font-size:12px; padding: 4px 8px;">No PBX cores connected</span>';
+      return;
+    }
+
+    container.innerHTML = instances.map(p => {
+      const isSel = p.id === selectedPbxId;
+      const dotStatus = p.last_ping_status === 'CONNECTED' ? '' : (p.last_ping_status === 'FAILED' ? 'degraded' : 'pending');
+      const rttBadge = p.last_ping_rtt ? `${p.last_ping_rtt}ms` : '<1ms';
+      return `
+        <button type="button" class="pbx-pill ${isSel ? 'active' : ''}" data-id="${p.id}" onclick="window.selectPbxCore('${p.id}')">
+          <span class="dot ${dotStatus}"></span>
+          <span>${p.name}</span>
+          <span class="pbx-pill-badge">${p.sip_port}/${p.sip_transport}</span>
+          <span class="pbx-pill-badge" style="opacity:0.85;">${rttBadge}</span>
+        </button>
+      `;
+    }).join('') + `
+      <button type="button" class="pbx-pill" style="border-style:dashed; background:transparent;" onclick="window.openPbxModal()" title="Connect a new PBX core">
+        <span>+ Add PBX Core</span>
+      </button>
+    `;
+  }
+
+  window.selectPbxCore = (id) => {
+    selectedPbxId = id;
+    renderPbxPills(cachedPbxInstances);
+    const inst = cachedPbxInstances.find(p => p.id === id);
+    if (!inst) return;
+
+    const targetEl = document.getElementById('pingPbxTarget');
+    if (targetEl) targetEl.textContent = `${inst.host}:${inst.sip_port} (${inst.sip_transport})`;
+
+    const pill = document.getElementById('pingStatusPill');
+    if (pill) {
+      if (inst.last_ping_status === 'CONNECTED') {
+        pill.className = 'status-pill operational';
+        pill.textContent = 'Operational';
+      } else if (inst.last_ping_status === 'FAILED') {
+        pill.className = 'status-pill degraded';
+        pill.textContent = 'Unreachable';
+      } else {
+        pill.className = 'status-pill connecting';
+        pill.textContent = 'Testing...';
+      }
+    }
+
+    const latEl = document.getElementById('pingLatencyVal');
+    if (latEl) latEl.textContent = inst.last_ping_rtt ? `${inst.last_ping_rtt} ms` : '< 1 ms';
+
+    const details = document.getElementById('pingDetails');
+    if (details) details.textContent = `[${inst.name}] Protocol: SIP RFC 3261 · Target: ${inst.host}:${inst.sip_port} (${inst.sip_transport}) · ${inst.extension_count || 0} extensions assigned.`;
+  };
+
+  function renderPbxInstancesTable(instances) {
+    const tbody = document.getElementById('tbodyPbxInstances');
+    if (!tbody) return;
+    if (!instances || !instances.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center">No PBX instances configured. Click "+ Connect New PBX Core" above.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = instances.map(p => {
+      const isDef = p.is_default === 1 || p.id === 'default';
+      const engineLabel = p.pbx_type === 'yeastar_api' ? 'Yeastar REST API' : (p.pbx_type === 'yeastar_ami' ? 'Yeastar AMI' : 'Asterisk / FreePBX AMI');
+      const syncBadge = p.auto_sync_enabled ? `<span class="badge badge-primary">Active (${p.auto_sync_interval_mins || 5}m)</span>` : '<span class="badge badge-secondary">Disabled</span>';
+      const isConnected = p.last_ping_status === 'CONNECTED';
+      const rttText = p.last_ping_rtt ? `${p.last_ping_rtt} ms` : (isConnected ? '< 1 ms' : 'Timeout');
+
+      return `
+        <tr>
+          <td>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-weight: 500;">${p.name}</span>
+              ${isDef ? '<span class="badge-default-core">Primary</span>' : '<span class="badge-cluster-node">Node</span>'}
+            </div>
+          </td>
+          <td><code>${p.host}:${p.sip_port}</code></td>
+          <td><span class="badge badge-secondary">${p.sip_transport}</span></td>
+          <td><span style="font-size: 12px; color: #475569;">${engineLabel}</span></td>
+          <td>${p.extension_count || 0} ext</td>
+          <td>${syncBadge}</td>
+          <td>
+            <span class="status-pill ${p.last_ping_status === 'FAILED' ? 'degraded' : 'operational'}" style="font-size: 11px; padding: 2px 8px;">
+              ${rttText}
+            </span>
+          </td>
+          <td style="text-align: right;">
+            <div style="display: flex; gap: 6px; justify-content: flex-end;">
+              <button type="button" class="btn btn-sm btn-light" onclick="window.pingPbxInstance('${p.id}')" title="Test SIP latency probe">Ping</button>
+              <button type="button" class="btn btn-sm btn-light" onclick="window.syncPbxInstance('${p.id}')" title="Synchronize extensions from PBX">Sync</button>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="window.openPbxModal('${p.id}')" title="Edit PBX settings">Edit</button>
+              ${!isDef ? `<button type="button" class="btn btn-sm btn-danger" onclick="window.deletePbxInstance('${p.id}')" title="Delete PBX core">Delete</button>` : ''}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function updatePbxSelectDropdowns(instances) {
+    const filterSelect = document.getElementById('filterExtPbx');
+    if (filterSelect) {
+      const cur = filterSelect.value;
+      filterSelect.innerHTML = '<option value="">All PBX Cores</option>' +
+        instances.map(p => `<option value="${p.id}" ${p.id === cur ? 'selected' : ''}>${p.name} (${p.extension_count || 0})</option>`).join('');
+    }
+
+    const addSelect = document.getElementById('addExtPbx');
+    if (addSelect) {
+      const cur = addSelect.value;
+      addSelect.innerHTML = instances.map(p =>
+        `<option value="${p.id}" ${p.id === cur || (!cur && p.is_default) ? 'selected' : ''}>${p.name} (${p.host}:${p.sip_port})</option>`
+      ).join('');
+    }
+  }
+
+  window.openPbxModal = (id) => {
+    const modal = document.getElementById('modalPbxInstance');
+    if (!modal) return;
+    const form = document.getElementById('formPbxInstance');
+    form?.reset();
+    document.getElementById('pbxInstTestOutput')?.classList.add('hidden');
+
+    if (id) {
+      const inst = cachedPbxInstances.find(p => p.id === id);
+      if (inst) {
+        document.getElementById('modalPbxTitle').textContent = `Edit PBX Core: ${inst.name}`;
+        document.getElementById('pbxInstId').value = inst.id;
+        document.getElementById('pbxInstName').value = inst.name;
+        document.getElementById('pbxInstType').value = inst.pbx_type || 'yeastar_api';
+        document.getElementById('pbxInstHost').value = inst.host;
+        document.getElementById('pbxInstPort').value = inst.sip_port || 5060;
+        document.getElementById('pbxInstTransport').value = inst.sip_transport || 'UDP';
+        document.getElementById('pbxInstApiHost').value = inst.api_host || '';
+        document.getElementById('pbxInstApiPort').value = inst.api_port || (inst.pbx_type === 'yeastar_api' ? 8260 : 5038);
+        document.getElementById('pbxInstApiProtocol').value = inst.api_protocol || 'https';
+        document.getElementById('pbxInstApiPath').value = inst.api_path || 'api/v2.0.0';
+        document.getElementById('pbxInstApiUser').value = inst.api_user || '';
+        document.getElementById('pbxInstApiSecret').value = '';
+        document.getElementById('pbxInstVerifySsl').checked = !!inst.verify_ssl;
+        document.getElementById('pbxInstAutoSync').checked = inst.auto_sync_enabled !== 0;
+        document.getElementById('pbxInstInterval').value = inst.auto_sync_interval_mins || 5;
+        document.getElementById('pbxInstIsDefault').checked = !!inst.is_default;
+      }
+    } else {
+      document.getElementById('modalPbxTitle').textContent = '+ Connect New PBX Core';
+      document.getElementById('pbxInstId').value = '';
+      document.getElementById('pbxInstPort').value = '5060';
+      document.getElementById('pbxInstTransport').value = 'UDP';
+      document.getElementById('pbxInstApiPort').value = '8260';
+      document.getElementById('pbxInstApiProtocol').value = 'https';
+      document.getElementById('pbxInstApiPath').value = 'api/v2.0.0';
+      document.getElementById('pbxInstAutoSync').checked = true;
+      document.getElementById('pbxInstInterval').value = '5';
+      document.getElementById('pbxInstIsDefault').checked = false;
+    }
+
+    openModal('modalPbxInstance');
+  };
+
+  document.getElementById('btnOpenAddPbxModal')?.addEventListener('click', () => window.openPbxModal());
+
+  // Test PBX Connection in Modal
+  document.getElementById('btnTestPbxInstance')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnTestPbxInstance');
+    const out = document.getElementById('pbxInstTestOutput');
+    const host = document.getElementById('pbxInstHost')?.value.trim();
+    const port = document.getElementById('pbxInstPort')?.value.trim() || 5060;
+    const transport = document.getElementById('pbxInstTransport')?.value || 'UDP';
+
+    if (!host) {
+      window.showToast('Please enter a PBX Server Hostname first.', 'warning');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Testing...';
+    out.classList.remove('hidden');
+    out.style.background = '#f8fafc';
+    out.textContent = `Dispatching test SIP OPTIONS probe to ${host}:${port} (${transport})...`;
+
+    try {
+      const res = await fetchJson('/api/admin/pbx/ping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host, port, transport })
+      });
+
+      if (res && res.reachable) {
+        out.style.background = '#f0fdf4';
+        out.style.borderColor = '#86efac';
+        out.textContent = `SUCCESS: Connection verified in ${res.latencyMs}ms.\n${res.message}`;
+      } else {
+        out.style.background = '#fef2f2';
+        out.style.borderColor = '#fca5a5';
+        out.textContent = `FAILED: Could not reach ${host}:${port}.\n${res?.error || res?.message || 'Connection timeout'}`;
+      }
+    } catch (err) {
+      out.style.background = '#fef2f2';
+      out.style.borderColor = '#fca5a5';
+      out.textContent = 'Network error dispatching probe: ' + (err.message || 'Unknown');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Test Connection';
+    }
+  });
+
+  // Save PBX Instance Form
+  document.getElementById('formPbxInstance')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('pbxInstId')?.value;
+    const name = document.getElementById('pbxInstName')?.value.trim();
+    const host = document.getElementById('pbxInstHost')?.value.trim();
+    const port = parseInt(document.getElementById('pbxInstPort')?.value || '5060', 10);
+    const transport = document.getElementById('pbxInstTransport')?.value || 'UDP';
+    const type = document.getElementById('pbxInstType')?.value || 'yeastar_api';
+    const apiHost = document.getElementById('pbxInstApiHost')?.value.trim();
+    const apiPort = parseInt(document.getElementById('pbxInstApiPort')?.value || '8260', 10);
+    const apiProto = document.getElementById('pbxInstApiProtocol')?.value || 'https';
+    const apiPath = document.getElementById('pbxInstApiPath')?.value.trim() || 'api/v2.0.0';
+    const apiUser = document.getElementById('pbxInstApiUser')?.value.trim();
+    const apiSecret = document.getElementById('pbxInstApiSecret')?.value;
+    const verifySsl = document.getElementById('pbxInstVerifySsl')?.checked;
+    const autoSync = document.getElementById('pbxInstAutoSync')?.checked;
+    const interval = parseInt(document.getElementById('pbxInstInterval')?.value || '5', 10);
+    const isDef = document.getElementById('pbxInstIsDefault')?.checked ? 1 : 0;
+
+    const payload = {
+      name, host, sip_port: port, sip_transport: transport, pbx_type: type,
+      api_host: apiHost, api_port: apiPort, api_protocol: apiProto, api_path: apiPath,
+      api_user: apiUser, verify_ssl: verifySsl, auto_sync_enabled: autoSync,
+      auto_sync_interval_mins: interval, is_default: isDef
+    };
+    if (apiSecret) payload.api_secret = apiSecret;
+
+    const url = id ? `/api/admin/pbx-instances/${encodeURIComponent(id)}` : '/api/admin/pbx-instances';
+    const method = id ? 'PUT' : 'POST';
+
+    const res = await fetchJson(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (res && res.ok) {
+      window.showToast(id ? `PBX Core [${name}] updated successfully.` : `PBX Core [${name}] registered.`, 'success');
+      closeModal('modalPbxInstance');
+      loadPbxInstances();
+      loadOverview();
+    } else {
+      window.showToast(res?.error || 'Failed to save PBX instance.', 'error');
+    }
+  });
+
+  window.pingPbxInstance = async (id) => {
+    window.showToast('Dispatching SIP ping probe...', 'info');
+    const res = await fetchJson(`/api/admin/pbx-instances/${encodeURIComponent(id)}/ping`, { method: 'POST' });
+    if (res && res.ok) {
+      window.showToast(`[${res.name}] Response in ${res.latencyMs}ms (${res.reachable ? 'CONNECTED' : 'FAILED'})`, res.reachable ? 'success' : 'error');
+      loadPbxInstances();
+      if (selectedPbxId === id) selectPbxCore(id);
+    } else {
+      window.showToast(res?.error || 'Failed to ping PBX.', 'error');
+    }
+  };
+
+  window.syncPbxInstance = async (id) => {
+    window.showToast('Triggering on-demand extension sync...', 'info');
+    const res = await fetchJson(`/api/admin/pbx-instances/${encodeURIComponent(id)}/sync`, { method: 'POST' });
+    if (res && res.ok) {
+      window.showToast(res.message || `Synced ${res.count} extension(s)!`, 'success');
+      loadPbxInstances();
+      loadExtensions();
+      loadOverview();
+    } else {
+      window.showToast(res?.error || res?.message || 'Sync failed. Verify API credentials.', 'error');
+    }
+  };
+
+  window.deletePbxInstance = async (id) => {
+    const inst = cachedPbxInstances.find(p => p.id === id);
+    const name = inst ? inst.name : id;
+    if (!confirm(`Are you sure you want to delete PBX core [${name}]?\n\nAny extensions currently mapped to this PBX will be reassigned to the default PBX core.`)) {
+      return;
+    }
+    const res = await fetchJson(`/api/admin/pbx-instances/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (res && res.ok) {
+      window.showToast(res.message || 'PBX instance deleted.', 'success');
+      if (selectedPbxId === id) selectedPbxId = 'default';
+      loadPbxInstances();
+      loadExtensions();
+      loadOverview();
+    } else {
+      window.showToast(res?.error || 'Failed to delete PBX instance.', 'error');
+    }
+  };
+
+  // Ping All Cores button
+  document.getElementById('btnPingAllPbx')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnPingAllPbx');
+    btn.disabled = true;
+    btn.textContent = 'Probing All...';
+    try {
+      const res = await fetchJson('/api/admin/pbx/ping', { method: 'POST' });
+      if (res && res.ok) {
+        window.showToast(`Probed ${res.instances?.length || 1} PBX cores successfully.`, 'success');
+        loadPbxInstances();
+        loadOverview();
+      } else {
+        window.showToast(res?.error || 'Failed to probe PBX cores.', 'error');
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Probe All';
+    }
+  });
+
+
+  // Live Billing PIN Reset Console Tester
+  document.getElementById('btnTestBillingReset')?.addEventListener('click', async () => {
+    const btn = document.getElementById('btnTestBillingReset');
+    const out = document.getElementById('testBillingOutput');
+    const ext = document.getElementById('testBillingExt')?.value.trim();
+    const email = document.getElementById('testBillingEmail')?.value.trim();
+    const dispatchEmail = document.getElementById('testBillingDispatchEmail')?.checked;
+    const apiKey = document.getElementById('cfgApiKey')?.value.trim();
+
+    if (!ext && !email) {
+      window.showToast('Please enter an Extension Number or Customer Email.', 'warning');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Executing...';
+    out.classList.remove('hidden');
+    out.style.background = '#090e1a';
+    out.style.color = '#38bdf8';
+    out.style.borderColor = '#1e293b';
+    out.textContent = 'Calling POST /api/v1/billing/reset-pin with X-API-Key authentication...';
+
+    try {
+      const payload = { dispatchEmail };
+      if (ext) payload.extension = ext;
+      if (email) payload.email = email;
+
+      const res = await fetchJson('/api/v1/billing/reset-pin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res && res.ok) {
+        out.style.background = '#052e16';
+        out.style.color = '#86efac';
+        out.style.borderColor = '#166534';
+        out.textContent = JSON.stringify(res, null, 2);
+        window.showToast(`PIN for Ext ${res.extension} reset: ${res.pin}`, 'success');
+        loadExtensions();
+      } else {
+        out.style.background = '#450a0a';
+        out.style.color = '#fca5a5';
+        out.style.borderColor = '#991b1b';
+        out.textContent = JSON.stringify(res || { error: 'Unknown API failure' }, null, 2);
+        window.showToast(res?.error || 'API call failed.', 'error');
+      }
+    } catch (err) {
+      out.style.background = '#450a0a';
+      out.style.color = '#fca5a5';
+      out.style.borderColor = '#991b1b';
+      out.textContent = 'Network error executing API: ' + (err.message || 'Unknown error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Execute API Request';
+    }
+  });

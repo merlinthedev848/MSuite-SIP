@@ -3,10 +3,11 @@ import http from 'http';
 import https from 'https';
 import crypto from 'crypto';
 import systemDb, { logActivity } from '../database/systemDb';
-import { ServerConfigRow } from '../types/models';
+import { ServerConfigRow, PbxInstanceRow } from '../types/models';
 import { broadcastDeviceLog } from './telemetryStream';
 
 export interface PbxSyncConfig {
+  pbxId?: string;
   type?: 'yeastar_api' | 'yeastar_ami' | 'asterisk_ami' | 'freepbx_ami' | 'grandstream_api';
   host: string;
   port: number;
@@ -255,17 +256,19 @@ export async function syncExtensionsFromYeastarApi(
   }
 
   // 3. Insert or update in system.db
+  const pbxId = config.pbxId || 'default';
   const syncTx = systemDb.transaction((exts: SyncedExtension[]) => {
     const stmt = systemDb.prepare(`
-      INSERT INTO extensions (extension, sip_username, sip_password, display_name, email)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO extensions (extension, sip_username, sip_password, display_name, email, pbx_id)
+      VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(extension) DO UPDATE SET
         display_name = excluded.display_name,
         email = CASE WHEN excluded.email != '' THEN excluded.email ELSE extensions.email END,
-        sip_password = CASE WHEN excluded.sip_password != 'ExtPassword123!' THEN excluded.sip_password ELSE extensions.sip_password END
+        sip_password = CASE WHEN excluded.sip_password != 'ExtPassword123!' THEN excluded.sip_password ELSE extensions.sip_password END,
+        pbx_id = excluded.pbx_id
     `);
     for (const ext of exts) {
-      stmt.run(ext.extension, ext.username, ext.password || 'ExtPassword123!', ext.displayName, ext.email || '');
+      stmt.run(ext.extension, ext.username, ext.password || 'ExtPassword123!', ext.displayName, ext.email || '', pbxId);
     }
   });
 
@@ -312,16 +315,18 @@ export async function syncExtensionsFromAsterisk(
       }
 
       // Insert or update into system.db in a single ACID transaction
+      const pbxId = ami.pbxId || 'default';
       const syncTx = systemDb.transaction((exts: SyncedExtension[]) => {
         const stmt = systemDb.prepare(`
-          INSERT INTO extensions (extension, sip_username, sip_password, display_name, email)
-          VALUES (?, ?, ?, ?, ?)
+          INSERT INTO extensions (extension, sip_username, sip_password, display_name, email, pbx_id)
+          VALUES (?, ?, ?, ?, ?, ?)
           ON CONFLICT(extension) DO UPDATE SET
             display_name = excluded.display_name,
-            email = CASE WHEN excluded.email != '' THEN excluded.email ELSE extensions.email END
+            email = CASE WHEN excluded.email != '' THEN excluded.email ELSE extensions.email END,
+            pbx_id = excluded.pbx_id
         `);
         for (const ext of exts) {
-          stmt.run(ext.extension, ext.username, ext.password || 'ExtPassword123!', ext.displayName, ext.email || '');
+          stmt.run(ext.extension, ext.username, ext.password || 'ExtPassword123!', ext.displayName, ext.email || '', pbxId);
         }
       });
 
@@ -555,6 +560,63 @@ export function updatePbxSyncSchedule(intervalMins?: number, enabled?: boolean):
 
 export async function runAutoPbxSync(): Promise<void> {
   try {
+    const activeInstances = systemDb.prepare(`
+      SELECT * FROM pbx_instances WHERE is_active = 1 AND auto_sync_enabled = 1
+    `).all() as PbxInstanceRow[];
+
+    if (activeInstances && activeInstances.length > 0) {
+      for (const inst of activeInstances) {
+        const targetHost = inst.api_host || inst.host;
+        if (!targetHost || targetHost === '127.0.0.1' || targetHost === 'localhost') continue;
+
+        const syncType = (inst.pbx_type || 'yeastar_api') as any;
+        const syncConfig: PbxSyncConfig = {
+          pbxId: inst.id,
+          type: syncType,
+          host: targetHost,
+          port: inst.api_port || (syncType === 'yeastar_api' ? 8260 : 5038),
+          username: inst.api_user || 'perfexapi',
+          secret: inst.api_secret || '',
+          protocol: (inst.api_protocol || 'https') as any,
+          apiPath: inst.api_path || 'api/v2.0.0',
+          verifySsl: Boolean(inst.verify_ssl)
+        };
+
+        const res = await syncExtensionsFromPbx(syncConfig);
+        const now = new Date().toISOString();
+        systemDb.prepare(`
+          UPDATE pbx_instances 
+          SET last_sync_at = ?, last_sync_status = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(now, res.success ? 'SUCCESS' : 'FAILED', inst.id);
+
+        if (inst.is_default || inst.id === 'default') {
+          systemDb.prepare(`
+            UPDATE server_config 
+            SET last_sync_at = ?, last_sync_status = ? 
+            WHERE id = 1
+          `).run(now, res.success ? 'SUCCESS' : 'FAILED');
+        }
+
+        if (res.success) {
+          broadcastDeviceLog('PBX', 'SUCCESS', `Autonomous PBX sync completed for [${inst.name}]: ${res.count} extension(s) synchronized.`, {
+            deviceIdentifier: inst.host,
+            metadata: { pbxId: inst.id, count: res.count }
+          });
+          if (res.count > 0) {
+            logActivity('PBX_AUTO_SYNC', `Autonomous PBX sync completed for [${inst.name}]: ${res.count} extension(s) synchronized.`, '127.0.0.1');
+          }
+        } else {
+          broadcastDeviceLog('PBX', 'WARN', `Autonomous PBX sync check for [${inst.name}]: ${res.message || 'No new extensions discovered'}`, {
+            deviceIdentifier: inst.host,
+            metadata: { pbxId: inst.id }
+          });
+        }
+      }
+      return;
+    }
+
+    // Fallback: Legacy server_config sync
     const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;
     if (!config || config.auto_sync_enabled === 0) return;
     const targetHost = config.api_host || config.pbx_server;
@@ -562,6 +624,7 @@ export async function runAutoPbxSync(): Promise<void> {
 
     const syncType = (config.pbx_type || 'yeastar_api') as any;
     const syncConfig: PbxSyncConfig = {
+      pbxId: 'default',
       type: syncType,
       host: targetHost,
       port: config.api_port || (syncType === 'yeastar_api' ? 8260 : 5038),
@@ -598,6 +661,46 @@ export async function runAutoPbxSync(): Promise<void> {
       deviceIdentifier: 'PBX Core'
     });
   }
+}
+
+export async function syncPbxInstance(pbxId: string): Promise<{ success: boolean; count: number; message: string }> {
+  const inst = systemDb.prepare('SELECT * FROM pbx_instances WHERE id = ?').get(pbxId) as PbxInstanceRow | undefined;
+  if (!inst) {
+    return { success: false, count: 0, message: `PBX instance [${pbxId}] not found.` };
+  }
+
+  const targetHost = inst.api_host || inst.host;
+  const syncType = (inst.pbx_type || 'yeastar_api') as any;
+  const syncConfig: PbxSyncConfig = {
+    pbxId: inst.id,
+    type: syncType,
+    host: targetHost,
+    port: inst.api_port || (syncType === 'yeastar_api' ? 8260 : 5038),
+    username: inst.api_user || 'perfexapi',
+    secret: inst.api_secret || '',
+    protocol: (inst.api_protocol || 'https') as any,
+    apiPath: inst.api_path || 'api/v2.0.0',
+    verifySsl: Boolean(inst.verify_ssl)
+  };
+
+  const res = await syncExtensionsFromPbx(syncConfig);
+  const now = new Date().toISOString();
+  systemDb.prepare(`
+    UPDATE pbx_instances 
+    SET last_sync_at = ?, last_sync_status = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(now, res.success ? 'SUCCESS' : 'FAILED', inst.id);
+
+  if (inst.is_default || inst.id === 'default') {
+    systemDb.prepare(`
+      UPDATE server_config 
+      SET last_sync_at = ?, last_sync_status = ? 
+      WHERE id = 1
+    `).run(now, res.success ? 'SUCCESS' : 'FAILED');
+  }
+
+  logActivity('PBX_MANUAL_SYNC', `Manual PBX sync triggered for [${inst.name}]: ${res.count} extension(s) synchronized.`, '127.0.0.1');
+  return res;
 }
 
 export function stopPbxSyncDaemon(): void {

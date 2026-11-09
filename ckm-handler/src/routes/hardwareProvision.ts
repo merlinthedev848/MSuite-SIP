@@ -50,7 +50,7 @@ const router = Router();
 // Pre-compiled high-speed statements
 const getHandsetStmt = systemDb.prepare(`
   SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json, h.custom_config,
-         e.extension, e.sip_username, e.sip_password, e.display_name, e.is_active
+         e.extension, e.sip_username, e.sip_password, e.display_name, e.is_active, e.pbx_id
   FROM physical_handsets h
   JOIN extensions e ON h.extension = e.extension
   WHERE LOWER(REPLACE(h.mac_address, ':', '')) = ?
@@ -239,9 +239,21 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     } catch {}
   }
 
-  const pbxServer = config?.pbx_server || '127.0.0.1';
-  const pbxPort = config?.pbx_port || 5060;
-  const pbxTransport = config?.pbx_transport || 'UDP';
+  let pbxServer = config?.pbx_server || '127.0.0.1';
+  let pbxPort = config?.pbx_port || 5060;
+  let pbxTransport = config?.pbx_transport || 'UDP';
+
+  const extPbxId = (handset as any).pbx_id;
+  if (extPbxId) {
+    try {
+      const pbxRow = systemDb.prepare('SELECT host, sip_port, sip_transport FROM pbx_instances WHERE id = ? AND is_active = 1').get(extPbxId) as { host: string; sip_port: number; sip_transport: string } | undefined;
+      if (pbxRow) {
+        pbxServer = pbxRow.host;
+        pbxPort = pbxRow.sip_port;
+        pbxTransport = pbxRow.sip_transport;
+      }
+    } catch {}
+  }
   const dataHandlerUrl = config?.data_handler_url || 'https://handler.chriskendall.media';
 
   const accountCfg: HandsetAccountConfig = {

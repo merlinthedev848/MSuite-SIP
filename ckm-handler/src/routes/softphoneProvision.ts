@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import systemDb, { logActivity } from '../database/systemDb';
 import { ServerConfigRow, SoftphonePinRow, ExtensionRow } from '../types/models';
 
-type PinWithExtensionRow = SoftphonePinRow & Pick<ExtensionRow, 'sip_username' | 'sip_password' | 'display_name' | 'is_active'>;
+type PinWithExtensionRow = SoftphonePinRow & Pick<ExtensionRow, 'sip_username' | 'sip_password' | 'display_name' | 'is_active' | 'pbx_id'>;
 import { broadcastDeviceLog } from '../services/telemetryStream';
 
 const router = Router();
@@ -41,14 +41,14 @@ setInterval(() => {
 // Pre-compiled high-frequency SQLite statements
 const getPinRecordStmt = systemDb.prepare(`
   SELECT p.code, p.extension, p.claimed, p.expires_at,
-         e.sip_username, e.sip_password, e.display_name, e.is_active
+         e.sip_username, e.sip_password, e.display_name, e.is_active, e.pbx_id
   FROM softphone_pins p
   JOIN extensions e ON p.extension = e.extension
   WHERE p.code = ?
 `);
 
 const claimPinStmt = systemDb.prepare(`
-  UPDATE softphone_pins SET claimed = 1 WHERE code = ?
+  UPDATE softphone_pins SET claimed = 1 WHERE code = ? AND claimed = 0
 `);
 
 const getServerConfigStmt = systemDb.prepare(`
@@ -58,7 +58,7 @@ const getServerConfigStmt = systemDb.prepare(`
 // 1. Softphone Auto-Provisioning by 8-Digit PIN
 // Handled for multiple endpoint patterns matching desktop client
 const handlePinProvision = (req: Request, res: Response) => {
-  const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+  const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
   const now = Date.now();
 
   const attemptRec = failedPinAttempts.get(clientIp);
@@ -107,6 +107,12 @@ const handlePinProvision = (req: Request, res: Response) => {
     return res.status(403).json({ ok: false, error: 'This extension has been deactivated.' });
   }
 
+  // Check if PIN was already claimed
+  if (pinRecord.claimed === 1) {
+    broadcastDeviceLog('SECURITY', 'WARN', `Attempted re-use of already-claimed PIN [${cleanedCode}] for Ext ${pinRecord.extension}`, { deviceIdentifier: `Ext ${pinRecord.extension}`, ipAddress: clientIp });
+    return res.status(409).json({ ok: false, error: 'This provisioning PIN has already been claimed and used.' });
+  }
+
   // Check expiration if set
   if (pinRecord.expires_at) {
     const expires = new Date(pinRecord.expires_at).getTime();
@@ -116,8 +122,12 @@ const handlePinProvision = (req: Request, res: Response) => {
     }
   }
 
-  // Mark PIN as claimed and update extension telemetry
-  claimPinStmt.run(cleanedCode);
+  // Atomically mark PIN as claimed (guarantees race-condition safety under concurrent requests)
+  const claimResult = claimPinStmt.run(cleanedCode);
+  if (claimResult.changes === 0) {
+    broadcastDeviceLog('SECURITY', 'WARN', `Race-condition blocked on PIN [${cleanedCode}] for Ext ${pinRecord.extension}`, { deviceIdentifier: `Ext ${pinRecord.extension}`, ipAddress: clientIp });
+    return res.status(409).json({ ok: false, error: 'This provisioning PIN has already been claimed.' });
+  }
   systemDb.prepare(`
     UPDATE extensions 
     SET last_registered_at = CURRENT_TIMESTAMP, last_ip = ?, user_agent = ? 
@@ -142,15 +152,30 @@ const handlePinProvision = (req: Request, res: Response) => {
     logo_url: config.logo_url ? (config.logo_url.startsWith('http') ? config.logo_url : `${baseHandlerUrl}${config.logo_url}`) : `${baseHandlerUrl}/branding/logo`
   };
 
+  let pbxServer = config.pbx_server;
+  let pbxPort = config.pbx_port;
+  let pbxTransport = config.pbx_transport;
+
+  if (pinRecord.pbx_id) {
+    try {
+      const pbxRow = systemDb.prepare('SELECT host, sip_port, sip_transport FROM pbx_instances WHERE id = ? AND is_active = 1').get(pinRecord.pbx_id) as { host: string; sip_port: number; sip_transport: string } | undefined;
+      if (pbxRow) {
+        pbxServer = pbxRow.host;
+        pbxPort = pbxRow.sip_port;
+        pbxTransport = pbxRow.sip_transport;
+      }
+    } catch {}
+  }
+
   return res.json({
     ok: true,
     success: true,
     message: 'Extension provisioned successfully.',
     sip: {
-      server: config.pbx_server,
-      port: config.pbx_port,
-      domain: config.pbx_server,
-      transport: config.pbx_transport,
+      server: pbxServer,
+      port: pbxPort,
+      domain: pbxServer,
+      transport: pbxTransport,
       extension: pinRecord.extension,
       username: pinRecord.sip_username,
       password: pinRecord.sip_password,

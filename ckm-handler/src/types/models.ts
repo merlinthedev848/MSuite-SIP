@@ -51,12 +51,41 @@ export interface ServerConfigRow {
   updated_at?: string;
 }
 
+export interface PbxInstanceRow {
+  id: string;
+  name: string;
+  host: string;
+  sip_port: number;
+  sip_transport: string;
+  pbx_type: string;
+  api_host?: string;
+  api_port?: number;
+  api_protocol?: string;
+  api_path?: string;
+  api_user?: string;
+  api_secret?: string;
+  verify_ssl?: number;
+  is_active: number;
+  is_default: number;
+  auto_sync_enabled: number;
+  auto_sync_interval_mins?: number;
+  last_sync_at?: string | null;
+  last_sync_status?: string | null;
+  last_ping_status?: string | null;
+  last_ping_rtt?: string | null;
+  last_ping_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  extension_count?: number;
+}
+
 export interface ExtensionRow {
   extension: string;
   sip_username: string;
   sip_password: string;
   display_name: string;
   email?: string;
+  pbx_id?: string;
   is_active: number;
   last_registered_at?: string | null;
   last_ip?: string | null;

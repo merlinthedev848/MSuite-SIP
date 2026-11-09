@@ -169,20 +169,28 @@
 
 
 html {
-
-  font-size: 13.5px;
-
+  font-size: 14px;
   -webkit-font-smoothing: antialiased;
-
   -moz-osx-font-smoothing: grayscale;
-
+  text-rendering: optimizeLegibility;
 }
 
 
 
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: -0.015em;
+}
+
+strong, b {
+  font-weight: 600;
+  color: inherit;
+}
+
 body {
 
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
   background-color: var(--bg-canvas);
 
@@ -200,7 +208,7 @@ body {
 
 code, kbd, samp, pre {
 
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: ui-monospace, SFMono-Regular, "Cascadia Code", "Segoe UI Mono", Menlo, Consolas, monospace;
 
 }
 
@@ -284,7 +292,7 @@ code, kbd, samp, pre {
 
   color: #fff;
 
-  font-weight: 700;
+  font-weight: 600;
 
   font-size: 13px;
 
@@ -310,7 +318,7 @@ code, kbd, samp, pre {
 
   font-size: 14px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   color: var(--sidebar-text-bright);
 
@@ -354,7 +362,7 @@ code, kbd, samp, pre {
 
   font-size: 10px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   color: #64748b;
 
@@ -652,7 +660,7 @@ code, kbd, samp, pre {
 
   font-size: 15.5px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   color: var(--text-main);
 
@@ -966,7 +974,7 @@ code, kbd, samp, pre {
 
   font-size: 18px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   color: var(--text-main);
 
@@ -1235,23 +1243,14 @@ code, kbd, samp, pre {
 
 
 .metric-val {
-
-  font-size: 24px;
-
-  font-weight: 700;
-
+  font-size: 26px;
+  font-weight: 600;
   color: #0f172a;
-
   margin: 6px 0 2px 0;
-
-  letter-spacing: -0.5px;
-
+  letter-spacing: -0.02em;
   line-height: 1.1;
-
   font-variant-numeric: tabular-nums;
-
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-
+  font-family: inherit;
 }
 
 
@@ -1304,7 +1303,7 @@ code, kbd, samp, pre {
 
   font-size: 15px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   color: var(--text-main);
 
@@ -1578,7 +1577,7 @@ code, kbd, samp, pre {
 
   font-size: 10px;
 
-  font-weight: 700;
+  font-weight: 500;
 
   background: #e2e8f0;
 
@@ -1970,7 +1969,7 @@ code, kbd, samp, pre {
 
   font-size: 13px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   color: #1e293b;
 
@@ -1992,7 +1991,7 @@ code, kbd, samp, pre {
 
   font-size: 10.5px;
 
-  font-weight: 700;
+  font-weight: 500;
 
   text-transform: uppercase;
 
@@ -2114,7 +2113,8 @@ code, kbd, samp, pre {
 
   border-radius: var(--radius-lg);
 
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 
   box-shadow: var(--shadow-xs);
 
@@ -2142,7 +2142,7 @@ code, kbd, samp, pre {
 
   font-size: 11px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   text-transform: uppercase;
 
@@ -2456,7 +2456,7 @@ select option,
 
   font-size: 13px;
 
-  font-weight: 600;
+  font-weight: 500;
 
   cursor: pointer;
 
@@ -2740,7 +2740,7 @@ select option,
 
   font-size: 16px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   color: #1e293b;
 
@@ -2930,7 +2930,7 @@ select option,
 
   font-size: 20px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   border-radius: var(--radius-sm);
 
@@ -2952,7 +2952,7 @@ select option,
 
   font-size: 18px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   color: #0f172a;
 
@@ -3040,7 +3040,7 @@ select option,
 
   font-size: 12.5px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   color: #38bdf8;
 
@@ -3244,7 +3244,7 @@ select option,
 
 .shell-cat {
 
-  font-weight: 700;
+  font-weight: 500;
 
   font-size: 9px;
 
@@ -3599,29 +3599,17 @@ select option,
 
 
 .log-stream {
-
   height: 165px;
-
   overflow-y: auto;
-
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-
-  font-size: 11.5px;
-
-  line-height: 1.42;
-
+  font-family: ui-monospace, SFMono-Regular, "Cascadia Code", "Segoe UI Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
   background: #060913;
-
   color: #f1f5f9;
-
   border-radius: 6px;
-
   padding: 8px 10px;
-
   border: 1px solid #1e293b;
-
   margin-top: 10px;
-
 }
 
 
@@ -3710,7 +3698,7 @@ select option,
 
 .log-tag {
 
-  font-weight: 700;
+  font-weight: 500;
 
   font-size: 9px;
 
@@ -4278,7 +4266,7 @@ select option,
 
   font-size: 10px;
 
-  font-weight: 700;
+  font-weight: 500;
 
   color: var(--text-muted);
 
@@ -4304,7 +4292,7 @@ select option,
 
   font-size: 11px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   text-transform: uppercase;
 
@@ -4596,7 +4584,7 @@ select option,
 
   font-size: 15px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   color: #0f172a;
 
@@ -4633,23 +4621,14 @@ select option,
 
 
 .pulse-chip {
-
   font-size: 11px;
-
-  font-weight: 600;
-
+  font-weight: 500;
   padding: 4px 10px;
-
   border-radius: 9999px;
-
   background: #f1f5f9;
-
   color: #334155;
-
   border: 1px solid #e2e8f0;
-
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
-
+  font-family: inherit;
 }
 
 
@@ -4720,7 +4699,7 @@ select option,
 
   font-size: 14px;
 
-  font-weight: 700;
+  font-weight: 600;
 
   color: #92400e;
 
@@ -4776,7 +4755,7 @@ select option,
   align-items: center;
   gap: 9px;
   font-size: 13.5px;
-  font-weight: 700;
+  font-weight: 600;
   color: #0f172a;
   margin-bottom: 8px;
 }
@@ -4880,7 +4859,7 @@ select option,
 
   font-size: 10px;
 
-  font-weight: 700;
+  font-weight: 500;
 
   padding: 2px 6px;
 
@@ -4932,7 +4911,7 @@ select option,
 
   font-size: 11px;
 
-  font-weight: 700;
+  font-weight: 500;
 
   color: #475569;
 
@@ -5196,3 +5175,333 @@ select option,
 
 }
 
+
+
+/* ==============================================================================
+   WCAG 2.1 AA Focus-Visible Accessibility Standards
+   ============================================================================== */
+:focus-visible {
+  outline: 2px solid #2563eb !important;
+  outline-offset: 2px !important;
+}
+
+/* ==============================================================================
+   Mobile Navigation Drawer & Overlay Backdrop
+   ============================================================================== */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 990;
+  transition: opacity 0.2s ease;
+}
+
+.topbar-sidebar-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: var(--transition-fast);
+  margin-right: 4px;
+}
+
+.topbar-sidebar-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+  border-color: var(--border-medium);
+}
+
+/* ==============================================================================
+   Comprehensive Fluid Responsive Breakpoints & Viewport Optimizations
+   ============================================================================== */
+
+@media (max-width: 1350px) {
+  .user-role-text {
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .status-chip {
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 1180px) {
+  .status-chip-secondary {
+    display: none;
+  }
+  .grid-2col {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 260px;
+    min-width: 260px;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
+  }
+  .app-layout.sidebar-open .sidebar,
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .app-layout.sidebar-open .sidebar-backdrop {
+    display: block;
+  }
+  .topbar-sidebar-toggle {
+    display: flex;
+  }
+  .search-pill-kbd {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .search-pill-label {
+    display: none;
+  }
+  .topbar-search-pill {
+    padding: 6px 10px;
+  }
+  #btnToggleShellDrawer span {
+    display: none;
+  }
+  #btnRefresh .btn-label {
+    display: none;
+  }
+  #btnRefresh {
+    padding: 6px 8px;
+  }
+  .component-grid {
+    grid-template-columns: 1fr;
+  }
+  .health-row-item:nth-child(odd) {
+    border-right: none;
+  }
+  .health-row-item:nth-last-child(-n+2) {
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .health-row-item:last-child {
+    border-bottom: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .tab-pane {
+    padding: 16px 16px 48px 16px;
+  }
+  .topbar {
+    padding: 0 14px;
+    gap: 8px;
+  }
+  .system-pulse-banner {
+    padding: 14px 16px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .pulse-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .table-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .search-box-wrapper {
+    max-width: 100%;
+  }
+  .section-header-panel {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .section-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .log-item {
+    grid-template-columns: 50px 72px 1fr;
+  }
+  .log-ip {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar-breadcrumb {
+    display: none;
+  }
+  .topbar-title {
+    font-size: 14px;
+  }
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+  .automation-engine-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .pbx-diag-matrix {
+    grid-template-columns: 1fr !important;
+  }
+  #pbxStatusChip {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .metrics-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .health-row-item {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .health-info {
+    flex: 1 1 calc(100% - 24px);
+  }
+  .health-meta-group {
+    width: 100%;
+    justify-content: flex-end;
+    padding-left: 20px;
+  }
+  .engine-actions {
+    flex-direction: column;
+  }
+}
+
+
+/* ==============================================================================
+   Multi-PBX Cluster & Core Telemetry Styling
+   ============================================================================== */
+.modal-lg {
+  max-width: 740px !important;
+  width: 95% !important;
+}
+
+.pbx-pill-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 0 12px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px dashed var(--border-color, #e2e8f0);
+}
+
+.pbx-pill-strip::-webkit-scrollbar {
+  height: 4px;
+}
+
+.pbx-pill-strip::-webkit-scrollbar-thumb {
+  background: var(--border-color, #cbd5e1);
+  border-radius: 4px;
+}
+
+.pbx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease-in-out;
+  outline: none;
+}
+
+.pbx-pill:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.pbx-pill:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.pbx-pill.active {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.15);
+}
+
+.pbx-pill .dot {
+  width: 7.5px;
+  height: 7.5px;
+  border-radius: 50%;
+  background: #10b981;
+  flex-shrink: 0;
+}
+
+.pbx-pill .dot.degraded {
+  background: #ef4444;
+}
+
+.pbx-pill .dot.pending {
+  background: #f59e0b;
+}
+
+.pbx-pill-badge {
+  font-size: 10.5px;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+}
+
+.pbx-pill.active .pbx-pill-badge {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+}
+
+.badge-default-core {
+  background: #e0e7ff;
+  color: #3730a3;
+  font-weight: 600;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-cluster-node {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 500;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+}

@@ -7,7 +7,7 @@ import { ServerConfigRow } from '../types/models';
 
 const router = Router();
 
-// In-memory rate limiting: max 3 requests per 10 minutes per extension/IP
+// In-memory rate limiting: max 3 requests per 10 minutes per email/IP
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 function checkRateLimit(key: string, maxLimit = 3, windowMs = 10 * 60 * 1000): boolean {
@@ -58,92 +58,128 @@ interface VaultContactInfo {
 /**
  * POST /api/v1/self-service/request-pin
  * Customer Self-Service PIN Generation Endpoint
+ * Supports:
+ *   1. Email-Only: looks up extension registered to this email address automatically.
+ *   2. Dual-Verification: verifies extension + email match when both provided.
  * Enforces email dispatch ONLY. PIN code is never returned in HTTP response.
  */
 router.post('/api/v1/self-service/request-pin', async (req: Request, res: Response) => {
   const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+  const rawEmailInput = String(req.body?.email || '').trim().toLowerCase();
   const rawExt = String(req.body?.extension || '').trim();
 
-  if (!rawExt || !/^\d{2,10}$/.test(rawExt)) {
+  if (!rawEmailInput || !rawEmailInput.includes('@')) {
     return res.status(400).json({
       ok: false,
-      error: 'Please enter a valid numeric extension number (e.g. 101, 709).'
+      error: 'Please enter a valid email address.'
     });
   }
 
-  // Rate Limiting (per IP and per Extension)
-  if (!checkRateLimit(`ip_${ip}`, 10) || !checkRateLimit(`ext_${rawExt}`, 3)) {
+  // Rate Limiting (per IP and per Email)
+  if (!checkRateLimit(`ip_${ip}`, 10) || !checkRateLimit(`email_${rawEmailInput}`, 3)) {
     return res.status(429).json({
       ok: false,
       error: 'Too many PIN requests submitted. Please wait 10 minutes before requesting another code.'
     });
   }
 
-  // 1. Check extension existence in systemDb
-  const extRow = systemDb.prepare(`
-    SELECT extension, display_name, email 
-    FROM extensions 
-    WHERE extension = ? AND is_active = 1
-  `).get(rawExt) as ExtensionInfo | undefined;
+  let targetExt = '';
+  let displayName = '';
+  let registeredEmail = '';
 
-  // 2. Check vaultDb contacts as secondary source
-  const contactRow = vaultDb.prepare(`
-    SELECT extension, full_name, email 
-    FROM contacts 
-    WHERE extension = ?
-  `).get(rawExt) as VaultContactInfo | undefined;
+  if (rawExt) {
+    // Dual Verification Mode (Specific extension requested)
+    if (!/^\d{2,10}$/.test(rawExt)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Please enter a valid numeric extension number (e.g. 101, 709).'
+      });
+    }
 
-  if (!extRow && !contactRow) {
-    return res.status(404).json({
-      ok: false,
-      error: `Extension ${rawExt} was not found in the communications directory. Please check the number or contact IT support.`
-    });
+    const extRow = systemDb.prepare(`
+      SELECT extension, display_name, email 
+      FROM extensions 
+      WHERE extension = ? AND is_active = 1
+    `).get(rawExt) as ExtensionInfo | undefined;
+
+    const contactRow = vaultDb.prepare(`
+      SELECT extension, full_name, email 
+      FROM contacts 
+      WHERE extension = ?
+    `).get(rawExt) as VaultContactInfo | undefined;
+
+    if (!extRow && !contactRow) {
+      return res.status(404).json({
+        ok: false,
+        error: `Extension ${rawExt} was not found in the communications directory. Please check the number or contact IT support.`
+      });
+    }
+
+    targetExt = rawExt;
+    displayName = extRow?.display_name || contactRow?.full_name || `Extension ${rawExt}`;
+    registeredEmail = (extRow?.email || contactRow?.email || '').trim();
+
+    if (!registeredEmail || !registeredEmail.includes('@')) {
+      return res.status(422).json({
+        ok: false,
+        error: `No registered email address is on file for Extension ${rawExt}. For security, provisioning PINs cannot be generated without a verified email on file. Please contact your system administrator to add your email address.`
+      });
+    }
+
+    if (rawEmailInput !== registeredEmail.toLowerCase()) {
+      broadcastDeviceLog('SECURITY', 'WARN', `[PIN Request Rejected] Extension ${rawExt}: entered email "${rawEmailInput}" does not match registered record on PBX`, {
+        deviceIdentifier: `Ext ${rawExt}`,
+        ipAddress: ip
+      });
+      return res.status(403).json({
+        ok: false,
+        error: `The email address entered does not match the registered email address on file for Extension ${rawExt}. Please enter the correct email or contact IT support.`
+      });
+    }
+  } else {
+    // Email-Only Mode: lookup extension by email
+    const extRows = systemDb.prepare(`
+      SELECT extension, display_name, email 
+      FROM extensions 
+      WHERE LOWER(TRIM(email)) = ? AND is_active = 1
+    `).all(rawEmailInput) as ExtensionInfo[];
+
+    let matched: ExtensionInfo[] = extRows || [];
+    if (!matched.length) {
+      const contactRows = vaultDb.prepare(`
+        SELECT extension, full_name as display_name, email 
+        FROM contacts 
+        WHERE LOWER(TRIM(email)) = ?
+      `).all(rawEmailInput) as ExtensionInfo[];
+      matched = contactRows || [];
+    }
+
+    if (!matched.length) {
+      return res.status(404).json({
+        ok: false,
+        error: 'No active extension was found registered to this email address. Please verify your email address or contact your administrator.'
+      });
+    }
+
+    const primary = matched[0];
+    targetExt = primary.extension;
+    displayName = primary.display_name || `Extension ${targetExt}`;
+    registeredEmail = (primary.email || rawEmailInput).trim();
   }
 
-  const displayName = extRow?.display_name || contactRow?.full_name || `Extension ${rawExt}`;
-  const registeredEmail = (extRow?.email || contactRow?.email || '').trim();
+  // Invalidate previous unclaimed PINs for this extension
+  systemDb.prepare('DELETE FROM softphone_pins WHERE extension = ? AND claimed = 0').run(targetExt);
 
-  const rawEmailInput = String(req.body?.email || '').trim().toLowerCase();
-  if (!rawEmailInput || !rawEmailInput.includes('@')) {
-    return res.status(400).json({
-      ok: false,
-      error: 'Please enter your registered email address.'
-    });
-  }
-
-  // 3. Security Check: Email MUST exist on file
-  if (!registeredEmail || !registeredEmail.includes('@')) {
-    return res.status(422).json({
-      ok: false,
-      error: `No registered email address is on file for Extension ${rawExt}. For security, provisioning PINs cannot be generated without a verified email on file. Please contact your system administrator to add your email address.`
-    });
-  }
-
-  // 3b. Verification: Customer-entered email MUST match registered email on file
-  if (rawEmailInput !== registeredEmail.toLowerCase()) {
-    broadcastDeviceLog('SECURITY', 'WARN', `[PIN Request Rejected] Extension ${rawExt}: entered email "${rawEmailInput}" does not match registered record on PBX`, {
-      deviceIdentifier: `Ext ${rawExt}`,
-      ipAddress: ip
-    });
-    return res.status(403).json({
-      ok: false,
-      error: `The email address entered does not match the registered email address on file for Extension ${rawExt}. Please enter the correct email or contact IT support.`
-    });
-  }
-
-  // 4. Invalidate previous unclaimed PINs for this extension
-  systemDb.prepare('DELETE FROM softphone_pins WHERE extension = ? AND claimed = 0').run(rawExt);
-
-  // 5. Generate secure random 8-digit PIN
+  // Generate secure random 8-digit PIN
   const pin = Math.floor(10000000 + Math.random() * 90000000).toString();
   const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString(); // 24-hour validity
 
   systemDb.prepare(`
     INSERT INTO softphone_pins (code, extension, expires_at)
     VALUES (?, ?, ?)
-  `).run(pin, rawExt, expiresAt);
+  `).run(pin, targetExt, expiresAt);
 
-  // 6. Fetch Server Branding & SMTP configuration
+  // Fetch Server Branding & SMTP configuration
   const config = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow & {
     smtp_host?: string;
     smtp_port?: number;
@@ -187,7 +223,7 @@ router.post('/api/v1/self-service/request-pin', async (req: Request, res: Respon
     <div style="padding: 30px;">
       <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.5;">Hello <strong>${displayName}</strong>,</p>
       <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.5; color: #475569;">
-        A new setup PIN code was requested for your telephone extension <strong>${rawExt}</strong>. Use this one-time code to connect your MerlinSIP desktop softphone.
+        A new setup PIN code was requested for your telephone extension <strong>${targetExt}</strong>. Use this one-time code to connect your MerlinSIP softphone.
       </p>
 
       <div style="background: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 24px;">
@@ -198,9 +234,9 @@ router.post('/api/v1/self-service/request-pin', async (req: Request, res: Respon
 
       <h3 style="font-size: 14px; margin: 0 0 10px 0; color: #0f172a;">How to activate:</h3>
       <ol style="margin: 0 0 24px 0; padding-left: 20px; font-size: 13.5px; line-height: 1.6; color: #334155;">
-        <li>Open your <strong>${brandName}</strong> softphone application on your computer.</li>
+        <li>Open your <strong>${brandName}</strong> softphone application.</li>
         <li>Select <strong>Quick Provision with PIN</strong>.</li>
-        <li>Enter Extension <strong>${rawExt}</strong> and the 8-digit PIN above.</li>
+        <li>Enter Extension <strong>${targetExt}</strong> and the 8-digit PIN above.</li>
       </ol>
 
       <div style="text-align: center; margin: 25px 0;">
@@ -218,27 +254,28 @@ router.post('/api/v1/self-service/request-pin', async (req: Request, res: Respon
 </html>
   `;
 
-  // 7. Dispatch Email
+  // Dispatch Email
   const emailResult = await sendEmail(smtpConfig, {
     to: registeredEmail,
-    subject: `Your ${brandName} Softphone PIN Code (Ext ${rawExt})`,
-    text: `Hello ${displayName},\n\nYour softphone provisioning PIN for extension ${rawExt} is: ${pin}\n\nThis PIN is valid for 24 hours.\n\nOpen your softphone, select 'Quick Provision with PIN', and enter Extension ${rawExt} with PIN ${pin}.\n\nDirect Setup Link: ${setupUrl}\n`,
+    subject: `Your ${brandName} Softphone PIN Code (Ext ${targetExt})`,
+    text: `Hello ${displayName},\n\nYour softphone provisioning PIN for extension ${targetExt} is: ${pin}\n\nThis PIN is valid for 24 hours.\n\nOpen your softphone, select 'Quick Provision with PIN', and enter Extension ${targetExt} with PIN ${pin}.\n\nDirect Setup Link: ${setupUrl}\n`,
     html: emailHtml
   });
 
-  // 8. Audit Logging & Real-Time Telemetry
-  broadcastDeviceLog('SOFTPHONE', emailResult.success ? 'INFO' : 'WARN', `[Self-Service PIN] PIN code generated for Ext ${rawExt}. Email status to ${maskEmail(registeredEmail)}: ${emailResult.message}`, {
-    deviceIdentifier: `Ext ${rawExt}`,
+  // Audit Logging & Real-Time Telemetry
+  broadcastDeviceLog('SOFTPHONE', emailResult.success ? 'INFO' : 'WARN', `[Self-Service PIN] PIN code generated for Ext ${targetExt}. Email status to ${maskEmail(registeredEmail)}: ${emailResult.message}`, {
+    deviceIdentifier: `Ext ${targetExt}`,
     ipAddress: ip,
-    metadata: { extension: rawExt, maskedEmail: maskEmail(registeredEmail), emailDelivered: emailResult.success }
+    metadata: { extension: targetExt, maskedEmail: maskEmail(registeredEmail), emailDelivered: emailResult.success }
   });
 
-  logActivity('PIN_SELF_SERVICE_REQUEST', `Ext ${rawExt} requested setup PIN. Dispatched to ${maskEmail(registeredEmail)}. Result: ${emailResult.message}`, ip);
+  logActivity('PIN_SELF_SERVICE_REQUEST', `Ext ${targetExt} requested setup PIN. Dispatched to ${maskEmail(registeredEmail)}. Result: ${emailResult.message}`, ip);
 
-  // 9. Response to client: NOTICE: PIN IS EXCLUDED!
+  // Response to client: NOTICE: PIN IS EXCLUDED FROM RESPONSE FOR SECURITY!
   return res.json({
     ok: true,
-    message: `A new 8-digit setup PIN has been generated and sent to the verified email on file for extension ${rawExt}.`,
+    message: `A new 8-digit setup PIN has been generated and sent to ${maskEmail(registeredEmail)} for extension ${targetExt}.`,
+    extension: targetExt,
     maskedEmail: maskEmail(registeredEmail),
     emailDelivered: emailResult.success,
     emailStatus: emailResult.message

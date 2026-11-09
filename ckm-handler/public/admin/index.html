@@ -17,6 +17,7 @@
       const p = document.getElementById('epProv'); if (p) p.textContent = `${activeOrigin}/provision/`;
       const b = document.getElementById('epPhonebook'); if (b) b.textContent = `${activeOrigin}/phonebook/yealink.xml`;
       const s = document.getElementById('epSync'); if (s) s.textContent = `${activeOrigin}/api/v1/config/sync`;
+      const pin = document.getElementById('epPin'); if (pin) pin.textContent = `${activeOrigin}/pin`;
     });
   </script>
 </head>
@@ -71,15 +72,22 @@
       </div>
     </aside>
 
+    <!-- Mobile Navigation Overlay Backdrop -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+
     <!-- Main Content Area -->
     <main class="main-content">
       <header class="topbar">
+        <!-- Mobile Sidebar Toggle Hamburger Button -->
+        <button class="topbar-sidebar-toggle" id="btnToggleSidebar" type="button" aria-label="Toggle navigation drawer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
         <div class="topbar-left">
           <div class="topbar-breadcrumb">CKM Gateway <span class="breadcrumb-sep">/</span> Operations</div>
           <h1 class="topbar-title" id="pageTitle">System Overview & Telemetry</h1>
         </div>
 
-        <button class="topbar-search-pill" id="btnOpenCommandPalette" title="Quick Search & Navigation (Ctrl+K)">
+        <button class="topbar-search-pill" id="btnOpenCommandPalette" type="button" title="Quick Search & Navigation (Ctrl+K)" aria-label="Open search and command palette">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           <span class="search-pill-label">Search anything...</span>
           <kbd class="search-pill-kbd">Ctrl K</kbd>
@@ -95,26 +103,26 @@
               <span class="status-dot green"></span>
               <span id="licenseBadge">License: Active</span>
             </div>
-            <button class="btn btn-sm btn-secondary" id="btnToggleShellDrawer" title="Toggle Terminal Shell"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg><span>Terminal Shell</span></button>
+            <button class="btn btn-sm btn-secondary" id="btnToggleShellDrawer" type="button" title="Toggle Terminal Shell" aria-label="Toggle terminal shell drawer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg><span>Terminal Shell</span></button>
           </div>
 
           <div class="topbar-divider"></div>
 
           <!-- Actions & User Profile Group -->
           <div class="topbar-actions-group">
-            <button class="btn btn-icon btn-secondary" id="btnRefresh" title="Refresh Telemetry & Data">
+            <button class="btn btn-icon btn-secondary" id="btnRefresh" type="button" title="Refresh Telemetry & Data" aria-label="Refresh telemetry and dashboard data">
               <span class="btn-icon-symbol"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></span>
               <span class="btn-label">Refresh</span>
             </button>
 
             <div class="user-menu-pill">
-              <button class="user-pill-btn" id="btnTopbarUser" title="View Administrator Details">
+              <button class="user-pill-btn" id="btnTopbarUser" type="button" title="View Administrator Details" aria-label="Administrator account details">
                 <span class="user-avatar-badge">SA</span>
                 <span id="userRoleBadge" class="user-role-text">Loading...</span>
               </button>
-              <button class="btn-user-action" id="btnOpenPreferences" title="Console & Telemetry Preferences"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
-              <button class="btn-user-action" id="btnOpenChangePassModal" title="Change Password"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-1.5 1.5L16 7l-1.5-1.5M16 7l-2-2-4 4 1.5 1.5L10 12l-1.5-1.5-4 4 2 2 1.5-1.5L9.5 16 11 14.5l4-4 2 2 4-4z"></path><circle cx="7.5" cy="16.5" r="3.5"></circle></svg></button>
-              <button class="btn-user-action logout" id="btnLogout" title="Sign Out"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button>
+              <button class="btn-user-action" id="btnOpenPreferences" type="button" title="Console & Telemetry Preferences" aria-label="Console preferences"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+              <button class="btn-user-action" id="btnOpenChangePassModal" type="button" title="Change Password" aria-label="Change password"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-1.5 1.5L16 7l-1.5-1.5M16 7l-2-2-4 4 1.5 1.5L10 12l-1.5-1.5-4 4 2 2 1.5-1.5L9.5 16 11 14.5l4-4 2 2 4-4z"></path><circle cx="7.5" cy="16.5" r="3.5"></circle></svg></button>
+              <button class="btn-user-action logout" id="btnLogout" type="button" title="Sign Out" aria-label="Sign out"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button>
             </div>
           </div>
         </div>
@@ -135,7 +143,7 @@
             <span class="pulse-chip" id="chipPbxHealth">PBX: < 1ms</span>
             <span class="pulse-chip" id="chipAutoAdoptStatus">Auto-Adopt: Disabled</span>
             <span class="pulse-chip" id="chipAutoSyncStatus">Auto-Sync: Active (5m)</span>
-            <button class="btn btn-sm btn-light" id="btnOpenEndpointsModal" title="View Public Client & Provisioning URLs">Client Endpoints</button>
+            <button class="btn btn-sm btn-light" id="btnOpenEndpointsModal" type="button" title="View Public Client & Provisioning URLs" aria-label="View public client and provisioning URLs">Client Endpoints</button>
           </div>
         </div>
 
@@ -150,7 +158,7 @@
               <div class="alert-desc">New VoIP handsets sent boot requests via DHCP Option 66. Ready for instant zero-touch adoption.</div>
             </div>
           </div>
-          <button class="btn btn-sm btn-primary" id="btnGoToAdoption">Review & Adopt Devices →</button>
+          <button class="btn btn-sm btn-primary" id="btnGoToAdoption">Review & Adopt Devices</button>
         </div>
 
         <!-- Primary Fleet Metrics -->
@@ -225,7 +233,7 @@
             <div class="engine-box">
               <div class="engine-box-top">
                 <span class="engine-icon-status active"></span>
-                <strong>PBX Synchronization Engine</strong>
+                <span>PBX Synchronization Engine</span>
               </div>
               <p class="engine-desc">Continuously discovers extensions and updates credentials from Asterisk / Yeastar.</p>
               <div class="engine-status-row">
@@ -237,8 +245,8 @@
                 <span id="enginePbxLastSync" class="font-mono text-xs">Just now</span>
               </div>
               <div class="engine-actions">
-                <button class="btn btn-xs btn-primary" id="btnTriggerQuickSync">Force Sync Now</button>
-                <button class="btn btn-xs btn-secondary" onclick="switchTab('settings', 'settings-pbx')">Configure</button>
+                <button type="button" class="btn btn-xs btn-primary" id="btnTriggerQuickSync" aria-label="Force PBX synchronization">Force Sync Now</button>
+                <button type="button" class="btn btn-xs btn-secondary" onclick="switchTab('settings', 'settings-pbx')" aria-label="Configure PBX synchronization">Configure</button>
               </div>
             </div>
 
@@ -246,7 +254,7 @@
             <div class="engine-box">
               <div class="engine-box-top">
                 <span class="engine-icon-status active"></span>
-                <strong>Zero-Touch Auto-Adoption</strong>
+                <span>Zero-Touch Auto-Adoption</span>
               </div>
               <p class="engine-desc">Auto-binds newly discovered deskphones to available extensions on first boot.</p>
               <div class="engine-status-row">
@@ -258,8 +266,8 @@
                 <span class="font-mono text-xs">Port 80/443 Option 66</span>
               </div>
               <div class="engine-actions">
-                <button class="btn btn-xs btn-secondary" id="btnToggleAutoAdoptEngine">Toggle Auto-Adopt</button>
-                <button class="btn btn-xs btn-secondary" onclick="switchTab('handsets')">View Fleet</button>
+                <button type="button" class="btn btn-xs btn-primary" id="btnToggleAutoAdoptEngine" aria-label="Toggle auto-adoption policy">Toggle Auto-Adopt</button>
+                <button type="button" class="btn btn-xs btn-secondary" onclick="switchTab('handsets')" aria-label="View deskphone fleet">View Fleet</button>
               </div>
             </div>
 
@@ -267,7 +275,7 @@
             <div class="engine-box">
               <div class="engine-box-top">
                 <span class="engine-icon-status active"></span>
-                <strong>Firmware Repository Daemon</strong>
+                <span>Firmware Repository Daemon</span>
               </div>
               <p class="engine-desc">Maintains verified vendor firmware packages for Yealink, Snom, Fanvil, and MikroTik.</p>
               <div class="engine-status-row">
@@ -279,8 +287,8 @@
                 <span class="font-mono text-xs">Direct Option 66 HTTP</span>
               </div>
               <div class="engine-actions">
-                <button class="btn btn-xs btn-secondary" id="btnSyncAllFwQuick">Sync Binaries</button>
-                <button class="btn btn-xs btn-secondary" onclick="switchTab('firmware')">Repository</button>
+                <button type="button" class="btn btn-xs btn-primary" id="btnSyncAllFwQuick" aria-label="Synchronize vendor firmware binaries">Sync Binaries</button>
+                <button type="button" class="btn btn-xs btn-secondary" onclick="switchTab('firmware')" aria-label="View firmware repository">Repository</button>
               </div>
             </div>
 
@@ -288,7 +296,7 @@
             <div class="engine-box">
               <div class="engine-box-top">
                 <span class="engine-icon-status active"></span>
-                <strong>GDPR Retention Daemon</strong>
+                <span>GDPR Retention Daemon</span>
               </div>
               <p class="engine-desc">Automatically executes cryptographic scrubbing of expired chat and media records.</p>
               <div class="engine-status-row">
@@ -300,8 +308,8 @@
                 <span class="font-mono text-xs">Chat 90d · Media 90d</span>
               </div>
               <div class="engine-actions">
-                <button class="btn btn-xs btn-secondary" id="btnRunRetentionQuick">Run Scrub Now</button>
-                <button class="btn btn-xs btn-secondary" onclick="switchTab('settings', 'settings-gdpr')">Retention Policy</button>
+                <button type="button" class="btn btn-xs btn-primary" id="btnRunRetentionQuick" aria-label="Run GDPR scrub now">Run Scrub Now</button>
+                <button type="button" class="btn btn-xs btn-secondary" onclick="switchTab('settings', 'settings-gdpr')" aria-label="View GDPR retention policy">Retention Policy</button>
               </div>
             </div>
           </div>
@@ -317,11 +325,11 @@
                 <p class="muted">Live feed of device handshakes, provisioning requests, and adoptions</p>
               </div>
               <div style="display: flex; gap: 8px;">
-                <button class="btn btn-sm btn-secondary" id="btnExportAuditCsv" title="Export Audit Log to CSV">
+                <button type="button" class="btn btn-sm btn-secondary" id="btnExportAuditCsv" title="Export Audit Log to CSV" aria-label="Export audit log to CSV">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                   <span>Export CSV</span>
                 </button>
-                <button class="btn btn-sm btn-secondary" id="btnRefreshLogs">Refresh</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btnRefreshLogs" aria-label="Refresh audit logs">Refresh</button>
               </div>
             </div>
             <div class="log-stream" id="auditLogStream">
@@ -336,7 +344,13 @@
                 <h3>PBX Core Socket & Protocol Telemetry</h3>
                 <p class="muted">Automated socket heartbeats and round-trip SIP OPTIONS probes</p>
               </div>
-              <button class="btn btn-sm btn-secondary" id="btnPingPbx">Probe Latency</button>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-sm btn-secondary" id="btnPingPbx" aria-label="Probe Selected PBX latency">Probe Selected</button>
+                <button type="button" class="btn btn-sm btn-ghost" id="btnPingAllPbx" aria-label="Probe all PBX cores in parallel">Probe All</button>
+              </div>
+            </div>
+            <div class="pbx-pill-strip" id="pbxPillStrip">
+              <!-- Dynamically rendered PBX Core Selector Pills -->
             </div>
             <div class="pbx-diag-matrix">
               <div class="diag-metric-box">
@@ -399,6 +413,11 @@
           <div class="search-box-wrapper">
             <input type="text" id="searchExt" class="search-input" placeholder="Search extensions by number, name, or username...">
           </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <select id="filterExtPbx" class="form-select form-select-sm" style="min-width: 170px;">
+              <option value="">All PBX Cores</option>
+            </select>
+          </div>
           <div class="filter-actions">
             <button class="btn btn-sm btn-secondary" id="btnExportExtCsv" title="Export Extensions to CSV">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -413,6 +432,7 @@
               <tr>
                 <th>Ext</th>
                 <th>Display Name</th>
+                <th>PBX Core</th>
                 <th>Registered Email</th>
                 <th>SIP Username</th>
                 <th>Active PIN</th>
@@ -564,7 +584,7 @@
         <div class="section-header-panel">
           <div class="section-header-info">
             <h2>Firmware Image Repository & Auto-Vault</h2>
-            <p class="section-subtitle">Manage official manufacturer firmware binaries for Option 66 automated delivery. Grandstream, Snom & MikroTik auto-download with 1 click; Yealink, Poly & Cisco can be uploaded directly with the 📁 Upload button.</p>
+            <p class="section-subtitle">Manage official manufacturer firmware binaries for Option 66 automated delivery. Grandstream, Snom & MikroTik auto-download with 1 click; Yealink, Poly & Cisco can be uploaded directly with the Upload button.</p>
           </div>
           <div class="section-header-actions">
             <button class="btn btn-primary" id="btnSyncAllFwRepository">
@@ -624,6 +644,37 @@
 
         <!-- SUBTAB 1: PBX & VOIP CORE NETWORKING -->
         <div class="settings-subpane active" id="subpane-settings-pbx">
+
+          <!-- Connected PBX Cluster Cores -->
+          <div class="card mb-4" id="cardPbxCluster">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <h3>Connected PBX Cluster Cores</h3>
+                <p class="muted">Monitor socket latency, synchronize extensions, and route phone provisioning across multiple Asterisk, FreePBX, and Yeastar PBX cores.</p>
+              </div>
+              <button type="button" class="btn btn-primary btn-sm" id="btnOpenAddPbxModal">+ Connect New PBX Core</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table" id="tablePbxInstances">
+                <thead>
+                  <tr>
+                    <th>Core Name</th>
+                    <th>SIP Host & Port</th>
+                    <th>Transport</th>
+                    <th>Integration Engine</th>
+                    <th>Extensions</th>
+                    <th>Auto-Sync</th>
+                    <th>Socket Latency</th>
+                    <th style="text-align: right;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyPbxInstances">
+                  <tr><td colspan="8" class="text-center">Loading connected PBX cores...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <form id="formConfig">
             <div class="card form-card">
               <div class="card-header">
@@ -722,8 +773,8 @@
                 <div id="cfgPbxTestOutput" class="hidden" style="margin-top: 14px; padding: 12px 14px; border-radius: 6px; font-size: 12.5px; font-family: ui-monospace, monospace; white-space: pre-wrap; border: 1px solid #e2e8f0;"></div>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
-                  <button type="button" class="btn btn-secondary" id="btnTestPbxConfig">⚡ Test PBX Connection</button>
-                  <button type="submit" class="btn btn-primary" id="btnSaveGlobalPbxConfig">💾 Save Global PBX Configuration</button>
+                  <button type="button" class="btn btn-secondary" id="btnTestPbxConfig">Test PBX Connection</button>
+                  <button type="submit" class="btn btn-primary" id="btnSaveGlobalPbxConfig">Save PBX Configuration</button>
                 </div>
               </div>
             </div>
@@ -775,8 +826,8 @@
                 <div id="cfgSmtpTestOutput" class="hidden" style="margin-top: 14px; padding: 12px 14px; border-radius: 6px; font-size: 12.5px; font-family: ui-monospace, monospace; white-space: pre-wrap; border: 1px solid #e2e8f0;"></div>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
-                  <button type="button" class="btn btn-secondary" id="btnTestSmtpConfig">📧 Send Test Email</button>
-                  <button type="submit" class="btn btn-primary" id="btnSaveAllSettings">💾 Save All Master Settings</button>
+                  <button type="button" class="btn btn-secondary" id="btnTestSmtpConfig">Send Test Email</button>
+                  <button type="submit" class="btn btn-primary" id="btnSaveAllSettings">Save Master Settings</button>
                 </div>
               </div>
             </div>
@@ -795,7 +846,7 @@
               <div class="settings-toggle-group">
                 <div class="settings-toggle-row">
                   <div>
-                    <strong>Zero-Touch Hardware Auto-Adoption</strong>
+                    <span style="font-weight: 500;">Zero-Touch Hardware Auto-Adoption</span>
                     <p class="muted">Automatically bind newly discovered deskphones to available extensions on first Option 66 boot without manual approval.</p>
                   </div>
                   <label class="switch-control">
@@ -806,7 +857,7 @@
 
                 <div class="settings-toggle-row mt-4">
                   <div>
-                    <strong>Autonomous PBX Extension Auto-Sync</strong>
+                    <span style="font-weight: 500;">Autonomous PBX Extension Auto-Sync</span>
                     <p class="muted">Continuously query the Asterisk/FreePBX core to discover newly added extensions and issue 8-digit softphone PINs.</p>
                   </div>
                   <label class="switch-control">
@@ -895,20 +946,20 @@
               <div id="previewCard" style="margin-top: 20px; background: #0f172a; border-radius: 12px; padding: 20px; color: #fff; width: 100%; max-width: 340px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);">
                 <div style="display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 14px;">
                   <div id="previewLogoBox" style="width: 40px; height: 40px; border-radius: 8px; background: #2563eb; display: flex; align-items: center; justify-content: center; overflow: hidden;">
-                    <span id="previewLogoFallback" style="font-weight: 800; font-size: 18px;">M</span>
+                    <span id="previewLogoFallback" style="font-weight: 600; font-size: 18px;">M</span>
                     <img id="previewLogoImg" src="" style="width: 100%; height: 100%; object-fit: contain; display: none;">
                   </div>
                   <div>
-                    <div id="previewBrandTitle" style="font-weight: 700; font-size: 15px;">MerlinSIP</div>
+                    <div id="previewBrandTitle" style="font-weight: 600; font-size: 15px;">MerlinSIP</div>
                     <div id="previewSubtitle" style="font-size: 11px; color: #94a3b8;">Active Extension: 101</div>
                   </div>
                 </div>
                 <div style="margin-top: 16px;">
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <span style="font-size: 12px; color: #94a3b8;">Line 1 Status</span>
-                    <span id="previewAccentBadge" style="background: #38bdf8; color: #000; font-weight: 700; font-size: 10px; padding: 2px 8px; border-radius: 9999px;">Ready</span>
+                    <span id="previewAccentBadge" style="background: #38bdf8; color: #000; font-weight: 600; font-size: 10px; padding: 2px 8px; border-radius: 9999px;">Ready</span>
                   </div>
-                  <button id="previewCallBtn" type="button" style="width: 100%; padding: 10px; border-radius: 8px; border: none; background: #2563eb; color: #fff; font-weight: 700;">Place Call</button>
+                  <button id="previewCallBtn" type="button" style="width: 100%; padding: 10px; border-radius: 8px; border: none; background: #2563eb; color: #fff; font-weight: 500;">Place Call</button>
                 </div>
               </div>
             </div>
@@ -946,11 +997,18 @@
           </div>
 
           <!-- Master API Key & Webhooks -->
-          <div class="card mt-6">
-            <div class="card-header">
-              <h3>External Provisioning API & Webhook Integrations</h3>
-              <p class="muted">Allow external CRM and billing portals (WHMCS, Stripe, custom apps) to automatically query extensions and pull credentials.</p>
+                    <div class="card mt-6">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <h3>Billing System & Customer Self-Service PIN Reset API</h3>
+                <p class="muted">Connect WHMCS, Perfex CRM, Stripe billing portals, or custom client dashboards so customers can reset their 8-digit softphone PINs with one click.</p>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <a href="/api/v1/billing/whmcs-sample" class="btn btn-sm btn-primary" target="_blank">Download WHMCS Module</a>
+                <a href="/api/v1/billing/docs" class="btn btn-sm btn-secondary" target="_blank">API Documentation</a>
+              </div>
             </div>
+
             <div class="form-group mt-4">
               <label>Master API Key (Header: <code>X-API-Key</code> or <code>Authorization: Bearer &lt;key&gt;</code>)</label>
               <div style="display: flex; gap: 8px;">
@@ -958,11 +1016,39 @@
                 <button type="button" class="btn btn-secondary" id="btnCopyApiKey">Copy</button>
                 <button type="button" class="btn btn-danger" id="btnRegenApiKey">Regenerate Key</button>
               </div>
-              <small>Keep this key secret. Any external integration holding this key can provision softphone credentials.</small>
+              <small>Keep this key secret. Any external integration holding this key can reset customer PINs and manage extensions.</small>
+            </div>
+
+            <!-- Interactive API Test Console -->
+            <div class="card mt-4" style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px;">
+              <h4 style="margin: 0 0 6px 0; font-size: 13.5px; font-weight: 600; color: #1e293b;">Billing Integration & PIN Reset Console</h4>
+              <p class="muted" style="margin: 0 0 12px 0; font-size: 12px;">Simulate an external billing portal request to reset a customer's provisioning PIN.</p>
+              
+              <div class="form-row">
+                <div class="form-group" style="flex: 1;">
+                  <label for="testBillingExt">Extension Number</label>
+                  <input type="text" id="testBillingExt" placeholder="e.g. 101 or 505">
+                </div>
+                <div class="form-group" style="flex: 2;">
+                  <label for="testBillingEmail">Customer Billing Email (Optional / Alternate Lookup)</label>
+                  <input type="email" id="testBillingEmail" placeholder="e.g. customer@company.com">
+                </div>
+              </div>
+
+              <div class="form-row" style="align-items: center; margin-top: -6px;">
+                <div class="form-group" style="flex: 1;">
+                  <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer; font-size: 12.5px; margin: 0;">
+                    <input type="checkbox" id="testBillingDispatchEmail"> Dispatch branded email to customer
+                  </label>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm" id="btnTestBillingReset">Execute API Request</button>
+              </div>
+
+              <div id="testBillingOutput" class="hidden" style="margin-top: 14px; padding: 12px; border-radius: 6px; font-size: 12px; font-family: ui-monospace, monospace; white-space: pre-wrap; border: 1px solid #e2e8f0; max-height: 240px; overflow-y: auto;"></div>
             </div>
 
             <div class="mt-4">
-              <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px;">cURL Integration Command Example</label>
+              <label style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 6px;">cURL Billing Module Command Example</label>
               <pre id="curlExample" style="background: #090e1a; color: #38bdf8; padding: 14px; border-radius: 8px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; font-family: monospace; border: 1px solid #1e293b;"></pre>
             </div>
           </div>
@@ -1082,8 +1168,128 @@
         <div id="loginError" class="alert alert-danger hidden" style="margin-bottom: 14px; text-align: left;">
           Invalid credentials. Please verify your username and password.
         </div>
-        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 700;">Login to Dashboard</button>
+        <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-weight: 500;">Login to Dashboard</button>
       </form>
+    </div>
+  </div>
+
+    <!-- Connect / Edit PBX Instance Modal -->
+  <div id="modalPbxInstance" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modalPbxTitle">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <h3 id="modalPbxTitle">+ Connect New PBX Core</h3>
+        <button type="button" class="modal-close" onclick="closeModal('modalPbxInstance')" aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formPbxInstance">
+          <input type="hidden" id="pbxInstId" value="">
+          <div class="form-row">
+            <div class="form-group" style="flex: 2;">
+              <label for="pbxInstName">PBX Core Display Name *</label>
+              <input type="text" id="pbxInstName" required placeholder="e.g. London Branch Asterisk or Cloud Core B">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="pbxInstType">Integration Engine *</label>
+              <select id="pbxInstType" class="form-select">
+                <option value="yeastar_api" selected>Yeastar REST API (v2.0.0 / OpenAPI)</option>
+                <option value="yeastar_ami">Yeastar PBX (AMI Port 5038)</option>
+                <option value="asterisk_ami">Asterisk / FreePBX (AMI Port 5038)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group" style="flex: 2;">
+              <label for="pbxInstHost">SIP Server Hostname / IP (<code>{$PbxAddress}</code>) *</label>
+              <input type="text" id="pbxInstHost" required placeholder="e.g. pbx2.company.com">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="pbxInstPort">SIP Port *</label>
+              <input type="number" id="pbxInstPort" value="5060" required>
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="pbxInstTransport">Transport *</label>
+              <select id="pbxInstTransport" class="form-select">
+                <option value="UDP" selected>UDP (Standard VoIP)</option>
+                <option value="TCP">TCP</option>
+                <option value="TLS">TLS (Encrypted SIP)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="card mt-3 mb-3" style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px;">
+            <h4 style="margin: 0 0 10px 0; font-size: 13.5px; font-weight: 600; color: #1e293b;">API / AMI Discovery & Directory Sync Credentials</h4>
+            <div class="form-row">
+              <div class="form-group" style="flex: 2;">
+                <label for="pbxInstApiHost">API / AMI Hostname (leave empty to use SIP server)</label>
+                <input type="text" id="pbxInstApiHost" placeholder="Defaults to SIP Server Host">
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label for="pbxInstApiPort">API Port</label>
+                <input type="number" id="pbxInstApiPort" value="8260">
+              </div>
+            </div>
+
+            <div class="form-row" id="rowPbxInstApiProtocol">
+              <div class="form-group" style="flex: 1;">
+                <label for="pbxInstApiProtocol">Protocol</label>
+                <select id="pbxInstApiProtocol" class="form-select">
+                  <option value="https" selected>HTTPS (Secure)</option>
+                  <option value="http">HTTP</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label for="pbxInstApiPath">API Path Prefix</label>
+                <input type="text" id="pbxInstApiPath" value="api/v2.0.0">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group" style="flex: 1;">
+                <label for="pbxInstApiUser">API / AMI Username</label>
+                <input type="text" id="pbxInstApiUser" placeholder="e.g. perfexapi or admin">
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label for="pbxInstApiSecret">API / AMI Secret / Password</label>
+                <input type="password" id="pbxInstApiSecret" placeholder="Enter password (leave blank to keep unchanged)">
+              </div>
+            </div>
+
+            <div class="form-group mb-0">
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer; margin: 0; font-size: 13px;">
+                <input type="checkbox" id="pbxInstVerifySsl"> Verify SSL Certificate (leave unchecked for self-signed certs)
+              </label>
+            </div>
+          </div>
+
+          <div class="form-row" style="align-items: center;">
+            <div class="form-group" style="flex: 1;">
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer; font-size: 13px;">
+                <input type="checkbox" id="pbxInstAutoSync" checked> Enable Autonomous Background Sync
+              </label>
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="pbxInstInterval">Sync Interval (mins)</label>
+              <input type="number" id="pbxInstInterval" value="5" min="1" max="1440">
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer; font-size: 13px;">
+                <input type="checkbox" id="pbxInstIsDefault"> Set as Primary PBX Core
+              </label>
+            </div>
+          </div>
+
+          <div id="pbxInstTestOutput" class="hidden" style="margin-top: 12px; padding: 10px 12px; border-radius: 6px; font-size: 12.5px; font-family: ui-monospace, monospace; white-space: pre-wrap; border: 1px solid #e2e8f0;"></div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" id="btnTestPbxInstance">Test Connection</button>
+            <div style="display: flex; gap: 10px;">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('modalPbxInstance')">Cancel</button>
+              <button type="submit" class="btn btn-primary" id="btnSavePbxInstance">Save PBX Core</button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -1099,6 +1305,13 @@
           <div class="form-group">
             <label>Extension Number *</label>
             <input type="text" id="addExtNum" required placeholder="e.g. 101">
+          </div>
+          <div class="form-group">
+            <label for="addExtPbx">Assigned PBX Core *</label>
+            <select id="addExtPbx" class="form-select">
+              <!-- Populated dynamically with active PBX instances -->
+            </select>
+            <small style="color: var(--text-muted); font-size: 11px;">Select the target PBX core handling this extension's registration & calls.</small>
           </div>
           <div class="form-group">
             <label>User Display Name</label>
@@ -1285,29 +1498,29 @@
         <!-- Global PBX Connection Profile Read-Only Card -->
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 18px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b;">
+            <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b;">
               Active PBX Profile (From Global Settings)
             </div>
             <a href="#" id="linkEditGlobalPbx" style="font-size: 12px; color: #2563eb; text-decoration: none; font-weight: 600;">
-              ⚙️ Manage in Global Settings
+              Manage in Global Settings
             </a>
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12.5px;">
             <div>
               <span class="muted" style="font-size: 11px;">PBX Target:</span><br>
-              <strong id="syncCardHost" style="color: #0f172a;">pbx.chriskendall.media</strong>
+              <span id="syncCardHost" style="color: #0f172a; font-weight: 500;">pbx.chriskendall.media</strong>
             </div>
             <div>
               <span class="muted" style="font-size: 11px;">Integration Engine:</span><br>
-              <strong id="syncCardEngine" style="color: #0f172a;">Yeastar REST API (Port 8260)</strong>
+              <span id="syncCardEngine" style="color: #0f172a; font-weight: 500;">Yeastar REST API (Port 8260)</strong>
             </div>
             <div>
               <span class="muted" style="font-size: 11px;">API / AMI Account:</span><br>
-              <strong id="syncCardUser" style="color: #0f172a;">perfexapi</strong>
+              <span id="syncCardUser" style="color: #0f172a; font-weight: 500;">perfexapi</strong>
             </div>
             <div>
               <span class="muted" style="font-size: 11px;">Connection Security:</span><br>
-              <strong id="syncCardSecurity" style="color: #0f172a;">HTTPS (Encrypted)</strong>
+              <span id="syncCardSecurity" style="color: #0f172a; font-weight: 500;">HTTPS (Encrypted)</strong>
             </div>
           </div>
         </div>
@@ -1349,7 +1562,7 @@
 
           <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
             <button type="button" class="btn btn-secondary" onclick="closeModal('modalSyncPbx')">Close</button>
-            <button type="submit" class="btn btn-primary" id="btnRunSync">⚡ Start PBX Synchronization</button>
+            <button type="submit" class="btn btn-primary" id="btnRunSync">Synchronize PBX Extensions</button>
           </div>
         </form>
       </div>
@@ -1397,11 +1610,11 @@
         <!-- Result View -->
         <div id="qpResult" class="hidden" style="margin-top: 20px;">
           <div class="alert alert-success" style="margin-bottom: 14px;">
-            <strong>Extension Provisioned Successfully!</strong>
+            <div style="font-weight: 600; font-size: 14px;">Extension Provisioned Successfully</div>
           </div>
           <div class="metric-card" style="text-align: center; margin-bottom: 14px; border: 2px solid #0284c7; background: #f0f9ff;">
             <div class="metric-title" style="color: #0369a1;">8-DIGIT PROVISIONING PIN</div>
-            <div id="qpResultCode" style="font-size: 34px; font-weight: 800; color: #0284c7; letter-spacing: 4px; margin: 8px 0;"></div>
+            <div id="qpResultCode" style="font-size: 34px; font-weight: 600; color: #0284c7; letter-spacing: 4px; margin: 8px 0;"></div>
             <div id="qpResultExt" class="metric-sub" style="font-weight: 600;"></div>
           </div>
           <div class="form-group">
@@ -1571,7 +1784,7 @@
         <textarea id="handsetConfigEditor" class="code-editor" style="height: 380px; font-family: monospace; font-size: 12.5px; line-height: 1.5;" spellcheck="false" placeholder="Loading configuration syntax..."></textarea>
         
         <p class="muted" style="font-size: 11.5px; margin-top: 8px;">
-          <strong>FreePBX Provisioning Engine:</strong> Any changes saved here become the new active configuration file served to this handset. Dynamic variables like <code>{$domain}</code> and <code>{$PbxAddress}</code> are automatically resolved from Global Settings when the phone boots.
+          <span style="font-weight: 500;">FreePBX Provisioning Engine:</span> Any changes saved here become the new active configuration file served to this handset. Dynamic variables like <code>{$domain}</code> and <code>{$PbxAddress}</code> are automatically resolved from Global Settings when the phone boots.
         </p>
         
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
@@ -1623,7 +1836,7 @@
     <div class="shell-drawer-header" id="shellDrawerHeader">
       <div style="display: flex; align-items: center; gap: 8px;">
         <span class="status-pulse" style="background: #22c55e;"></span>
-        <strong style="color: #38bdf8; font-family: monospace; font-size: 12px;">Live Device Connectivity Terminal</strong>
+        <span style="color: #38bdf8; font-family: ui-monospace, monospace; font-size: 12px; font-weight: 500;">Live Device Connectivity Terminal</span>
         <span class="tag" id="drawerEventCounter">0 events</span>
       </div>
       <div style="display: flex; gap: 6px; align-items: center;">
@@ -1657,7 +1870,7 @@
           <input type="hidden" id="adoptDeviceMac">
           <div class="form-group">
             <label>Device MAC Address</label>
-            <input type="text" id="adoptDisplayMac" readonly style="font-family: monospace; background: #f8fafc; font-weight: 700;">
+            <input type="text" id="adoptDisplayMac" readonly style="font-family: monospace; background: #f8fafc; font-weight: 500;">
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -1739,6 +1952,36 @@
             </div>
           </div>
 
+          
+          <div class="endpoint-card">
+            <div class="endpoint-card-top">
+              <span class="tag tag-http">HTTP</span>
+              <span class="endpoint-card-title">Customer Self-Service PIN Generation Portal</span>
+            </div>
+            <div class="endpoint-card-body">
+              <code id="epPin" class="endpoint-code">--</code>
+              <div class="endpoint-actions">
+                <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epPin')">Copy</button>
+                <a class="btn btn-xs btn-primary" id="linkPin" href="/pin" target="_blank">Open Portal</a>
+              </div>
+            </div>
+          </div>
+
+                    <div class="endpoint-card">
+            <div class="endpoint-card-top">
+              <span class="tag tag-json">REST API</span>
+              <span class="endpoint-card-title">Billing & Customer Portal PIN Reset API</span>
+            </div>
+            <div class="endpoint-card-body">
+              <code id="epBillingReset" class="endpoint-code">--</code>
+              <div class="endpoint-actions">
+                <button class="btn btn-xs btn-secondary" onclick="copyEndpointText('epBillingReset')">Copy</button>
+                <a class="btn btn-xs btn-secondary" id="linkBillingDocs" href="/api/v1/billing/docs" target="_blank">Docs</a>
+                <a class="btn btn-xs btn-primary" id="linkBillingWhmcs" href="/api/v1/billing/whmcs-sample" target="_blank">WHMCS PHP</a>
+              </div>
+            </div>
+          </div>
+
           <div class="endpoint-card">
             <div class="endpoint-card-top">
               <span class="tag tag-json">JSON</span>
@@ -1777,7 +2020,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px;">
           <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
             <span id="devTelemBadgeBrand" class="badge badge-primary">DEVICE</span>
-            <code id="devTelemIdentifier" style="font-size: 13px; font-weight: 700; color: #0f172a;">IDENTIFIER</code>
+            <code id="devTelemIdentifier" style="font-size: 13px; font-weight: 500; color: #0f172a;">IDENTIFIER</code>
             <span id="devTelemMetaExtra" class="muted" style="font-size: 12px;"></span>
           </div>
           <div style="display: flex; gap: 6px; align-items: center;">
