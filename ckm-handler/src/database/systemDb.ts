@@ -95,6 +95,11 @@ systemDb.exec(`
     sip_username TEXT NOT NULL,
     sip_password TEXT NOT NULL,
     display_name TEXT NOT NULL,
+    email TEXT DEFAULT '',
+    pbx_id TEXT DEFAULT 'default',
+    last_registered_at DATETIME,
+    last_ip TEXT DEFAULT '',
+    user_agent TEXT DEFAULT '',
     is_active INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -230,8 +235,6 @@ systemDb.exec(`
   CREATE INDEX IF NOT EXISTS idx_pins_claimed_expires ON softphone_pins (claimed, expires_at);
   CREATE INDEX IF NOT EXISTS idx_handsets_clean_mac ON physical_handsets (LOWER(REPLACE(mac_address, ':', '')));
   CREATE INDEX IF NOT EXISTS idx_routers_clean_mac ON routers (LOWER(REPLACE(mac_address, ':', '')));
-  CREATE INDEX IF NOT EXISTS idx_extensions_email ON extensions (email);
-  CREATE INDEX IF NOT EXISTS idx_extensions_pbx_id ON extensions (pbx_id);
   CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_activity_logs (created_at);
 `);
 
@@ -314,6 +317,13 @@ addColumnIfNotExists('extensions', 'last_ip', "TEXT DEFAULT ''");
 addColumnIfNotExists('extensions', 'user_agent', "TEXT DEFAULT ''");
 addColumnIfNotExists('extensions', 'email', "TEXT DEFAULT ''");
 addColumnIfNotExists('extensions', 'pbx_id', "TEXT DEFAULT 'default'");
+
+try {
+  systemDb.exec(`
+    CREATE INDEX IF NOT EXISTS idx_extensions_email ON extensions (email);
+    CREATE INDEX IF NOT EXISTS idx_extensions_pbx_id ON extensions (pbx_id);
+  `);
+} catch {}
 
 // Ensure default PBX instance exists and mirrors server_config
 try {
