@@ -2,6 +2,7 @@ import { HandsetAccountConfig } from './yealink';
 
 export function generateFanvilConfig(cfg: HandsetAccountConfig): string {
   const transport = cfg.sipTransport.toUpperCase() === 'TLS' ? '2' : cfg.sipTransport.toUpperCase() === 'TCP' ? '1' : '0';
+  const tokenQuery = cfg.directoryToken ? `&amp;token=${encodeURIComponent(cfg.directoryToken)}` : '';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!-- ============================================================================== -->
@@ -40,7 +41,7 @@ export function generateFanvilConfig(cfg: HandsetAccountConfig): string {
 
     <!-- Corporate Remote Phonebook -->
     <Phonebook>
-      <Cloud_URL_1>${cfg.dataHandlerUrl}/phonebook/fanvil.xml?extension=${encodeURIComponent(cfg.extension)}</Cloud_URL_1>
+      <Cloud_URL_1>${cfg.dataHandlerUrl}/phonebook/fanvil.xml?extension=${encodeURIComponent(cfg.extension)}${tokenQuery}</Cloud_URL_1>
       <Cloud_Name_1>Company Directory</Cloud_Name_1>
       <Auto_Update>1</Auto_Update>
     </Phonebook>

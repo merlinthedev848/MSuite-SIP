@@ -1,4 +1,4 @@
-// ==============================================================================
+﻿// ==============================================================================
 // FreePBX Dynamic Template Variable Substitution Engine
 // Injects {$domain}, {$PbxAddress}, and account variables from Global Settings
 // ==============================================================================
@@ -33,6 +33,7 @@ export function substituteTemplateVariables(raw: string, config: Partial<ServerC
 import { Router, Request, Response } from 'express';
 import systemDb, { logActivity } from '../database/systemDb';
 import { SERVER_DOMAIN } from '../config';
+import { directoryTokenForExtension } from './directory';
 import { ServerConfigRow, HandsetWithExtensionRow, RouterRow, ExtensionRow } from '../types/models';
 import { broadcastDeviceLog } from '../services/telemetryStream';
 import { generateYealinkConfig, HandsetAccountConfig } from '../templates/yealink';
@@ -265,6 +266,7 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     sipPort: pbxPort,
     sipTransport: pbxTransport,
     dataHandlerUrl: dataHandlerUrl,
+    directoryToken: directoryTokenForExtension(handset.extension),
     blfKeys
   };
 
@@ -340,3 +342,4 @@ router.get('/provision/router/:identifier', (req: Request, res: Response) => {
 });
 
 export default router;
+

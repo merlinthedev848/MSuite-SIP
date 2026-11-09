@@ -1,8 +1,8 @@
 ﻿{
-    "Version":  "1.3.9.4",
-    "DownloadUrl":  "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.9.4-x64-faststart.msi",
-    "Sha256":  "6A8FB4D7E2B1CC002F8E1A051103528731A4B1FC5BA1D870B61A0B37080DB1B9",
-    "FileSizeBytes":  80659212,
+    "Version":  "1.3.9.5",
+    "DownloadUrl":  "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.9.5-x64-faststart.msi",
+    "Sha256":  "DE4C5AE19C8C9569A980FA2ADE8AFC8EBEB68015F2AEABA5F60FB594492D898E",
+    "FileSizeBytes":  80638732,
     "ReleaseDate":  "2026-11-09",
-    "Notes":  "Release 1.3.9.4: Add GDPR-isolated Global Shared Address Books with multi-extension assignment and CSV bulk upload/export on CKM Handler, scoped softphone/deskphone directory sync, 44.1 kHz DTMF dial pips \u0026 outbound early-media RTP clocking, Call Quality snapshot preservation, and compact unmeasured quality badge."
+    "Notes":  "Release 1.3.9.5: Add authenticated GDPR-isolated Global Shared Address Books with extension assignment and CSV bulk upload/export on CKM Handler, authenticated softphone and deskphone directory feeds, automatic 10MB DebugLog rotation with fast tail reading, 44.1 kHz DTMF dial pips \u0026 outbound early-media RTP clocking, Call Quality snapshot preservation, and compact unmeasured quality badge."
 }

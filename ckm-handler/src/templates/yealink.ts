@@ -7,11 +7,13 @@ export interface HandsetAccountConfig {
   sipPort: number;
   sipTransport: string;
   dataHandlerUrl: string;
+  directoryToken?: string;
   blfKeys?: Array<{ key: number; extension: string; label: string }>;
 }
 
 export function generateYealinkConfig(cfg: HandsetAccountConfig): string {
   const transportCode = cfg.sipTransport.toUpperCase() === 'TLS' ? '2' : cfg.sipTransport.toUpperCase() === 'TCP' ? '1' : '0';
+  const tokenQuery = cfg.directoryToken ? `&amp;token=${encodeURIComponent(cfg.directoryToken)}` : '';
   
   let lines = [
     `#!version:1.0.0.1`,
@@ -39,7 +41,7 @@ export function generateYealinkConfig(cfg: HandsetAccountConfig): string {
     `account.1.codec.opus.enable = 1`,
     ``,
     `## Central Corporate Directory & Phonebook`,
-    `remote_phonebook.data.1.url = ${cfg.dataHandlerUrl}/phonebook/yealink.xml?extension=${encodeURIComponent(cfg.extension)}`,
+    `remote_phonebook.data.1.url = ${cfg.dataHandlerUrl}/phonebook/yealink.xml?extension=${encodeURIComponent(cfg.extension)}${tokenQuery}`,
     `remote_phonebook.data.1.name = Company Directory`,
     ``,
     `## Firmware & Auto-Provisioning Server`,

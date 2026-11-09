@@ -1,5 +1,6 @@
-node_modules/
-dist/
+﻿node_modules/
+dist/*
+!dist/*.json
 release/
 bin/
 obj/
@@ -22,3 +23,5 @@ artifacts/
 
 ckm-handler/data/
 data/
+
+ckm-handler/dist/

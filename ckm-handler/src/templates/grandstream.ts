@@ -1,6 +1,7 @@
 import { HandsetAccountConfig } from './yealink';
 
 export function generateGrandstreamConfig(cfg: HandsetAccountConfig): string {
+  const tokenQuery = cfg.directoryToken ? `&amp;token=${encodeURIComponent(cfg.directoryToken)}` : '';
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gs_cheat version="1.0.0">
   <!-- ============================================================================== -->
@@ -30,7 +31,7 @@ export function generateGrandstreamConfig(cfg: HandsetAccountConfig): string {
   <P141>26</P141>                                 <!-- Layer 3 QoS for SIP (DSCP 26 CS3) -->
 
   <!-- Corporate Remote Phonebook & Directory -->
-  <P330>${cfg.dataHandlerUrl}/phonebook/grandstream.xml?extension=${encodeURIComponent(cfg.extension)}</P330> <!-- XML Phonebook Download URL -->
+  <P330>${cfg.dataHandlerUrl}/phonebook/grandstream.xml?extension=${encodeURIComponent(cfg.extension)}${tokenQuery}</P330> <!-- XML Phonebook Download URL -->
   <P331>1</P331>                                  <!-- Automatic XML Download Enable: 1=Yes -->
   <P332>720</P332>                                <!-- Phonebook Download Interval (mins) -->
 

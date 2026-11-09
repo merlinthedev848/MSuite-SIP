@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -755,7 +755,7 @@ public partial class MainWindow : Window
             var level = mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
 
             CallQualityPill.Visibility = Visibility.Visible;
-            CallQualityPill.ToolTip = $"Live Call Quality: {mos:F1} MOS ({level})\nJitter: {jitter:F1} ms • Latency: {latency:F0} ms • Loss: {loss:F1}%\nClick to open full analysis";
+            CallQualityPill.ToolTip = $"Live Call Quality: {mos:F1} MOS ({level})\nJitter: {jitter:F1} ms â€¢ Latency: {latency:F0} ms â€¢ Loss: {loss:F1}%\nClick to open full analysis";
             if (CallQualityIcon != null)
             {
                 CallQualityIcon.Foreground = level switch
@@ -1340,12 +1340,12 @@ public partial class MainWindow : Window
         ExtensionTextBox.Text = _config.Extension;
         if (_config.IsProvisioned)
         {
-            UsernameTextBox.Text = "••••••••";
+            UsernameTextBox.Text = "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢";
             UsernameTextBox.IsReadOnly = true;
             UsernameTextBox.IsEnabled = false;
-            PasswordBox.Password = "••••••••••••";
+            PasswordBox.Password = "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢";
             PasswordBox.IsEnabled = false;
-            PasswordTextBox.Text = "••••••••••••";
+            PasswordTextBox.Text = "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢";
             PasswordTextBox.Visibility = Visibility.Collapsed;
             PasswordBox.Visibility = Visibility.Visible;
             TogglePasswordButton.Visibility = Visibility.Collapsed;
@@ -1486,7 +1486,7 @@ public partial class MainWindow : Window
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             using var request = new HttpRequestMessage(HttpMethod.Get, syncEndpoint);
-            request.Headers.Add("User-Agent", "MerlinSIP/1.3.9.4");
+            request.Headers.Add("User-Agent", "MerlinSIP/1.3.9.5");
             using var response = await HttpClientHelper.SharedClient.SendAsync(request, cts.Token);
 
             if (!response.IsSuccessStatusCode) return;
@@ -2053,6 +2053,10 @@ public partial class MainWindow : Window
             using var req = new HttpRequestMessage(HttpMethod.Get, $"{handlerUrl}/api/v1/contacts?extension={Uri.EscapeDataString(myExt)}");
             req.Headers.Add("X-MerlinSIP-Extension", myExt);
             req.Headers.Add("User-Agent", "MerlinSIP/1.4.0");
+            var authUser = !string.IsNullOrWhiteSpace(_config.Username) ? _config.Username : myExt;
+            var authPass = _config.Password ?? "";
+            var basicVal = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{authUser}:{authPass}"));
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", basicVal);
             using var res = await HttpClientHelper.SharedClient.SendAsync(req, cts.Token);
             if (!res.IsSuccessStatusCode) return;
 
@@ -3576,7 +3580,7 @@ public partial class MainWindow : Window
             PasswordTextBox.Text = PasswordBox.Password;
             PasswordBox.Visibility = Visibility.Collapsed;
             PasswordTextBox.Visibility = Visibility.Visible;
-            TogglePasswordButton.Content = "🔒";
+            TogglePasswordButton.Content = "ðŸ”’";
             PasswordTextBox.Focus();
             PasswordTextBox.CaretIndex = PasswordTextBox.Text.Length;
         }
@@ -3585,7 +3589,7 @@ public partial class MainWindow : Window
             PasswordBox.Password = PasswordTextBox.Text;
             PasswordTextBox.Visibility = Visibility.Collapsed;
             PasswordBox.Visibility = Visibility.Visible;
-            TogglePasswordButton.Content = "👁";
+            TogglePasswordButton.Content = "ðŸ‘";
             PasswordBox.Focus();
         }
     }
@@ -4357,7 +4361,7 @@ public partial class MainWindow : Window
 
         if (isRinging)
         {
-            QueueStatusText.Text = string.IsNullOrWhiteSpace(caller) ? "● Call Ringing" : $"● Ringing: {caller}";
+            QueueStatusText.Text = string.IsNullOrWhiteSpace(caller) ? "â— Call Ringing" : $"â— Ringing: {caller}";
             QueueStatusText.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#15803D")!;
             if (QueueAccentBar != null)
             {
@@ -4395,7 +4399,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            QueueStatusText.Text = "• Idle";
+            QueueStatusText.Text = "â€¢ Idle";
             QueueStatusText.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#64748B")!;
             if (QueueAccentBar != null)
             {
@@ -5613,7 +5617,7 @@ del ""%~f0""
                 Line1Card.BorderBrush = (WpfBrush)new BrushConverter().ConvertFromString("#CBD5E1")!;
                 Line1BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#475569")!;
                 Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
-                Line1StatusText.Text = "Line 1  •  Ready";
+                Line1StatusText.Text = "Line 1  â€¢  Ready";
                 Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#475569")!;
             }
             else
@@ -5622,7 +5626,7 @@ del ""%~f0""
                 Line1Card.BorderBrush = (WpfBrush)new BrushConverter().ConvertFromString("#E2E8F0")!;
                 Line1BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
                 Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#CBD5E1")!;
-                Line1StatusText.Text = "Line 1  •  Idle";
+                Line1StatusText.Text = "Line 1  â€¢  Idle";
                 Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
             }
         }
@@ -5718,7 +5722,7 @@ del ""%~f0""
                     Line2Card.BorderBrush = (WpfBrush)new BrushConverter().ConvertFromString("#CBD5E1")!;
                     Line2BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#475569")!;
                     Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
-                    Line2StatusText.Text = "Line 2  •  Ready";
+                    Line2StatusText.Text = "Line 2  â€¢  Ready";
                     Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#475569")!;
                 }
                 else
@@ -5727,7 +5731,7 @@ del ""%~f0""
                     Line2Card.BorderBrush = (WpfBrush)new BrushConverter().ConvertFromString("#E2E8F0")!;
                     Line2BadgeText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
                     Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString("#CBD5E1")!;
-                    Line2StatusText.Text = "Line 2  •  Idle";
+                    Line2StatusText.Text = "Line 2  â€¢  Idle";
                     Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString("#94A3B8")!;
                 }
             }
@@ -6483,3 +6487,5 @@ del ""%~f0""
         }
     }
 }
+
+
