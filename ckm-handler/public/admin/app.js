@@ -590,7 +590,22 @@ function initApp() {
 
       if (breadcrumb && sectionMap[tab]) {
 
-        breadcrumb.innerHTML = `CKM Gateway <span class="breadcrumb-sep">/</span> ${sectionMap[tab]}`;
+        const sectionInfo = {
+        overview: { section: 'Fleet & Operations', label: 'Overview Dashboard' },
+        extensions: { section: 'Fleet & Operations', label: 'Extensions & Softphones' },
+        handsets: { section: 'Fleet & Operations', label: 'IP Deskphone Fleet' },
+        routers: { section: 'Fleet & Operations', label: 'Network Gateways' },
+        firmware: { section: 'Services & Telemetry', label: 'Firmware Repository' },
+        shell: { section: 'Services & Telemetry', label: 'Live Device Shell' },
+        settings: { section: 'Administration & Governance', label: 'Global System Settings' },
+        branding: { section: 'Administration & Governance', label: 'Theme & Branding' },
+        config: { section: 'Administration & Governance', label: 'PBX Integration' },
+        gdpr: { section: 'Administration & Governance', label: 'GDPR Vault' },
+        users: { section: 'Administration & Governance', label: 'Users & RBAC' }
+      };
+      const info = sectionInfo[tab] || { section: 'Fleet & Operations', label: tab };
+      breadcrumb.innerHTML = `<span class="breadcrumb-root">${info.section}</span> <span class="breadcrumb-sep">/</span> <span class="breadcrumb-current">${info.label}</span>`;
+      if (pageTitle) pageTitle.textContent = info.label;
 
       }
 
@@ -4058,11 +4073,18 @@ function initApp() {
 
           </td>
 
-          <td style="font-weight: 500;">${r.brand.toUpperCase()} ${r.model || ''}</td>
+          <td>
+            <span style="font-weight: 600; color: #1e293b;">${(() => {
+              const bMap = { technicolor: 'Technicolor', tplink: 'TP-Link', yealink: 'Yealink', fanvil: 'Fanvil', grandstream: 'Grandstream', cisco: 'Cisco', draytek: 'DrayTek', mikrotik: 'MikroTik' };
+              const b = bMap[(r.brand || '').toLowerCase()] || (r.brand ? r.brand.charAt(0).toUpperCase() + r.brand.slice(1) : '');
+              const m = (r.model || '').toUpperCase();
+              return `${b} ${m}`;
+            })()}</span>
+          </td>
 
           <td>VLAN ${r.voice_vlan_id}</td>
 
-          <td><code>${r.voice_subnet}</code></td>
+          <td><span class="subnet-badge">${r.voice_subnet}</span></td>
 
           <td><span class="badge ${r.disable_sip_alg ? 'badge-primary' : 'badge-secondary'}">${r.disable_sip_alg ? 'Disabled' : 'Active'}</span></td>
 
@@ -4074,13 +4096,13 @@ function initApp() {
 
               <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${r.site_name.replace(/'/g, "\\'")}', 'router', { site: '${r.site_name.replace(/'/g, "\\'")}', brand: '${r.brand}', id: ${r.id} })" title="Live Telemetry & Logs">Logs</button>
 
-              <button class="btn btn-sm btn-primary" onclick="editRouterScript(${r.id})">Edit Script</button>
+              <button class="btn btn-sm btn-secondary" onclick="editRouterScript(${r.id})">Edit Script</button>
 
               <button class="btn btn-sm btn-secondary" onclick="downloadRouterScript(${r.id}, '${r.site_name.replace(/'/g, "\\'")}', '${r.brand}')">Download</button>
 
               <button class="btn btn-sm btn-secondary" onclick="copyRouterUrl(${r.id})">Boot URL</button>
 
-              ${canManage ? `<button class="btn btn-sm btn-danger" onclick="deleteRouter(${r.id})">Delete</button>` : ''}
+              ${canManage ? `<button class="btn btn-sm btn-ghost-danger" onclick="deleteRouter(${r.id})">Delete</button>` : ''}
 
             </div>
 

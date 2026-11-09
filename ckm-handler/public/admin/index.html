@@ -6,7 +6,10 @@
   <title>CKM Handler — Enterprise Communications & Provisioning Gateway</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="shortcut icon" href="favicon.ico">
-  <link rel="stylesheet" href="style.css?v=1.5.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=1.5.1">
   <script>
     // Immediately populate live host domain across endpoints on DOM ready
     document.addEventListener('DOMContentLoaded', () => {
@@ -83,8 +86,11 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         </button>
         <div class="topbar-left">
-          <div class="topbar-breadcrumb">CKM Gateway <span class="breadcrumb-sep">/</span> Operations</div>
-          <h1 class="topbar-title" id="pageTitle">System Overview & Telemetry</h1>
+          <div class="topbar-breadcrumb">
+            <span class="breadcrumb-root">Fleet & Operations</span>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-current" id="pageTitle">Overview Dashboard</span>
+          </div>
         </div>
 
         <button class="topbar-search-pill" id="btnOpenCommandPalette" type="button" title="Quick Search & Navigation (Ctrl+K)" aria-label="Open search and command palette">
