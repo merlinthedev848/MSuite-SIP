@@ -1,5 +1,71 @@
 function initApp() {
 
+  // Global Clipboard Helper
+  window.copyToClipboard = function(text, msg = 'Copied to clipboard!') {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        window.showToast(msg, 'success');
+      }).catch(() => {
+        window.showToast('Copied: ' + text, 'info');
+      });
+    } else {
+      window.showToast('Copied: ' + text, 'info');
+    }
+  };
+
+  // Reusable Pagination Controller
+  function renderPagination(prefix, total, currentPage, pageSize, onPageChangeName) {
+    const footer = document.getElementById(prefix + 'Pagination');
+    const infoEl = document.getElementById(prefix + 'PaginationInfo');
+    const btnsEl = document.getElementById(prefix + 'PaginationBtns');
+    if (!footer || !infoEl || !btnsEl) return;
+
+    if (total === 0) {
+      footer.style.display = 'none';
+      return;
+    }
+    footer.style.display = 'flex';
+
+    const numericSize = pageSize === 'all' ? total : parseInt(pageSize, 10);
+    const totalPages = Math.max(1, Math.ceil(total / numericSize));
+    const start = (currentPage - 1) * numericSize + 1;
+    const end = Math.min(start + numericSize - 1, total);
+
+    infoEl.textContent = 'Showing ' + start + '–' + end + ' of ' + total;
+
+    if (totalPages <= 1) {
+      btnsEl.innerHTML = '';
+      return;
+    }
+
+    let html = '';
+    html += '<button class="pagination-btn" ' + (currentPage === 1 ? 'disabled' : '') + ' onclick="' + onPageChangeName + '(' + (currentPage - 1) + ')" aria-label="Previous page">‹</button>';
+
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+    if (endPage - startPage < 4) {
+      startPage = Math.max(1, endPage - 4);
+    }
+
+    if (startPage > 1) {
+      html += '<button class="pagination-btn" onclick="' + onPageChangeName + '(1)">1</button>';
+      if (startPage > 2) html += '<span style="padding: 0 4px; color: #94a3b8;">…</span>';
+    }
+
+    for (let p = startPage; p <= endPage; p++) {
+      html += '<button class="pagination-btn ' + (p === currentPage ? 'active' : '') + '" onclick="' + onPageChangeName + '(' + p + ')">' + p + '</button>';
+    }
+
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) html += '<span style="padding: 0 4px; color: #94a3b8;">…</span>';
+      html += '<button class="pagination-btn" onclick="' + onPageChangeName + '(' + totalPages + ')">' + totalPages + '</button>';
+    }
+
+    html += '<button class="pagination-btn" ' + (currentPage === totalPages ? 'disabled' : '') + ' onclick="' + onPageChangeName + '(' + (currentPage + 1) + ')" aria-label="Next page">›</button>';
+
+    btnsEl.innerHTML = html;
+  }
+
   // --------------------------------------------------------------------------
 
   // Elegant Non-Intrusive Toast System
@@ -1237,72 +1303,82 @@ function initApp() {
 
 
 
+  let extCurrentPage = 1;
+  let extPageSize = 25;
+  let extFilteredList = [];
+
+  window.gotoExtPage = function(p) {
+    extCurrentPage = p;
+    renderExtensionsTable(extFilteredList.length ? extFilteredList : cachedExtensions);
+  };
+
+  document.getElementById('extPageSize')?.addEventListener('change', function(e) {
+    extPageSize = e.target.value;
+    extCurrentPage = 1;
+    renderExtensionsTable(extFilteredList.length ? extFilteredList : cachedExtensions);
+  });
+
   function renderExtensionsTable(list) {
-
     const tbody = document.getElementById('extTableBody');
-
+    const footer = document.getElementById('extPagination');
     if (!tbody) return;
 
     if (!list.length) {
-
       tbody.innerHTML = '<tr><td colspan="9" class="text-center">No extensions match your search.</td></tr>';
-
+      if (footer) footer.style.display = 'none';
       return;
-
     }
 
+    const total = list.length;
+    const numericSize = extPageSize === 'all' ? total : parseInt(extPageSize, 10);
+    const totalPages = Math.ceil(total / numericSize);
+    if (extCurrentPage > totalPages) extCurrentPage = totalPages;
+    if (extCurrentPage < 1) extCurrentPage = 1;
 
+    const startIdx = (extCurrentPage - 1) * numericSize;
+    const endIdx = Math.min(startIdx + numericSize, total);
+    const pageItems = list.slice(startIdx, endIdx);
 
     const canManage = hasPerm('manage_extensions');
-
-    tbody.innerHTML = list.map(ext => `
-
+    tbody.innerHTML = pageItems.map(ext => `
       <tr>
-        <td class="font-mono" style="font-weight: 500;">${ext.extension}</td>
-        <td>${ext.display_name}</td>
-        <td><span class="badge badge-secondary" style="font-weight:600;" title="${ext.pbx_host || ''}:${ext.pbx_port || 5060}">${ext.pbx_name || 'Primary Core'}</span></td>
+        <td><span class="ext-badge">${ext.extension}</span></td>
+        <td><span style="font-weight: 500; color: #0f172a;">${ext.display_name}</span></td>
+        <td><span class="badge badge-secondary" style="font-weight:500;" title="${ext.pbx_host || ''}:${ext.pbx_port || 5060}">${ext.pbx_name || 'Primary Core'}</span></td>
         <td>
           <div style="display: flex; align-items: center; gap: 6px;">
-            ${ext.email ? `<span style="font-weight: 500; color: #0284c7; font-family: ui-monospace, monospace; font-size: 12px;">${ext.email}</span>` : '<span class="muted" style="font-size: 11px; font-style: italic;">(None on PBX)</span>'}
-            ${canManage ? `<button class="btn btn-sm btn-light" style="padding: 1px 6px; font-size: 11px; line-height: 1.2;" onclick="window.editExtensionEmail('${ext.extension}', '${(ext.email || '').replace(/'/g, "\'")}')" title="Edit registered email">Edit</button>` : ''}
+            ${ext.email ? `<span style="font-weight: 500; color: #0369a1; font-size: 12.5px;">${ext.email}</span>` : '<span class="text-muted" style="font-size: 11.5px; font-style: italic;">—</span>'}
+            ${canManage ? `<button class="btn btn-sm btn-secondary" style="padding: 1px 6px; font-size: 11px; height: 22px; line-height: 20px;" onclick="window.editExtensionEmail('${ext.extension}', '${(ext.email || '').replace(/'/g, "\\'")}')" title="Edit registered email">Edit</button>` : ''}
           </div>
         </td>
-        <td><code>${ext.sip_username}</code></td>
-
-        <td>${ext.active_pin ? `<span class="font-mono" style="color:#0284c7;font-size:14px;font-weight:600;letter-spacing:1px;">${ext.active_pin}</span>` : '<span class="muted">None active</span>'}</td>
-
-        <td>${ext.bound_handsets} handset(s)</td>
-
-        <td><span class="badge ${ext.is_active ? 'badge-primary' : 'badge-secondary'}">${ext.is_active ? 'Active' : 'Disabled'}</span></td>
-
+        <td><span class="sip-username-badge">${ext.sip_username}</span></td>
         <td>
-
-          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-
-            <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('Ext ${ext.extension}', 'softphone', { ext: '${ext.extension}', name: '${(ext.display_name || '').replace(/'/g, "\\'")}', sip: '${ext.sip_username}', ip: '${ext.last_ip || ''}' })" title="View device telemetry & logs">Logs</button>
-
-            ${canManage ? `
-
-              <button class="btn btn-sm btn-secondary" onclick="generatePin('${ext.extension}')">Generate PIN</button>
-
-              <button class="btn btn-sm btn-danger" onclick="deleteExtension('${ext.extension}')">Delete</button>
-
-            ` : '<span class="muted">Read Only</span>'}
-
-          </div>
-
+          ${ext.active_pin ? `
+            <span class="pin-pill" onclick="window.copyToClipboard('${ext.active_pin}', 'PIN code copied!')" title="Click to copy active PIN">
+              ${ext.active_pin}
+            </span>
+          ` : '<span class="text-muted">—</span>'}
         </td>
-
+        <td>
+          ${ext.bound_handsets > 0 ? `<span class="badge badge-secondary">${ext.bound_handsets} Handset${ext.bound_handsets > 1 ? 's' : ''}</span>` : '<span class="text-muted">0</span>'}
+        </td>
+        <td><span class="badge ${ext.is_active ? 'badge-primary' : 'badge-secondary'}">${ext.is_active ? 'Active' : 'Disabled'}</span></td>
+        <td>
+          <div class="table-actions-group">
+            <button class="btn btn-sm btn-secondary" onclick="window.viewDeviceLogs('Ext ${ext.extension}', 'softphone', { ext: '${ext.extension}', name: '${(ext.display_name || '').replace(/'/g, "\\'")}', sip: '${ext.sip_username}', ip: '${ext.last_ip || ''}' })" title="View device telemetry & logs">Logs</button>
+            ${canManage ? `
+              <button class="btn btn-sm btn-secondary" onclick="generatePin('${ext.extension}')">Generate PIN</button>
+              <button class="btn btn-sm btn-ghost-danger" onclick="deleteExtension('${ext.extension}')">Delete</button>
+            ` : '<span class="text-muted">Read Only</span>'}
+          </div>
+        </td>
       </tr>
-
     `).join('');
 
+    renderPagination('ext', total, extCurrentPage, extPageSize, 'window.gotoExtPage');
   }
 
-
-
   // Instant Live Search for Extensions
-
   function filterAndRenderExtensions() {
     const query = document.getElementById('searchExt')?.value.toLowerCase().trim() || '';
     const pbxFilter = document.getElementById('filterExtPbx')?.value || '';
@@ -1320,7 +1396,9 @@ function initApp() {
         (ext.pbx_name && ext.pbx_name.toLowerCase().includes(query))
       );
     }
-    renderExtensionsTable(filtered);
+    extFilteredList = filtered;
+    extCurrentPage = 1;
+    renderExtensionsTable(extFilteredList);
   }
 
   document.getElementById('searchExt')?.addEventListener('input', filterAndRenderExtensions);
@@ -3603,118 +3681,99 @@ function initApp() {
 
 
 
+  let handsetCurrentPage = 1;
+  let handsetPageSize = 25;
+  let handsetFilteredList = [];
+
+  window.gotoHandsetPage = function(p) {
+    handsetCurrentPage = p;
+    renderHandsetsTable(handsetFilteredList.length ? handsetFilteredList : cachedHandsets);
+  };
+
+  document.getElementById('handsetPageSize')?.addEventListener('change', function(e) {
+    handsetPageSize = e.target.value;
+    handsetCurrentPage = 1;
+    renderHandsetsTable(handsetFilteredList.length ? handsetFilteredList : cachedHandsets);
+  });
+
   function renderHandsetsTable(list) {
-
     const tbody = document.getElementById('handsetTableBody');
-
+    const footer = document.getElementById('handsetPagination');
     if (!tbody) return;
 
     if (!list.length) {
-
       tbody.innerHTML = '<tr><td colspan="6" class="text-center">No physical handsets match your search.</td></tr>';
-
+      if (footer) footer.style.display = 'none';
       return;
-
     }
 
+    const total = list.length;
+    const numericSize = handsetPageSize === 'all' ? total : parseInt(handsetPageSize, 10);
+    const totalPages = Math.ceil(total / numericSize);
+    if (handsetCurrentPage > totalPages) handsetCurrentPage = totalPages;
+    if (handsetCurrentPage < 1) handsetCurrentPage = 1;
 
+    const startIdx = (handsetCurrentPage - 1) * numericSize;
+    const endIdx = Math.min(startIdx + numericSize, total);
+    const pageItems = list.slice(startIdx, endIdx);
 
     const canManage = hasPerm('manage_handsets');
-
-    tbody.innerHTML = list.map(h => {
-
+    tbody.innerHTML = pageItems.map(h => {
       const cleanMac = h.mac_address.toLowerCase().replace(/[^0-9a-f]/g, '');
-
       const provUrl = getHandsetProvisionUrl(h.brand, cleanMac);
-
       const isCustom = h.custom_config && h.custom_config.trim().length > 0;
-
-
+      const bMap = { yealink: 'Yealink', fanvil: 'Fanvil', grandstream: 'Grandstream', cisco: 'Cisco', polycom: 'Polycom', snom: 'Snom' };
+      const displayBrand = bMap[(h.brand || '').toLowerCase()] || (h.brand ? h.brand.charAt(0).toUpperCase() + h.brand.slice(1) : '');
+      const displayModel = (h.model || '').toUpperCase();
 
       return `
-
         <tr>
-
           <td>
-
-            <code>${h.mac_address.toUpperCase()}</code>
-
+            <span class="mac-badge">${h.mac_address.toUpperCase()}</span>
             ${isCustom ? '<span class="tag badge-primary" style="margin-left:6px;font-size:10px;">Custom Profile</span>' : ''}
-
           </td>
-
-          <td style="font-weight: 500;">${h.brand.toUpperCase()} ${h.model || ''}</td>
-
-          <td>Ext ${h.extension} (${h.display_name || ''})</td>
-
+          <td><span style="font-weight: 600; color: #1e293b;">${displayBrand} ${displayModel}</span></td>
+          <td><span class="ext-badge">Ext ${h.extension}</span> ${h.display_name ? `<span style="margin-left: 4px; color: #475569;">(${h.display_name})</span>` : ''}</td>
           <td>${h.line_label || 'Default'}</td>
-
-          <td>${h.last_provisioned_at ? new Date(h.last_provisioned_at).toLocaleString() : '<span class="muted">Never fetched</span>'}${h.ip_address ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">IP: <code>${h.ip_address}</code></div>` : ''}</td>
-
+          <td>${h.last_provisioned_at ? new Date(h.last_provisioned_at).toLocaleString() : '<span class="text-muted">Never fetched</span>'}${h.ip_address ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">IP: <span class="subnet-badge" style="padding:1px 5px;font-size:11px;">${h.ip_address}</span></div>` : ''}</td>
           <td>
-
-            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-
-              <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${cleanMac}', 'handset', { mac: '${cleanMac.toUpperCase()}', brand: '${h.brand}', model: '${h.model || ''}', ext: '${h.extension}', ip: '${h.ip_address || ''}' })" title="Live Telemetry & Logs">Logs</button>
-
-              <button class="btn btn-sm btn-primary" onclick="editHandsetConfig('${cleanMac}')">Edit Config</button>
-
+            <div class="table-actions-group" style="justify-content: flex-end;">
+              <button class="btn btn-sm btn-secondary" onclick="window.viewDeviceLogs('${cleanMac}', 'handset', { mac: '${cleanMac.toUpperCase()}', brand: '${h.brand}', model: '${h.model || ''}', ext: '${h.extension}', ip: '${h.ip_address || ''}' })" title="Live Telemetry & Logs">Logs</button>
+              <button class="btn btn-sm btn-secondary" onclick="editHandsetConfig('${cleanMac}')">Edit Config</button>
               <a class="btn btn-sm btn-secondary" href="${provUrl}" target="_blank" title="Test Fetch Profile">Test</a>
-
               ${canManage ? `
-
-                <button class="btn btn-sm btn-danger" onclick="deleteHandset('${cleanMac}')">Remove</button>
-
+                <button class="btn btn-sm btn-ghost-danger" onclick="deleteHandset('${cleanMac}')">Remove</button>
               ` : ''}
-
             </div>
-
           </td>
-
         </tr>
-
       `;
-
     }).join('');
 
+    renderPagination('handset', total, handsetCurrentPage, handsetPageSize, 'window.gotoHandsetPage');
   }
 
-
-
   // Instant Live Search for Handsets
-
   document.getElementById('searchHandset')?.addEventListener('input', (e) => {
-
     const query = e.target.value.toLowerCase().trim();
-
     if (!query) {
-
-      renderHandsetsTable(cachedHandsets);
-
+      handsetFilteredList = cachedHandsets;
+      handsetCurrentPage = 1;
+      renderHandsetsTable(handsetFilteredList);
       loadDiscoveredDevices();
-
       return;
-
     }
-
     const filtered = cachedHandsets.filter(h =>
-
       (h.mac_address && h.mac_address.toLowerCase().includes(query)) ||
-
       (h.brand && h.brand.toLowerCase().includes(query)) ||
-
       (h.model && h.model.toLowerCase().includes(query)) ||
-
       (h.extension && String(h.extension).toLowerCase().includes(query)) ||
-
       (h.display_name && h.display_name.toLowerCase().includes(query)) ||
-
       (h.line_label && h.line_label.toLowerCase().includes(query))
-
     );
-
-    renderHandsetsTable(filtered);
-
+    handsetFilteredList = filtered;
+    handsetCurrentPage = 1;
+    renderHandsetsTable(handsetFilteredList);
   });
 
 

@@ -448,9 +448,24 @@
               </tr>
             </thead>
             <tbody id="extTableBody">
-              <tr><td colspan="8" class="text-center">Loading extensions...</td></tr>
+              <tr><td colspan="9" class="text-center">Loading extensions...</td></tr>
             </tbody>
           </table>
+          <div class="table-pagination-footer" id="extPagination" style="display: none;">
+            <div class="pagination-info" id="extPaginationInfo">Showing 0 of 0 extensions</div>
+            <div class="pagination-controls">
+              <div class="pagination-page-size">
+                <label for="extPageSize">Per page:</label>
+                <select id="extPageSize" class="form-select form-select-sm">
+                  <option value="25" selected>25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="all">All</option>
+                </select>
+              </div>
+              <div class="pagination-buttons" id="extPaginationBtns"></div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -532,6 +547,21 @@
                 <tr><td colspan="6" class="text-center">Loading registered handsets...</td></tr>
               </tbody>
             </table>
+            <div class="table-pagination-footer" id="handsetPagination" style="display: none;">
+              <div class="pagination-info" id="handsetPaginationInfo">Showing 0 of 0 handsets</div>
+              <div class="pagination-controls">
+                <div class="pagination-page-size">
+                  <label for="handsetPageSize">Per page:</label>
+                  <select id="handsetPageSize" class="form-select form-select-sm">
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="all">All</option>
+                  </select>
+                </div>
+                <div class="pagination-buttons" id="handsetPaginationBtns"></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -581,6 +611,20 @@
                 <tr><td colspan="7" class="text-center">Loading router profiles...</td></tr>
               </tbody>
             </table>
+            <div class="table-pagination-footer" id="routerPagination" style="display: none;">
+              <div class="pagination-info" id="routerPaginationInfo">Showing 0 of 0 routers</div>
+              <div class="pagination-controls">
+                <div class="pagination-page-size">
+                  <label for="routerPageSize">Per page:</label>
+                  <select id="routerPageSize" class="form-select form-select-sm">
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="all">All</option>
+                  </select>
+                </div>
+                <div class="pagination-buttons" id="routerPaginationBtns"></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
