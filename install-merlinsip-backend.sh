@@ -86,13 +86,20 @@ fi
 if [ -n "${SCRIPT_DIR}" ] && [ -d "${SCRIPT_DIR}/ckm-handler/src" ]; then
   echo "[*] Found local ckm-handler source at ${SCRIPT_DIR}/ckm-handler. Copying..."
   cp -r "${SCRIPT_DIR}/ckm-handler/"* "${APP_DIR}/"
+  cp "${SCRIPT_DIR}/update-ckm-handler.sh" "${APP_DIR}/update.sh" 2>/dev/null || true
 else
   echo "[*] Cloning latest ckm-handler from GitHub (${GIT_BRANCH})..."
   TEMP_REPO=$(mktemp -d)
   git clone --depth 1 --branch "${GIT_BRANCH}" "${GIT_REPO}" "${TEMP_REPO}"
   cp -r "${TEMP_REPO}/ckm-handler/"* "${APP_DIR}/"
+  cp "${TEMP_REPO}/update-ckm-handler.sh" "${APP_DIR}/update.sh" 2>/dev/null || true
   rm -rf "${TEMP_REPO}"
 fi
+
+# Set executable permission and install global update commands
+chmod +x "${APP_DIR}/update.sh" 2>/dev/null || true
+ln -sfn "${APP_DIR}/update.sh" /usr/local/bin/update-ckm 2>/dev/null || true
+ln -sfn "${APP_DIR}/update.sh" /usr/local/bin/update-ckm-handler 2>/dev/null || true
 
 # Create backwards compatibility symlink for legacy paths
 mkdir -p "$(dirname "${LEGACY_DIR}")"
@@ -134,7 +141,11 @@ npm run build
 
 echo "[*] Step 4: Configuring PM2 auto-restart and systemd daemon..."
 fuser -k "${APP_PORT}/tcp" >/dev/null 2>&1 || true
-pm2 start dist/server.js --name ckm-handler --cwd "${APP_DIR}"
+if pm2 describe ckm-handler >/dev/null 2>&1; then
+  pm2 restart ckm-handler --update-env
+else
+  pm2 start dist/server.js --name ckm-handler --cwd "${APP_DIR}"
+fi
 pm2 save
 pm2 startup systemd -u "${APP_USER}" --hp "/root" >/dev/null 2>&1 || true
 
