@@ -30,7 +30,7 @@ PBX_SERVER="${PBX_SERVER:-pbx.chriskendall.media}"
 PBX_PORT="${PBX_PORT:-5060}"
 PBX_TRANSPORT="${PBX_TRANSPORT:-UDP}"
 LICENSE_KEY="${LICENSE_KEY:-MANAGED-STANDARD}"
-GIT_BRANCH="${GIT_BRANCH:-beta/provisioning-and-contractor-licensing}"
+GIT_BRANCH="${GIT_BRANCH:-main}"
 GIT_REPO="https://github.com/merlinthedev848/MSuite-SIP.git"
 
 echo "=============================================================================="
