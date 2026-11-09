@@ -1470,7 +1470,7 @@ public partial class MainWindow : Window
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             using var request = new HttpRequestMessage(HttpMethod.Get, syncEndpoint);
-            request.Headers.Add("User-Agent", "MerlinSIP/1.3.9.3");
+            request.Headers.Add("User-Agent", "MerlinSIP/1.3.9.4");
             using var response = await HttpClientHelper.SharedClient.SendAsync(request, cts.Token);
 
             if (!response.IsSuccessStatusCode) return;
