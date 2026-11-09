@@ -1032,6 +1032,46 @@ router.put('/api/admin/extensions/:ext/email', adminAuth, requirePermission('man
   return res.json({ ok: true, message: `Email for Extension ${ext} updated.` });
 });
 
+router.put('/api/admin/extensions/:ext/password', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
+  const ext = req.params.ext;
+  const password = String(req.body.password || '').trim();
+  if (!password) {
+    return res.status(400).json({ ok: false, error: 'Password cannot be empty.' });
+  }
+  systemDb.prepare('UPDATE extensions SET sip_password = ? WHERE extension = ?').run(password, ext);
+  broadcastDeviceLog('SOFTPHONE', 'INFO', `[Extension Password Updated] Extension ${ext} SIP password/secret updated by administrator`, {
+    deviceIdentifier: `Ext ${ext}`,
+    ipAddress: req.ip
+  });
+  return res.json({ ok: true, message: `SIP Password for Extension ${ext} updated successfully.` });
+});
+
+router.put('/api/admin/extensions/:ext', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
+  const ext = req.params.ext;
+  const { displayName, username, password, email, pbx_id } = req.body;
+  const current = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(ext) as ExtensionRow | undefined;
+  if (!current) {
+    return res.status(404).json({ ok: false, error: 'Extension not found.' });
+  }
+  const cleanName = displayName !== undefined ? String(displayName).trim() : current.display_name;
+  const cleanUser = username !== undefined ? String(username).trim() : current.sip_username;
+  const cleanPass = password !== undefined && String(password).trim().length > 0 ? String(password).trim() : current.sip_password;
+  const cleanEmail = email !== undefined ? String(email).trim() : (current.email || '');
+  const cleanPbx = pbx_id !== undefined ? String(pbx_id).trim() : (current.pbx_id || 'default');
+
+  systemDb.prepare(`
+    UPDATE extensions
+    SET display_name = ?, sip_username = ?, sip_password = ?, email = ?, pbx_id = ?
+    WHERE extension = ?
+  `).run(cleanName, cleanUser, cleanPass, cleanEmail, cleanPbx, ext);
+
+  broadcastDeviceLog('SOFTPHONE', 'INFO', `[Extension Updated] Extension ${ext} details updated`, {
+    deviceIdentifier: `Ext ${ext}`,
+    ipAddress: req.ip
+  });
+  return res.json({ ok: true, message: `Extension ${ext} updated successfully.` });
+});
+
 router.delete('/api/admin/extensions/:ext', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
   const ext = req.params.ext;
   systemDb.prepare('DELETE FROM extensions WHERE extension = ?').run(ext);

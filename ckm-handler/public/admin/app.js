@@ -31,7 +31,7 @@
     const start = (currentPage - 1) * numericSize + 1;
     const end = Math.min(start + numericSize - 1, total);
 
-    infoEl.textContent = 'Showing ' + start + 'â€“' + end + ' of ' + total;
+    infoEl.textContent = 'Showing ' + start + '–' + end + ' of ' + total;
 
     if (totalPages <= 1) {
       btnsEl.innerHTML = '';
@@ -39,7 +39,7 @@
     }
 
     let html = '';
-    html += '<button class="pagination-btn" ' + (currentPage === 1 ? 'disabled' : '') + ' onclick="' + onPageChangeName + '(' + (currentPage - 1) + ')" aria-label="Previous page">â€¹</button>';
+    html += '<button class="pagination-btn" ' + (currentPage === 1 ? 'disabled' : '') + ' onclick="' + onPageChangeName + '(' + (currentPage - 1) + ')" aria-label="Previous page">&lsaquo;</button>';
 
     let startPage = Math.max(1, currentPage - 2);
     let endPage = Math.min(totalPages, startPage + 4);
@@ -49,7 +49,7 @@
 
     if (startPage > 1) {
       html += '<button class="pagination-btn" onclick="' + onPageChangeName + '(1)">1</button>';
-      if (startPage > 2) html += '<span style="padding: 0 4px; color: #94a3b8;">â€¦</span>';
+      if (startPage > 2) html += '<span style="padding: 0 4px; color: #94a3b8;">…</span>';
     }
 
     for (let p = startPage; p <= endPage; p++) {
@@ -57,11 +57,11 @@
     }
 
     if (endPage < totalPages) {
-      if (endPage < totalPages - 1) html += '<span style="padding: 0 4px; color: #94a3b8;">â€¦</span>';
+      if (endPage < totalPages - 1) html += '<span style="padding: 0 4px; color: #94a3b8;">…</span>';
       html += '<button class="pagination-btn" onclick="' + onPageChangeName + '(' + totalPages + ')">' + totalPages + '</button>';
     }
 
-    html += '<button class="pagination-btn" ' + (currentPage === totalPages ? 'disabled' : '') + ' onclick="' + onPageChangeName + '(' + (currentPage + 1) + ')" aria-label="Next page">â€º</button>';
+    html += '<button class="pagination-btn" ' + (currentPage === totalPages ? 'disabled' : '') + ' onclick="' + onPageChangeName + '(' + (currentPage + 1) + ')" aria-label="Next page">&rsaquo;</button>';
 
     btnsEl.innerHTML = html;
   }
@@ -1351,7 +1351,7 @@
         <td><span class="badge badge-secondary" style="font-weight:500;" title="${ext.pbx_host || ''}:${ext.pbx_port || 5060}">${ext.pbx_name || 'Primary Core'}</span></td>
         <td>
           <div style="display: flex; align-items: center; gap: 6px;">
-            ${ext.email ? `<span style="font-weight: 500; color: #0369a1; font-size: 12.5px;">${ext.email}</span>` : '<span class="text-muted" style="font-size: 11.5px; font-style: italic;">â€”</span>'}
+            ${ext.email ? `<span style="font-weight: 500; color: #0369a1; font-size: 12.5px;">${ext.email}</span>` : '<span class="text-muted" style="font-size: 11.5px; font-style: italic;">&mdash;</span>'}
             ${canManage ? `<button class="btn btn-sm btn-secondary" style="padding: 1px 6px; font-size: 11px; height: 22px; line-height: 20px;" onclick="window.editExtensionEmail('${ext.extension}', '${(ext.email || '').replace(/'/g, "\\'")}')" title="Edit registered email">Edit</button>` : ''}
           </div>
         </td>
@@ -1361,7 +1361,7 @@
             <span class="pin-pill" onclick="window.copyToClipboard('${ext.active_pin}', 'PIN code copied!')" title="Click to copy active PIN">
               ${ext.active_pin}
             </span>
-          ` : '<span class="text-muted">â€”</span>'}
+          ` : '<span class="text-muted">&mdash;</span>'}
         </td>
         <td>
           ${ext.bound_handsets > 0 ? `<span class="badge badge-secondary">${ext.bound_handsets} Handset${ext.bound_handsets > 1 ? 's' : ''}</span>` : '<span class="text-muted">0</span>'}
@@ -1371,6 +1371,7 @@
           <div class="table-actions-group">
             <button class="btn btn-sm btn-secondary" onclick="window.viewDeviceLogs('Ext ${ext.extension}', 'softphone', { ext: '${ext.extension}', name: '${(ext.display_name || '').replace(/'/g, "\\'")}', sip: '${ext.sip_username}', ip: '${ext.last_ip || ''}' })" title="View device telemetry & logs">Logs</button>
             ${canManage ? `
+              <button class="btn btn-sm btn-secondary" onclick="window.editExtensionPassword('${ext.extension}')" title="Edit Extension SIP Registration Password / Secret">Password</button>
               <button class="btn btn-sm btn-secondary" onclick="generatePin('${ext.extension}')">Generate PIN</button>
               <button class="btn btn-sm btn-ghost-danger" onclick="deleteExtension('${ext.extension}')">Delete</button>
             ` : '<span class="text-muted">Read Only</span>'}
@@ -1473,6 +1474,32 @@
   };
 
 
+
+  window.editExtensionPassword = async (ext) => {
+    const newPass = prompt(`Enter the actual PBX SIP Registration Password / Secret for Extension ${ext}:\n\n(Note: Enter the actual plaintext password configured on the Yeastar PBX, NOT a SHA-256 web hash)`, '');
+    if (newPass === null) return;
+    const clean = newPass.trim();
+    if (!clean) {
+      window.showToast?.('Password cannot be empty', 'error');
+      return;
+    }
+    if (clean.length === 64 && /^[a-f0-9]{64}$/i.test(clean)) {
+      if (!confirm('Warning: This input looks like a 64-character SHA-256 hash. PBX SIP digest authentication will fail if this is a web login hash instead of the PBX extension secret.\n\nDo you still want to save this?')) {
+        return;
+      }
+    }
+    const res = await fetchJson(`/api/admin/extensions/${ext}/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: clean })
+    });
+    if (res && res.ok) {
+      window.showToast?.(`SIP Password updated for Ext ${ext}! Generating fresh PIN...`, 'success');
+      window.generatePin(ext);
+    } else {
+      window.showToast?.(res?.error || 'Failed to update SIP password', 'error');
+    }
+  };
 
   window.editExtensionEmail = async (ext, current) => {
     const newEmail = prompt(`Enter registered email address for Extension ${ext}:`, current || '');
@@ -2699,7 +2726,7 @@
 
         expModelSel.innerHTML = brandObj.models.map(m => `
 
-          <option value="${m.id}">${m.name} â€” ${m.firmwareVersion || ''}</option>
+          <option value="${m.id}">${m.name} &mdash; ${m.firmwareVersion || ''}</option>
 
         `).join('');
 
@@ -2775,7 +2802,7 @@
 
         expModelSel.innerHTML = brandObj.models.map(m => `
 
-          <option value="${m.id}">${m.name} â€” ${m.firmwareVersion || ''}</option>
+          <option value="${m.id}">${m.name} &mdash; ${m.firmwareVersion || ''}</option>
 
         `).join('');
 
@@ -3850,7 +3877,7 @@
 
 
 
-    document.getElementById('editHandsetTitle').textContent = `Edit Provisioning Profile â€” ${res.brand.toUpperCase()} ${res.model || ''}`;
+    document.getElementById('editHandsetTitle').textContent = `Edit Provisioning Profile &mdash; ${res.brand.toUpperCase()} ${res.model || ''}`;
 
     document.getElementById('editHandsetSub').textContent = `Device MAC: ${mac.toUpperCase()} | Assigned to Extension ${res.extension} (${res.displayName})`;
 
@@ -4285,7 +4312,7 @@
 
 
 
-    document.getElementById('editRouterTitle').textContent = `Edit VoIP Script â€” ${res.siteName} (${res.brand.toUpperCase()} ${res.model || ''})`;
+    document.getElementById('editRouterTitle').textContent = `Edit VoIP Script &mdash; ${res.siteName} (${res.brand.toUpperCase()} ${res.model || ''})`;
 
     document.getElementById('editRouterSub').textContent = `Target Platform: ${res.brand.toUpperCase()} | File: ${res.filename}`;
 
@@ -6420,7 +6447,7 @@
 
       if (extraMeta.site) parts.push(`Site: ${extraMeta.site}`);
 
-      metaElem.textContent = parts.length ? `â€¢ ${parts.join(' | ')}` : '';
+      metaElem.textContent = parts.length ? `• ${parts.join(' | ')}` : '';
 
     }
 
@@ -6816,7 +6843,7 @@
 
           id: e.extension,
 
-          title: `Ext ${e.extension} â€” ${e.display_name || 'Extension'}`,
+          title: `Ext ${e.extension} &mdash; ${e.display_name || 'Extension'}`,
 
           tag: 'Extension',
 
@@ -7602,7 +7629,7 @@
 
       sel.innerHTML = '<option value="">Select an extension...</option>' + 
 
-        extData.extensions.map(e => `<option value="${e.extension}">Ext ${e.extension} â€” ${e.display_name} (${e.sip_username})</option>`).join('');
+        extData.extensions.map(e => `<option value="${e.extension}">Ext ${e.extension} &mdash; ${e.display_name} (${e.sip_username})</option>`).join('');
 
     } else {
 
@@ -8578,7 +8605,7 @@
     if (latEl) latEl.textContent = inst.last_ping_rtt ? `${inst.last_ping_rtt} ms` : '< 1 ms';
 
     const details = document.getElementById('pingDetails');
-    if (details) details.textContent = `[${inst.name}] Protocol: SIP RFC 3261 Â· Target: ${inst.host}:${inst.sip_port} (${inst.sip_transport}) Â· ${inst.extension_count || 0} extensions assigned.`;
+    if (details) details.textContent = `[${inst.name}] Protocol: SIP RFC 3261 · Target: ${inst.host}:${inst.sip_port} (${inst.sip_transport}) · ${inst.extension_count || 0} extensions assigned.`;
   };
 
   function renderPbxInstancesTable(instances) {

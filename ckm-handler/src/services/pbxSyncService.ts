@@ -239,7 +239,18 @@ export async function syncExtensionsFromYeastarApi(
     if (!extNumber || !/^\d{2,8}$/.test(extNumber)) continue;
 
     const displayName = String(item.username || item.displayname || item.name || item.callerid || `Extension ${extNumber}`).trim();
-    const sipPassword = String(item.user_password || item.password || item.registration_password || item.registerpassword || 'ExtPassword123!').trim();
+    // SIP Registration Secret extraction:
+    // 1. Check direct SIP registration secret properties
+    // 2. Fall back to item.password ONLY if it is not a 64-char SHA-256 web hash
+    // NOTE: item.user_password is the Yeastar web portal / Linkus user login SHA-256 hash.
+    // It is NEVER the SIP registration secret and must NEVER be used for SIP Digest MD5 auth.
+    let sipPassword = String(item.registration_password || item.register_password || item.registerpassword || item.secret || '').trim();
+    if (!sipPassword && item.password) {
+      const candidate = String(item.password).trim();
+      if (candidate.length !== 64 && !/^[a-f0-9]{64}$/i.test(candidate)) {
+        sipPassword = candidate;
+      }
+    }
     const email = String(item.email || item.useremail || item.user_email || item.mail || item.mailbox || '').trim();
 
     extensions.push({
@@ -264,7 +275,13 @@ export async function syncExtensionsFromYeastarApi(
       ON CONFLICT(extension) DO UPDATE SET
         display_name = excluded.display_name,
         email = CASE WHEN excluded.email != '' THEN excluded.email ELSE extensions.email END,
-        sip_password = CASE WHEN excluded.sip_password != 'ExtPassword123!' THEN excluded.sip_password ELSE extensions.sip_password END,
+        sip_password = CASE 
+          WHEN excluded.sip_password != '' 
+               AND excluded.sip_password != 'ExtPassword123!' 
+               AND length(excluded.sip_password) != 64 
+          THEN excluded.sip_password 
+          ELSE extensions.sip_password 
+        END,
         pbx_id = excluded.pbx_id
     `);
     for (const ext of exts) {
@@ -323,6 +340,13 @@ export async function syncExtensionsFromAsterisk(
           ON CONFLICT(extension) DO UPDATE SET
             display_name = excluded.display_name,
             email = CASE WHEN excluded.email != '' THEN excluded.email ELSE extensions.email END,
+            sip_password = CASE 
+              WHEN excluded.sip_password != '' 
+                   AND excluded.sip_password != 'ExtPassword123!' 
+                   AND length(excluded.sip_password) != 64 
+              THEN excluded.sip_password 
+              ELSE extensions.sip_password 
+            END,
             pbx_id = excluded.pbx_id
         `);
         for (const ext of exts) {
