@@ -118,6 +118,13 @@ PBX_TRANSPORT=${PBX_TRANSPORT}
 LICENSE_KEY=${LICENSE_KEY}
 DATA_DIR=${APP_DIR}/data
 EOF
+else
+  # Ensure PORT in existing .env strictly matches APP_PORT for Nginx upstream
+  if grep -q "^PORT=" "${ENV_FILE}"; then
+    sed -i "s/^PORT=.*/PORT=${APP_PORT}/" "${ENV_FILE}"
+  else
+    echo "PORT=${APP_PORT}" >> "${ENV_FILE}"
+  fi
 fi
 
 echo "[*] Step 3: Installing npm dependencies & compiling TypeScript..."
@@ -126,6 +133,7 @@ npm install
 npm run build
 
 echo "[*] Step 4: Configuring PM2 auto-restart and systemd daemon..."
+fuser -k "${APP_PORT}/tcp" >/dev/null 2>&1 || true
 pm2 start dist/server.js --name ckm-handler --cwd "${APP_DIR}"
 pm2 save
 pm2 startup systemd -u "${APP_USER}" --hp "/root" >/dev/null 2>&1 || true
@@ -237,7 +245,9 @@ for i in {1..15}; do
   sleep 1
 done
 if [[ "$HEALTH_STATUS" != *"ok"* ]]; then
-  echo "[-] Local service health check failed. Check 'pm2 logs ckm-handler'" >&2
+  echo "[-] Local service health check failed." >&2
+  echo "[-] Showing recent logs from PM2:" >&2
+  pm2 logs ckm-handler --lines 25 --nostream >&2 || true
   exit 1
 fi
 

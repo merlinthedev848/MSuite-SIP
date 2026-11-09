@@ -24,6 +24,9 @@ import { startPbxSyncDaemon } from './services/pbxSyncService';
 const app = express();
 const server = http.createServer(app);
 
+// Enable trust proxy for Nginx reverse proxy
+app.set('trust proxy', 1);
+
 // 1. Core Middleware
 app.use(cors({ origin: '*' }));
 app.use(express.text({ type: ['text/*', 'application/xml', 'text/xml', 'application/soap+xml'] }));
@@ -58,6 +61,9 @@ app.use(selfServicePinRouter);
 // 5. Static Web Admin Portal
 const adminStaticPath = path.resolve(__dirname, '../public/admin');
 app.use('/admin', express.static(adminStaticPath));
+app.get('/admin', (req, res) => {
+  res.sendFile(path.resolve(adminStaticPath, 'index.html'));
+});
 
 // 5b. Public Customer Self-Service PIN Portal
 const pinStaticPath = path.resolve(__dirname, '../public/pin');
