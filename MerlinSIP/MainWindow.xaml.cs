@@ -948,8 +948,8 @@ public partial class MainWindow : Window
     {
         Dispatcher.InvokeAsync(() =>
         {
+            var callerName = ResolveDisplayName(e.CallerNumber);
             var contact = _contactStore.FindByNumber(_contacts, e.CallerNumber);
-            var callerName = contact?.Name ?? e.CallerNumber;
             var alreadyOnCall = _callConnected || (_callInProgress && !_incomingRinging);
             var silentRinging = IsSilentRingingEnabled();
             var useDesktopPopup = !silentRinging && ShouldUseDesktopIncomingPopup();
@@ -2219,12 +2219,28 @@ public partial class MainWindow : Window
         }
     }
 
+    private string ResolveDisplayName(string number)
+    {
+        if (string.IsNullOrWhiteSpace(number)) return string.Empty;
+        var feature = DeskPhone.GetFeatureCodeName(number, _config);
+        if (!string.IsNullOrEmpty(feature)) return feature;
+        var contact = _contactStore.FindByNumber(_contacts, number);
+        return contact?.Name ?? number;
+    }
+
     private void DestinationTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         var destination = DestinationTextBox.Text.Trim();
         DestinationPreviewText.Text = string.IsNullOrWhiteSpace(destination) ? "Enter number" : destination;
         UpdateCallControls();
         UpdateLineAppearances();
+
+        var feature = DeskPhone.GetFeatureCodeName(destination, _config);
+        if (!string.IsNullOrEmpty(feature))
+        {
+            CallerLookupText.Text = feature;
+            return;
+        }
 
         var contact = _contactStore.FindByNumber(_contacts, destination);
         CallerLookupText.Text = contact is null
@@ -2656,8 +2672,7 @@ public partial class MainWindow : Window
         _lastDialedNumber = destination;
         DebugLog.Write($"UI dial requested line={_selectedLine} destination={destination}");
 
-        var contact = _contactStore.FindByNumber(_contacts, destination);
-        var name = contact?.Name ?? destination;
+        var name = ResolveDisplayName(destination);
         StopLocalRingback();
         _ringtonePlayer.Stop();
         _secondaryRingtonePlayer.Stop();
@@ -4721,8 +4736,7 @@ del ""%~f0""
             if (!string.IsNullOrWhiteSpace(number))
             {
                 // Let BLF system handle contact presence updates naturally
-                var contact = _contactStore.FindByNumber(_contacts, number);
-                var name = contact?.Name ?? number;
+                var name = ResolveDisplayName(number);
                 await AddCallHistory(direction, name, number, resultState, message, startAt);
             }
 
