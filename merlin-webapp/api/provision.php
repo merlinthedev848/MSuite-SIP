@@ -20,26 +20,26 @@ if (strlen($cleanedCode) !== 8) {
 
 // Provisioning endpoint URLs matching Merlin SIP desktop client (20 endpoint templates)
 $urlTemplates = [
-    'https://accounts.chriskendall.media/sip/register/{code}',
-    'https://accounts.chriskendall.media/index.php/sip/register/{code}',
-    'https://accounts.chriskendall.media/sip/device/{code}',
-    'https://accounts.chriskendall.media/index.php/sip/device/{code}',
-    'https://accounts.chriskendall.media/sip/autoprovision/{code}',
-    'https://accounts.chriskendall.media/index.php/sip/autoprovision/{code}',
-    'https://accounts.chriskendall.media/sip/details/{code}',
-    'https://accounts.chriskendall.media/index.php/sip/details/{code}',
-    'https://accounts.chriskendall.media/sip/provision/{code}',
-    'https://accounts.chriskendall.media/index.php/sip/provision/{code}',
-    'https://accounts.chriskendall.media/sip/details',
-    'https://accounts.chriskendall.media/index.php/sip/details',
-    'https://accounts.chriskendall.media/sip/autoprovision/details',
-    'https://accounts.chriskendall.media/index.php/sip/autoprovision/details',
-    'https://accounts.chriskendall.media/sip/provision/details',
-    'https://accounts.chriskendall.media/index.php/sip/provision/details',
-    'https://accounts.chriskendall.media/sip/autoprovision',
-    'https://accounts.chriskendall.media/index.php/sip/autoprovision',
-    'https://accounts.chriskendall.media/sip/provision',
-    'https://accounts.chriskendall.media/index.php/sip/provision'
+    'https://handler.chriskendall.media/sip/register/{code}',
+    'https://handler.chriskendall.media/index.php/sip/register/{code}',
+    'https://handler.chriskendall.media/sip/device/{code}',
+    'https://handler.chriskendall.media/index.php/sip/device/{code}',
+    'https://handler.chriskendall.media/sip/autoprovision/{code}',
+    'https://handler.chriskendall.media/index.php/sip/autoprovision/{code}',
+    'https://handler.chriskendall.media/sip/details/{code}',
+    'https://handler.chriskendall.media/index.php/sip/details/{code}',
+    'https://handler.chriskendall.media/sip/provision/{code}',
+    'https://handler.chriskendall.media/index.php/sip/provision/{code}',
+    'https://handler.chriskendall.media/sip/details',
+    'https://handler.chriskendall.media/index.php/sip/details',
+    'https://handler.chriskendall.media/sip/autoprovision/details',
+    'https://handler.chriskendall.media/index.php/sip/autoprovision/details',
+    'https://handler.chriskendall.media/sip/provision/details',
+    'https://handler.chriskendall.media/index.php/sip/provision/details',
+    'https://handler.chriskendall.media/sip/autoprovision',
+    'https://handler.chriskendall.media/index.php/sip/autoprovision',
+    'https://handler.chriskendall.media/sip/provision',
+    'https://handler.chriskendall.media/index.php/sip/provision'
 ];
 
 $provisioned = null;

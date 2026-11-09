@@ -21,7 +21,7 @@ export const licenseState: LicenseState = {
 };
 
 /**
- * Validates the CKM Handler Docker container license against accounts.chriskendall.media
+ * Validates the CKM Handler Docker container license against handler.chriskendall.media
  */
 export async function validateContainerLicense(): Promise<void> {
   const key = (LICENSE_KEY || '').trim();
@@ -48,7 +48,7 @@ export async function validateContainerLicense(): Promise<void> {
     const client = https;
 
     const options = {
-      hostname: 'accounts.chriskendall.media',
+      hostname: process.env.CENTRAL_HANDLER_HOST || 'handler.chriskendall.media',
       port: 443,
       path: '/api/v1/license/validate',
       method: 'POST',
@@ -127,7 +127,7 @@ function handleOfflineGrace() {
  */
 export function licenseGateMiddleware(req: Request, res: Response, next: NextFunction) {
   // Always permit admin UI and static assets so the contractor can view their account status
-  if (req.path.startsWith('/admin') || req.path.startsWith('/api/admin') || req.path === '/api/health') {
+  if (req.path.startsWith('/admin') || req.path.startsWith('/api/admin') || req.path === '/api/health' || req.path.startsWith('/license') || req.path.startsWith('/api/v1/license')) {
     return next();
   }
 

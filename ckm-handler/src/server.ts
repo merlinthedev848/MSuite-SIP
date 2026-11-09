@@ -18,6 +18,7 @@ import integrationApiRouter from './routes/integrationApi';
 import firmwareRouter from './routes/firmwareRoute';
 import cwmpRouter from './routes/cwmpRoute';
 import selfServicePinRouter from './routes/selfServicePin';
+import licenseRouter from './routes/licenseRoute';
 import { reconcileFirmwareStorage } from './services/firmwareService';
 import { startPbxSyncDaemon } from './services/pbxSyncService';
 
@@ -57,6 +58,7 @@ app.use(adminRouter);
 app.use(gdprRouter);
 app.use(integrationApiRouter);
 app.use(selfServicePinRouter);
+app.use(licenseRouter);
 
 // 5. Static Web Admin Portal
 const adminStaticPath = path.resolve(__dirname, '../public/admin');

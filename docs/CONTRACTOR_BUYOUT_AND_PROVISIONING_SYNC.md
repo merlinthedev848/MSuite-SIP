@@ -7,12 +7,12 @@ MerlinSIP Softphone supports two distinct operating tiers:
 1. **Managed Service Tier (Default / Standard Accounts)**
    - End users authenticate quickly using a one-time 8-digit auto-provisioning PIN code.
    - Softphone automatically connects to the managed PBX (`pbx.chriskendall.media:5060`) and the managed chat/file handler (`https://handler.chriskendall.media`).
-   - The desktop client runs an asynchronous, non-blocking background sync every 10 minutes polling `https://accounts.chriskendall.media/api/v1/config/sync`. If central endpoints, ports, or transports change, client configs update dynamically and seamlessly without user intervention.
+   - The desktop client runs an asynchronous, non-blocking background sync every 10 minutes polling `https://handler.chriskendall.media/api/v1/config/sync`. If central endpoints, ports, or transports change, client configs update dynamically and seamlessly without user intervention.
    - Offline-First: If the provisioning server is down, unreachable, or times out, the client ignores the failure and continues normal voice and messaging operations without interruption.
 
 2. **Contractor Buyout / Whitelabel Tier (`BUYOUT-...` or `PR-...`)**
    - Enables independent contractors and white-label clients to purchase and run the softphone software for their own businesses.
-   - **8-Digit Provisioning Code Disabled & Hidden**: The central provisioning PIN input card is completely removed from the welcome and settings screens. Contractors cannot trigger provisioning requests against `accounts.chriskendall.media`.
+   - **8-Digit Provisioning Code Disabled & Hidden**: The central provisioning PIN input card is completely removed from the welcome and settings screens. Contractors cannot trigger provisioning requests against `handler.chriskendall.media`.
    - **Central Config Sync Polling Disabled**: The 10-minute periodic sync strictly checks `AllowsCustomSipEndpoint`. If true, polling is completely skipped so contractor clients never report or ping the central server.
    - **Self-Hosted PBX & Data Handler Support**: Contractors configure their own custom SIP Server / Domain, SIP Port (UDP/TCP/TLS), and custom Data Handler URL (for real-time chat and file storage).
 

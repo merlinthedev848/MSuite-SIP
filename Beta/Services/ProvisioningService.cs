@@ -40,7 +40,7 @@ public sealed class ProvisioningService
         list.Add("http://127.0.0.1:9099");
 
         // 5. Upstream accounts server fallback
-        list.Add("https://accounts.chriskendall.media");
+        list.Add("https://handler.chriskendall.media");
 
         return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }

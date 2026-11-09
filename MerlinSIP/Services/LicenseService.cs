@@ -14,8 +14,8 @@ public sealed class LicenseService
 #if DEBUG
     private const string TestLicenseKey = "TEST-BFC2-DF38-F81D-F08E-135A-9058";
 #endif
-    private static readonly Uri VerifyUrl = new("https://accounts.chriskendall.media/license/verify");
-    private static readonly Uri ActivateUrl = new("https://accounts.chriskendall.media/license/activate");
+    private static readonly Uri VerifyUrl = new("https://handler.chriskendall.media/license/verify");
+    private static readonly Uri ActivateUrl = new("https://handler.chriskendall.media/license/activate");
     private static readonly HttpClient HttpClient = HttpClientHelper.CreateClient();
 
     public string Status { get; private set; } = "Licensed";

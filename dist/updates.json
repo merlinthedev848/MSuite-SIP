@@ -1,8 +1,8 @@
 {
     "Version":  "1.3.9.4",
     "DownloadUrl":  "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.9.4-x64-faststart.msi",
-    "Sha256":  "853F9D9299D7BAD4E1620E0D048F7BF997E0741D4E25BF1AFDEE7C5872B57041",
-    "FileSizeBytes":  80601868,
+    "Sha256":  "0FC23A645525F14C0A87284AECE7146F0F37F40F2C557148C166B578E0A5E74C",
+    "FileSizeBytes":  80712460,
     "ReleaseDate":  "2026-11-09",
-    "Notes":  "Release 1.3.9.4: Replaced font glyphs with native vector path icons for in-call action controls (Hold, Resume, Mute, Transfer, Conference, Record, End Call), resolved tofu box rendering issues across Windows versions, and upgraded font fallbacks."
+    "Notes":  "Release 1.3.9.4: Migrated all external license and provisioning authentications to the CKM Handler gateway (handler.chriskendall.media), implemented unified licensing validation routes in ckm-handler, and resolved in-call action button glyphs with vector geometries."
 }

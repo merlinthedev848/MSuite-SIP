@@ -8,8 +8,8 @@ namespace MerlinSip.Mac;
 
 public sealed class LicenseClient
 {
-    private static readonly Uri VerifyUrl = new("https://accounts.chriskendall.media/license/verify");
-    private static readonly Uri ActivateUrl = new("https://accounts.chriskendall.media/license/activate");
+    private static readonly Uri VerifyUrl = new("https://handler.chriskendall.media/license/verify");
+    private static readonly Uri ActivateUrl = new("https://handler.chriskendall.media/license/activate");
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
 #if DEBUG
@@ -138,16 +138,16 @@ public sealed class ProvisionClient
 {
     private static readonly string[] Templates =
     [
-        "https://accounts.chriskendall.media/sip/register/{code}",
-        "https://accounts.chriskendall.media/index.php/sip/register/{code}",
-        "https://accounts.chriskendall.media/sip/device/{code}",
-        "https://accounts.chriskendall.media/index.php/sip/device/{code}",
-        "https://accounts.chriskendall.media/sip/autoprovision/{code}",
-        "https://accounts.chriskendall.media/index.php/sip/autoprovision/{code}",
-        "https://accounts.chriskendall.media/sip/details/{code}",
-        "https://accounts.chriskendall.media/index.php/sip/details/{code}",
-        "https://accounts.chriskendall.media/sip/provision/{code}",
-        "https://accounts.chriskendall.media/index.php/sip/provision/{code}"
+        "https://handler.chriskendall.media/sip/register/{code}",
+        "https://handler.chriskendall.media/index.php/sip/register/{code}",
+        "https://handler.chriskendall.media/sip/device/{code}",
+        "https://handler.chriskendall.media/index.php/sip/device/{code}",
+        "https://handler.chriskendall.media/sip/autoprovision/{code}",
+        "https://handler.chriskendall.media/index.php/sip/autoprovision/{code}",
+        "https://handler.chriskendall.media/sip/details/{code}",
+        "https://handler.chriskendall.media/index.php/sip/details/{code}",
+        "https://handler.chriskendall.media/sip/provision/{code}",
+        "https://handler.chriskendall.media/index.php/sip/provision/{code}"
     ];
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
