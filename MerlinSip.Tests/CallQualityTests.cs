@@ -151,4 +151,14 @@ public class CallQualityAndRingtoneTests
         thread.Join();
         Assert.True(caughtEx == null, caughtEx?.ToString());
     }
+
+    [Theory]
+    [InlineData(18.0, 0.5, 0.0, 4.35)]
+    [InlineData(30.0, 2.0, 0.0, 4.35)]
+    [InlineData(50.0, 10.0, 0.5, 4.20)]
+    public void VoipTools_CalculateMosScore_HighQualityLanCall_YieldsExpectedScore(double latency, double jitter, double loss, double expectedMinMos)
+    {
+        double mos = VoipTools.CalculateMosScore(latency, jitter, loss);
+        Assert.True(mos >= expectedMinMos, $"Expected MOS >= {expectedMinMos} for latency={latency}, jitter={jitter}, loss={loss}, but got {mos}");
+    }
 }

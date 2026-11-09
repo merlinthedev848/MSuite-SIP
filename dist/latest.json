@@ -1,8 +1,8 @@
 {
     "Version":  "1.3.9.4",
     "DownloadUrl":  "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.3.9.4-x64-faststart.msi",
-    "Sha256":  "17ACA50CDD2F5C42B139291EB45E45B0593A3ABE01D5D3A58FDD842F75D9F3A7",
-    "FileSizeBytes":  80732940,
+    "Sha256":  "6E924BE4EDC857ADBB7F83A07D7EA30E9582C91607EC07143C7B78298153BDAD",
+    "FileSizeBytes":  80638732,
     "ReleaseDate":  "2026-11-09",
-    "Notes":  "Release 1.3.9.4: Fix contact lookup fuzzy matching on PBX feature codes (*2 Voicemail), prevent extension suffix false-positives, label handler monitor in settings about section, and resolve in-call action button glyphs with vector geometries."
+    "Notes":  "Release 1.3.9.4: Fix RFC 3550 RTP jitter calculation and false MOS collapse on early-media to connected call handovers, eradicate in-call button tofu glyphs with guaranteed vector fallbacks, prevent contact lookup suffix false-positives on feature codes (*2 Voicemail), and label handler monitor in settings about section."
 }

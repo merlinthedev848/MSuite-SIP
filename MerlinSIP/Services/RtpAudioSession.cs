@@ -205,7 +205,12 @@ public sealed class RtpAudioSession : IDisposable
 		{
 			_remoteEndPoint = new IPEndPoint(await ResolveRemoteAddressAsync(remoteAddress), remotePort);
 			_payloadType = payloadType;
+			bool wasEarlyMedia = !_transmitMicrophone;
 			_transmitMicrophone = transmitMicrophone;
+			if (wasEarlyMedia && transmitMicrophone)
+			{
+				ResetQualityStats();
+			}
 			StartAudioPump();
 			if (transmitMicrophone && _waveIn != IntPtr.Zero)
 			{
@@ -424,6 +429,15 @@ public sealed class RtpAudioSession : IDisposable
 			_ => "1/5 Weak Signal"
 		};
 		return (lossPercent, jitterMs, latencyMs, bars, qualityText);
+	}
+
+	public void ResetQualityStats()
+	{
+		_rfc3550Jitter = 0.0;
+		_lastTransitTime = 0;
+		_lastRxSequence = 0;
+		Interlocked.Exchange(ref _receivedPackets, 0);
+		Interlocked.Exchange(ref _expectedPackets, 0);
 	}
 
 	public async Task SendDtmfAsync(char digit, CancellationToken cancellationToken = default(CancellationToken), bool isSecondary = false)
@@ -910,12 +924,12 @@ public sealed class RtpAudioSession : IDisposable
 				}
 				var received = Volatile.Read(in _receivedPackets);
 				ushort num = (ushort)((udpReceiveResult.Buffer[2] << 8) | udpReceiveResult.Buffer[3]);
+				ushort seqDelta = _lastRxSequence > 0 ? (ushort)(num - _lastRxSequence) : (ushort)1;
 				if (_lastRxSequence > 0)
 				{
-					ushort num2 = (ushort)(num - _lastRxSequence);
-					if (num2 > 0 && num2 < 100)
+					if (seqDelta > 0 && seqDelta < 100)
 					{
-						Interlocked.Add(ref _expectedPackets, num2);
+						Interlocked.Add(ref _expectedPackets, seqDelta);
 					}
 					else
 					{
@@ -963,17 +977,25 @@ public sealed class RtpAudioSession : IDisposable
 					if (!isSecondary)
 					{
 						received = Interlocked.Increment(ref _receivedPackets);
+						bool marker = (udpReceiveResult.Buffer[1] & 0x80) != 0;
 						uint rtpTimestamp = (uint)((udpReceiveResult.Buffer[4] << 24) |
 						                           (udpReceiveResult.Buffer[5] << 16) |
 						                           (udpReceiveResult.Buffer[6] << 8) |
 						                           udpReceiveResult.Buffer[7]);
 						long arrivalSamples = System.Diagnostics.Stopwatch.GetTimestamp() * 8000L / System.Diagnostics.Stopwatch.Frequency;
 						long transit = arrivalSamples - (long)rtpTimestamp;
-						if (received > 1 && _lastTransitTime != 0)
+						// RFC 3550 Section 6.4.1 / Appendix A.8:
+						// 1. Do not update jitter on talkspurt start (marker bit set) because delta includes silence.
+						// 2. Only calculate jitter between consecutive adjacent packets (seqDelta == 1).
+						// 3. Reject huge discontinuities (d > 8000 samples = 1 sec) from PBX bridging or clock reset.
+						if (received > 1 && _lastTransitTime != 0 && !marker && seqDelta == 1)
 						{
 							long d = transit - _lastTransitTime;
 							if (d < 0) d = -d;
-							_rfc3550Jitter += (d - _rfc3550Jitter) / 16.0;
+							if (d <= 8000)
+							{
+								_rfc3550Jitter += (d - _rfc3550Jitter) / 16.0;
+							}
 						}
 						_lastTransitTime = transit;
 						if (received == 1)
