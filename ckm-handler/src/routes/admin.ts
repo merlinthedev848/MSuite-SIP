@@ -15,7 +15,7 @@ import { HANDSET_CATALOG, ROUTER_CATALOG, generateDefaultHandsetConfig } from '.
 import { substituteTemplateVariables } from './hardwareProvision';
 import { HandsetAccountConfig } from '../templates/yealink';
 import { licenseState } from '../services/licenseGuard';
-import { syncExtensionsFromAsterisk, syncExtensionsFromPbx, syncPbxInstance, PbxSyncConfig, AmiConfig, updatePbxSyncSchedule } from '../services/pbxSyncService';
+import { syncExtensionsFromPbx, syncPbxInstance, PbxSyncConfig, updatePbxSyncSchedule } from '../services/pbxSyncService';
 import { AdminRequest, AdminRole, ServerConfigRow, PbxInstanceRow, AdminUserRow, AdminSessionRow, CountRow, TotalBytesRow, RouterRow, DiscoveredDeviceRow, GdprRetentionPolicyRow, PhysicalHandsetRow, HandsetWithExtensionRow, ExtensionRow, defaultServerConfig } from '../types/models';
 import { getSocketStats } from '../services/socketService';
 import { registerSseClient, getRecentDeviceLogs, getFilteredDeviceLogs, clearDeviceLogs, broadcastDeviceLog } from '../services/telemetryStream';
@@ -30,6 +30,27 @@ import {
 import { performance } from 'perf_hooks';
 
 const router = Router();
+
+const EXTENSION_RE = /^\d{2,10}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validEmail(value: string): boolean {
+  return value === '' || EMAIL_RE.test(value);
+}
+
+function parseExpiryHours(value: unknown): number | null {
+  if (value === undefined || value === null || value === '') return 72;
+  const hours = parseInt(String(value), 10);
+  if (!Number.isFinite(hours) || hours < 1 || hours > 8760) return null;
+  return hours;
+}
+
+function normalizeMac(value: unknown): string | null {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw || !/^[0-9a-f:.\-\s]+$/.test(raw)) return null;
+  const clean = raw.replace(/[:.\-\s]/g, '');
+  return /^[0-9a-f]{12}$/.test(clean) ? clean : null;
+}
 
 // Configure Logo Upload Storage
 const logoStorage = multer.diskStorage({
@@ -410,6 +431,15 @@ export function probePbxLatency(
   const cleanTransport = (transport || 'UDP').toUpperCase();
   const t0 = performance.now();
 
+  if (!host || !Number.isFinite(port) || port < 1 || port > 65535) {
+    return Promise.resolve({
+      reachable: false,
+      latencyMs: '-',
+      error: 'Invalid target',
+      message: 'A PBX hostname and a port between 1 and 65535 are required.'
+    });
+  }
+
   if (cleanTransport === 'TCP') {
     return new Promise((resolve) => {
       const socket = new net.Socket();
@@ -441,10 +471,20 @@ export function probePbxLatency(
     });
   }
 
-  // UDP SIP OPTIONS packet
+  // UDP SIP OPTIONS. A sent packet is not a response: reachable only after a SIP reply.
   return new Promise((resolve) => {
     const client = dgram.createSocket('udp4');
-    let responded = false;
+    let settled = false;
+    let timer: NodeJS.Timeout | undefined;
+    const waitMs = Math.min(Math.max(timeoutMs, 500), 5000);
+
+    const finish = (result: { reachable: boolean; latencyMs: string; message: string; error?: string }) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      try { client.close(); } catch { /* socket may already be closed */ }
+      resolve(result);
+    };
 
     const sipPacket = `OPTIONS sip:${host}:${port} SIP/2.0\r\n` +
       `Via: SIP/2.0/UDP 127.0.0.1:5060;branch=z9hG4bK-${Date.now()}\r\n` +
@@ -456,41 +496,41 @@ export function probePbxLatency(
       `User-Agent: CKM-Handler-Probe/1.4.0\r\n` +
       `Content-Length: 0\r\n\r\n`;
 
-    const timer = setTimeout(() => {
-      if (!responded) {
-        responded = true;
-        try { client.close(); } catch {}
-        const latency = (performance.now() - t0).toFixed(1);
-        resolve({
-          reachable: true,
-          latencyMs: latency,
-          message: `SIP OPTIONS packet dispatched to ${host}:${port} (UDP round-trip: ${latency}ms)`
-        });
-      }
-    }, 1500);
+    timer = setTimeout(() => {
+      finish({
+        reachable: false,
+        latencyMs: '-',
+        error: 'No SIP response',
+        message: `No SIP response from ${host}:${port} within ${waitMs}ms. The packet was sent, but the PBX did not answer.`
+      });
+    }, waitMs);
 
-    client.send(Buffer.from(sipPacket), port, host, (err) => {
-      if (err && !responded) {
-        responded = true;
-        clearTimeout(timer);
-        try { client.close(); } catch {}
-        resolve({ reachable: false, latencyMs: '-', error: err.message, message: `UDP Socket Error: ${err.message}` });
-      }
+    client.on('error', (err) => {
+      finish({ reachable: false, latencyMs: '-', error: err.message, message: `Probe failed: ${err.message}` });
     });
 
-    client.on('message', () => {
-      if (!responded) {
-        responded = true;
-        clearTimeout(timer);
-        const latency = (performance.now() - t0).toFixed(1);
-        try { client.close(); } catch {}
-        resolve({
-          reachable: true,
-          latencyMs: latency,
-          message: `SIP 200 OK received from ${host}:${port} in ${latency}ms`
-        });
-      }
+    client.on('message', (msg) => {
+      const text = msg.toString('utf8');
+      if (!text.startsWith('SIP/2.0')) return;
+      const latency = (performance.now() - t0).toFixed(1);
+      const statusLine = text.split('\r\n', 1)[0] || 'SIP/2.0';
+      finish({
+        reachable: true,
+        latencyMs: latency,
+        message: `SIP response from ${host}:${port} in ${latency}ms (${statusLine}).`
+      });
     });
+
+    try {
+      client.send(Buffer.from(sipPacket), port, host, (err) => {
+        if (err) {
+          finish({ reachable: false, latencyMs: '-', error: err.message, message: `Probe failed: ${err.message}` });
+        }
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'UDP send failed';
+      finish({ reachable: false, latencyMs: '-', error: message, message: `Probe failed: ${message}` });
+    }
   });
 }
 
@@ -912,14 +952,21 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
       details: `${firmwareCount} firmware image package(s) cached internally`,
       badge: 'Ready'
     },
-    ...pbxInstances.map(p => ({
-      id: `pbx_${p.id}`,
-      name: `PBX: ${p.name}`,
-      status: p.last_ping_status === 'FAILED' ? 'degraded' : 'operational',
-      latency: p.last_ping_rtt ? `${p.last_ping_rtt}ms` : '< 1ms',
-      details: `Target: ${p.host}:${p.sip_port} (${p.sip_transport}) · ${p.extension_count || 0} extension(s) bound`,
-      badge: p.is_default ? 'Primary Core' : (p.is_active ? 'Cluster Node' : 'Inactive')
-    })),
+    ...pbxInstances.map(p => {
+      const answered = p.last_ping_status === 'CONNECTED';
+      const failed = p.last_ping_status === 'FAILED';
+      const role = p.is_default ? 'Primary core' : (p.is_active ? 'Cluster node' : 'Inactive');
+      return {
+        id: `pbx_${p.id}`,
+        name: `PBX: ${p.name}`,
+        status: answered ? 'operational' : (failed ? 'degraded' : 'unknown'),
+        latency: answered && p.last_ping_rtt && p.last_ping_rtt !== '-' ? `${p.last_ping_rtt} ms` : '—',
+        details: `Target: ${p.host}:${p.sip_port} (${p.sip_transport}) · ${p.extension_count || 0} extension(s) bound. ${
+          answered ? `Last probe ${p.last_ping_rtt} ms.` : (failed ? 'Last probe received no SIP response.' : 'Latency has not been measured.')
+        }`,
+        badge: failed ? 'Unreachable' : (answered ? role : 'Not probed')
+      };
+    }),
     {
       id: 'gdpr_daemon',
       name: 'Automated Retention Daemon',
@@ -989,26 +1036,31 @@ router.get('/api/admin/extensions', adminAuth, (req: Request, res: Response) => 
 
 router.post('/api/admin/extensions', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
   const { extension, username, password, displayName, email, pbx_id } = req.body;
-  if (!extension || !password) {
+  const cleanExt = String(extension || '').trim();
+  const cleanPass = String(password || '');
+  if (!cleanExt || !cleanPass.trim()) {
     return res.status(400).json({ ok: false, error: 'Extension and password are required.' });
   }
+  if (!EXTENSION_RE.test(cleanExt)) {
+    return res.status(400).json({ ok: false, error: 'Extension must be 2 to 10 digits.' });
+  }
 
-  const cleanExt = String(extension).trim();
   const cleanUser = String(username || cleanExt).trim();
   const cleanName = String(displayName || `Extension ${cleanExt}`).trim();
   const cleanEmail = String(email || '').trim();
-  const targetPbxId = String(pbx_id || 'default').trim();
+  const targetPbxId = String(pbx_id || 'default').trim() || 'default';
+  if (!validEmail(cleanEmail)) {
+    return res.status(400).json({ ok: false, error: 'Enter a valid email address, or leave it blank.' });
+  }
+  const existing = systemDb.prepare('SELECT extension FROM extensions WHERE extension = ?').get(cleanExt);
+  if (existing) {
+    return res.status(409).json({ ok: false, error: `Extension ${cleanExt} already exists. Edit it instead of creating it again.` });
+  }
 
   systemDb.prepare(`
     INSERT INTO extensions (extension, sip_username, sip_password, display_name, email, pbx_id)
     VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(extension) DO UPDATE SET
-      sip_username = excluded.sip_username,
-      sip_password = excluded.sip_password,
-      display_name = excluded.display_name,
-      email = excluded.email,
-      pbx_id = excluded.pbx_id
-  `).run(cleanExt, cleanUser, password, cleanName, cleanEmail, targetPbxId);
+  `).run(cleanExt, cleanUser, cleanPass, cleanName, cleanEmail, targetPbxId);
 
   broadcastDeviceLog('SOFTPHONE', 'INFO', `[Extension Managed] Extension ${cleanExt} (${cleanName}) configured`, {
     deviceIdentifier: `Ext ${cleanExt}`,
@@ -1019,9 +1071,18 @@ router.post('/api/admin/extensions', adminAuth, requirePermission('manage_extens
 });
 
 router.put('/api/admin/extensions/:ext/email', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
-  const ext = req.params.ext;
+  const ext = String(req.params.ext || '').trim();
   const email = String(req.body.email || '').trim();
-  systemDb.prepare('UPDATE extensions SET email = ? WHERE extension = ?').run(email, ext);
+  if (!EXTENSION_RE.test(ext)) {
+    return res.status(400).json({ ok: false, error: 'Extension must be 2 to 10 digits.' });
+  }
+  if (!validEmail(email)) {
+    return res.status(400).json({ ok: false, error: 'Enter a valid email address, or leave it blank.' });
+  }
+  const updated = systemDb.prepare('UPDATE extensions SET email = ? WHERE extension = ?').run(email, ext);
+  if (updated.changes === 0) {
+    return res.status(404).json({ ok: false, error: `Extension ${ext} was not found.` });
+  }
   try {
     vaultDb.prepare('UPDATE contacts SET email = ? WHERE extension = ?').run(email, ext);
   } catch {}
@@ -1033,12 +1094,18 @@ router.put('/api/admin/extensions/:ext/email', adminAuth, requirePermission('man
 });
 
 router.put('/api/admin/extensions/:ext/password', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
-  const ext = req.params.ext;
-  const password = String(req.body.password || '').trim();
-  if (!password) {
+  const ext = String(req.params.ext || '').trim();
+  const password = String(req.body.password || '');
+  if (!EXTENSION_RE.test(ext)) {
+    return res.status(400).json({ ok: false, error: 'Extension must be 2 to 10 digits.' });
+  }
+  if (!password.trim()) {
     return res.status(400).json({ ok: false, error: 'Password cannot be empty.' });
   }
-  systemDb.prepare('UPDATE extensions SET sip_password = ? WHERE extension = ?').run(password, ext);
+  const updated = systemDb.prepare('UPDATE extensions SET sip_password = ? WHERE extension = ?').run(password, ext);
+  if (updated.changes === 0) {
+    return res.status(404).json({ ok: false, error: `Extension ${ext} was not found.` });
+  }
   broadcastDeviceLog('SOFTPHONE', 'INFO', `[Extension Password Updated] Extension ${ext} SIP password/secret updated by administrator`, {
     deviceIdentifier: `Ext ${ext}`,
     ipAddress: req.ip
@@ -1057,6 +1124,9 @@ router.put('/api/admin/extensions/:ext', adminAuth, requirePermission('manage_ex
   const cleanUser = username !== undefined ? String(username).trim() : current.sip_username;
   const cleanPass = password !== undefined && String(password).trim().length > 0 ? String(password).trim() : current.sip_password;
   const cleanEmail = email !== undefined ? String(email).trim() : (current.email || '');
+  if (!validEmail(cleanEmail)) {
+    return res.status(400).json({ ok: false, error: 'Enter a valid email address, or leave it blank.' });
+  }
   const cleanPbx = pbx_id !== undefined ? String(pbx_id).trim() : (current.pbx_id || 'default');
 
   systemDb.prepare(`
@@ -1073,8 +1143,11 @@ router.put('/api/admin/extensions/:ext', adminAuth, requirePermission('manage_ex
 });
 
 router.delete('/api/admin/extensions/:ext', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
-  const ext = req.params.ext;
-  systemDb.prepare('DELETE FROM extensions WHERE extension = ?').run(ext);
+  const ext = String(req.params.ext || '').trim();
+  const removed = systemDb.prepare('DELETE FROM extensions WHERE extension = ?').run(ext);
+  if (removed.changes === 0) {
+    return res.status(404).json({ ok: false, error: `Extension ${ext} was not found.` });
+  }
   broadcastDeviceLog('SOFTPHONE', 'WARN', `[Extension Removed] Extension ${ext} deleted from directory`, {
     deviceIdentifier: `Ext ${ext}`,
     ipAddress: req.ip
@@ -1085,26 +1158,33 @@ router.delete('/api/admin/extensions/:ext', adminAuth, requirePermission('manage
 // 3. Generate 8-Digit Softphone PIN
 router.post('/api/admin/pins', adminAuth, requirePermission('manage_extensions'), (req: Request, res: Response) => {
   const { extension, expiryHours } = req.body;
-  if (!extension) {
-    return res.status(400).json({ ok: false, error: 'Extension is required to generate a PIN.' });
+  const cleanExt = String(extension || '').trim();
+  if (!EXTENSION_RE.test(cleanExt)) {
+    return res.status(400).json({ ok: false, error: 'Extension must be 2 to 10 digits.' });
+  }
+  const owned = systemDb.prepare('SELECT extension FROM extensions WHERE extension = ?').get(cleanExt);
+  if (!owned) {
+    return res.status(404).json({ ok: false, error: `Extension ${cleanExt} was not found.` });
+  }
+  const hours = parseExpiryHours(expiryHours);
+  if (hours === null) {
+    return res.status(400).json({ ok: false, error: 'PIN expiry must be between 1 and 8760 hours.' });
   }
 
   // Generate a random 8-digit PIN
   const pin = Math.floor(10000000 + Math.random() * 90000000).toString();
-  
-  const hours = parseInt(expiryHours || '72', 10);
   const expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
 
   // Invalidate previous unclaimed PINs for this extension
-  systemDb.prepare('DELETE FROM softphone_pins WHERE extension = ? AND claimed = 0').run(extension);
+  systemDb.prepare('DELETE FROM softphone_pins WHERE extension = ? AND claimed = 0').run(cleanExt);
 
   systemDb.prepare(`
     INSERT INTO softphone_pins (code, extension, expires_at)
     VALUES (?, ?, ?)
-  `).run(pin, extension, expiresAt);
+  `).run(pin, cleanExt, expiresAt);
 
-  broadcastDeviceLog('SOFTPHONE', 'SUCCESS', `[PIN Generated] 8-digit setup PIN [${pin}] issued for Ext ${extension}`, {
-    deviceIdentifier: `Ext ${extension}`,
+  broadcastDeviceLog('SOFTPHONE', 'SUCCESS', `[PIN Generated] 8-digit setup PIN [${pin}] issued for Ext ${cleanExt}`, {
+    deviceIdentifier: `Ext ${cleanExt}`,
     ipAddress: req.ip,
     metadata: { code: pin, expiresAt }
   });
@@ -1112,34 +1192,56 @@ router.post('/api/admin/pins', adminAuth, requirePermission('manage_extensions')
   return res.json({
     ok: true,
     code: pin,
-    extension,
+    extension: cleanExt,
     expiresAt,
-    message: `8-digit PIN ${pin} generated for extension ${extension}.`
+    message: `8-digit PIN ${pin} generated for extension ${cleanExt}.`
   });
 });
 
 // 3b. Quick Pull & Provision Extension
 router.post('/api/admin/extensions/quick-provision', adminAuth, requirePermission('manage_extensions'), async (req: Request, res: Response) => {
   const { extension, displayName, sipPassword, expiryHours, queryPbx, amiConfig } = req.body;
-  if (!extension) {
-    return res.status(400).json({ ok: false, error: 'Extension number is required.' });
+  const cleanExt = String(extension || '').trim();
+  if (!EXTENSION_RE.test(cleanExt)) {
+    return res.status(400).json({ ok: false, error: 'Extension must be 2 to 10 digits.' });
+  }
+  const hours = parseExpiryHours(expiryHours);
+  if (hours === null) {
+    return res.status(400).json({ ok: false, error: 'PIN expiry must be between 1 and 8760 hours.' });
+  }
+  if (sipPassword && !String(sipPassword).trim()) {
+    return res.status(400).json({ ok: false, error: 'SIP password cannot be blank. Leave it empty to generate one.' });
   }
 
-  const cleanExt = String(extension).trim();
   const serverCfg = (systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined) || defaultServerConfig;
 
-  // 1. Check if extension exists, or query PBX if requested
+  // 1. Check if extension exists, or query the configured PBX if requested
   let extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as ExtensionRow | undefined;
+  let pbxWarning = '';
 
   if (!extRecord && queryPbx) {
-    const ami: AmiConfig = {
-      host: amiConfig?.host || serverCfg.pbx_server,
-      port: parseInt(amiConfig?.port || '5038', 10),
-      username: amiConfig?.username || 'admin',
-      secret: amiConfig?.secret || 'amp111'
+    const effectiveType = (amiConfig?.type || serverCfg.pbx_type || 'yeastar_api') as PbxSyncConfig['type'];
+    const syncConfig: PbxSyncConfig = {
+      type: effectiveType,
+      host: amiConfig?.host || serverCfg.api_host || serverCfg.pbx_server,
+      port: parseInt(String(amiConfig?.port || serverCfg.api_port || (effectiveType === 'yeastar_api' ? 8260 : 5038)), 10),
+      username: amiConfig?.username || serverCfg.api_user || '',
+      secret: amiConfig?.secret || serverCfg.api_secret || '',
+      protocol: (amiConfig?.protocol || serverCfg.api_protocol) === 'http' ? 'http' : 'https',
+      apiPath: amiConfig?.apiPath || serverCfg.api_path || 'api/v2.0.0',
+      verifySsl: amiConfig?.verifySsl !== undefined ? Boolean(amiConfig.verifySsl) : Boolean(serverCfg.verify_ssl)
     };
-    await syncExtensionsFromAsterisk(ami);
+    const pulled = await syncExtensionsFromPbx(syncConfig);
     extRecord = systemDb.prepare('SELECT * FROM extensions WHERE extension = ?').get(cleanExt) as ExtensionRow | undefined;
+    if (!extRecord && !pulled.success) {
+      return res.status(502).json({
+        ok: false,
+        error: pulled.message || 'PBX query failed. Uncheck the PBX lookup to create the extension locally.'
+      });
+    }
+    if (!extRecord) {
+      pbxWarning = pulled.message || 'The PBX did not return this extension. A local extension was created.';
+    }
   }
 
   // 2. If still doesn't exist, register with provided or auto-generated SIP password
@@ -1172,7 +1274,6 @@ router.post('/api/admin/extensions/quick-provision', adminAuth, requirePermissio
 
   // 3. Issue fresh 8-digit PIN
   const pin = Math.floor(10000000 + Math.random() * 90000000).toString();
-  const hours = parseInt(expiryHours || '72', 10);
   const expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
 
   systemDb.prepare('DELETE FROM softphone_pins WHERE extension = ? AND claimed = 0').run(cleanExt);
@@ -1190,6 +1291,7 @@ router.post('/api/admin/extensions/quick-provision', adminAuth, requirePermissio
     displayName: extRecord.display_name,
     code: pin,
     expiresAt,
+    warning: pbxWarning || undefined,
     handlerUrl: serverCfg.data_handler_url,
     pbxServer: serverCfg.pbx_server,
     deepLink,
@@ -1446,14 +1548,26 @@ router.put('/api/admin/handsets/:mac/config', adminAuth, requirePermission('mana
 
 router.post('/api/admin/handsets', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
   const { macAddress, brand, model, extension, lineLabel, blfKeys, customConfig } = req.body;
-  if (!macAddress || !extension) {
-    return res.status(400).json({ ok: false, error: 'MAC address and extension are required.' });
-  }
-
-  // Normalize MAC: clean out colons and hyphens
-  const cleanMac = String(macAddress).toLowerCase().replace(/[^0-9a-f]/g, '');
-  if (cleanMac.length !== 12) {
+  const cleanExt = String(extension || '').trim();
+  const cleanMac = normalizeMac(macAddress);
+  if (!cleanMac) {
     return res.status(400).json({ ok: false, error: 'MAC address must be 12 hex digits (e.g. 001565A1B2C3).' });
+  }
+  if (!EXTENSION_RE.test(cleanExt)) {
+    return res.status(400).json({ ok: false, error: 'Extension must be 2 to 10 digits.' });
+  }
+  const cleanBrand = String(brand || '').trim().toLowerCase();
+  const cleanModel = String(model || '').trim();
+  if (!cleanBrand || !cleanModel) {
+    return res.status(400).json({ ok: false, error: 'Phone brand and model are required.' });
+  }
+  const ownedExt = systemDb.prepare('SELECT extension FROM extensions WHERE extension = ?').get(cleanExt);
+  if (!ownedExt) {
+    return res.status(400).json({ ok: false, error: `Extension ${cleanExt} does not exist. Create it before binding a handset.` });
+  }
+  const existingMac = systemDb.prepare('SELECT mac_address FROM physical_handsets WHERE mac_address = ?').get(cleanMac);
+  if (existingMac) {
+    return res.status(409).json({ ok: false, error: `MAC ${cleanMac.toUpperCase()} is already registered. Remove it before registering it again.` });
   }
 
   const blfJson = blfKeys ? JSON.stringify(blfKeys) : null;
@@ -1461,22 +1575,15 @@ router.post('/api/admin/handsets', adminAuth, requirePermission('manage_handsets
   systemDb.prepare(`
     INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, blf_keys_json, custom_config)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(mac_address) DO UPDATE SET
-      brand = excluded.brand,
-      model = excluded.model,
-      extension = excluded.extension,
-      line_label = excluded.line_label,
-      blf_keys_json = excluded.blf_keys_json,
-      custom_config = COALESCE(excluded.custom_config, physical_handsets.custom_config)
-  `).run(cleanMac, brand || 'yealink', model || '', extension, lineLabel || '', blfJson, customConfig || '');
+  `).run(cleanMac, cleanBrand, cleanModel, cleanExt, lineLabel || '', blfJson, customConfig || '');
 
-  broadcastDeviceLog('DESKPHONE', 'INFO', `[Fleet Registration] Handset MAC [${cleanMac.toUpperCase()}] registered to Ext ${extension} (${(brand || 'yealink').toUpperCase()} ${model || ''})`, {
+  broadcastDeviceLog('DESKPHONE', 'INFO', `[Fleet Registration] Handset MAC [${cleanMac.toUpperCase()}] registered to Ext ${cleanExt} (${cleanBrand.toUpperCase()} ${cleanModel})`, {
     deviceIdentifier: cleanMac.toUpperCase(),
     ipAddress: req.ip,
-    metadata: { extension, brand: brand || 'yealink', model: model || '' }
+    metadata: { extension: cleanExt, brand: cleanBrand, model: cleanModel }
   });
 
-  return res.json({ ok: true, message: `Handset MAC [${cleanMac}] bound to extension ${extension}.` });
+  return res.json({ ok: true, message: `Handset MAC [${cleanMac}] bound to extension ${cleanExt}.` });
 });
 
 router.delete('/api/admin/handsets/:mac', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
