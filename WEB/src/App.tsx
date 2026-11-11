@@ -64,7 +64,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('general');
   const [showDiagnostics, setShowDiagnostics] = useState(false);
-  const [footerNotice, setFooterNotice] = useState<string>('Connected to PBX signaling bridge.');
+  const [footerNotice, setFooterNotice] = useState<string>('Settings stay in this browser. This page does not place SIP calls.');
 
   const contacts = useMemo<Contact[]>(() => INITIAL_CONTACTS, []);
 
@@ -72,7 +72,7 @@ export default function App() {
   const handleCredentialsSubmit = useCallback((newSettings: SipSettings) => {
     saveSettings(newSettings);
     setStep('main');
-    setFooterNotice(`Registered extension ${newSettings.extension} to ${newSettings.sipServer}`);
+    setFooterNotice(`Saved extension ${newSettings.extension} for ${newSettings.sipServer}. This page does not register with the PBX.`);
   }, [saveSettings]);
 
   const handleSelectContactDestination = useCallback((number: string) => {
@@ -133,7 +133,7 @@ export default function App() {
                 size="sm"
                 dot
               >
-                {hasConfig ? 'Online' : 'Offline'}
+                {hasConfig ? 'Saved' : 'Setup'}
               </Badge>
               <button
                 type="button"
@@ -220,8 +220,7 @@ export default function App() {
           onToggleHold={toggleHold}
           onHangUp={hangUp}
           onTransfer={(target) => {
-            setFooterNotice(`Transferred call with ${activeCall.destination} to ${target}`);
-            hangUp();
+            setFooterNotice(`This page cannot transfer the call to ${target}.`);
           }}
         />
       )}

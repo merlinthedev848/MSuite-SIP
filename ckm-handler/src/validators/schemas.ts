@@ -40,9 +40,9 @@ export const AdminConfigInputSchema: SchemaValidator<{
     if (!pbxServer) {
       return { success: false, error: { errors: [{ message: 'PBX Server hostname/IP is required' }] } };
     }
-    const dataHandlerUrl = String(b.dataHandlerUrl || '').trim();
-    if (!dataHandlerUrl) {
-      return { success: false, error: { errors: [{ message: 'Data Handler URL is required' }] } };
+    const dataHandlerUrl = String(b.dataHandlerUrl || '').trim().replace(/\/$/, '');
+    if (!/^https?:\/\/[^\s]+$/i.test(dataHandlerUrl)) {
+      return { success: false, error: { errors: [{ message: 'Data Handler URL must be an http or https URL' }] } };
     }
     const pbxPort = Math.max(1, Math.min(65535, parseInt(String(b.pbxPort || '5060'), 10) || 5060));
     const rawTransport = String(b.pbxTransport || 'UDP').toUpperCase();

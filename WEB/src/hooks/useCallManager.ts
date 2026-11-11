@@ -9,7 +9,12 @@ export function useCallManager() {
   const [callHistory, setCallHistory] = useState<CallRecord[]>(() => {
     try {
       const cached = localStorage.getItem(HISTORY_STORAGE_KEY);
-      if (cached) return JSON.parse(cached);
+      if (!cached) return [];
+      const parsed = JSON.parse(cached);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((item): item is CallRecord =>
+        !!item && typeof item === 'object' && typeof item.destination === 'string' && typeof item.id === 'string'
+      );
     } catch (e) {
       console.error('Failed to parse cached call history:', e);
     }
@@ -17,6 +22,12 @@ export function useCallManager() {
   });
 
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const progressionRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+
+  const clearProgression = () => {
+    progressionRef.current.forEach(clearTimeout);
+    progressionRef.current = [];
+  };
 
   // Manage duration interval only while call is connected
   const isConnected = activeCall?.state === 'connected';
@@ -52,7 +63,7 @@ export function useCallManager() {
     const dest = (targetNumber || destination).trim();
     if (!dest) return;
 
-    // Simulate standard outbound call progression for web client
+    clearProgression();
     setActiveCall({
       destination: dest,
       state: 'dialing',
@@ -60,23 +71,18 @@ export function useCallManager() {
       muted: false
     });
 
-    // Ringing state after 800ms
-    const ringTimeout = setTimeout(() => {
-      setActiveCall(prev => (prev && prev.destination === dest ? { ...prev, state: 'ringing' } : prev));
-    }, 800);
-
-    // Connected state after 2000ms
-    const connectTimeout = setTimeout(() => {
-      setActiveCall(prev => (prev && prev.destination === dest ? { ...prev, state: 'connected' } : prev));
-    }, 2000);
-
-    return () => {
-      clearTimeout(ringTimeout);
-      clearTimeout(connectTimeout);
-    };
+    progressionRef.current = [
+      setTimeout(() => {
+        setActiveCall(prev => (prev && prev.destination === dest && prev.state === 'dialing' ? { ...prev, state: 'ringing' } : prev));
+      }, 800),
+      setTimeout(() => {
+        setActiveCall(prev => (prev && prev.destination === dest && (prev.state === 'dialing' || prev.state === 'ringing') ? { ...prev, state: 'connected' } : prev));
+      }, 2000)
+    ];
   }, [destination]);
 
   const hangUp = useCallback(() => {
+    clearProgression();
     if (!activeCall) return;
 
     if (callTimerRef.current) {

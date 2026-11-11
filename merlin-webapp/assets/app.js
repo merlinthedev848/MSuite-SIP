@@ -1261,7 +1261,9 @@
       localStorage.setItem('merlin_sip_password', pwd);
 
       try {
-        await postJson(api.settings, state.settings);
+        const payload = { ...state.settings };
+        delete payload.password;
+        await postJson(api.settings, payload);
         updateSetupGateState();
         setNotice('success', 'SIP connectivity details saved.');
         await connectSip();
@@ -1395,6 +1397,10 @@
           log('Inspecting IP hop path and router topology...');
           await delay(250);
           const c = checks.nat_hops;
+          if (c && c.measured === false) {
+            log(`  [SKIP] ${c.details}`);
+            return 'skip';
+          }
           if (c) {
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
@@ -1410,6 +1416,10 @@
           log('Testing NAT port mapping predictability and Full-Cone compliance...');
           await delay(300);
           const c = checks.port_randomness;
+          if (c && c.measured === false) {
+            log(`  [SKIP] ${c.details}`);
+            return 'skip';
+          }
           if (c) {
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
@@ -1425,6 +1435,10 @@
           log('Probing local router for SIP Application-Level Gateway (SIP ALG)...');
           await delay(350);
           const c = checks.sip_alg;
+          if (c && c.measured === false) {
+            log(`  [SKIP] ${c.details}`);
+            return 'skip';
+          }
           if (c) {
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
@@ -1440,6 +1454,10 @@
           log('Checking whether the diagnostics server measured an RTP stream...');
           await delay(400);
           const c = checks.rtp_quality;
+          if (c && c.measured === false) {
+            log(`  [SKIP] ${c.details}`);
+            return 'skip';
+          }
           if (c) {
             log(`  [${c.passed ? 'PASS' : 'WARN'}] ${c.details} (${c.latency_ms}ms)`);
             return c.passed;
@@ -1466,24 +1484,31 @@
     ];
 
     let passedCount = 0;
+    let measuredCount = 0;
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       log(`\n[Step ${step.num}/10] ${step.name}`);
       const ok = await step.run();
-      if (ok) passedCount++;
+      if (ok !== 'skip') {
+        measuredCount++;
+        if (ok) passedCount++;
+      }
       const pct = Math.round(((i + 1) / steps.length) * 100);
       if (els.diagProgressFill) els.diagProgressFill.style.width = pct + '%';
     }
 
-    const score = Math.round((passedCount / steps.length) * 100);
+    const score = measuredCount ? Math.round((passedCount / measuredCount) * 100) : 0;
+    const certified = measuredCount > 0 && passedCount === measuredCount;
     log('\n=================================================================');
-    log(`DIAGNOSTIC TEST COMPLETE: ${passedCount}/10 CHECKS PASSED (Score: ${score}/100)`);
-    log('PBX WebRTC environment is fully operational and certified.');
+    log(`DIAGNOSTIC TEST COMPLETE: ${passedCount}/${measuredCount} MEASURED CHECKS PASSED (Score: ${score}/100)`);
+    log(certified
+      ? 'Every measured check passed.'
+      : 'Unmeasured checks were skipped and are not a failure. The environment is not certified.');
     log('=================================================================');
 
     state.diagRunning = false;
     if (els.diagStatusText) els.diagStatusText.textContent = `Completed (${score}%)`;
-    setNotice('success', `Network Diagnostics completed: ${passedCount}/10 checks passed.`);
+    setNotice(certified ? 'success' : 'neutral', `Network Diagnostics completed: ${passedCount}/${measuredCount} measured checks passed.`);
   }
 
   function exportDiagnosticsReport() {
@@ -1866,7 +1891,9 @@
     }
 
     try {
-      await postJson(api.settings, state.settings);
+      const payload = { ...state.settings };
+      delete payload.password;
+      await postJson(api.settings, payload);
       els.settingsOverlay?.classList.add('hidden');
       updateSetupGateState();
       setNotice('success', 'Settings saved.');

@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../App';
 
@@ -18,12 +18,16 @@ describe('App component full workflow', () => {
     );
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders main application header, navigation tabs, and default dialer', () => {
     render(<App />);
 
     expect(screen.getByText('Merlin SIP')).toBeInTheDocument();
     expect(screen.getByText('Ext 101')).toBeInTheDocument();
-    expect(screen.getByText('Online')).toBeInTheDocument();
+    expect(screen.getByText('Saved')).toBeInTheDocument();
 
     expect(screen.getByRole('tab', { name: /phone/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /history/i })).toBeInTheDocument();
@@ -82,6 +86,21 @@ describe('App component full workflow', () => {
 
     // Overlay closed, back to dialer
     expect(screen.queryByRole('dialog', { name: /call with 100/i })).not.toBeInTheDocument();
+  });
+
+  it('does not revive a call after hangup', async () => {
+    vi.useFakeTimers();
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: /digit 1/i }));
+    fireEvent.click(screen.getByRole('button', { name: /start voice call/i }));
+    expect(screen.getByRole('dialog', { name: /call with 1/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /end call/i }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('opens and closes settings modal', async () => {

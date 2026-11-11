@@ -1920,6 +1920,16 @@ code, kbd, samp, pre {
 
 }
 
+.health-pill.idle {
+
+  background: #f8fafc;
+
+  color: #475569;
+
+  border: 1px solid #e2e8f0;
+
+}
+
 
 
 .health-log-btn {

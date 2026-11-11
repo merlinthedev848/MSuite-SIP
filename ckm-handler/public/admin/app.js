@@ -278,6 +278,16 @@
 
   };
 
+  window.jsAttr = function(str) {
+    return String(str ?? '')
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, '\\\'')
+      .replace(/\r/g, '')
+      .replace(/\n/g, ' ')
+      .replace(/</g, '\\u003c')
+      .replace(/>/g, '\\u003e');
+  };
+
 
 
   function applyUserPermissions() {
@@ -482,7 +492,15 @@
 
       }
 
-      return await res.json();
+      const json = await res.json().catch(() => null);
+      if (!json || typeof json !== 'object') {
+        return { ok: false, error: `Request failed (${res.status}).` };
+      }
+      if (!res.ok && json.ok !== false) {
+        json.ok = false;
+        json.error = json.error || `Request failed (${res.status}).`;
+      }
+      return json;
 
     } catch (e) {
 
@@ -871,6 +889,34 @@
 
   // --------------------------------------------------------------------------
 
+  function applySystemPulse(components) {
+    const title = document.getElementById('pulseTitle');
+    const sub = document.getElementById('pulseSubtitle');
+    const chip = document.getElementById('chipPbxHealth');
+    const list = components || [];
+    const failed = list.filter(c => c.status === 'degraded' || c.status === 'error' || c.status === 'offline');
+    const unknownPbx = list.filter(c => c.status === 'unknown' && String(c.id || '').startsWith('pbx_'));
+    if (title && sub) {
+      if (failed.length) {
+        title.textContent = 'Attention required';
+        sub.textContent = failed.map(c => c.name).join(' · ');
+      } else if (unknownPbx.length) {
+        title.textContent = 'Services online';
+        sub.textContent = 'PBX latency has not been measured. Provisioning, database, and firmware services are up.';
+      } else {
+        title.textContent = 'All measured services operational';
+        sub.textContent = 'Provisioning, database, and firmware services reported healthy.';
+      }
+    }
+    if (chip) {
+      const probed = list.find(c => String(c.id || '').startsWith('pbx_') && c.status === 'operational');
+      const down = list.find(c => String(c.id || '').startsWith('pbx_') && c.status === 'degraded');
+      if (probed) chip.textContent = `PBX: ${probed.latency}`;
+      else if (down) chip.textContent = 'PBX: unreachable';
+      else chip.textContent = 'PBX: not probed';
+    }
+  }
+
   async function loadOverview() {
 
     const data = await fetchJson('/api/admin/overview');
@@ -953,7 +999,9 @@
 
         const isOp = (c.status === 'operational');
 
-        const dotClass = isOp ? 'dot-op' : (c.status === 'degraded' ? 'dot-warn' : 'dot-err');
+        const isQuiet = c.status === 'unknown' || c.status === 'paused';
+
+        const dotClass = isOp ? 'dot-op' : ((isQuiet || c.status === 'degraded') ? 'dot-warn' : 'dot-err');
 
         const badgeLabel = c.badge || (isOp ? 'Active' : (c.status || 'Alert'));
 
@@ -961,23 +1009,23 @@
 
           <div class="health-row-item">
 
-            <span class="health-dot ${dotClass}" title="${c.status || 'operational'}"></span>
+            <span class="health-dot ${dotClass}" title="${escapeHtml(c.status || 'operational')}"></span>
 
             <div class="health-info">
 
-              <span class="health-name">${c.name}</span>
+              <span class="health-name">${escapeHtml(c.name)}</span>
 
-              <span class="health-meta">${c.details}</span>
+              <span class="health-meta">${escapeHtml(c.details)}</span>
 
             </div>
 
             <div class="health-meta-group">
 
-              <span class="health-latency">${c.latency}</span>
+              <span class="health-latency">${escapeHtml(c.latency)}</span>
 
-              <span class="health-pill ${isOp ? 'op' : 'warn'}">${badgeLabel}</span>
+              <span class="health-pill ${isOp ? 'op' : (isQuiet ? 'idle' : 'warn')}">${escapeHtml(badgeLabel)}</span>
 
-              <button class="health-log-btn" onclick="window.viewServiceLogs('${c.id}')" title="Filter live terminal to ${c.name} logs">
+              <button class="health-log-btn" onclick="window.viewServiceLogs('${jsAttr(c.id)}')" title="Filter live terminal to ${escapeHtml(c.name)} logs">
 
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
 
@@ -1002,6 +1050,8 @@
       badge.textContent = `${opCount} / ${total} Operational`;
 
       badge.className = opCount === total ? 'badge badge-primary' : 'badge badge-secondary';
+
+      applySystemPulse(data.components);
 
     }
 
@@ -1235,7 +1285,7 @@
 
         if (latEl) latEl.textContent = `${res.latencyMs} ms`;
 
-        if (details) details.textContent = `[SUCCESS] PBX responded in ${res.latencyMs}ms. SIP socket handshake verified over UDP.`;
+        if (details) details.textContent = res.message || `PBX responded in ${res.latencyMs} ms.`;
 
       } else {
 
@@ -1271,7 +1321,9 @@
 
       btn.disabled = false;
 
-      btn.textContent = 'Ping PBX Now';
+      btn.textContent = 'Probe Selected';
+
+      loadOverview();
 
     }
 
@@ -1346,20 +1398,20 @@
     const canManage = hasPerm('manage_extensions');
     tbody.innerHTML = pageItems.map(ext => `
       <tr>
-        <td><span class="ext-badge">${ext.extension}</span></td>
-        <td><span style="font-weight: 500; color: #0f172a;">${ext.display_name}</span></td>
-        <td><span class="badge badge-secondary" style="font-weight:500;" title="${ext.pbx_host || ''}:${ext.pbx_port || 5060}">${ext.pbx_name || 'Primary Core'}</span></td>
+        <td><span class="ext-badge">${escapeHtml(ext.extension)}</span></td>
+        <td><span style="font-weight: 500; color: #0f172a;">${escapeHtml(ext.display_name)}</span></td>
+        <td><span class="badge badge-secondary" style="font-weight:500;" title="${escapeHtml(ext.pbx_host || '')}:${escapeHtml(ext.pbx_port || 5060)}">${escapeHtml(ext.pbx_name || 'Primary Core')}</span></td>
         <td>
           <div style="display: flex; align-items: center; gap: 6px;">
-            ${ext.email ? `<span style="font-weight: 500; color: #0369a1; font-size: 12.5px;">${ext.email}</span>` : '<span class="text-muted" style="font-size: 11.5px; font-style: italic;">&mdash;</span>'}
-            ${canManage ? `<button class="btn btn-sm btn-secondary" style="padding: 1px 6px; font-size: 11px; height: 22px; line-height: 20px;" onclick="window.editExtensionEmail('${ext.extension}', '${(ext.email || '').replace(/'/g, "\\'")}')" title="Edit registered email">Edit</button>` : ''}
+            ${ext.email ? `<span style="font-weight: 500; color: #0369a1; font-size: 12.5px;">${escapeHtml(ext.email)}</span>` : '<span class="text-muted" style="font-size: 11.5px; font-style: italic;">&mdash;</span>'}
+            ${canManage ? `<button class="btn btn-sm btn-secondary" style="padding: 1px 6px; font-size: 11px; height: 22px; line-height: 20px;" onclick="window.editExtensionEmail('${jsAttr(ext.extension)}', '${jsAttr(ext.email || '')}')" title="Edit registered email">Edit</button>` : ''}
           </div>
         </td>
-        <td><span class="sip-username-badge">${ext.sip_username}</span></td>
+        <td><span class="sip-username-badge">${escapeHtml(ext.sip_username)}</span></td>
         <td>
           ${ext.active_pin ? `
-            <span class="pin-pill" onclick="window.copyToClipboard('${ext.active_pin}', 'PIN code copied!')" title="Click to copy active PIN">
-              ${ext.active_pin}
+            <span class="pin-pill" onclick="window.copyToClipboard('${jsAttr(ext.active_pin)}', 'PIN code copied!')" title="Click to copy active PIN">
+              ${escapeHtml(ext.active_pin)}
             </span>
           ` : '<span class="text-muted">&mdash;</span>'}
         </td>
@@ -1369,11 +1421,11 @@
         <td><span class="badge ${ext.is_active ? 'badge-primary' : 'badge-secondary'}">${ext.is_active ? 'Active' : 'Disabled'}</span></td>
         <td>
           <div class="table-actions-group">
-            <button class="btn btn-sm btn-secondary" onclick="window.viewDeviceLogs('Ext ${ext.extension}', 'softphone', { ext: '${ext.extension}', name: '${(ext.display_name || '').replace(/'/g, "\\'")}', sip: '${ext.sip_username}', ip: '${ext.last_ip || ''}' })" title="View device telemetry & logs">Logs</button>
+            <button class="btn btn-sm btn-secondary" onclick="window.viewDeviceLogs('Ext ${jsAttr(ext.extension)}', 'softphone', { ext: '${jsAttr(ext.extension)}', name: '${jsAttr(ext.display_name || '')}', sip: '${jsAttr(ext.sip_username)}', ip: '${jsAttr(ext.last_ip || '')}' })" title="View device telemetry & logs">Logs</button>
             ${canManage ? `
-              <button class="btn btn-sm btn-secondary" onclick="window.editExtensionPassword('${ext.extension}')" title="Edit Extension SIP Registration Password / Secret">Password</button>
-              <button class="btn btn-sm btn-secondary" onclick="generatePin('${ext.extension}')">Generate PIN</button>
-              <button class="btn btn-sm btn-ghost-danger" onclick="deleteExtension('${ext.extension}')">Delete</button>
+              <button class="btn btn-sm btn-secondary" onclick="window.editExtensionPassword('${jsAttr(ext.extension)}')" title="Edit Extension SIP Registration Password / Secret">Password</button>
+              <button class="btn btn-sm btn-secondary" onclick="generatePin('${jsAttr(ext.extension)}')">Generate PIN</button>
+              <button class="btn btn-sm btn-ghost-danger" onclick="deleteExtension('${jsAttr(ext.extension)}')">Delete</button>
             ` : '<span class="text-muted">Read Only</span>'}
           </div>
         </td>
@@ -1571,6 +1623,19 @@
     const pass = document.getElementById('addExtPass').value.trim();
     const email = document.getElementById('addExtEmail')?.value.trim() || '';
     const pbxId = document.getElementById('addExtPbx')?.value || 'default';
+
+    if (!/^\d{2,10}$/.test(ext)) {
+      window.showToast('Extension must be 2 to 10 digits.', 'error');
+      return;
+    }
+    if (!pass) {
+      window.showToast('SIP password is required.', 'error');
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      window.showToast('Enter a valid email address, or leave it blank.', 'error');
+      return;
+    }
 
     const res = await fetchJson('/api/admin/extensions', {
       method: 'POST',
@@ -1844,6 +1909,19 @@
 
     };
 
+    if (!/^\d{2,10}$/.test(payload.extension)) {
+      window.showToast('Extension must be 2 to 10 digits.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Provision Extension';
+      return;
+    }
+    if (!Number.isFinite(payload.expiryHours) || payload.expiryHours < 1 || payload.expiryHours > 8760) {
+      window.showToast('PIN expiry must be between 1 and 8760 hours.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Provision Extension';
+      return;
+    }
+
 
 
     const res = await fetchJson('/api/admin/extensions/quick-provision', {
@@ -1860,7 +1938,7 @@
 
     btn.disabled = false;
 
-    btn.textContent = 'Provision Now';
+    btn.textContent = 'Provision Extension';
 
 
 
@@ -1875,6 +1953,8 @@
       document.getElementById('qpResultDeepLink').value = res.deepLink;
 
       document.getElementById('qpResultCard').value = res.userWelcomeCard;
+
+      if (res.warning) window.showToast(res.warning, 'warning');
 
       loadExtensions();
 
@@ -3760,16 +3840,16 @@
       return `
         <tr>
           <td>
-            <span class="mac-badge">${h.mac_address.toUpperCase()}</span>
+            <span class="mac-badge">${escapeHtml(h.mac_address.toUpperCase())}</span>
             ${isCustom ? '<span class="tag badge-primary" style="margin-left:6px;font-size:10px;">Custom Profile</span>' : ''}
           </td>
-          <td><span style="font-weight: 600; color: #1e293b;">${displayBrand} ${displayModel}</span></td>
-          <td><span class="ext-badge">Ext ${h.extension}</span> ${h.display_name ? `<span style="margin-left: 4px; color: #475569;">(${h.display_name})</span>` : ''}</td>
-          <td>${h.line_label || 'Default'}</td>
-          <td>${h.last_provisioned_at ? new Date(h.last_provisioned_at).toLocaleString() : '<span class="text-muted">Never fetched</span>'}${h.ip_address ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">IP: <span class="subnet-badge" style="padding:1px 5px;font-size:11px;">${h.ip_address}</span></div>` : ''}</td>
+          <td><span style="font-weight: 600; color: #1e293b;">${escapeHtml(displayBrand)} ${escapeHtml(displayModel)}</span></td>
+          <td><span class="ext-badge">Ext ${escapeHtml(h.extension)}</span> ${h.display_name ? `<span style="margin-left: 4px; color: #475569;">(${escapeHtml(h.display_name)})</span>` : ''}</td>
+          <td>${escapeHtml(h.line_label || 'Default')}</td>
+          <td>${h.last_provisioned_at ? new Date(h.last_provisioned_at).toLocaleString() : '<span class="text-muted">Never fetched</span>'}${h.ip_address ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">IP: <span class="subnet-badge" style="padding:1px 5px;font-size:11px;">${escapeHtml(h.ip_address)}</span></div>` : ''}</td>
           <td>
             <div class="table-actions-group" style="justify-content: flex-end;">
-              <button class="btn btn-sm btn-secondary" onclick="window.viewDeviceLogs('${cleanMac}', 'handset', { mac: '${cleanMac.toUpperCase()}', brand: '${h.brand}', model: '${h.model || ''}', ext: '${h.extension}', ip: '${h.ip_address || ''}' })" title="Live Telemetry & Logs">Logs</button>
+              <button class="btn btn-sm btn-secondary" onclick="window.viewDeviceLogs('${jsAttr(cleanMac)}', 'handset', { mac: '${jsAttr(cleanMac.toUpperCase())}', brand: '${jsAttr(h.brand)}', model: '${jsAttr(h.model || '')}', ext: '${jsAttr(h.extension)}', ip: '${jsAttr(h.ip_address || '')}' })" title="Live Telemetry & Logs">Logs</button>
               <button class="btn btn-sm btn-secondary" onclick="editHandsetConfig('${cleanMac}')">Edit Config</button>
               <a class="btn btn-sm btn-secondary" href="${provUrl}" target="_blank" title="Test Fetch Profile">Test</a>
               ${canManage ? `
@@ -4085,7 +4165,19 @@
 
     const label = document.getElementById('addHandsetLabel').value.trim();
 
-
+    const cleanMac = mac.toLowerCase().replace(/[:.\-\s]/g, '');
+    if (!/^[0-9a-f:.\-\s]+$/i.test(mac) || !/^[0-9a-f]{12}$/.test(cleanMac)) {
+      window.showToast('MAC address must be 12 hex digits.', 'error');
+      return;
+    }
+    if (!ext) {
+      window.showToast('Select an extension before registering the handset.', 'error');
+      return;
+    }
+    if (!brand || !model) {
+      window.showToast('Phone brand and model are required.', 'error');
+      return;
+    }
 
     const res = await fetchJson('/api/admin/handsets', {
 
@@ -4155,11 +4247,11 @@
 
           <td>
 
-            <span style="font-weight: 500;">${r.site_name}</span>
+            <span style="font-weight: 500;">${escapeHtml(r.site_name)}</span>
 
             ${isCustom ? '<span class="tag badge-primary" style="margin-left:6px;font-size:10px;">Custom Script</span>' : ''}
 
-            ${r.last_fetched_at ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">Booted: ${new Date(r.last_fetched_at).toLocaleDateString()} ${r.last_ip ? `(${r.last_ip})` : ''}</div>` : ''}
+            ${r.last_fetched_at ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">Booted: ${new Date(r.last_fetched_at).toLocaleDateString()} ${r.last_ip ? `(${escapeHtml(r.last_ip)})` : ''}</div>` : ''}
 
           </td>
 
@@ -4174,7 +4266,7 @@
 
           <td>VLAN ${r.voice_vlan_id}</td>
 
-          <td><span class="subnet-badge">${r.voice_subnet}</span></td>
+          <td><span class="subnet-badge">${escapeHtml(r.voice_subnet)}</span></td>
 
           <td><span class="badge ${r.disable_sip_alg ? 'badge-primary' : 'badge-secondary'}">${r.disable_sip_alg ? 'Disabled' : 'Active'}</span></td>
 
@@ -4184,11 +4276,11 @@
 
             <div style="display: flex; gap: 4px; flex-wrap: wrap;">
 
-              <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${r.site_name.replace(/'/g, "\\'")}', 'router', { site: '${r.site_name.replace(/'/g, "\\'")}', brand: '${r.brand}', id: ${r.id} })" title="Live Telemetry & Logs">Logs</button>
+              <button class="btn btn-sm btn-outline" onclick="window.viewDeviceLogs('${jsAttr(r.site_name)}', 'router', { site: '${jsAttr(r.site_name)}', brand: '${jsAttr(r.brand)}', id: ${Number(r.id) || 0} })" title="Live Telemetry & Logs">Logs</button>
 
-              <button class="btn btn-sm btn-secondary" onclick="editRouterScript(${r.id})">Edit Script</button>
+              <button class="btn btn-sm btn-secondary" onclick="editRouterScript(${Number(r.id) || 0})">Edit Script</button>
 
-              <button class="btn btn-sm btn-secondary" onclick="downloadRouterScript(${r.id}, '${r.site_name.replace(/'/g, "\\'")}', '${r.brand}')">Download</button>
+              <button class="btn btn-sm btn-secondary" onclick="downloadRouterScript(${Number(r.id) || 0}, '${jsAttr(r.site_name)}', '${jsAttr(r.brand)}')">Download</button>
 
               <button class="btn btn-sm btn-secondary" onclick="copyRouterUrl(${r.id})">Boot URL</button>
 
@@ -8860,7 +8952,12 @@
     try {
       const res = await fetchJson('/api/admin/pbx/ping', { method: 'POST' });
       if (res && res.ok) {
-        window.showToast(`Probed ${res.instances?.length || 1} PBX cores successfully.`, 'success');
+        const cores = Array.isArray(res.instances) && res.instances.length ? res.instances : [res];
+        const answered = cores.filter(core => core.reachable).length;
+        window.showToast(
+          answered ? `${answered} of ${cores.length} PBX cores answered.` : `None of ${cores.length} PBX cores answered.`,
+          answered ? 'success' : 'warning'
+        );
         loadPbxInstances();
         loadOverview();
       } else {

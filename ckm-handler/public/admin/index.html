@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=1.5.1">
+  <link rel="stylesheet" href="style.css?v=1.5.3">
   <script>
     // Immediately populate live host domain across endpoints on DOM ready
     document.addEventListener('DOMContentLoaded', () => {
@@ -144,12 +144,12 @@
           <div class="pulse-left">
             <span class="pulse-radar-dot"></span>
             <div>
-              <div class="pulse-title">All Systems Operational</div>
-              <div class="pulse-subtitle">Zero-Touch Provisioning Active · PBX Core Synced · DHCP Option 66 Listening</div>
+              <div class="pulse-title" id="pulseTitle">Checking services</div>
+              <div class="pulse-subtitle" id="pulseSubtitle">Loading live provisioning status.</div>
             </div>
           </div>
           <div class="pulse-right">
-            <span class="pulse-chip" id="chipPbxHealth">PBX: < 1ms</span>
+            <span class="pulse-chip" id="chipPbxHealth">PBX: not probed</span>
             <span class="pulse-chip" id="chipAutoAdoptStatus">Auto-Adopt: Disabled</span>
             <span class="pulse-chip" id="chipAutoSyncStatus">Auto-Sync: Active (5m)</span>
             <button class="btn btn-sm btn-light" id="btnOpenEndpointsModal" type="button" title="View Public Client & Provisioning URLs" aria-label="View public client and provisioning URLs">Client Endpoints</button>
@@ -2350,6 +2350,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=1.5.2"></script>
+  <script src="app.js?v=1.5.3"></script>
 </body>
 </html>
