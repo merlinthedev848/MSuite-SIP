@@ -109,6 +109,8 @@ export interface PhysicalHandsetRow {
   line_label?: string | null;
   blf_keys_json?: string | null;
   custom_config?: string | null;
+  line_count?: number | null;
+  provision_log?: string | null;
   ip_address?: string | null;
   user_agent?: string | null;
   firmware_version?: string | null;

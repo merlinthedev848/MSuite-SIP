@@ -14,6 +14,7 @@ import { generateRouterConfig, RouterConfigParams } from '../templates/routerTem
 import { HANDSET_CATALOG, ROUTER_CATALOG, generateDefaultHandsetConfig } from '../templates/catalog';
 import { substituteTemplateVariables } from './hardwareProvision';
 import { HandsetAccountConfig } from '../templates/yealink';
+import { recordDeviceProvisionEvent, readDeviceProvisionLog, takeDiscoveredProvisionLog } from '../services/deviceProvisionLog';
 import { licenseState } from '../services/licenseGuard';
 import { syncExtensionsFromPbx, syncPbxInstance, PbxSyncConfig, updatePbxSyncSchedule } from '../services/pbxSyncService';
 import { AdminRequest, AdminRole, ServerConfigRow, PbxInstanceRow, AdminUserRow, AdminSessionRow, CountRow, TotalBytesRow, RouterRow, DiscoveredDeviceRow, GdprRetentionPolicyRow, PhysicalHandsetRow, HandsetWithExtensionRow, ExtensionRow, defaultServerConfig } from '../types/models';
@@ -1354,7 +1355,8 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
     // Handset
     const brandMeta = HANDSET_CATALOG.find(h => h.id === (brand || 'yealink').toLowerCase());
     const modelMeta = brandMeta?.models.find(m => m.id === model) || brandMeta?.models[0];
-    const conf = generateDefaultHandsetConfig(brand || 'yealink', {
+    const requestedLines = req.body?.lineCount;
+    const previewCfg: HandsetAccountConfig = {
       extension: extension || '101',
       username: extension || '101',
       password: 'StandardPassword123!',
@@ -1363,7 +1365,15 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
       sipPort: serverCfg.pbx_port,
       sipTransport: serverCfg.pbx_transport || 'UDP',
       dataHandlerUrl: serverCfg.data_handler_url || ''
-    }, model);
+    };
+    if (requestedLines !== undefined && requestedLines !== null && requestedLines !== '') {
+      const n = Number(requestedLines);
+      if (!Number.isInteger(n) || n < 1 || n > 16) {
+        return res.status(400).json({ ok: false, error: 'lineCount must be an integer from 1 to 16.' });
+      }
+      previewCfg.lineCount = n;
+    }
+    const conf = generateDefaultHandsetConfig(brand || 'yealink', previewCfg, model);
 
     const localFwPath = (brandMeta && modelMeta) ? findFirmwareFile(brandMeta.id, modelMeta.firmwareFilename, modelMeta.id) : null;
     return res.json({
@@ -1482,7 +1492,7 @@ router.get('/api/admin/handsets', adminAuth, (req: Request, res: Response) => {
 router.get('/api/admin/handsets/:mac/preview', adminAuth, (req: Request, res: Response) => {
   const cleanMac = req.params.mac.toLowerCase().replace(/[^0-9a-f]/g, '');
   const handset = systemDb.prepare(`
-    SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json, h.custom_config,
+    SELECT h.mac_address, h.brand, h.model, h.line_label, h.line_count, h.blf_keys_json, h.custom_config,
            e.extension, e.sip_username, e.sip_password, e.display_name, e.is_active
     FROM physical_handsets h
     JOIN extensions e ON h.extension = e.extension
@@ -1508,6 +1518,9 @@ router.get('/api/admin/handsets/:mac/preview', adminAuth, (req: Request, res: Re
     dataHandlerUrl: config.data_handler_url,
     blfKeys
   };
+  if (handset.line_count != null && Number.isInteger(Number(handset.line_count))) {
+    accountCfg.lineCount = Number(handset.line_count);
+  }
 
   const defaultContent = generateDefaultHandsetConfig(handset.brand, accountCfg, handset.model);
   const isCustomized = !!(handset.custom_config && handset.custom_config.trim().length > 0);
@@ -1528,6 +1541,26 @@ router.get('/api/admin/handsets/:mac/preview', adminAuth, (req: Request, res: Re
   });
 });
 
+router.get('/api/admin/handsets/:mac/log', adminAuth, (req: Request, res: Response) => {
+  const limit = parseInt(String(req.query.limit || '40'), 10);
+  const found = readDeviceProvisionLog(req.params.mac, Number.isFinite(limit) ? limit : 40);
+  if (!found) {
+    return res.status(404).json({ ok: false, error: 'No device record for that MAC.' });
+  }
+  const mac = req.params.mac.toUpperCase().replace(/[^0-9A-F]/g, '');
+  const logs = found.logs.map(event => ({
+    id: event.id,
+    timestamp: event.at,
+    category: 'DESKPHONE',
+    level: event.level,
+    kind: event.kind,
+    message: event.message,
+    deviceIdentifier: mac,
+    ipAddress: ''
+  }));
+  return res.json({ ok: true, mac, store: found.store, count: logs.length, logs });
+});
+
 router.put('/api/admin/handsets/:mac/config', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
   const cleanMac = req.params.mac.toLowerCase().replace(/[^0-9a-f]/g, '');
   const { customConfig } = req.body;
@@ -1538,6 +1571,13 @@ router.put('/api/admin/handsets/:mac/config', adminAuth, requirePermission('mana
     WHERE LOWER(REPLACE(mac_address, ':', '')) = ?
   `).run(customConfig || '', cleanMac);
 
+  recordDeviceProvisionEvent(cleanMac, {
+    level: 'INFO',
+    kind: 'profile',
+    message: customConfig && String(customConfig).trim()
+      ? 'Administrator saved a custom provisioning profile for this handset.'
+      : 'Administrator cleared the custom profile. The next fetch uses the generated template.'
+  });
   logActivity('HANDSET_CONFIG_UPDATED', `Custom provisioning profile updated for Handset [${cleanMac.toUpperCase()}]`, req.ip);
   broadcastDeviceLog('DESKPHONE', 'INFO', `[Profile Updated] Custom provisioning template saved for Handset [${cleanMac.toUpperCase()}]`, {
     deviceIdentifier: cleanMac.toUpperCase(),
@@ -1571,11 +1611,19 @@ router.post('/api/admin/handsets', adminAuth, requirePermission('manage_handsets
   }
 
   const blfJson = blfKeys ? JSON.stringify(blfKeys) : null;
+  let storedLineCount: number | null = null;
+  if (req.body.lineCount !== undefined && req.body.lineCount !== null && req.body.lineCount !== '') {
+    const n = Number(req.body.lineCount);
+    if (!Number.isInteger(n) || n < 1 || n > 16) {
+      return res.status(400).json({ ok: false, error: 'lineCount must be an integer from 1 to 16. Omit it to use two lines.' });
+    }
+    storedLineCount = n;
+  }
 
   systemDb.prepare(`
-    INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, blf_keys_json, custom_config)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(cleanMac, cleanBrand, cleanModel, cleanExt, lineLabel || '', blfJson, customConfig || '');
+    INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, line_count, blf_keys_json, custom_config, provision_log)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(cleanMac, cleanBrand, cleanModel, cleanExt, lineLabel || '', storedLineCount, blfJson, customConfig || '', takeDiscoveredProvisionLog(cleanMac));
 
   broadcastDeviceLog('DESKPHONE', 'INFO', `[Fleet Registration] Handset MAC [${cleanMac.toUpperCase()}] registered to Ext ${cleanExt} (${cleanBrand.toUpperCase()} ${cleanModel})`, {
     deviceIdentifier: cleanMac.toUpperCase(),
@@ -1949,9 +1997,14 @@ router.post('/api/admin/discovered-devices/:mac/adopt', adminAuth, requirePermis
   const label = lineLabel || extRec.display_name || `Ext ${extension}`;
 
   systemDb.prepare(`
-    INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, last_provisioned_at)
-    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `).run(mac, finalBrand, finalModel, extension, label);
+    INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, provision_log, last_provisioned_at)
+    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(mac, finalBrand, finalModel, extension, label, takeDiscoveredProvisionLog(mac));
+  recordDeviceProvisionEvent(mac, {
+    level: 'INFO',
+    kind: 'profile',
+    message: `Handset adopted onto Ext ${extension} (${finalBrand} ${finalModel}).`
+  });
 
   systemDb.prepare("UPDATE discovered_devices SET status = 'ADOPTED', last_seen_at = CURRENT_TIMESTAMP WHERE UPPER(REPLACE(mac_address, ':', '')) = ?").run(mac);
 
