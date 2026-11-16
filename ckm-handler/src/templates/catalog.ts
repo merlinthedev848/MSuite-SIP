@@ -419,73 +419,70 @@ export const ROUTER_CATALOG: DeviceBrandMeta[] = [
   }
 ];
 
+function applyFirmwareMarker(conf: string, block: string): string {
+  if (conf.includes('<!-- profile-firmware -->')) {
+    return conf.replace('<!-- profile-firmware -->', block);
+  }
+  return block ? `${conf}\n${block}` : conf;
+}
+
 export function generateDefaultHandsetConfig(brand: string, cfg: HandsetAccountConfig, modelId?: string): string {
   const b = (brand || '').toLowerCase();
   
   // Find model metadata if provided
   const brandMeta = HANDSET_CATALOG.find(x => x.id === b);
   const modelMeta = brandMeta?.models.find(m => m.id === modelId) || brandMeta?.models[0];
+  const firmwareName = modelMeta?.firmwareFilename || '';
+  const firmwareNote = modelMeta
+    ? `Model firmware target: ${modelMeta.name} (${modelMeta.firmwareVersion})`
+    : '';
 
   if (b === 'snom') {
-    let conf = generateSnomConfig(cfg);
-    if (modelMeta?.firmwareFilename) {
-      conf = conf.replace(
-        '</phone-settings>',
-        `    <!-- Model Firmware Target: ${modelMeta.name} (${modelMeta.firmwareVersion}) -->\n    <firmware_version perm="R">${modelMeta.firmwareVersion}</firmware_version>\n  </phone-settings>`
-      );
-    }
-    return conf;
+    const block = firmwareName
+      ? `    <!-- ${firmwareNote} -->\n    <firmware_version perm="R">${modelMeta?.firmwareVersion || ''}</firmware_version>`
+      : '';
+    return applyFirmwareMarker(generateSnomConfig(cfg), block);
   }
   if (b === 'grandstream') {
-    let conf = generateGrandstreamConfig(cfg);
-    if (modelMeta?.firmwareFilename) {
-      conf = conf.replace(
-        '</config>',
-        `  <!-- Model Firmware Target: ${modelMeta.name} (${modelMeta.firmwareVersion}) -->\n  <P192>${cfg.dataHandlerUrl}/firmware/grandstream/${modelMeta.firmwareFilename}</P192>\n</config>`
-      );
-    }
-    return conf;
+    const block = firmwareName
+      ? `  <!-- ${firmwareNote} -->\n  <P192>${cfg.dataHandlerUrl}/firmware/grandstream/${firmwareName}</P192>`
+      : '';
+    return applyFirmwareMarker(generateGrandstreamConfig(cfg), block);
   }
   if (b === 'poly' || b === 'polycom') {
     let conf = generatePolyConfig(cfg);
-    if (modelMeta?.firmwareFilename) {
+    if (firmwareName) {
       conf = conf.replace(
-        '/>',
-        `  device.prov.upgradeServer="${cfg.dataHandlerUrl}/firmware/poly/${modelMeta.firmwareFilename}"\n  />`
+        'prov.polling.period="86400"',
+        `prov.polling.period="86400"\n    device.prov.upgradeServer="${cfg.dataHandlerUrl}/firmware/poly/${firmwareName}"`
       );
     }
     return conf;
   }
   if (b === 'fanvil') {
-    let conf = generateFanvilConfig(cfg);
-    if (modelMeta?.firmwareFilename) {
-      conf = conf.replace(
-        '</AUTO_UPDATE>',
-        `  <!-- Model Firmware Target: ${modelMeta.name} (${modelMeta.firmwareVersion}) -->\n      <Firmware_File_Name>${modelMeta.firmwareFilename}</Firmware_File_Name>\n    </AUTO_UPDATE>`
-      );
-    }
-    return conf;
+    const block = firmwareName
+      ? `      <!-- ${firmwareNote} -->\n      <Firmware_File_Name>${firmwareName}</Firmware_File_Name>`
+      : '';
+    return applyFirmwareMarker(generateFanvilConfig(cfg), block);
   }
   if (b === 'gigaset') {
-    let conf = generateGigasetConfig(cfg);
-    if (modelMeta?.firmwareFilename) {
-      conf = conf.replace(
-        '</part>',
-        `  <!-- Model Firmware Target: ${modelMeta.name} (${modelMeta.firmwareVersion}) -->\n    <param name="FirmwareFilename" value="${modelMeta.firmwareFilename}"/>\n  </part>`
-      );
-    }
-    return conf;
+    const block = firmwareName
+      ? `    <!-- ${firmwareNote} -->\n    <param name="FirmwareFilename" value="${firmwareName}"/>`
+      : '';
+    return applyFirmwareMarker(generateGigasetConfig(cfg), block);
   }
   if (b === 'cisco' || b === 'linksys') {
-    return generateCiscoPhoneConfig(cfg);
+    const block = firmwareName
+      ? `  <!-- ${firmwareNote} -->\n  <Upgrade_Rule>${cfg.dataHandlerUrl}/firmware/cisco/${firmwareName}</Upgrade_Rule>`
+      : '';
+    return applyFirmwareMarker(generateCiscoPhoneConfig(cfg), block);
   }
 
   // Default Yealink
-  let conf = generateYealinkConfig(cfg);
-  if (modelMeta?.firmwareFilename) {
-    conf += `\r\n## Specific Model Firmware Target: ${modelMeta.name} (${modelMeta.firmwareVersion})\r\n`;
-    conf += `firmware.url = ${cfg.dataHandlerUrl}/firmware/yealink/${modelMeta.firmwareFilename}\r\n`;
-  }
+  const yealinkBlock = firmwareName
+    ? `## ${firmwareNote}\r\nfirmware.url = ${cfg.dataHandlerUrl}/firmware/yealink/${firmwareName}`
+    : '';
+  let conf = applyFirmwareMarker(generateYealinkConfig(cfg), yealinkBlock);
 
   const mId = (modelId || '').toUpperCase();
   if (mId.startsWith('T7') || mId.startsWith('T8')) {
@@ -493,11 +490,6 @@ export function generateDefaultHandsetConfig(brand: string, cfg: HandsetAccountC
     conf += `features.noise_filter.enable = 1\r\n`;
     conf += `features.acoustic_shield.enable = 1\r\n`;
     conf += `features.acoustic_shield.mode = 1\r\n`;
-    conf += `network.qos.rtptos = 184\r\n`;
-    conf += `network.qos.signaltos = 104\r\n`;
-    conf += `network.vlan.internet_port_enable = 1\r\n`;
-    conf += `network.vlan.internet_port_vid = 20\r\n`;
-    conf += `network.vlan.internet_port_priority = 6\r\n`;
     conf += `security.tls.version = 1\r\n`;
     if (mId.includes('W') || mId.includes('88') || mId.includes('PRO')) {
       conf += `features.bluetooth.enable = 1\r\n`;

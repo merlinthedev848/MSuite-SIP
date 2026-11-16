@@ -837,6 +837,8 @@
 
     if (el) el.classList.add('hidden');
 
+    if (id === 'modalDeviceTelemetry' && typeof window.stopDeviceLogPoll === 'function') window.stopDeviceLogPoll();
+
   };
 
 
@@ -5985,7 +5987,23 @@
 
   let activeDeviceModalFilter = '';
 
+  let activeDeviceLogSource = 'shell';
+
+  let deviceLogPollTimer = null;
+
   let activeDeviceLogs = [];
+
+  window.stopDeviceLogPoll = function() {
+
+    if (deviceLogPollTimer) {
+
+      clearInterval(deviceLogPollTimer);
+
+      deviceLogPollTimer = null;
+
+    }
+
+  };
 
 
 
@@ -6061,7 +6079,7 @@
 
 
 
-    if (activeDeviceModalFilter && isDeviceModalOpen()) {
+    if (activeDeviceLogSource !== 'device-record' && activeDeviceModalFilter && isDeviceModalOpen()) {
 
       const matchMac = (event.deviceIdentifier || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -6421,7 +6439,7 @@
 
           <span class="shell-cat shell-cat-system">STREAM</span>
 
-          <span class="shell-lvl-INFO">No events recorded for this device yet. Listening for Option 66 requests, SIP registrations, or admin events...</span>
+          <span class="shell-lvl-INFO">${activeDeviceLogSource === 'device-record' ? 'No provision events stored on this handset yet. Fetches and errors for this MAC stay on this device.' : 'No events recorded for this device yet.'}</span>
 
         </div>
 
@@ -6577,6 +6595,70 @@
 
 
 
+    window.stopDeviceLogPoll();
+
+    const deviceMac = String(extraMeta.mac || identifier || '').toLowerCase().replace(/[^0-9a-f]/g, '');
+
+    activeDeviceLogSource = (type === 'handset' || type === 'discovered') && deviceMac.length === 12 ? 'device-record' : 'shell';
+
+    const status = document.getElementById('devTelemStatusText');
+
+    const subtitle = document.getElementById('devTelemSubtitle');
+
+
+
+    if (activeDeviceLogSource === 'device-record') {
+
+      const loadDeviceLog = async () => {
+
+        if (!isDeviceModalOpen() || activeDeviceLogSource !== 'device-record') return;
+
+        const data = await fetchJson(`/api/admin/handsets/${encodeURIComponent(deviceMac)}/log?limit=40`);
+
+        if (!data || !data.ok || !Array.isArray(data.logs)) return;
+
+        activeDeviceLogs = data.logs;
+
+        renderDeviceModalEvents();
+
+        if (status) status.textContent = `This handset only · ${data.store === 'discovered_devices' ? 'discovery record' : 'handset record'} · refreshed ${new Date().toLocaleTimeString()}`;
+
+      };
+
+      activeDeviceLogs = [];
+
+      if (subtitle) subtitle.textContent = 'Provision fetches and errors stored on this handset. Other phones are not included.';
+
+      if (status) status.textContent = 'Loading this handset’s log…';
+
+      renderDeviceModalEvents();
+
+      openModal('modalDeviceTelemetry');
+
+      try {
+
+        await loadDeviceLog();
+
+      } catch (err) {
+
+        console.warn('Could not fetch this handset log:', err);
+
+      }
+
+      deviceLogPollTimer = setInterval(() => {
+
+        loadDeviceLog().catch(() => {});
+
+      }, 5000);
+
+      return;
+
+    }
+
+
+
+    if (subtitle) subtitle.textContent = 'Streaming real-time provisioning events and diagnostic logs';
+
     activeDeviceLogs = shellLogs.filter(item => {
 
       const matchMac = (item.deviceIdentifier || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -6632,6 +6714,14 @@
 
 
   window.clearDeviceModalLogs = function() {
+
+    if (activeDeviceLogSource === 'device-record') {
+
+      window.showToast('This phone’s log stays on the handset and was not erased.', 'info');
+
+      return;
+
+    }
 
     activeDeviceLogs = [];
 

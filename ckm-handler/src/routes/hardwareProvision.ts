@@ -4,6 +4,19 @@
 // ==============================================================================
 export function substituteTemplateVariables(raw: string, config: Partial<ServerConfigRow> | null | undefined, accountCfg: Partial<HandsetAccountConfig>): string {
   if (!raw) return '';
+  const lines = resolveProfile({
+    extension: accountCfg?.extension || '',
+    username: accountCfg?.username || accountCfg?.extension || '',
+    password: accountCfg?.password || '',
+    displayName: accountCfg?.displayName || '',
+    sipServer: accountCfg?.sipServer || config?.pbx_server || '',
+    sipPort: accountCfg?.sipPort || config?.pbx_port || 5060,
+    sipTransport: accountCfg?.sipTransport || config?.pbx_transport || 'UDP',
+    dataHandlerUrl: accountCfg?.dataHandlerUrl || config?.data_handler_url || '',
+    lineCount: accountCfg?.lineCount,
+    lines: accountCfg?.lines
+  }).lines;
+  const second = lines[1];
   const domain = (config?.data_handler_url || '').trim().replace(/\/$/, '');
   const cleanDomainHost = domain.replace(/^https?:\/\//, '');
   const pbxAddress = (config?.pbx_server || '').trim();
@@ -27,7 +40,12 @@ export function substituteTemplateVariables(raw: string, config: Partial<ServerC
     .replace(/\{\$username\}/gi, accountCfg?.username || accountCfg?.extension || '')
     .replace(/\{\$password\}/gi, accountCfg?.password || '')
     .replace(/\{\$displayName\}/gi, accountCfg?.displayName || `Ext ${accountCfg?.extension || ''}`)
-    .replace(/\{\$lineLabel\}/gi, accountCfg?.displayName || `Ext ${accountCfg?.extension || ''}`);
+    .replace(/\{\$lineLabel\}/gi, accountCfg?.displayName || `Ext ${accountCfg?.extension || ''}`)
+    .replace(/\{\$lineCount\}/gi, String(resolveLineCount(accountCfg)))
+    .replace(/\{\$line2Extension\}/gi, second?.extension || accountCfg?.extension || '')
+    .replace(/\{\$line2Username\}/gi, second?.username || accountCfg?.username || accountCfg?.extension || '')
+    .replace(/\{\$line2Password\}/gi, second?.password || accountCfg?.password || '')
+    .replace(/\{\$line2Label\}/gi, second?.label || `${accountCfg?.displayName || `Ext ${accountCfg?.extension || ''}`} L2`);
 }
 
 import { Router, Request, Response } from 'express';
@@ -36,13 +54,10 @@ import { SERVER_DOMAIN } from '../config';
 import { directoryTokenForExtension } from './directory';
 import { ServerConfigRow, HandsetWithExtensionRow, RouterRow, ExtensionRow } from '../types/models';
 import { broadcastDeviceLog } from '../services/telemetryStream';
-import { generateYealinkConfig, HandsetAccountConfig } from '../templates/yealink';
-import { generateFanvilConfig } from '../templates/fanvil';
-import { generateGrandstreamConfig } from '../templates/grandstream';
-import { generatePolyConfig } from '../templates/poly';
-import { generateCiscoPhoneConfig } from '../templates/ciscoPhone';
-import { generateSnomConfig } from '../templates/snom';
-import { generateGigasetConfig } from '../templates/gigaset';
+import { generateYealinkCommonConfig, HandsetAccountConfig } from '../templates/yealink';
+import { resolveLineCount, resolveProfile } from '../templates/profile';
+import { generatePolyCommonConfig } from '../templates/poly';
+import { recordDeviceProvisionEvent, takeDiscoveredProvisionLog } from '../services/deviceProvisionLog';
 import { generateDefaultHandsetConfig } from '../templates/catalog';
 import { generateRouterConfig, RouterConfigParams } from '../templates/routerTemplates';
 
@@ -50,7 +65,7 @@ const router = Router();
 
 // Pre-compiled high-speed statements
 const getHandsetStmt = systemDb.prepare(`
-  SELECT h.mac_address, h.brand, h.model, h.line_label, h.blf_keys_json, h.custom_config,
+  SELECT h.mac_address, h.brand, h.model, h.line_label, h.line_count, h.blf_keys_json, h.custom_config,
          e.extension, e.sip_username, e.sip_password, e.display_name, e.is_active, e.pbx_id
   FROM physical_handsets h
   JOIN extensions e ON h.extension = e.extension
@@ -105,8 +120,8 @@ const findAvailableExtensionStmt = systemDb.prepare(`
 `);
 
 const autoAdoptHandsetStmt = systemDb.prepare(`
-  INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, last_provisioned_at)
-  VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, provision_log, last_provisioned_at)
+  VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 `);
 
 const markDeviceAdoptedStmt = systemDb.prepare(`
@@ -157,13 +172,17 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
   // 1. Check for vendor generic/common model bootstrap configs
   if (filename.startsWith('y0000000000') && filename.endsWith('.cfg')) {
     broadcastDeviceLog('DESKPHONE', 'INFO', `Yealink common bootstrap configuration fetched (${filename})`, { ipAddress: req.ip, userAgent: req.headers['user-agent'] as string });
+    const commonCfg = getServerConfigStmt.get() as ServerConfigRow | undefined;
+    const commonUrl = commonCfg?.data_handler_url || `https://${SERVER_DOMAIN}`;
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.send(`#!version:1.0.0.1\r\n# Common Yealink Configuration Template\r\n`);
+    return res.send(generateYealinkCommonConfig(commonUrl));
   }
   if (filename === '000000000000.cfg' || filename === '000000000000-phone.cfg') {
     broadcastDeviceLog('DESKPHONE', 'INFO', `Poly common bootstrap template fetched (${filename})`, { ipAddress: req.ip, userAgent: req.headers['user-agent'] as string });
+    const commonCfg = getServerConfigStmt.get() as ServerConfigRow | undefined;
+    const commonUrl = commonCfg?.data_handler_url || `https://${SERVER_DOMAIN}`;
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-    return res.send(`<?xml version="1.0" standalone="yes"?><PHONE_CONFIG><ALL/></PHONE_CONFIG>`);
+    return res.send(generatePolyCommonConfig(commonUrl));
   }
 
   // 2. Extract MAC address from filename
@@ -190,7 +209,14 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     if (serverCfg?.auto_adopt_enabled === 1) {
       const freeExt = findAvailableExtensionStmt.get() as ExtensionRow | undefined;
       if (freeExt) {
-        autoAdoptHandsetStmt.run(cleanMac.toUpperCase(), meta.brand, meta.model, freeExt.extension, freeExt.display_name || `Ext ${freeExt.extension}`);
+        autoAdoptHandsetStmt.run(
+          cleanMac.toUpperCase(),
+          meta.brand,
+          meta.model,
+          freeExt.extension,
+          freeExt.display_name || `Ext ${freeExt.extension}`,
+          takeDiscoveredProvisionLog(cleanMac)
+        );
         markDeviceAdoptedStmt.run(cleanMac.toUpperCase());
         logActivity('DEVICE_AUTO_ADOPTED', `Handset [${cleanMac.toUpperCase()}] (${meta.brand.toUpperCase()} ${meta.model}) auto-adopted to Ext ${freeExt.extension}`, req.ip);
         broadcastDeviceLog('DESKPHONE', 'SUCCESS', `[Zero-Touch Auto-Adopted] Handset [${cleanMac.toUpperCase()}] (${meta.brand.toUpperCase()} ${meta.model}) bound to Ext ${freeExt.extension}`, {
@@ -206,6 +232,11 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     if (!handset) {
       // Record unadopted device in discovery queue (Omada pending adoption state)
       recordDiscoveredDeviceStmt.run(cleanMac.toUpperCase(), meta.brand, meta.model, req.ip, (req.headers['user-agent'] as string) || 'Unknown');
+      recordDeviceProvisionEvent(cleanMac, {
+        level: 'WARN',
+        kind: 'error',
+        message: `Provision fetch before adoption (${meta.brand} ${meta.model}) from ${req.ip || 'unknown'}. No config served.`
+      });
       broadcastDeviceLog('DESKPHONE', 'WARN', `[Omada Auto-Discovery] Unadopted deskphone detected: ${meta.brand.toUpperCase()} ${meta.model} [${cleanMac.toUpperCase()}] from ${req.ip} (Pending Adoption)`, {
         deviceIdentifier: cleanMac.toUpperCase(),
         ipAddress: req.ip,
@@ -217,6 +248,11 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
   }
 
   if (handset.is_active !== 1) {
+    recordDeviceProvisionEvent(cleanMac, {
+      level: 'ERROR',
+      kind: 'error',
+      message: `Config fetch refused: extension ${handset.extension} is deactivated.`
+    }, [handset.sip_password]);
     broadcastDeviceLog('DESKPHONE', 'WARN', `Deskphone MAC [${cleanMac.toUpperCase()}] blocked: Extension ${handset.extension} is deactivated`, { deviceIdentifier: cleanMac.toUpperCase(), ipAddress: req.ip });
     return res.status(403).send('# Error: Assigned extension has been deactivated.');
   }
@@ -269,10 +305,21 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     directoryToken: directoryTokenForExtension(handset.extension),
     blfKeys
   };
+  if (handset.line_count != null && Number.isInteger(Number(handset.line_count))) {
+    accountCfg.lineCount = Number(handset.line_count);
+  }
+
+  const ua = String(req.headers['user-agent'] || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 80);
+  const from = req.ip || 'unknown';
 
   // 4. If user has customized their provisioning profile directly (FreePBX style), serve it with dynamic variable substitution!
   if (handset.custom_config && handset.custom_config.trim().length > 0) {
     const substituted = substituteTemplateVariables(handset.custom_config, config, accountCfg);
+    recordDeviceProvisionEvent(cleanMac, {
+      level: 'SUCCESS',
+      kind: 'fetch',
+      message: `Custom profile fetched for Ext ${handset.extension} from ${from}${ua ? ` (${ua})` : ''}. Line count is whatever that saved file sets.`
+    }, [handset.sip_password]);
     const isXml = substituted.trim().startsWith('<') || filename.endsWith('.xml');
     res.setHeader('Content-Type', `${isXml ? 'application/xml' : 'text/plain'}; charset=utf-8`);
     return res.send(substituted);
@@ -280,8 +327,24 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
 
   // 5. Otherwise generate standard manufacturer template and resolve variables
   const brand = (handset.brand || '').toLowerCase();
-  const rawContent = generateDefaultHandsetConfig(brand, accountCfg, handset.model);
+  let rawContent = '';
+  try {
+    rawContent = generateDefaultHandsetConfig(brand, accountCfg, handset.model);
+  } catch (err: unknown) {
+    const reason = err instanceof Error ? err.message : 'Config generation failed';
+    recordDeviceProvisionEvent(cleanMac, {
+      level: 'ERROR',
+      kind: 'error',
+      message: `Config generation failed for Ext ${handset.extension} (${brand} ${handset.model || ''}): ${reason}`
+    }, [handset.sip_password]);
+    return res.status(500).send('# Error: Provisioning profile could not be generated.');
+  }
   const content = substituteTemplateVariables(rawContent, config, accountCfg);
+  recordDeviceProvisionEvent(cleanMac, {
+    level: 'SUCCESS',
+    kind: 'provision',
+    message: `Template served for Ext ${handset.extension} (${brand || 'yealink'} ${handset.model || ''}), line_count=${resolveLineCount(accountCfg)}, from ${from}${ua ? ` (${ua})` : ''}.`
+  }, [handset.sip_password]);
   const isXml = content.trim().startsWith('<') || filename.endsWith('.xml');
 
   res.setHeader('Content-Type', `${isXml ? 'application/xml' : 'text/plain'}; charset=utf-8`);

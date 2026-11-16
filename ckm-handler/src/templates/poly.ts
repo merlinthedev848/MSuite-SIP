@@ -1,60 +1,95 @@
-import { HandsetAccountConfig } from './yealink';
+import { HandsetAccountConfig, escapeXml, phonebookQuery, resolveProfile, transportName } from './profile';
 
-export function generatePolyConfig(cfg: HandsetAccountConfig): string {
-  const transport = cfg.sipTransport.toUpperCase() === 'TLS' ? 'TLS' : cfg.sipTransport.toUpperCase() === 'TCP' ? 'TCPOnly' : 'UDPOnly';
+function polyTransport(transport: string): string {
+  const name = transportName(transport);
+  if (name === 'TLS') return 'TLS';
+  if (name === 'TCP') return 'TCPOnly';
+  return 'UDPOnly';
+}
 
-  let blfXml = '';
-  if (cfg.blfKeys && cfg.blfKeys.length > 0) {
-    blfXml = '\n' + cfg.blfKeys.map(k => `    attendant.resourceList.${k.key}.address="${k.extension}" attendant.resourceList.${k.key}.label="${k.label}" attendant.resourceList.${k.key}.type="normal"`).join('\n');
-  }
-
+export function generatePolyCommonConfig(dataHandlerUrl: string): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<!-- ============================================================================== -->
-<!-- CKM Handler Auto-Generated Poly / Polycom Provisioning Profile                 -->
-<!-- Handset Extension: ${cfg.extension} (${cfg.displayName})                       -->
-<!-- Generated at: ${new Date().toISOString()}                                      -->
-<!-- ============================================================================== -->
 <PHONE_CONFIG>
   <ALL
-    reg.1.address="${cfg.extension}"
-    reg.1.auth.userId="${cfg.username}"
-    reg.1.auth.password="${cfg.password}"
-    reg.1.displayName="${cfg.displayName}"
-    reg.1.label="${cfg.displayName}"
-    reg.1.type="private"
-    reg.1.lineKeys="1"
-    reg.1.server.1.address="${cfg.sipServer}"
-    reg.1.server.1.port="${cfg.sipPort}"
-    reg.1.server.1.transport="${transport}"
-    reg.1.server.1.expires="3600"
-    reg.1.server.1.register="1"
-    
-    nat.ip=""
-    nat.signalPort=""
-    nat.mediaPortStart=""
-    
+    tcpIpApp.sntp.address="pool.ntp.org"
+    tcpIpApp.sntp.gmtOffset="0"
+    tcpIpApp.sntp.daylightSavings.enable="1"
+    device.net.vlanId="20"
+    device.net.tagDetection="0"
+    dialplan.1.digitmap="999|112|911|[0-9*#+].T"
+    dialplan.1.digitmap.timeOut="8"
+    device.prov.serverType="HTTP"
+    device.prov.serverName="${escapeXml(dataHandlerUrl)}/provision"
+  />
+</PHONE_CONFIG>`;
+}
+
+export function generatePolyConfig(cfg: HandsetAccountConfig): string {
+  const profile = resolveProfile(cfg);
+  const transport = polyTransport(cfg.sipTransport);
+  const book = `${cfg.dataHandlerUrl}/phonebook/poly.xml?${phonebookQuery(cfg)}`;
+  const attrs: string[] = [];
+
+  for (const line of profile.lines) {
+    const n = line.index;
+    attrs.push(
+      `    reg.${n}.address="${escapeXml(line.extension)}"`,
+      `    reg.${n}.auth.userId="${escapeXml(line.username)}"`,
+      `    reg.${n}.auth.password="${escapeXml(line.password)}"`,
+      `    reg.${n}.displayName="${escapeXml(line.displayName)}"`,
+      `    reg.${n}.label="${escapeXml(line.label)}"`,
+      `    reg.${n}.type="private"`,
+      `    reg.${n}.lineKeys="1"`,
+      `    reg.${n}.server.1.address="${escapeXml(cfg.sipServer)}"`,
+      `    reg.${n}.server.1.port="${cfg.sipPort}"`,
+      `    reg.${n}.server.1.transport="${transport}"`,
+      `    reg.${n}.server.1.expires="${profile.registerExpires}"`,
+      `    reg.${n}.server.1.register="1"`,
+      `    reg.${n}.ringType="ringer${line.ringSlot}"`,
+      `    dialplan.${n}.digitmap="${escapeXml(profile.dialPlan)}"`,
+      `    dialplan.${n}.digitmap.timeOut="8"`,
+      `    lineKey.${n}.category="Line"`,
+      `    lineKey.${n}.index="${n}"`
+    );
+  }
+
+  for (const blf of profile.blfKeys) {
+    attrs.push(
+      `    attendant.resourceList.${blf.key}.address="${escapeXml(blf.extension)}"`,
+      `    attendant.resourceList.${blf.key}.label="${escapeXml(blf.label)}"`,
+      `    attendant.resourceList.${blf.key}.type="normal"`
+    );
+  }
+
+  const vlan = profile.vlanId > 0 ? profile.vlanId : 0;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- line_count = ${profile.lineCount} -->
+<PHONE_CONFIG>
+  <ALL
+${attrs.join('\n')}
     voice.codecPref.G711_Mu="1"
     voice.codecPref.G711_A="2"
     voice.codecPref.G722="3"
     voice.codecPref.Opus="4"
     voice.codecPref.G729_AB="5"
-    
-    qos.ip.rtp.dscp="46"
+    qos.ip.rtp.dscp="${profile.voiceDscp}"
     qos.ip.rtp.filter_enable="1"
-    qos.ip.sip.dscp="24"
-    
-    device.net.vlanId="20"
+    qos.ip.sip.dscp="${profile.sipDscp}"
+    device.net.vlanId="${vlan}"
     device.net.tagDetection="0"
-    
-    tcpIpApp.sntp.address="pool.ntp.org"
+    tcpIpApp.sntp.address="${escapeXml(profile.ntpServer)}"
     tcpIpApp.sntp.gmtOffset="0"
-    
-    dir.corp.address="${cfg.dataHandlerUrl}/phonebook/poly.xml"
-    dir.corp.port="443"
-    
+    tcpIpApp.sntp.daylightSavings.enable="1"
+    lcl.ml.lang="English_United_Kingdom"
+    dir.corp.address="${book}"
     device.prov.serverType="HTTP"
-    device.prov.serverName="${cfg.dataHandlerUrl}/provision"
-    device.prov.tagDetection="0"${blfXml}
+    device.prov.serverName="${escapeXml(cfg.dataHandlerUrl)}/provision"
+    device.prov.tagDetection="0"
+    prov.polling.enabled="1"
+    prov.polling.mode="rel"
+    prov.polling.period="86400"
+    voIpProt.server.1.retryTimeOut="${profile.registerRetry}"
+    voIpProt.SIP.specialEvent.checkSync.alwaysReboot="1"
   />
 </PHONE_CONFIG>`;
 }

@@ -1904,6 +1904,9 @@
           <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$username}')" title="SIP Authentication Username">{$username}</button>
           <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$password}')" title="SIP Authentication Password">{$password}</button>
           <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$displayName}')" title="Line Display / Caller ID Label">{$displayName}</button>
+          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$lineCount}')" title="Line count for this handset. Omitted profiles use two lines.">{$lineCount}</button>
+          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$line2Label}')" title="Label for the second line">{$line2Label}</button>
+          <button type="button" class="freepbx-var-chip" onclick="window.insertVariableIntoEditor('{$line2Extension}')" title="Extension registered on line 2">{$line2Extension}</button>
         </div>
 
         <textarea id="handsetConfigEditor" class="code-editor" style="height: 380px; font-family: monospace; font-size: 12.5px; line-height: 1.5;" spellcheck="false" placeholder="Loading configuration syntax..."></textarea>
