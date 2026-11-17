@@ -1,4 +1,5 @@
 import { HandsetAccountConfig, escapeXml, phonebookQuery, resolveProfile, transportName } from './profile';
+import { resolveVendorClock } from './site';
 
 function polyTransport(transport: string): string {
   const name = transportName(transport);
@@ -62,6 +63,7 @@ export function generatePolyConfig(cfg: HandsetAccountConfig): string {
   }
 
   const vlan = profile.vlanId > 0 ? profile.vlanId : 0;
+  const clock = resolveVendorClock(profile.timezone);
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!-- line_count = ${profile.lineCount} -->
 <PHONE_CONFIG>
@@ -78,7 +80,7 @@ ${attrs.join('\n')}
     device.net.vlanId="${vlan}"
     device.net.tagDetection="0"
     tcpIpApp.sntp.address="${escapeXml(profile.ntpServer)}"
-    tcpIpApp.sntp.gmtOffset="0"
+    tcpIpApp.sntp.gmtOffset="${clock.polyOffsetSeconds}"
     tcpIpApp.sntp.daylightSavings.enable="1"
     lcl.ml.lang="English_United_Kingdom"
     dir.corp.address="${book}"

@@ -22,6 +22,8 @@
     history: [],
     recordings: [],
     blfExtensions: [],
+    blfSubs: [],
+    attendedOriginal: null,
     license: { valid: false, customer: '', seats: 0, status: 'Unknown' },
     selectedContactId: null,
     userAgent: null,
@@ -342,7 +344,11 @@
       state.settings = settingsRes.settings || {};
       state.contacts = contactsRes.contacts || [];
       state.history = historyRes.history || [];
-      state.recordings = recordingsRes.recordings || [];
+      state.recordings = (recordingsRes.recordings || []).map(rec => ({
+        ...rec,
+        blobUrl: rec.url || ''
+      }));
+      seedBlfFromContacts();
       state.license = licenseRes.license || state.license;
 
       // Load secret SIP password from secure browser localStorage
@@ -509,6 +515,7 @@
 
       setPresence('available', 'Available');
       setNotice('success', 'Registered extension ' + extension + ' ready.');
+      subscribeBlf(true);
     } catch (err) {
       console.error('SIP connection failed:', err);
       setPresence('offline', 'Offline');
@@ -521,6 +528,7 @@
       try { await state.registerer.unregister(); } catch {}
       state.registerer = null;
     }
+    await stopBlfSubscriptions();
     if (state.userAgent) {
       try { await state.userAgent.stop(); } catch {}
       state.userAgent = null;
@@ -664,6 +672,15 @@
           if (els.inCallControls) els.inCallControls.classList.remove('hidden');
           if (els.dialButton) els.dialButton.classList.add('hidden');
           updateLineTabsUI();
+          if (state.attendedOriginal && session !== state.attendedOriginal && state.attendedOriginal.state !== SIP.SessionState.Terminated) {
+            const original = state.attendedOriginal;
+            state.attendedOriginal = null;
+            original.refer(session).then(() => {
+              setNotice('success', 'Attended transfer sent. Both lines clear when the PBX accepts it.');
+            }).catch(err => {
+              setNotice('error', 'Attended transfer failed: ' + (err.message || err));
+            });
+          }
           break;
 
         case SIP.SessionState.Terminated:
@@ -840,8 +857,19 @@
   }
 
   async function transferAssisted(target) {
-    setNotice('neutral', 'Initiating assisted transfer to ' + target + '...');
-    await toggleHold();
+    const original = state.activeSession;
+    if (!original) return;
+    state.attendedOriginal = original;
+    setNotice('neutral', 'Holding this call and dialling ' + target + ' to complete the transfer.');
+    try {
+      await original.invite({ sessionDescriptionHandlerOptions: { hold: true } });
+      state.held = true;
+    } catch (e) {
+      console.warn('Hold before attended transfer failed:', e);
+    }
+    state.activeLine = state.line1Session === original ? 2 : 1;
+    state.activeSession = state.activeLine === 2 ? state.line2Session : state.line1Session;
+    updateLineTabsUI();
     await dialNumber(target);
   }
 
@@ -969,8 +997,30 @@
     renderRecordings();
 
     try {
-      await postJson(api.recordings, { record: recEntry });
-    } catch (e) {}
+      const audioBase64 = await blobToBase64(blob);
+      const saved = await postJson(api.recordings, { record: { ...recEntry, audioBase64 } });
+      if (saved && saved.entry) {
+        const idx = state.recordings.findIndex(item => item.id === recEntry.id);
+        if (idx >= 0) {
+          state.recordings[idx] = { ...state.recordings[idx], ...saved.entry, blobUrl: saved.entry.url || blobUrl };
+          renderRecordings();
+        }
+      }
+    } catch (e) {
+      setNotice('warning', 'The recording plays in this tab. The server did not store the audio.');
+    }
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const value = String(reader.result || '');
+        resolve(value.includes(',') ? value.split(',')[1] : value);
+      };
+      reader.onerror = () => reject(reader.error || new Error('Could not read the recording.'));
+      reader.readAsDataURL(blob);
+    });
   }
 
   // =========================================================================
@@ -1070,8 +1120,54 @@
     }
   }
 
-  function mergeConference() {
-    setNotice('warn', 'This phone cannot join the two lines into a conference.');
+  function sessionRemoteAudio(session) {
+    const pc = session?.sessionDescriptionHandler?.peerConnection;
+    if (!pc) return null;
+    const stream = new MediaStream();
+    pc.getReceivers().forEach(receiver => {
+      if (receiver.track && receiver.track.kind === 'audio') stream.addTrack(receiver.track);
+    });
+    return stream.getAudioTracks().length ? stream : null;
+  }
+
+  async function mergeConference() {
+    const line1 = state.line1Session;
+    const line2 = state.line2Session;
+    if (!line1 || !line2) {
+      setNotice('warn', 'Both lines need a call before they can be joined.');
+      return;
+    }
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) {
+      setNotice('warn', 'This browser cannot mix the two lines.');
+      return;
+    }
+    if (!state.audioCtx) state.audioCtx = new AudioCtx();
+    if (state.audioCtx.state === 'suspended') {
+      try { await state.audioCtx.resume(); } catch (e) {}
+    }
+    const remote1 = sessionRemoteAudio(line1);
+    const remote2 = sessionRemoteAudio(line2);
+    const mixInto = (session, otherRemote) => {
+      const pc = session.sessionDescriptionHandler?.peerConnection;
+      const sender = pc?.getSenders().find(item => item.track && item.track.kind === 'audio');
+      if (!sender) return;
+      const dest = state.audioCtx.createMediaStreamDestination();
+      if (state.localStream) state.audioCtx.createMediaStreamSource(state.localStream).connect(dest);
+      if (otherRemote) state.audioCtx.createMediaStreamSource(otherRemote).connect(dest);
+      const mixed = dest.stream.getAudioTracks()[0];
+      if (mixed) sender.replaceTrack(mixed);
+    };
+    mixInto(line1, remote2);
+    mixInto(line2, remote1);
+    const heard = state.audioCtx.createMediaStreamDestination();
+    if (remote1) state.audioCtx.createMediaStreamSource(remote1).connect(heard);
+    if (remote2) state.audioCtx.createMediaStreamSource(remote2).connect(heard);
+    if (els.remoteAudio) {
+      els.remoteAudio.srcObject = heard.stream;
+      els.remoteAudio.play().catch(() => {});
+    }
+    setNotice('success', 'Both lines are mixed. Each party hears you and the other line.');
   }
 
   // =========================================================================
@@ -1082,7 +1178,7 @@
     if (!grid) return;
 
     if (state.blfExtensions.length === 0) {
-      grid.innerHTML = '<div class="empty-state"><span>No busy lamps yet. Lamps appear when the PBX reports an extension.</span></div>';
+      grid.innerHTML = '<div class="empty-state"><span>No extension lamps yet. Add short extension numbers on Contacts, then refresh. Lamps follow SIP dialog after this phone registers.</span></div>';
       return;
     }
 
@@ -1107,9 +1203,90 @@
     `).join('');
   }
 
-  function refreshBlfStatuses() {
+  function extensionLooksLocal(number) {
+    return /^\d{2,6}$/.test(cleanNumber(number));
+  }
+
+  function seedBlfFromContacts() {
+    const seen = new Set();
+    const rows = [];
+    for (const contact of state.contacts) {
+      const ext = cleanNumber(contact.number);
+      if (!extensionLooksLocal(ext) || seen.has(ext)) continue;
+      seen.add(ext);
+      const previous = state.blfExtensions.find(item => item.ext === ext);
+      rows.push({
+        ext,
+        name: contact.name || ('Ext ' + ext),
+        dept: contact.company || 'Directory',
+        status: previous ? previous.status : 'offline'
+      });
+    }
+    state.blfExtensions = rows;
     renderBlfGrid();
-    setNotice('warn', 'BLF presence is not polled from the PBX. Existing statuses were left unchanged.');
+  }
+
+  function lampFromDialog(body) {
+    const text = String(body || '').toLowerCase();
+    if (text.includes('early') || text.includes('proceeding') || text.includes('ringing')) return 'ringing';
+    if (text.includes('confirmed') || text.includes('<basic>closed</basic>')) return 'busy';
+    if (text.includes('terminated') || text.includes('<basic>open</basic>')) return 'online';
+    return '';
+  }
+
+  async function stopBlfSubscriptions() {
+    const subs = state.blfSubs || [];
+    state.blfSubs = [];
+    for (const sub of subs) {
+      try { await sub.unsubscribe(); } catch (e) {}
+    }
+  }
+
+  async function subscribeBlf(quiet) {
+    seedBlfFromContacts();
+    if (!state.userAgent || !state.settings.sipDomain) {
+      if (!quiet) setNotice('warn', 'Lamps show the directory. They light from SIP dialog after this phone registers.');
+      return;
+    }
+    if (!window.SIP || typeof SIP.Subscriber !== 'function') {
+      if (!quiet) setNotice('warn', 'This browser build cannot subscribe to dialog state.');
+      return;
+    }
+    await stopBlfSubscriptions();
+    let subscribed = 0;
+    for (const row of state.blfExtensions) {
+      const target = SIP.UserAgent.makeURI('sip:' + row.ext + '@' + state.settings.sipDomain);
+      if (!target) continue;
+      try {
+        const sub = new SIP.Subscriber(state.userAgent, target, 'dialog');
+        sub.delegate = {
+          onNotify(notification) {
+            const status = lampFromDialog(notification.request?.body);
+            try { notification.accept(); } catch (e) {}
+            if (!status) return;
+            const lamp = state.blfExtensions.find(item => item.ext === row.ext);
+            if (lamp && lamp.status !== status) {
+              lamp.status = status;
+              renderBlfGrid();
+            }
+          }
+        };
+        await sub.subscribe();
+        state.blfSubs.push(sub);
+        subscribed += 1;
+      } catch (e) {
+        console.warn('BLF subscribe failed for ' + row.ext, e);
+      }
+    }
+    if (!quiet) {
+      setNotice(subscribed ? 'success' : 'warn', subscribed
+        ? 'Watching ' + subscribed + ' extension lamp' + (subscribed === 1 ? '' : 's') + '.'
+        : 'No extension lamps to watch. Add short extension numbers on the Contacts tab.');
+    }
+  }
+
+  function refreshBlfStatuses() {
+    subscribeBlf(false);
   }
 
   // =========================================================================
@@ -2015,10 +2192,12 @@
       dialNumber(num);
     },
     deleteRecording: (idx) => {
-      if (confirm('Delete this recording?')) {
-        state.recordings.splice(idx, 1);
-        renderRecordings();
-        postJson(api.recordings, { recordings: state.recordings }).catch(() => {});
+      if (!confirm('Delete this recording?')) return;
+      const rec = state.recordings[idx];
+      state.recordings.splice(idx, 1);
+      renderRecordings();
+      if (rec && rec.id) {
+        postJson(api.recordings, { deleteId: rec.id }).catch(() => {});
       }
     }
   };

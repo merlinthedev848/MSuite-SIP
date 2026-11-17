@@ -913,9 +913,20 @@
     if (chip) {
       const probed = list.find(c => String(c.id || '').startsWith('pbx_') && c.status === 'operational');
       const down = list.find(c => String(c.id || '').startsWith('pbx_') && c.status === 'degraded');
-      if (probed) chip.textContent = `PBX: ${probed.latency}`;
-      else if (down) chip.textContent = 'PBX: unreachable';
-      else chip.textContent = 'PBX: not probed';
+      const footerText = document.getElementById('sidebarHealthText');
+      const footerDot = document.getElementById('sidebarHealthDot');
+      let label = 'PBX: not probed';
+      let dot = '';
+      if (probed) {
+        label = `PBX: ${probed.latency}`;
+        dot = 'green';
+      } else if (down) {
+        label = 'PBX: unreachable';
+        dot = 'red';
+      }
+      chip.textContent = label;
+      if (footerText) footerText.textContent = label;
+      if (footerDot) footerDot.className = `status-dot${dot ? ' ' + dot : ''}`;
     }
   }
 
@@ -2728,9 +2739,7 @@
 
     try {
 
-      const res = await fetch('/api/admin/catalogs');
-
-      const data = await res.json();
+      const data = await fetchJson('/api/admin/catalogs');
 
       if (data && data.ok) {
 
@@ -3124,7 +3133,13 @@
 
       if (fwFile) fwFile.textContent = modelMeta.firmwareFilename || 'standard.rom';
 
-      if (fwNotes) fwNotes.textContent = modelMeta.firmwareNotes ? `(${modelMeta.firmwareNotes})` : '';
+      if (fwNotes) {
+        const uploadOnly = !modelMeta.directDownloadUrl;
+        const note = modelMeta.firmwareNotes || '';
+        fwNotes.textContent = uploadOnly
+          ? `(${note ? note + '. ' : ''}Upload only. No direct firmware file in this catalog.)`
+          : (note ? `(${note})` : '');
+      }
 
       if (fwLink) {
 
@@ -3144,7 +3159,7 @@
 
     try {
 
-      const res = await fetch('/api/admin/catalogs/preview', {
+      const data = await fetchJson('/api/admin/catalogs/preview', {
 
         method: 'POST',
 
@@ -3153,8 +3168,6 @@
         body: JSON.stringify({ type: 'handset', brand, model: targetModelId, extension: ext, displayName: label })
 
       });
-
-      const data = await res.json();
 
       if (data && data.ok) {
 
@@ -3230,7 +3243,7 @@
 
     try {
 
-      const res = await fetch('/api/admin/catalogs/preview', {
+      const data = await fetchJson('/api/admin/catalogs/preview', {
 
         method: 'POST',
 
@@ -3239,8 +3252,6 @@
         body: JSON.stringify({ type: 'router', brand, model: targetModelId, vlan, subnet, alg, qos })
 
       });
-
-      const data = await res.json();
 
       if (data && data.ok) {
 
@@ -3852,6 +3863,7 @@
           <td>
             <div class="table-actions-group" style="justify-content: flex-end;">
               <button class="btn btn-sm btn-secondary" onclick="window.viewDeviceLogs('${jsAttr(cleanMac)}', 'handset', { mac: '${jsAttr(cleanMac.toUpperCase())}', brand: '${jsAttr(h.brand)}', model: '${jsAttr(h.model || '')}', ext: '${jsAttr(h.extension)}', ip: '${jsAttr(h.ip_address || '')}' })" title="Live Telemetry & Logs">Logs</button>
+              <button class="btn btn-sm btn-secondary" onclick="window.editHandsetBlf('${cleanMac}')">BLF</button>
               <button class="btn btn-sm btn-secondary" onclick="editHandsetConfig('${cleanMac}')">Edit Config</button>
               <a class="btn btn-sm btn-secondary" href="${provUrl}" target="_blank" title="Test Fetch Profile">Test</a>
               ${canManage ? `
@@ -4103,9 +4115,92 @@
 
 
 
+  function blfRowHtml(key) {
+    const ext = key && key.extension ? String(key.extension) : '';
+    const label = key && key.label ? String(key.label) : '';
+    const index = key && key.key ? String(key.key) : '';
+    return `<div class="blf-key-row" style="display:grid;grid-template-columns:72px 1fr 1fr auto;gap:8px;margin-bottom:8px;">
+      <input data-blf-index type="number" min="1" max="60" placeholder="#" value="${escapeHtml(index)}" title="Key index">
+      <input data-blf-ext type="text" inputmode="numeric" placeholder="Extension" value="${escapeHtml(ext)}">
+      <input data-blf-label type="text" placeholder="Label" value="${escapeHtml(label)}">
+      <button type="button" class="btn btn-sm btn-ghost-danger" data-blf-remove>Remove</button>
+    </div>`;
+  }
+
+  function renderBlfEditor(containerId, keys) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const list = Array.isArray(keys) ? keys : [];
+    el.innerHTML = list.map(blfRowHtml).join('');
+    el.querySelectorAll('[data-blf-remove]').forEach(btn => {
+      btn.addEventListener('click', () => btn.closest('.blf-key-row')?.remove());
+    });
+  }
+
+  function readBlfEditor(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return [];
+    const keys = [];
+    el.querySelectorAll('.blf-key-row').forEach((row, i) => {
+      const extension = row.querySelector('[data-blf-ext]')?.value.trim() || '';
+      const label = row.querySelector('[data-blf-label]')?.value.trim() || '';
+      const key = parseInt(row.querySelector('[data-blf-index]')?.value, 10);
+      if (!extension) return;
+      keys.push({ key: Number.isInteger(key) && key > 0 ? key : i + 1, extension, label });
+    });
+    return keys;
+  }
+
+  function bindBlfAdd(buttonId, containerId) {
+    document.getElementById(buttonId)?.addEventListener('click', () => {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      const count = el.querySelectorAll('.blf-key-row').length;
+      const wrap = document.createElement('div');
+      wrap.innerHTML = blfRowHtml({ key: count + 1 });
+      const row = wrap.firstElementChild;
+      row.querySelector('[data-blf-remove]')?.addEventListener('click', () => row.remove());
+      el.appendChild(row);
+    });
+  }
+
+  bindBlfAdd('btnAddHandsetBlf', 'addHandsetBlf');
+  bindBlfAdd('btnAddAdoptBlf', 'adoptHandsetBlf');
+  bindBlfAdd('btnAddEditBlf', 'editHandsetBlf');
+
+  let editingBlfMac = '';
+  window.editHandsetBlf = (mac) => {
+    editingBlfMac = mac;
+    const handset = (cachedHandsets || []).find(h => String(h.mac_address || '').toLowerCase().replace(/[^0-9a-f]/g, '') === mac);
+    let keys = [];
+    try { keys = JSON.parse(handset?.blf_keys_json || '[]'); } catch {}
+    const title = document.getElementById('handsetBlfTitle');
+    if (title) title.textContent = `Busy lamp keys · ${String(mac).toUpperCase()}`;
+    renderBlfEditor('editHandsetBlf', Array.isArray(keys) ? keys : []);
+    openModal('modalHandsetBlf');
+  };
+
+  document.getElementById('btnSaveHandsetBlf')?.addEventListener('click', async () => {
+    if (!editingBlfMac) return;
+    const blfKeys = readBlfEditor('editHandsetBlf');
+    const res = await fetchJson(`/api/admin/handsets/${editingBlfMac}/blf`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blfKeys })
+    });
+    if (res && res.ok) {
+      window.showToast(res.message || 'Busy lamp keys saved.', 'success');
+      closeModal('modalHandsetBlf');
+      loadHandsets();
+    } else if (res) {
+      window.showToast(res.error || 'Could not save busy lamp keys.', 'error');
+    }
+  });
+
   document.getElementById('btnOpenAddHandsetModal')?.addEventListener('click', async () => {
 
     document.getElementById('formAddHandset')?.reset();
+    renderBlfEditor('addHandsetBlf', []);
 
     updateHandsetModelsDropdown();
 
@@ -4187,7 +4282,7 @@
 
       headers: { 'Content-Type': 'application/json' },
 
-      body: JSON.stringify({ macAddress: mac, brand, model, extension: ext, lineLabel: label })
+      body: JSON.stringify({ macAddress: mac, brand, model, extension: ext, lineLabel: label, blfKeys: readBlfEditor('addHandsetBlf') })
 
     });
 
@@ -7796,6 +7891,7 @@
     document.getElementById('adoptDisplayModel').value = model || 'T46U';
 
     document.getElementById('adoptLineLabel').value = '';
+    renderBlfEditor('adoptHandsetBlf', []);
 
 
 
@@ -7877,7 +7973,7 @@
 
       method: 'POST',
 
-      body: JSON.stringify({ extension, brand, model, lineLabel })
+      body: JSON.stringify({ extension, brand, model, lineLabel, blfKeys: readBlfEditor('adoptHandsetBlf') })
 
     });
 
@@ -8880,6 +8976,10 @@
         document.getElementById('pbxInstAutoSync').checked = inst.auto_sync_enabled !== 0;
         document.getElementById('pbxInstInterval').value = inst.auto_sync_interval_mins || 5;
         document.getElementById('pbxInstIsDefault').checked = !!inst.is_default;
+        const tz = document.getElementById('pbxInstTimezone');
+        if (tz) tz.value = inst.timezone || 'Europe/London';
+        const dial = document.getElementById('pbxInstDialPlan');
+        if (dial) dial.value = inst.dial_plan || '999|112|911|[0-9*#+].T';
       }
     } else {
       document.getElementById('modalPbxTitle').textContent = '+ Connect New PBX Core';
@@ -8892,6 +8992,10 @@
       document.getElementById('pbxInstAutoSync').checked = true;
       document.getElementById('pbxInstInterval').value = '5';
       document.getElementById('pbxInstIsDefault').checked = false;
+      const tz = document.getElementById('pbxInstTimezone');
+      if (tz) tz.value = 'Europe/London';
+      const dial = document.getElementById('pbxInstDialPlan');
+      if (dial) dial.value = '999|112|911|[0-9*#+].T';
     }
 
     openModal('modalPbxInstance');
@@ -8967,8 +9071,10 @@
     const payload = {
       name, host, sip_port: port, sip_transport: transport, pbx_type: type,
       api_host: apiHost, api_port: apiPort, api_protocol: apiProto, api_path: apiPath,
-      api_user: apiUser, verify_ssl: verifySsl, auto_sync_enabled: autoSync,
-      auto_sync_interval_mins: interval, is_default: isDef
+      api_user: apiUser, verify_ssl: verifySsl,       auto_sync_enabled: autoSync,
+      auto_sync_interval_mins: interval, is_default: isDef,
+      timezone: document.getElementById('pbxInstTimezone')?.value || 'Europe/London',
+      dial_plan: document.getElementById('pbxInstDialPlan')?.value || ''
     };
     if (apiSecret) payload.api_secret = apiSecret;
 

@@ -152,12 +152,12 @@ public sealed class ProvisionClient
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
-    public async Task<(bool Ok, string Extension, string Username, string Password, string Error)> ProvisionAsync(string code, CancellationToken cancellationToken = default)
+    public async Task<(bool Ok, string Extension, string Username, string Password, string HandlerUrl, string Error)> ProvisionAsync(string code, CancellationToken cancellationToken = default)
     {
         var cleaned = new string(code.Where(char.IsDigit).ToArray());
         if (cleaned.Length != 8)
         {
-            return (false, "", "", "", "Enter the 8 digit provisioning code.");
+            return (false, "", "", "", "", "Enter the 8 digit provisioning code.");
         }
 
         string last = "The provisioning service is not available right now.";
@@ -184,7 +184,7 @@ public sealed class ProvisionClient
                     };
                     if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                     {
-                        return (false, "", "", "", "The provisioning code is invalid or has expired.");
+                        return (false, "", "", "", "", "The provisioning code is invalid or has expired.");
                     }
 
                     continue;
@@ -198,10 +198,16 @@ public sealed class ProvisionClient
                     string.IsNullOrWhiteSpace(auth) ||
                     string.IsNullOrWhiteSpace(pwd))
                 {
-                    return (false, "", "", "", "The provisioning code did not return complete account details.");
+                    return (false, "", "", "", "", "The provisioning code did not return complete account details.");
                 }
 
-                return (true, ext, auth, pwd, "");
+                var handler = payload.Sip.HandlerUrl?.Trim() ?? "";
+                if (handler.Length == 0)
+                {
+                    handler = "https://handler.chriskendall.media";
+                }
+
+                return (true, ext, auth, pwd, handler.TrimEnd('/'), "");
             }
             catch (Exception ex)
             {
@@ -209,7 +215,7 @@ public sealed class ProvisionClient
             }
         }
 
-        return (false, "", "", "", last);
+        return (false, "", "", "", "", last);
     }
 
     private sealed record ProvisionRequest([property: JsonPropertyName("code")] string Code);
@@ -225,7 +231,8 @@ public sealed class ProvisionClient
         [property: JsonPropertyName("sip_password")] string? SipPassword,
         [property: JsonPropertyName("password")] string? Password = null,
         [property: JsonPropertyName("secret")] string? Secret = null,
-        [property: JsonPropertyName("username")] string? Username = null)
+        [property: JsonPropertyName("username")] string? Username = null,
+        [property: JsonPropertyName("data_handler_url")] string? HandlerUrl = null)
     {
         public string EffectiveExtension => !string.IsNullOrWhiteSpace(Extension) ? Extension.Trim() : (Username?.Trim() ?? string.Empty);
         public string EffectiveAuthName => !string.IsNullOrWhiteSpace(AuthName) ? AuthName.Trim() : (!string.IsNullOrWhiteSpace(Username) ? Username.Trim() : EffectiveExtension);

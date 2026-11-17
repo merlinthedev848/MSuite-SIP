@@ -45,7 +45,8 @@ public sealed class DeskConfig
     public string RecordingCode { get; set; } = "*1";
     public bool ShowCallStatistics { get; set; }
     public bool SingleClickBlindTransfer { get; set; }
-    public string PreferredCodecs { get; set; } = "PCMU,PCMA";
+    public string PreferredCodecs { get; set; } = "G722,PCMU,PCMA";
+    public string DataHandlerUrl { get; set; } = "https://handler.chriskendall.media";
     public string StunServer { get; set; } = "stun.l.google.com:19302";
     public bool SetupComplete { get; set; }
     public bool IsProvisioned { get; set; }

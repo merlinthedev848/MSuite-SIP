@@ -204,6 +204,7 @@ public sealed class RtpAudioSession : IDisposable
 	{
 		0 => "PCMU",
 		8 => "PCMA",
+		9 => "G722",
 		_ => ""
 	};
 
@@ -842,8 +843,9 @@ public sealed class RtpAudioSession : IDisposable
 			short sample = !_transmitMicrophone
 				? (short)0
 				: (_conferenceMerged ? (short)Math.Clamp(micFrame[i] + call2Frame[i], -32768, 32767) : micFrame[i]);
-			_payload1Buffer[i] = (_payloadType == 8) ? G711Codec.LinearToALaw(sample) : G711Codec.LinearToMuLaw(sample);
+			_micSampleBuffer[i] = sample;
 		}
+		EncodeFrame(_micSampleBuffer, _payloadType, _payload1Buffer);
 
 		lock (_sendSync)
 		{
@@ -867,9 +869,9 @@ public sealed class RtpAudioSession : IDisposable
 
 		for (int i = 0; i < SamplesPerPacket; i++)
 		{
-			short sample = _conferenceMerged ? (short)Math.Clamp(micFrame[i] + call1Frame[i], -32768, 32767) : micFrame[i];
-			_payload2Buffer[i] = (_secondaryPayloadType == 8) ? G711Codec.LinearToALaw(sample) : G711Codec.LinearToMuLaw(sample);
+			_micSampleBuffer[i] = _conferenceMerged ? (short)Math.Clamp(micFrame[i] + call1Frame[i], -32768, 32767) : micFrame[i];
 		}
+		EncodeFrame(_micSampleBuffer, _secondaryPayloadType, _payload2Buffer);
 
 		lock (_secondarySendSync)
 		{
@@ -919,6 +921,21 @@ public sealed class RtpAudioSession : IDisposable
 		{
 			byte[] array2 = BuildRtpPacket(array, 101, timestamp, marker, _ssrc, ref _sequence);
 			_rtpClient.Send(array2, array2.Length, _remoteEndPoint);
+		}
+	}
+
+	private static void EncodeFrame(short[] samples, int payloadType, byte[] destination)
+	{
+		if (payloadType == 9)
+		{
+			var encoded = G722Audio.EncodeNarrowband(samples.AsSpan(0, SamplesPerPacket).ToArray());
+			Buffer.BlockCopy(encoded, 0, destination, 0, Math.Min(encoded.Length, SamplesPerPacket));
+			return;
+		}
+
+		for (int i = 0; i < SamplesPerPacket; i++)
+		{
+			destination[i] = payloadType == 8 ? G711Codec.LinearToALaw(samples[i]) : G711Codec.LinearToMuLaw(samples[i]);
 		}
 	}
 
@@ -979,7 +996,7 @@ public sealed class RtpAudioSession : IDisposable
 					}
 				}
 				int num3 = udpReceiveResult.Buffer[1] & 0x7F;
-				if ((num3 != 0 && num3 != 8) || 1 == 0)
+				if (num3 != 0 && num3 != 8 && num3 != 9)
 				{
 					continue;
 				}
@@ -990,11 +1007,17 @@ public sealed class RtpAudioSession : IDisposable
 				if (udpReceiveResult.Buffer.Length > payloadOffset)
 				{
 					byte[] subArray = udpReceiveResult.Buffer[payloadOffset..];
-					short[] array = new short[subArray.Length];
+					short[] array = num3 == 9 ? G722Audio.DecodeToNarrowband(subArray) : new short[subArray.Length];
 					var peak = 0;
-					for (int i = 0; i < subArray.Length; i++)
+					if (num3 != 9)
 					{
-						array[i] = ((num3 == 8) ? G711Codec.ALawToLinear(subArray[i]) : G711Codec.MuLawToLinear(subArray[i]));
+						for (int i = 0; i < subArray.Length; i++)
+						{
+							array[i] = ((num3 == 8) ? G711Codec.ALawToLinear(subArray[i]) : G711Codec.MuLawToLinear(subArray[i]));
+						}
+					}
+					for (int i = 0; i < array.Length; i++)
+					{
 						var level = Math.Abs(array[i]);
 						if (level > peak)
 						{

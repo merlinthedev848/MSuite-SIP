@@ -387,7 +387,75 @@ router.get('/phonebook/snom.xml', (req: Request, res: Response) => {
   return res.send(xml);
 });
 
-// 6. Cisco / SPA XML Phonebook
+function splitContactName(name: string): { first: string; last: string } {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { first: 'Unknown', last: 'Contact' };
+  if (parts.length === 1) return { first: parts[0], last: parts[0] };
+  return { first: parts[0], last: parts.slice(1).join(' ') };
+}
+
+export function buildPolyPhonebookXml(contacts: ScopedDirectoryContact[]): string {
+  let xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<directory>\r\n  <item_list>\r\n';
+  for (const contact of contacts) {
+    const name = splitContactName(contact.name);
+    xml += '    <item>\r\n';
+    xml += `      <ln>${escapeXml(name.last)}</ln>\r\n`;
+    xml += `      <fn>${escapeXml(name.first)}</fn>\r\n`;
+    xml += `      <ct>${escapeXml(contact.number)}</ct>\r\n`;
+    xml += '      <sd>1</sd>\r\n';
+    xml += '    </item>\r\n';
+  }
+  xml += '  </item_list>\r\n</directory>';
+  return xml;
+}
+
+export function buildGigasetPhonebookXml(contacts: ScopedDirectoryContact[]): string {
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\r\n<list>\r\n';
+  for (const contact of contacts) {
+    const name = splitContactName(contact.name);
+    xml += '  <entry>\r\n';
+    xml += `    <ln>${escapeXml(name.last)}</ln>\r\n`;
+    xml += `    <fn>${escapeXml(name.first)}</fn>\r\n`;
+    xml += `    <hm>${escapeXml(contact.number)}</hm>\r\n`;
+    if (contact.mobile && contact.mobile !== contact.number) {
+      xml += `    <mb>${escapeXml(contact.mobile)}</mb>\r\n`;
+    }
+    xml += '  </entry>\r\n';
+  }
+  xml += '</list>';
+  return xml;
+}
+
+function sendDirectory(res: Response, brand: string, xml: string, count: number, req: Request): Response {
+  broadcastDeviceLog('DESKPHONE', 'INFO', `${brand} shared phonebook XML fetched (${count} entries)`, {
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'] as string
+  });
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  return res.send(xml);
+}
+
+// 6. Poly corporate directory. The profile points here; a missing route is a dead Company Directory button.
+router.get('/phonebook/poly.xml', (req: Request, res: Response) => {
+  const result = getScopedContactsForRequest(req);
+  if (!result.authorized) {
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    return res.status(401).send('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<directory>\r\n  <item_list></item_list>\r\n</directory>');
+  }
+  return sendDirectory(res, 'Poly', buildPolyPhonebookXml(result.contacts), result.contacts.length, req);
+});
+
+// 7. Gigaset Maxwell online directory (ln/fn/hm).
+router.get('/phonebook/gigaset.xml', (req: Request, res: Response) => {
+  const result = getScopedContactsForRequest(req);
+  if (!result.authorized) {
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    return res.status(401).send('<?xml version="1.0" encoding="UTF-8"?>\r\n<list></list>');
+  }
+  return sendDirectory(res, 'Gigaset', buildGigasetPhonebookXml(result.contacts), result.contacts.length, req);
+});
+
+// 8. Cisco / SPA XML Phonebook
 router.get(['/phonebook/cisco.xml', '/phonebook/spa.xml'], (req: Request, res: Response) => {
   const result = getScopedContactsForRequest(req);
   if (!result.authorized) {

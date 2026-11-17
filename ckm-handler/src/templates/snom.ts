@@ -1,4 +1,5 @@
 import { HandsetAccountConfig, escapeXml, phonebookQuery, resolveProfile, transportName } from './profile';
+import { resolveVendorClock } from './site';
 
 export function generateSnomConfig(cfg: HandsetAccountConfig): string {
   const profile = resolveProfile(cfg);
@@ -39,6 +40,7 @@ export function generateSnomConfig(cfg: HandsetAccountConfig): string {
   });
 
   const vlan = profile.vlanId > 0 ? profile.vlanId : 0;
+  const clock = resolveVendorClock(profile.timezone);
   return `<?xml version="1.0" encoding="utf-8"?>
 <!-- line_count = ${profile.lineCount} -->
 <settings>
@@ -52,8 +54,8 @@ ${identities.join('\n')}
     <vlan_qos perm="R">${profile.vlanPriority}</vlan_qos>
     <ntp_server perm="R">${escapeXml(profile.ntpServer)}</ntp_server>
     <ntp_refresh_timer perm="R">3600</ntp_refresh_timer>
-    <timezone perm="R">GBR-0</timezone>
-    <tone_scheme perm="R">GB</tone_scheme>
+    <timezone perm="R">${escapeXml(clock.snomZone)}</timezone>
+    <tone_scheme perm="R">${escapeXml(clock.snomTone)}</tone_scheme>
     <language perm="R">English</language>
     <web_language perm="R">English</web_language>
     <dkey_directory perm="R">url ${book}</dkey_directory>
