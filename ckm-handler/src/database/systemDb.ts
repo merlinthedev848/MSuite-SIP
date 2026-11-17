@@ -309,6 +309,8 @@ addColumnIfNotExists('physical_handsets', 'user_agent', "TEXT DEFAULT ''");
 addColumnIfNotExists('physical_handsets', 'firmware_version', "TEXT DEFAULT ''");
 addColumnIfNotExists('physical_handsets', 'line_count', 'INTEGER');
 addColumnIfNotExists('physical_handsets', 'provision_log', "TEXT DEFAULT '[]'");
+addColumnIfNotExists('pbx_instances', 'timezone', "TEXT DEFAULT 'Europe/London'");
+addColumnIfNotExists('pbx_instances', 'dial_plan', "TEXT DEFAULT '999|112|911|[0-9*#+].T'");
 addColumnIfNotExists('discovered_devices', 'provision_log', "TEXT DEFAULT '[]'");
 addColumnIfNotExists('routers', 'custom_script', "TEXT DEFAULT ''");
 addColumnIfNotExists('routers', 'last_fetched_at', 'DATETIME');

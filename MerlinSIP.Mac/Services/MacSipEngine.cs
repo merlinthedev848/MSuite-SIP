@@ -1026,11 +1026,7 @@ public sealed class MacSipEngine : IDisposable
     private VoIPMediaSession CreateMedia(CallSlot line)
     {
         CloseMedia(line);
-        var audio = new MacAudioEndPoint(line.Id, _hub, new AudioEncoder());
-        var codecs = _store.Config.PreferredCodecs.ToUpperInvariant();
-        audio.RestrictFormats(format =>
-            (format.Codec == AudioCodecsEnum.PCMU && codecs.Contains("PCMU")) ||
-            (format.Codec == AudioCodecsEnum.PCMA && codecs.Contains("PCMA")));
+        var audio = new MacAudioEndPoint(line.Id, _hub, new AudioEncoder(), PreferredCodecOrder(_store.Config.PreferredCodecs));
         audio.Muted = line.Muted;
         audio.ConferenceMix = ConferenceActive;
         if (_measuredLatencyMs > 0)
@@ -1222,6 +1218,13 @@ public sealed class MacSipEngine : IDisposable
 
         _subscribe?.Dispose();
         _subscribe = new Timer(_ => SendSubscriptions(), null, TimeSpan.FromSeconds(3), TimeSpan.FromMinutes(50));
+    }
+
+    public void NoteDirectoryChanged()
+    {
+        ListRevision++;
+        Touch();
+        SendSubscriptions();
     }
 
     private void SendSubscriptions() => _ = SendSubscriptionsAsync();
@@ -1686,6 +1689,42 @@ public sealed class MacSipEngine : IDisposable
         _registration = null;
         _transport = null;
         _claimedCallId = "";
+    }
+
+    private static IReadOnlyList<AudioCodecsEnum> PreferredCodecOrder(string? preferred)
+    {
+        var raw = string.IsNullOrWhiteSpace(preferred) ? "" : preferred.Trim();
+        if (raw.Length == 0 ||
+            raw.Equals("PCMU,PCMA", StringComparison.OrdinalIgnoreCase) ||
+            raw.Equals("PCMU, PCMA", StringComparison.OrdinalIgnoreCase))
+        {
+            raw = "G722,PCMU,PCMA";
+        }
+
+        var list = new List<AudioCodecsEnum>();
+        foreach (var token in raw.Split([',', ' ', ';', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            AudioCodecsEnum? codec = token.ToUpperInvariant() switch
+            {
+                "G722" or "G.722" or "9" => AudioCodecsEnum.G722,
+                "PCMU" or "ULAW" or "MU-LAW" or "0" => AudioCodecsEnum.PCMU,
+                "PCMA" or "ALAW" or "A-LAW" or "8" => AudioCodecsEnum.PCMA,
+                _ => null
+            };
+            if (codec is AudioCodecsEnum value && !list.Contains(value))
+            {
+                list.Add(value);
+            }
+        }
+
+        if (list.Count == 0)
+        {
+            list.Add(AudioCodecsEnum.G722);
+            list.Add(AudioCodecsEnum.PCMU);
+            list.Add(AudioCodecsEnum.PCMA);
+        }
+
+        return list;
     }
 
     private CallSlot? IdleLine(int preferred)

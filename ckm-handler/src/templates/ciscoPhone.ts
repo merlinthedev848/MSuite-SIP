@@ -1,4 +1,5 @@
 import { HandsetAccountConfig, escapeXml, phonebookQuery, resolveProfile, transportName } from './profile';
+import { DEFAULT_DIAL_PLAN, resolveVendorClock } from './site';
 
 const CISCO_DIAL = '(999S0|112S0|911S0|*xx.|[0-9*].S4)';
 
@@ -6,6 +7,8 @@ export function generateCiscoPhoneConfig(cfg: HandsetAccountConfig): string {
   const profile = resolveProfile(cfg);
   const transport = transportName(cfg.sipTransport);
   const book = `${cfg.dataHandlerUrl}/phonebook/cisco.xml?${phonebookQuery(cfg)}`;
+  const clock = resolveVendorClock(profile.timezone);
+  const dial = profile.dialPlan === DEFAULT_DIAL_PLAN ? CISCO_DIAL : profile.dialPlan;
   const lines = profile.lines.map(line => {
     const n = line.index;
     return `  <Line_Enable_${n}_>Yes</Line_Enable_${n}_>
@@ -25,7 +28,7 @@ export function generateCiscoPhoneConfig(cfg: HandsetAccountConfig): string {
   <Third_Preferred_Codec_${n}_>G722</Third_Preferred_Codec_${n}_>
   <Use_Pref_Codec_Only_${n}_>No</Use_Pref_Codec_Only_${n}_>
   <DTMF_Tx_Method_${n}_>AVT</DTMF_Tx_Method_${n}_>
-  <Dial_Plan_${n}_>${CISCO_DIAL}</Dial_Plan_${n}_>
+  <Dial_Plan_${n}_>${escapeXml(dial)}</Dial_Plan_${n}_>
   <Default_Ring_${n}_>${line.ringSlot}</Default_Ring_${n}_>`;
   }).join('\n');
 
@@ -46,7 +49,7 @@ ${lines}
   <VLAN_ID_>${profile.vlanId > 0 ? profile.vlanId : 0}</VLAN_ID_>
   <NTP_Enable_>Yes</NTP_Enable_>
   <Primary_NTP_Server_>${escapeXml(profile.ntpServer)}</Primary_NTP_Server_>
-  <Time_Zone_>GMT-00:00</Time_Zone_>
+  <Time_Zone_>${escapeXml(clock.ciscoZone)}</Time_Zone_>
   <Daylight_Saving_Time_Rule_>start=3/-1/7/1;end=10/-1/7/2;save=1</Daylight_Saving_Time_Rule_>
   <XML_Directory_Service_Name_>Company Directory</XML_Directory_Service_Name_>
   <XML_Directory_Service_URL_>${book}</XML_Directory_Service_URL_>

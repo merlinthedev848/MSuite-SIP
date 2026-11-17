@@ -1,4 +1,5 @@
 import { HandsetAccountConfig, blfKeySlot, escapeXml, phonebookQuery, resolveProfile, transportName } from './profile';
+import { resolveVendorClock } from './site';
 
 export function generateGigasetConfig(cfg: HandsetAccountConfig): string {
   const profile = resolveProfile(cfg);
@@ -38,6 +39,7 @@ export function generateGigasetConfig(cfg: HandsetAccountConfig): string {
   ].join('\n');
 
   const vlanOn = profile.vlanId > 0 ? 1 : 0;
+  const clock = resolveVendorClock(profile.timezone);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!-- line_count = ${profile.lineCount} -->
 <gigaset-config version="1.0">
@@ -67,7 +69,7 @@ ${lineParams}
   </part>
   <part name="TIME">
     <param name="NTP.Server" value="${escapeXml(profile.ntpServer)}"/>
-    <param name="Time.Zone" value="Europe/London"/>
+    <param name="Time.Zone" value="${escapeXml(clock.gigasetZone)}"/>
     <param name="Time.Locale" value="en-GB"/>
     <param name="Time.DST" value="1"/>
   </part>

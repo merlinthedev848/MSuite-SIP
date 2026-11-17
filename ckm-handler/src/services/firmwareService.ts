@@ -212,7 +212,9 @@ export function getFirmwareCatalogStatus() {
         firmwareFilename: m.firmwareFilename,
         firmwareUrl: m.firmwareUrl,
         directDownloadUrl: m.directDownloadUrl || null,
-        notes: m.firmwareNotes || null,
+        notes: m.directDownloadUrl
+          ? (m.firmwareNotes || null)
+          : `${m.firmwareNotes ? `${m.firmwareNotes}. ` : ''}Upload only. This catalog has no direct firmware file.`,
         isCached: existsOnDisk,
         fileSizeBytes: size,
         fileSizeFormatted: size > 0 ? `${(size / 1024 / 1024).toFixed(2)} MB` : '0 MB',

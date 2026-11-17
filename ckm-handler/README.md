@@ -308,7 +308,7 @@ Designed for full compliance with European data privacy regulations:
 Run the automated update command:
 ```bash
 cd /root/MSuite-SIP
-git pull origin beta/provisioning-and-contractor-licensing
+git pull origin main
 cp -r /root/MSuite-SIP/ckm-handler/* /var/www/ckm-handler/
 cd /var/www/ckm-handler
 npm run build

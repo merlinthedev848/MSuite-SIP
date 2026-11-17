@@ -6,7 +6,9 @@ import fs from 'fs';
 import path from 'path';
 import { generateDefaultHandsetConfig } from '../src/templates/catalog';
 import { HandsetAccountConfig } from '../src/templates/yealink';
+import { sanitizeBlfKeys } from '../src/templates/blf';
 import { recordDeviceProvisionEvent, readDeviceProvisionLog } from '../src/services/deviceProvisionLog';
+import { buildGigasetPhonebookXml, buildPolyPhonebookXml } from '../src/routes/directory';
 import systemDb from '../src/database/systemDb';
 
 function assert(cond: unknown, message: string): void {
@@ -71,6 +73,34 @@ requireAll(yealink, [
   'line_count = 2'
 ], 'Yealink T46U');
 assert(!yealink.includes('linekey.1.type = 16'), 'Yealink BLF overwrote line key 1');
+
+const newYork = generateDefaultHandsetConfig('yealink', { ...sample(), timezone: 'America/New_York', dialPlan: '911|1[2-9]xx' }, 'T46U');
+assert(newYork.includes('local_time.time_zone = -5'), 'Yealink did not take the PBX timezone offset');
+assert(newYork.includes('local_time.time_zone_name = United States-Eastern Time'), 'Yealink did not take the PBX timezone name');
+assert(newYork.includes('dialplan.digitmap.string = 911|1[2-9]xx'), 'Yealink did not take the PBX dial plan');
+
+const poly = generateDefaultHandsetConfig('poly', sample(), 'VVX450');
+const gigaset = generateDefaultHandsetConfig('gigaset', sample(), 'Maxwell3');
+const cisco = generateDefaultHandsetConfig('cisco', sample(), 'SPA504G');
+assert(poly.includes('/phonebook/poly.xml?extension=101'), 'Poly profile has no company directory');
+assert(gigaset.includes('/phonebook/gigaset.xml?extension=101'), 'Gigaset profile has no company directory');
+assert(cisco.includes('/phonebook/cisco.xml?extension=101'), 'Cisco profile has no company directory');
+assert(cisco.includes('XML_Directory_Service_URL_'), 'Cisco directory URL is not a phone setting');
+
+const nySnom = generateDefaultHandsetConfig('snom', { ...sample(), timezone: 'America/New_York' }, 'D735');
+assert(nySnom.includes('<timezone perm="R">USA-5</timezone>'), 'Snom stayed on London for a New York PBX');
+assert(nySnom.includes('<tone_scheme perm="R">US</tone_scheme>'), 'Snom tone scheme stayed on GB');
+
+const rejected = sanitizeBlfKeys([{ extension: 'abc', label: 'Nope', key: 1 }]);
+assert(!rejected.ok, 'a non-numeric BLF target was accepted');
+const accepted = sanitizeBlfKeys([{ extension: '200', label: 'Boss', key: 1 }, { extension: '', label: 'skip', key: 2 }]);
+assert(accepted.ok && accepted.keys.length === 1 && accepted.keys[0].extension === '200', 'valid BLF key was dropped');
+
+const bookContact = { id: '1', name: 'Ada Lovelace', number: '200', extension: '200', mobile: '07700', email: '', company: '', department: '', notes: '', addressBookId: 1, addressBookName: 'Company' };
+const polyBook = buildPolyPhonebookXml([{ ...bookContact, mobile: '' }]);
+const gigasetBook = buildGigasetPhonebookXml([bookContact]);
+assert(polyBook.includes('<ct>200</ct>') && polyBook.includes('<ln>Lovelace</ln>'), 'Poly phonebook XML is not a directory item');
+assert(gigasetBook.includes('<hm>200</hm>') && gigasetBook.includes('<mb>07700</mb>'), 'Gigaset phonebook XML is not a Maxwell entry');
 
 const grandstream = generateDefaultHandsetConfig('grandstream', sample(), 'GXP2170');
 requireAll(grandstream, [

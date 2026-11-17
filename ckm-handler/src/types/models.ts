@@ -74,6 +74,8 @@ export interface PbxInstanceRow {
   last_ping_status?: string | null;
   last_ping_rtt?: string | null;
   last_ping_at?: string | null;
+  timezone?: string | null;
+  dial_plan?: string | null;
   created_at?: string;
   updated_at?: string;
   extension_count?: number;

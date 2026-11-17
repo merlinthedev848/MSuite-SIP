@@ -8,6 +8,7 @@ import {
   transportCode,
   yealinkRing
 } from './profile';
+import { resolveVendorClock } from './site';
 
 export { HandsetAccountConfig } from './profile';
 
@@ -101,6 +102,7 @@ export function yealinkSiteDefaults(cfg: Pick<HandsetAccountConfig, 'dataHandler
     dataHandlerUrl: cfg.dataHandlerUrl
   });
   const vlanOn = profile.vlanId > 0 ? 1 : 0;
+  const clock = resolveVendorClock(profile.timezone);
   return [
     `## Dial Plan`,
     `dialplan.digitmap.enable = 1`,
@@ -109,8 +111,8 @@ export function yealinkSiteDefaults(cfg: Pick<HandsetAccountConfig, 'dataHandler
     `dialplan.digitmap.interdigit_short_timer = 3`,
     ``,
     `## Time & Locale`,
-    `local_time.time_zone = +0`,
-    `local_time.time_zone_name = United Kingdom(London)`,
+    `local_time.time_zone = ${clock.yealinkOffset}`,
+    `local_time.time_zone_name = ${clock.yealinkName}`,
     `local_time.ntp_server1 = ${profile.ntpServer}`,
     `local_time.ntp_server2 = time.google.com`,
     `local_time.summer_time = 2`,

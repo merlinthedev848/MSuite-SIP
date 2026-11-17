@@ -18,13 +18,37 @@ public sealed class MacAudioEndPoint : IAudioEndPoint
     private uint _lastTimestamp;
     private int _lastSeq = -1;
 
-    public MacAudioEndPoint(int line, MediaHub hub, IAudioEncoder encoder)
+    public MacAudioEndPoint(int line, MediaHub hub, IAudioEncoder encoder, IReadOnlyList<AudioCodecsEnum> preference)
     {
         _line = line;
         _otherLine = line == 1 ? 2 : 1;
         _hub = hub;
         _encoder = encoder;
-        _formats = new MediaFormatManager<SipAudioFormat>(encoder.SupportedFormats);
+        var formats = encoder.SupportedFormats
+            .Where(format => preference.Contains(format.Codec))
+            .OrderBy(format => CodecRank(preference, format.Codec))
+            .ToList();
+        if (formats.Count == 0)
+        {
+            formats = encoder.SupportedFormats
+                .Where(format => format.Codec is AudioCodecsEnum.PCMU or AudioCodecsEnum.PCMA)
+                .ToList();
+        }
+
+        _formats = new MediaFormatManager<SipAudioFormat>(formats);
+    }
+
+    private static int CodecRank(IReadOnlyList<AudioCodecsEnum> preference, AudioCodecsEnum codec)
+    {
+        for (var i = 0; i < preference.Count; i++)
+        {
+            if (preference[i] == codec)
+            {
+                return i;
+            }
+        }
+
+        return int.MaxValue;
     }
 
     public bool Muted { get; set; }
@@ -68,6 +92,32 @@ public sealed class MacAudioEndPoint : IAudioEndPoint
     public event SourceErrorDelegate? OnAudioSinkError;
 
     public void RestrictFormats(Func<SipAudioFormat, bool> filter) => _formats.RestrictFormats(filter);
+
+    private static short[] Upsample(short[] input)
+    {
+        var output = new short[input.Length * 2];
+        for (var i = 0; i < input.Length; i++)
+        {
+            var current = input[i];
+            var next = i + 1 < input.Length ? input[i + 1] : current;
+            output[i * 2] = current;
+            output[i * 2 + 1] = (short)((current + next) / 2);
+        }
+
+        return output;
+    }
+
+    private static short[] Downsample(short[] input)
+    {
+        var output = new short[Math.Max(1, input.Length / 2)];
+        for (var i = 0; i < output.Length; i++)
+        {
+            var index = i * 2;
+            output[i] = index < input.Length ? input[index] : (short)0;
+        }
+
+        return output;
+    }
     public List<SipAudioFormat> GetAudioSourceFormats() => _formats.GetSourceFormats();
     public List<SipAudioFormat> GetAudioSinkFormats() => _formats.GetSourceFormats();
     public void SetAudioSourceFormat(SipAudioFormat audioFormat) => _formats.SetSelectedFormat(audioFormat);
@@ -169,7 +219,8 @@ public sealed class MacAudioEndPoint : IAudioEndPoint
 
         try
         {
-            var encoded = _encoder.EncodeAudio(pcm, _formats.SelectedFormat);
+            var encodePcm = _formats.SelectedFormat.Codec == AudioCodecsEnum.G722 ? Upsample(pcm) : pcm;
+            var encoded = _encoder.EncodeAudio(encodePcm, _formats.SelectedFormat);
             PacketsSent++;
             OnAudioSourceEncodedSample?.Invoke((uint)pcm.Length, encoded);
             OnAudioSourceEncodedFrameReady?.Invoke(new EncodedAudioFrame(
@@ -189,6 +240,10 @@ public sealed class MacAudioEndPoint : IAudioEndPoint
         try
         {
             var pcm = _encoder.DecodeAudio(encoded, format);
+            if (format.Codec == AudioCodecsEnum.G722)
+            {
+                pcm = Downsample(pcm);
+            }
             if (pcm.Length == 0 || _paused)
             {
                 return;

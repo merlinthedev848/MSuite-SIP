@@ -99,6 +99,10 @@ public partial class StartupWindow : Window
             config.Extension = provisioned.Extension;
             config.Username = provisioned.Username;
             config.Password = provisioned.Password;
+            if (!string.IsNullOrWhiteSpace(provisioned.HandlerUrl))
+            {
+                config.DataHandlerUrl = provisioned.HandlerUrl;
+            }
             config.Server = AppVersion.FixedServer;
             config.Domain = AppVersion.FixedServer;
             config.Port = AppVersion.FixedPort;

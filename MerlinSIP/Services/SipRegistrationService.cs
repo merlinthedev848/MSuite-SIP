@@ -2223,8 +2223,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             $"c=IN IP4 {_localAddress}",
             "t=0 0",
             $"m=audio {rtpPort} RTP/AVP {codecs} 101",
-            "a=rtpmap:0 PCMU/8000",
-            "a=rtpmap:8 PCMA/8000",
+            ..AudioRtpMapLines(codecs),
             "a=rtpmap:101 telephone-event/8000",
             "a=fmtp:101 0-16",
             "a=ptime:20",
@@ -2285,8 +2284,8 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         var from = headers.GetValueOrDefault("from", "");
         var to = EnsureToTag(headers.GetValueOrDefault("to", ""), call.LocalTag);
         var cseq = headers.GetValueOrDefault("cseq", "");
-        var codecLine = payloadType == 8
-            ? "a=rtpmap:8 PCMA/8000"
+        var codecLine = G722Audio.RtpMapLine(payloadType.ToString()) is { Length: > 0 } mapped
+            ? mapped
             : "a=rtpmap:0 PCMU/8000";
 
         var sdpLines = new List<string>
@@ -2347,8 +2346,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             $"c=IN IP4 {_localAddress}",
             "t=0 0",
             $"m=audio {mediaPort ?? (call.LineNumber == 2 ? _audioSession?.SecondaryLocalPort : _audioSession?.LocalPort) ?? 40000} RTP/AVP {codecs} 101",
-            "a=rtpmap:0 PCMU/8000",
-            "a=rtpmap:8 PCMA/8000",
+            ..AudioRtpMapLines(codecs),
             "a=rtpmap:101 telephone-event/8000",
             "a=fmtp:101 0-16",
             "a=ptime:20",
@@ -2389,40 +2387,19 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         return string.Join("\r\n", lines);
     }
 
-    private static string GetSupportedAudioPayloads(string? preferredCodecs)
+    private static string GetSupportedAudioPayloads(string? preferredCodecs) =>
+        G722Audio.OfferPayloads(preferredCodecs);
+
+    private static IEnumerable<string> AudioRtpMapLines(string codecs)
     {
-        var payloads = new List<string>();
-        var tokens = (preferredCodecs ?? "")
-            .Split([',', ' ', ';', '|'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        foreach (var token in tokens)
+        foreach (var payload in codecs.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
-            var payload = token.ToUpperInvariant() switch
+            var line = G722Audio.RtpMapLine(payload);
+            if (line.Length > 0)
             {
-                "PCMU" or "ULAW" or "MU-LAW" or "0" => "0",
-                "PCMA" or "ALAW" or "A-LAW" or "8" => "8",
-                _ => ""
-            };
-
-            if (payload.Length > 0 && !payloads.Contains(payload))
-            {
-                payloads.Add(payload);
+                yield return line;
             }
         }
-
-        if (payloads.Count == 0)
-        {
-            payloads.Add("0");
-            payloads.Add("8");
-        }
-
-        if (payloads.Contains("0") && payloads.Contains("8"))
-        {
-            payloads.Remove("0");
-            payloads.Insert(0, "0");
-        }
-
-        return string.Join(' ', payloads);
     }
 
     private string BuildCancel(ActiveCall call)
@@ -4138,7 +4115,7 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
                 {
                     port = parsedPort;
                     var payloads = parts.Skip(3).ToArray();
-                    payloadType = payloads.Contains("0") ? 0 : payloads.Contains("8") ? 8 : 0;
+                    payloadType = G722Audio.ChoosePayload(payloads, _config?.PreferredCodecs);
                 }
             }
         }

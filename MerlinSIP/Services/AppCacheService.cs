@@ -129,7 +129,7 @@ public sealed class AppCacheService
             settings.RegistrationExpiry ?? 3600,
             settings.HeartbeatInterval ?? 30,
             settings.LocalSipPort ?? 5060,
-            settings.PreferredCodecs ?? "PCMU,PCMA",
+            settings.PreferredCodecs ?? "G722,PCMU,PCMA",
             settings.IgnoreSslErrors ?? false,
             settings.SecondaryRingerOutput,
             settings.AutoAnswerEnabled ?? false,

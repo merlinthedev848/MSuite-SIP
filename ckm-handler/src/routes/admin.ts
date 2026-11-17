@@ -12,7 +12,9 @@ import vaultDb from '../database/vaultDb';
 import { ADMIN_USER, ADMIN_PASS, UPLOADS_DIR, PORT, SERVER_DOMAIN } from '../config';
 import { generateRouterConfig, RouterConfigParams } from '../templates/routerTemplates';
 import { HANDSET_CATALOG, ROUTER_CATALOG, generateDefaultHandsetConfig } from '../templates/catalog';
-import { substituteTemplateVariables } from './hardwareProvision';
+import { siteDefaultsForPbx, substituteTemplateVariables } from './hardwareProvision';
+import { sanitizeBlfKeys } from '../templates/blf';
+import { sanitizeDialPlan, sanitizeTimezone } from '../templates/site';
 import { HandsetAccountConfig } from '../templates/yealink';
 import { recordDeviceProvisionEvent, readDeviceProvisionLog, takeDiscoveredProvisionLog } from '../services/deviceProvisionLog';
 import { licenseState } from '../services/licenseGuard';
@@ -647,11 +649,13 @@ router.post('/api/admin/pbx-instances', adminAuth, requirePermission('manage_set
     INSERT INTO pbx_instances (
       id, name, host, sip_port, sip_transport, pbx_type,
       api_host, api_port, api_protocol, api_path, api_user, api_secret,
-      verify_ssl, is_active, is_default, auto_sync_enabled, auto_sync_interval_mins
+      verify_ssl, is_active, is_default, auto_sync_enabled, auto_sync_interval_mins,
+      timezone, dial_plan
     ) VALUES (
       ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?,
-      ?, ?, 0, ?, ?
+      ?, ?, 0, ?, ?,
+      ?, ?
     )
   `).run(
     id, cleanName, cleanHost, port, transport, type,
@@ -659,7 +663,8 @@ router.post('/api/admin/pbx-instances', adminAuth, requirePermission('manage_set
     String(api_protocol || 'https'), String(api_path || 'api/v2.0.0'),
     String(api_user || '').trim(), String(api_secret || '').trim(),
     verify_ssl ? 1 : 0, is_active !== false ? 1 : 0,
-    auto_sync_enabled !== false ? 1 : 0, parseInt(String(auto_sync_interval_mins || 5), 10)
+    auto_sync_enabled !== false ? 1 : 0, parseInt(String(auto_sync_interval_mins || 5), 10),
+    sanitizeTimezone(req.body?.timezone), sanitizeDialPlan(req.body?.dial_plan)
   );
 
   logActivity('PBX_INSTANCE_CREATED', `Added PBX instance [${cleanName}] (${cleanHost}:${port})`, req.ip);
@@ -709,6 +714,7 @@ router.put('/api/admin/pbx-instances/:id', adminAuth, requirePermission('manage_
       name = ?, host = ?, sip_port = ?, sip_transport = ?, pbx_type = ?,
       api_host = ?, api_port = ?, api_protocol = ?, api_path = ?, api_user = ?, api_secret = ?,
       verify_ssl = ?, is_active = ?, is_default = ?, auto_sync_enabled = ?, auto_sync_interval_mins = ?,
+      timezone = ?, dial_plan = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `).run(
@@ -724,6 +730,8 @@ router.put('/api/admin/pbx-instances/:id', adminAuth, requirePermission('manage_
     is_default !== undefined ? (is_default ? 1 : 0) : existing.is_default,
     auto_sync_enabled !== undefined ? (auto_sync_enabled ? 1 : 0) : existing.auto_sync_enabled,
     auto_sync_interval_mins !== undefined ? parseInt(String(auto_sync_interval_mins), 10) : existing.auto_sync_interval_mins,
+    req.body?.timezone !== undefined ? sanitizeTimezone(req.body.timezone) : sanitizeTimezone(existing.timezone),
+    req.body?.dial_plan !== undefined ? sanitizeDialPlan(req.body.dial_plan) : sanitizeDialPlan(existing.dial_plan),
     id
   );
 
@@ -1300,8 +1308,15 @@ router.post('/api/admin/extensions/quick-provision', adminAuth, requirePermissio
   });
 });
 
+function catalogFirmwareNotes(model: { directDownloadUrl?: string; firmwareNotes?: string }): string {
+  if (model.directDownloadUrl) {
+    return model.firmwareNotes || 'Standard tested vendor release';
+  }
+  return `${model.firmwareNotes ? `${model.firmwareNotes}. ` : ''}Upload only. This catalog has no direct firmware file.`;
+}
+
 // Device Catalogs Metadata Endpoint (Full Makes & Models for Handsets & Routers)
-router.get('/api/admin/catalogs', (req: Request, res: Response) => {
+router.get('/api/admin/catalogs', adminAuth, (req: Request, res: Response) => {
   return res.json({
     ok: true,
     handsets: HANDSET_CATALOG,
@@ -1310,7 +1325,7 @@ router.get('/api/admin/catalogs', (req: Request, res: Response) => {
 });
 
 // Dynamic Profile & Firmware Preview Endpoint
-router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
+router.post('/api/admin/catalogs/preview', adminAuth, (req: Request, res: Response) => {
   const { type, brand, model, extension, displayName, vlan, subnet, alg, qos } = req.body || {};
   const serverCfg = (getServerConfigStmt.get() as ServerConfigRow | undefined) || {
     pbx_server: 'pbx.chriskendall.media',
@@ -1345,7 +1360,7 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
         url: modelMeta.firmwareUrl,
         directDownloadUrl: modelMeta.directDownloadUrl || null,
         filename: modelMeta.firmwareFilename,
-        notes: modelMeta.firmwareNotes || 'Standard tested vendor release',
+        notes: catalogFirmwareNotes(modelMeta),
         isCached: !!localFwPath,
         localServingUrl: `${serverCfg.data_handler_url || ''}/firmware/${brandMeta?.id}/${modelMeta.id}/${modelMeta.firmwareFilename}`
       } : null,
@@ -1356,15 +1371,18 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
     const brandMeta = HANDSET_CATALOG.find(h => h.id === (brand || 'yealink').toLowerCase());
     const modelMeta = brandMeta?.models.find(m => m.id === model) || brandMeta?.models[0];
     const requestedLines = req.body?.lineCount;
+    const previewSite = siteDefaultsForPbx(null);
     const previewCfg: HandsetAccountConfig = {
       extension: extension || '101',
       username: extension || '101',
-      password: 'StandardPassword123!',
+      password: '{{SIP_PASSWORD}}',
       displayName: displayName || 'Standard Deskphone',
       sipServer: serverCfg.pbx_server,
       sipPort: serverCfg.pbx_port,
       sipTransport: serverCfg.pbx_transport || 'UDP',
-      dataHandlerUrl: serverCfg.data_handler_url || ''
+      dataHandlerUrl: serverCfg.data_handler_url || '',
+      timezone: previewSite.timezone,
+      dialPlan: previewSite.dialPlan
     };
     if (requestedLines !== undefined && requestedLines !== null && requestedLines !== '') {
       const n = Number(requestedLines);
@@ -1387,7 +1405,7 @@ router.post('/api/admin/catalogs/preview', (req: Request, res: Response) => {
         url: modelMeta.firmwareUrl,
         directDownloadUrl: modelMeta.directDownloadUrl || null,
         filename: modelMeta.firmwareFilename,
-        notes: modelMeta.firmwareNotes || 'Standard tested vendor release',
+        notes: catalogFirmwareNotes(modelMeta),
         isCached: !!localFwPath,
         localServingUrl: `${serverCfg.data_handler_url || ''}/firmware/${brandMeta?.id}/${modelMeta.id}/${modelMeta.firmwareFilename}`
       } : null,
@@ -1493,7 +1511,7 @@ router.get('/api/admin/handsets/:mac/preview', adminAuth, (req: Request, res: Re
   const cleanMac = req.params.mac.toLowerCase().replace(/[^0-9a-f]/g, '');
   const handset = systemDb.prepare(`
     SELECT h.mac_address, h.brand, h.model, h.line_label, h.line_count, h.blf_keys_json, h.custom_config,
-           e.extension, e.sip_username, e.sip_password, e.display_name, e.is_active
+           e.extension, e.sip_username, e.sip_password, e.display_name, e.is_active, e.pbx_id
     FROM physical_handsets h
     JOIN extensions e ON h.extension = e.extension
     WHERE LOWER(REPLACE(h.mac_address, ':', '')) = ?
@@ -1506,6 +1524,7 @@ router.get('/api/admin/handsets/:mac/preview', adminAuth, (req: Request, res: Re
   const config = (systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined) || defaultServerConfig;
   let blfKeys = [];
   try { if (handset.blf_keys_json) blfKeys = JSON.parse(handset.blf_keys_json); } catch {}
+  const previewHandsetSite = siteDefaultsForPbx((handset as { pbx_id?: string }).pbx_id);
 
   const accountCfg: HandsetAccountConfig = {
     extension: handset.extension,
@@ -1516,7 +1535,9 @@ router.get('/api/admin/handsets/:mac/preview', adminAuth, (req: Request, res: Re
     sipPort: config.pbx_port,
     sipTransport: config.pbx_transport,
     dataHandlerUrl: config.data_handler_url,
-    blfKeys
+    blfKeys,
+    timezone: previewHandsetSite.timezone,
+    dialPlan: previewHandsetSite.dialPlan
   };
   if (handset.line_count != null && Number.isInteger(Number(handset.line_count))) {
     accountCfg.lineCount = Number(handset.line_count);
@@ -1610,7 +1631,11 @@ router.post('/api/admin/handsets', adminAuth, requirePermission('manage_handsets
     return res.status(409).json({ ok: false, error: `MAC ${cleanMac.toUpperCase()} is already registered. Remove it before registering it again.` });
   }
 
-  const blfJson = blfKeys ? JSON.stringify(blfKeys) : null;
+  const parsedBlf = sanitizeBlfKeys(blfKeys);
+  if (!parsedBlf.ok) {
+    return res.status(400).json({ ok: false, error: parsedBlf.error });
+  }
+  const blfJson = parsedBlf.keys.length ? JSON.stringify(parsedBlf.keys) : null;
   let storedLineCount: number | null = null;
   if (req.body.lineCount !== undefined && req.body.lineCount !== null && req.body.lineCount !== '') {
     const n = Number(req.body.lineCount);
@@ -1632,6 +1657,29 @@ router.post('/api/admin/handsets', adminAuth, requirePermission('manage_handsets
   });
 
   return res.json({ ok: true, message: `Handset MAC [${cleanMac}] bound to extension ${cleanExt}.` });
+});
+
+router.put('/api/admin/handsets/:mac/blf', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
+  const cleanMac = req.params.mac.toLowerCase().replace(/[^0-9a-f]/g, '');
+  const existing = systemDb.prepare("SELECT mac_address FROM physical_handsets WHERE LOWER(REPLACE(mac_address, ':', '')) = ?").get(cleanMac);
+  if (!existing) {
+    return res.status(404).json({ ok: false, error: 'Handset not found.' });
+  }
+  const parsedBlf = sanitizeBlfKeys(req.body?.blfKeys);
+  if (!parsedBlf.ok) {
+    return res.status(400).json({ ok: false, error: parsedBlf.error });
+  }
+  systemDb.prepare(`
+    UPDATE physical_handsets
+    SET blf_keys_json = ?
+    WHERE LOWER(REPLACE(mac_address, ':', '')) = ?
+  `).run(parsedBlf.keys.length ? JSON.stringify(parsedBlf.keys) : null, cleanMac);
+  recordDeviceProvisionEvent(cleanMac, {
+    level: 'INFO',
+    kind: 'profile',
+    message: `Busy lamp keys updated (${parsedBlf.keys.length}). The next fetch writes them into the phone profile.`
+  });
+  return res.json({ ok: true, blfKeys: parsedBlf.keys, message: `Saved ${parsedBlf.keys.length} busy lamp key(s).` });
 });
 
 router.delete('/api/admin/handsets/:mac', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
@@ -1973,7 +2021,11 @@ router.get('/api/admin/discovered-devices', adminAuth, (req: Request, res: Respo
 
 router.post('/api/admin/discovered-devices/:mac/adopt', adminAuth, requirePermission('manage_handsets'), (req: Request, res: Response) => {
   const mac = req.params.mac.toUpperCase().replace(/[^0-9A-F]/g, '');
-  const { extension, brand, model, lineLabel } = req.body;
+  const { extension, brand, model, lineLabel, blfKeys } = req.body;
+  const parsedBlf = sanitizeBlfKeys(blfKeys);
+  if (!parsedBlf.ok) {
+    return res.status(400).json({ ok: false, error: parsedBlf.error });
+  }
 
   if (!extension) {
     return res.status(400).json({ ok: false, error: 'Extension assignment is required for adoption.' });
@@ -1997,9 +2049,9 @@ router.post('/api/admin/discovered-devices/:mac/adopt', adminAuth, requirePermis
   const label = lineLabel || extRec.display_name || `Ext ${extension}`;
 
   systemDb.prepare(`
-    INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, provision_log, last_provisioned_at)
-    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `).run(mac, finalBrand, finalModel, extension, label, takeDiscoveredProvisionLog(mac));
+    INSERT INTO physical_handsets (mac_address, brand, model, extension, line_label, blf_keys_json, provision_log, last_provisioned_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(mac, finalBrand, finalModel, extension, label, parsedBlf.keys.length ? JSON.stringify(parsedBlf.keys) : null, takeDiscoveredProvisionLog(mac));
   recordDeviceProvisionEvent(mac, {
     level: 'INFO',
     kind: 'profile',

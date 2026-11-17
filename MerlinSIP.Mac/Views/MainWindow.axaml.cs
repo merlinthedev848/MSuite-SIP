@@ -34,6 +34,7 @@ public partial class MainWindow : Window
 
         BuildKeypad();
         LoadSettings();
+        _ = SyncSharedDirectoryAsync();
         _host.DialRequested += OnExternalDial;
         _clock = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _clock.Tick += (_, _) => Render();
@@ -43,6 +44,22 @@ public partial class MainWindow : Window
     }
 
     private MacSipEngine Engine => _host.Engine;
+
+    private async Task SyncSharedDirectoryAsync()
+    {
+        try
+        {
+            var changed = await DirectoryClient.MergeAsync(_host.Store);
+            if (changed > 0)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() => Engine.NoteDirectoryChanged());
+            }
+        }
+        catch (Exception ex)
+        {
+            DeskLog.Write("Shared directory sync failed: " + ex.Message);
+        }
+    }
 
     private void BuildKeypad()
     {

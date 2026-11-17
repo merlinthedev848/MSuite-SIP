@@ -56,10 +56,29 @@ import { ServerConfigRow, HandsetWithExtensionRow, RouterRow, ExtensionRow } fro
 import { broadcastDeviceLog } from '../services/telemetryStream';
 import { generateYealinkCommonConfig, HandsetAccountConfig } from '../templates/yealink';
 import { resolveLineCount, resolveProfile } from '../templates/profile';
+import { sanitizeDialPlan, sanitizeTimezone } from '../templates/site';
 import { generatePolyCommonConfig } from '../templates/poly';
 import { recordDeviceProvisionEvent, takeDiscoveredProvisionLog } from '../services/deviceProvisionLog';
 import { generateDefaultHandsetConfig } from '../templates/catalog';
 import { generateRouterConfig, RouterConfigParams } from '../templates/routerTemplates';
+
+export function siteDefaultsForPbx(pbxId?: string | null): { timezone: string; dialPlan: string } {
+  let row: { timezone?: string | null; dial_plan?: string | null } | undefined;
+  if (pbxId) {
+    row = systemDb.prepare(
+      'SELECT timezone, dial_plan FROM pbx_instances WHERE id = ? AND is_active = 1'
+    ).get(pbxId) as { timezone?: string | null; dial_plan?: string | null } | undefined;
+  }
+  if (!row) {
+    row = systemDb.prepare(
+      'SELECT timezone, dial_plan FROM pbx_instances WHERE is_active = 1 ORDER BY is_default DESC, name ASC LIMIT 1'
+    ).get() as { timezone?: string | null; dial_plan?: string | null } | undefined;
+  }
+  return {
+    timezone: sanitizeTimezone(row?.timezone),
+    dialPlan: sanitizeDialPlan(row?.dial_plan)
+  };
+}
 
 const router = Router();
 
@@ -291,6 +310,7 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
       }
     } catch {}
   }
+  const site = siteDefaultsForPbx(extPbxId);
   const dataHandlerUrl = config?.data_handler_url || 'https://handler.chriskendall.media';
 
   const accountCfg: HandsetAccountConfig = {
@@ -303,7 +323,9 @@ router.get('/provision/:filename', (req: Request, res: Response) => {
     sipTransport: pbxTransport,
     dataHandlerUrl: dataHandlerUrl,
     directoryToken: directoryTokenForExtension(handset.extension),
-    blfKeys
+    blfKeys,
+    timezone: site.timezone,
+    dialPlan: site.dialPlan
   };
   if (handset.line_count != null && Number.isInteger(Number(handset.line_count))) {
     accountCfg.lineCount = Number(handset.line_count);
