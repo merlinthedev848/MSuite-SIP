@@ -59,6 +59,12 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
     // Fetch Decrypted Conversation History (Last 50 messages)
     socket.on('get_history', (payload: { conversationId: string; limit?: number }, callback?: (res: { success: boolean; messages?: unknown[]; error?: string }) => void) => {
       try {
+        if (!payload || typeof payload !== 'object' || !payload.conversationId) {
+          if (typeof callback === 'function') {
+            callback({ success: false, error: 'Invalid history request payload.' });
+          }
+          return;
+        }
         const limit = Math.min(Math.max(1, payload?.limit || 50), 100);
         const messages = VaultStore.getRecentMessages(payload.conversationId, limit);
         if (typeof callback === 'function') {
@@ -83,6 +89,11 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
       [key: string]: unknown;
     }, ackCallback?: (response: { success: boolean; id?: number; timestamp?: string; error?: string }) => void) => {
       try {
+        if (!payload || typeof payload !== 'object') {
+          if (typeof ackCallback === 'function') ackCallback({ success: false, error: 'Invalid payload.' });
+          return;
+        }
+
         const { conversationId, senderId, messageType, content, fileName, fileSize, fileId } = payload;
 
         if (!conversationId || !senderId || !content) {
@@ -140,6 +151,7 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
 
     // Real-Time Typing Indicator
     socket.on('typing_indicator', (payload: { conversationId: string; senderId: string; isTyping: boolean }) => {
+      if (!payload || typeof payload !== 'object' || !payload.conversationId) return;
       const room = `conv_${payload.conversationId}`;
       socket.to(room).emit('user_typing', payload);
     });

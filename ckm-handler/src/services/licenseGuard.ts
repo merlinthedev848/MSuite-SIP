@@ -126,8 +126,18 @@ function handleOfflineGrace() {
  * Prevents provisioning or signaling if the contractor license is revoked
  */
 export function licenseGateMiddleware(req: Request, res: Response, next: NextFunction) {
-  // Always permit admin UI and static assets so the contractor can view their account status
-  if (req.path.startsWith('/admin') || req.path.startsWith('/api/admin') || req.path === '/api/health' || req.path.startsWith('/license') || req.path.startsWith('/api/v1/license')) {
+  // Always permit admin UI, pin self-service, health checks, and static assets so status can be viewed
+  if (
+    req.path.startsWith('/admin') ||
+    req.path.startsWith('/api/admin') ||
+    req.path.startsWith('/pin') ||
+    req.path === '/api/health' ||
+    req.path.startsWith('/license') ||
+    req.path.startsWith('/api/v1/license') ||
+    req.path === '/branding/logo' ||
+    req.path === '/favicon.ico' ||
+    req.path === '/favicon.png'
+  ) {
     return next();
   }
 
