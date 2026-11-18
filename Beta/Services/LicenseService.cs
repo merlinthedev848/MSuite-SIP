@@ -14,9 +14,29 @@ public sealed class LicenseService
 #if DEBUG
     private const string TestLicenseKey = "TEST-BFC2-DF38-F81D-F08E-135A-9058";
 #endif
-    private static readonly Uri VerifyUrl = new("https://handler.chriskendall.media/license/verify");
-    private static readonly Uri ActivateUrl = new("https://handler.chriskendall.media/license/activate");
+    private static readonly Uri DefaultVerifyUrl = new("https://handler.chriskendall.media/license/verify");
+    private static readonly Uri DefaultActivateUrl = new("https://handler.chriskendall.media/license/activate");
     private static readonly HttpClient HttpClient = HttpClientHelper.CreateClient();
+
+    public static Uri GetVerifyUrl()
+    {
+        var env = Environment.GetEnvironmentVariable("CKM_HANDLER_URL");
+        if (!string.IsNullOrWhiteSpace(env) && Uri.TryCreate($"{env.Trim().TrimEnd('/')}/license/verify", UriKind.Absolute, out var uri))
+        {
+            return uri;
+        }
+        return DefaultVerifyUrl;
+    }
+
+    public static Uri GetActivateUrl()
+    {
+        var env = Environment.GetEnvironmentVariable("CKM_HANDLER_URL");
+        if (!string.IsNullOrWhiteSpace(env) && Uri.TryCreate($"{env.Trim().TrimEnd('/')}/license/activate", UriKind.Absolute, out var uri))
+        {
+            return uri;
+        }
+        return DefaultActivateUrl;
+    }
 
     public string Status { get; private set; } = "Licensed";
     public string? LocalKey { get; private set; }
@@ -40,15 +60,39 @@ public sealed class LicenseService
 
         try
         {
-            var verify = await PostLicenseAsync(VerifyUrl, licenseKey, cancellationToken);
+            var verifyUrl = GetVerifyUrl();
+            LicenseResponse verify;
+            try
+            {
+                verify = await PostLicenseAsync(verifyUrl, licenseKey, cancellationToken);
+            }
+            catch when (verifyUrl != DefaultVerifyUrl)
+            {
+                verify = await PostLicenseAsync(DefaultVerifyUrl, licenseKey, cancellationToken);
+            }
+
             if (!IsAccepted(verify))
             {
                 return LicenseActivationResult.Fail(ToCustomerMessage(verify));
             }
 
-            var activation = verify.RequiresActivation == true
-                ? await PostLicenseAsync(ActivateUrl, licenseKey, cancellationToken)
-                : verify;
+            var activateUrl = GetActivateUrl();
+            LicenseResponse activation;
+            if (verify.RequiresActivation == true)
+            {
+                try
+                {
+                    activation = await PostLicenseAsync(activateUrl, licenseKey, cancellationToken);
+                }
+                catch when (activateUrl != DefaultActivateUrl)
+                {
+                    activation = await PostLicenseAsync(DefaultActivateUrl, licenseKey, cancellationToken);
+                }
+            }
+            else
+            {
+                activation = verify;
+            }
 
             if (!IsAccepted(activation))
             {
@@ -85,7 +129,16 @@ public sealed class LicenseService
 
         try
         {
-            var verify = await PostLicenseAsync(VerifyUrl, licenseKey, cancellationToken, localKey);
+            var verifyUrl = GetVerifyUrl();
+            LicenseResponse verify;
+            try
+            {
+                verify = await PostLicenseAsync(verifyUrl, licenseKey, cancellationToken, localKey);
+            }
+            catch when (verifyUrl != DefaultVerifyUrl)
+            {
+                verify = await PostLicenseAsync(DefaultVerifyUrl, licenseKey, cancellationToken, localKey);
+            }
             if (!IsAccepted(verify))
             {
                 return LicenseVerificationResult.Inactive(ToCustomerMessage(verify));

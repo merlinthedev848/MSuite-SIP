@@ -27,6 +27,7 @@ public partial class StartupWindow : Window
     private void StartupWindow_Loaded(object sender, RoutedEventArgs e)
     {
         LoadMediaDevices();
+        UpdateUiMode();
     }
 
     private void LoadMediaDevices()
@@ -38,14 +39,61 @@ public partial class StartupWindow : Window
         AudioOutputComboBox.SelectedIndex = AudioOutputComboBox.Items.Count > 0 ? 0 : -1;
     }
 
+    private void UpdateUiMode()
+    {
+        if (ProvisionCodeRadioButton.IsChecked == true)
+        {
+            ProvisionCodePanel.Visibility = Visibility.Visible;
+            LicenseStepPanel.Visibility = Visibility.Collapsed;
+            ManualSipPanel.Visibility = Visibility.Collapsed;
+            SubtitleText.Text = "Enter your 8-digit setup PIN to automatically provision this softphone.";
+            ContinueButton.Content = "Connect & Setup";
+        }
+        else
+        {
+            ProvisionCodePanel.Visibility = Visibility.Collapsed;
+            if (!_licenseAccepted)
+            {
+                LicenseStepPanel.Visibility = Visibility.Visible;
+                ManualSipPanel.Visibility = Visibility.Collapsed;
+                SubtitleText.Text = "Enter your buyout or contractor licence key to activate.";
+                ContinueButton.Content = "Activate licence";
+            }
+            else
+            {
+                LicenseStepPanel.Visibility = Visibility.Collapsed;
+                ManualSipPanel.Visibility = Visibility.Visible;
+                SubtitleText.Text = "Enter your SIP account credentials.";
+                ContinueButton.Content = "Complete setup";
+            }
+        }
+    }
+
     private async void ContinueButton_Click(object sender, RoutedEventArgs e)
     {
         ErrorText.Text = string.Empty;
 
         try
         {
+            if (ProvisionCodeRadioButton.IsChecked == true)
+            {
+                await RunWithDisabledContinueAsync(AcceptProvisionCodeStep);
+                return;
+            }
+
             if (!_licenseAccepted)
             {
+                var enteredKey = LicenseKeyTextBox.Text?.Trim() ?? string.Empty;
+                var cleanedDigits = new string(enteredKey.Where(char.IsDigit).ToArray());
+                if (cleanedDigits.Length == 8 && enteredKey.Length == 8)
+                {
+                    // User pasted an 8-digit PIN into the licence box: route seamlessly to PIN setup
+                    ProvisionCodeRadioButton.IsChecked = true;
+                    ProvisioningCodeTextBox.Text = cleanedDigits;
+                    await RunWithDisabledContinueAsync(AcceptProvisionCodeStep);
+                    return;
+                }
+
                 await AcceptLicenseStepAsync();
                 return;
             }
@@ -57,6 +105,43 @@ public partial class StartupWindow : Window
             DebugLog.Write($"STARTUP ContinueButton_Click failed: {ex}");
             ErrorText.Text = $"Setup failed: {ex.Message}";
         }
+    }
+
+    private async Task AcceptProvisionCodeStep()
+    {
+        if (AudioInputComboBox.SelectedItem is not MediaDeviceInfo audioInput ||
+            AudioOutputComboBox.SelectedItem is not MediaDeviceInfo audioOutput)
+        {
+            ErrorText.Text = "Select audio input and audio output devices.";
+            return;
+        }
+
+        var provisionCode = ProvisioningCodeTextBox.Text?.Trim() ?? string.Empty;
+        var cleanedCode = new string(provisionCode.Where(char.IsDigit).ToArray());
+        if (cleanedCode.Length != 8)
+        {
+            ErrorText.Text = "Enter a valid 8-digit setup code.";
+            return;
+        }
+
+        ContinueButton.Content = "Provisioning...";
+        var provisioned = await _provisioningService.ProvisionAsync(
+            cleanedCode,
+            "MANAGED",
+            "Licensed (Managed)",
+            string.Empty,
+            audioInput,
+            audioOutput);
+
+        if (!provisioned.Success || provisioned.Config is null)
+        {
+            ErrorText.Text = provisioned.Message;
+            ContinueButton.Content = "Connect & Setup";
+            return;
+        }
+
+        Config = provisioned.Config;
+        DialogResult = true;
     }
 
     private async Task RunWithDisabledContinueAsync(Func<Task> action)
@@ -98,13 +183,10 @@ public partial class StartupWindow : Window
             _allowCustomSipEndpoint = LicenseAllowsCustomSipEndpoint(licenseKey);
             PrivatePbxPanel.Visibility = _allowCustomSipEndpoint ? Visibility.Visible : Visibility.Collapsed;
             PrivatePbxTextBox.Text = _allowCustomSipEndpoint ? AppStartupConfig.FixedSipServer : string.Empty;
-            LicenseStepPanel.Visibility = Visibility.Collapsed;
-            CredentialsStepPanel.Visibility = Visibility.Visible;
-            SubtitleText.Text = "Activation complete. Choose how this device should connect.";
+            UpdateUiMode();
         }
         finally
         {
-            ContinueButton.Content = "Complete setup";
             ContinueButton.IsEnabled = true;
         }
     }
@@ -115,34 +197,6 @@ public partial class StartupWindow : Window
             AudioOutputComboBox.SelectedItem is not MediaDeviceInfo audioOutput)
         {
             ErrorText.Text = "Select audio input and audio output devices.";
-            return;
-        }
-
-        if (ProvisionCodeRadioButton.IsChecked == true)
-        {
-            var provisionCode = ProvisioningCodeTextBox.Text?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(provisionCode))
-            {
-                ErrorText.Text = "Enter a setup code.";
-                return;
-            }
-
-            var provisioned = await _provisioningService.ProvisionAsync(
-                provisionCode,
-                _licenseKey,
-                _licenseStatus,
-                _licenseService.LocalKey ?? string.Empty,
-                audioInput,
-                audioOutput);
-
-            if (!provisioned.Success || provisioned.Config is null)
-            {
-                ErrorText.Text = provisioned.Message;
-                return;
-            }
-
-            Config = provisioned.Config;
-            DialogResult = true;
             return;
         }
 
@@ -197,16 +251,12 @@ public partial class StartupWindow : Window
             return;
         }
 
-        ProvisionCodePanel.Visibility = ProvisionCodeRadioButton.IsChecked == true
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        ManualSipPanel.Visibility = ManualSipRadioButton.IsChecked == true
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        UpdateUiMode();
     }
 
     private static bool LicenseAllowsCustomSipEndpoint(string licenseKey)
     {
-        return licenseKey.StartsWith("PR", StringComparison.OrdinalIgnoreCase);
+        return licenseKey.StartsWith("PR", StringComparison.OrdinalIgnoreCase) ||
+               licenseKey.StartsWith("BUYOUT", StringComparison.OrdinalIgnoreCase);
     }
 }

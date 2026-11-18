@@ -136,23 +136,37 @@ public sealed class LicenseClient
 
 public sealed class ProvisionClient
 {
-    private static readonly string[] Templates =
+    private static readonly string[] EndpointPaths =
     [
-        "https://handler.chriskendall.media/sip/register/{code}",
-        "https://handler.chriskendall.media/index.php/sip/register/{code}",
-        "https://handler.chriskendall.media/sip/device/{code}",
-        "https://handler.chriskendall.media/index.php/sip/device/{code}",
-        "https://handler.chriskendall.media/sip/autoprovision/{code}",
-        "https://handler.chriskendall.media/index.php/sip/autoprovision/{code}",
-        "https://handler.chriskendall.media/sip/details/{code}",
-        "https://handler.chriskendall.media/index.php/sip/details/{code}",
-        "https://handler.chriskendall.media/sip/provision/{code}",
-        "https://handler.chriskendall.media/index.php/sip/provision/{code}"
+        "/sip/provision/{code}",
+        "/sip/register/{code}",
+        "/sip/autoprovision/{code}",
+        "/sip/details/{code}",
+        "/api/v1/provision"
     ];
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
-    public async Task<(bool Ok, string Extension, string Username, string Password, string HandlerUrl, string Error)> ProvisionAsync(string code, CancellationToken cancellationToken = default)
+    public static List<string> GetBaseUrls(string? customHandlerUrl = null)
+    {
+        var list = new List<string>();
+        if (!string.IsNullOrWhiteSpace(customHandlerUrl))
+        {
+            list.Add(customHandlerUrl.Trim().TrimEnd('/'));
+        }
+        var envHandler = Environment.GetEnvironmentVariable("CKM_HANDLER_URL");
+        if (!string.IsNullOrWhiteSpace(envHandler))
+        {
+            list.Add(envHandler.Trim().TrimEnd('/'));
+        }
+        list.Add("https://handler.chriskendall.media");
+        list.Add("https://beta-handler.chriskendall.media");
+        list.Add("http://127.0.0.1:3000");
+        list.Add("http://127.0.0.1:9099");
+        return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public async Task<(bool Ok, string Extension, string Username, string Password, string HandlerUrl, string Error)> ProvisionAsync(string code, string? customHandlerUrl = null, CancellationToken cancellationToken = default)
     {
         var cleaned = new string(code.Where(char.IsDigit).ToArray());
         if (cleaned.Length != 8)
@@ -161,57 +175,62 @@ public sealed class ProvisionClient
         }
 
         string last = "The provisioning service is not available right now.";
-        foreach (var template in Templates)
-        {
-            var url = template.Replace("{code}", cleaned);
-            try
-            {
-                using var response = await Http.PostAsJsonAsync(url, new ProvisionRequest(cleaned), cancellationToken);
-                var type = response.Content.Headers.ContentType?.MediaType ?? "";
-                if (!type.Contains("json", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
+        var baseUrls = GetBaseUrls(customHandlerUrl);
 
-                var payload = await response.Content.ReadFromJsonAsync<ProvisionResponse>(cancellationToken);
-                if (payload is null || !response.IsSuccessStatusCode || !payload.Success || payload.Sip is null)
+        foreach (var baseUrl in baseUrls)
+        {
+            foreach (var endpoint in EndpointPaths)
+            {
+                var url = $"{baseUrl}{endpoint.Replace("{code}", cleaned)}";
+                try
                 {
-                    last = payload?.Error switch
+                    using var response = await Http.PostAsJsonAsync(url, new ProvisionRequest(cleaned), cancellationToken);
+                    var type = response.Content.Headers.ContentType?.MediaType ?? "";
+                    if (!type.Contains("json", StringComparison.OrdinalIgnoreCase))
                     {
-                        "rate_limited" => "Too many attempts. Please wait a few minutes and try again.",
-                        "invalid_or_expired_code" => "The provisioning code is invalid or has expired.",
-                        _ => "The provisioning code could not be accepted."
-                    };
-                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                    {
-                        return (false, "", "", "", "", "The provisioning code is invalid or has expired.");
+                        continue;
                     }
 
-                    continue;
+                    var payload = await response.Content.ReadFromJsonAsync<ProvisionResponse>(cancellationToken);
+                    if (payload is null || !response.IsSuccessStatusCode || !payload.Success || payload.Sip is null)
+                    {
+                        last = payload?.Error switch
+                        {
+                            "rate_limited" => "Too many attempts. Please wait a few minutes and try again.",
+                            "invalid_or_expired_code" => "The provisioning code is invalid or has expired.",
+                            _ => "The provisioning code could not be accepted."
+                        };
+                        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                        {
+                            return (false, "", "", "", "", last);
+                        }
+
+                        continue;
+                    }
+
+                    var ext = payload.Sip.EffectiveExtension;
+                    var auth = payload.Sip.EffectiveAuthName;
+                    var pwd = payload.Sip.EffectivePassword;
+
+                    if (string.IsNullOrWhiteSpace(ext) ||
+                        string.IsNullOrWhiteSpace(auth) ||
+                        string.IsNullOrWhiteSpace(pwd))
+                    {
+                        return (false, "", "", "", "", "The provisioning code did not return complete account details.");
+                    }
+
+                    var handler = payload.Sip.HandlerUrl?.Trim() ?? "";
+                    if (handler.Length == 0)
+                    {
+                        handler = baseUrl;
+                    }
+
+                    return (true, ext, auth, pwd, handler.TrimEnd('/'), "");
                 }
-
-                var ext = payload.Sip.EffectiveExtension;
-                var auth = payload.Sip.EffectiveAuthName;
-                var pwd = payload.Sip.EffectivePassword;
-
-                if (string.IsNullOrWhiteSpace(ext) ||
-                    string.IsNullOrWhiteSpace(auth) ||
-                    string.IsNullOrWhiteSpace(pwd))
+                catch (Exception ex)
                 {
-                    return (false, "", "", "", "", "The provisioning code did not return complete account details.");
+                    DeskLog.Write("Provision attempt failed: " + ex.Message);
                 }
-
-                var handler = payload.Sip.HandlerUrl?.Trim() ?? "";
-                if (handler.Length == 0)
-                {
-                    handler = "https://handler.chriskendall.media";
-                }
-
-                return (true, ext, auth, pwd, handler.TrimEnd('/'), "");
-            }
-            catch (Exception ex)
-            {
-                DeskLog.Write("Provision attempt failed: " + ex.Message);
             }
         }
 

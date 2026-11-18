@@ -18,9 +18,15 @@ public sealed class ProvisioningService
 
     private static readonly HttpClient HttpClient = HttpClientHelper.SharedClient;
 
-    public static List<string> GetBaseUrls()
+    public static List<string> GetBaseUrls(string? customHandlerUrl = null)
     {
         var list = new List<string>();
+
+        // 0. Explicit custom handler URL provided by the caller/configuration
+        if (!string.IsNullOrWhiteSpace(customHandlerUrl))
+        {
+            list.Add(customHandlerUrl.Trim().TrimEnd('/'));
+        }
 
         // 1. Explicit environment override (e.g. during testing or custom deployment)
         var envHandler = Environment.GetEnvironmentVariable("CKM_HANDLER_URL");
@@ -52,6 +58,7 @@ public sealed class ProvisioningService
         string licenseLocalKey,
         MediaDeviceInfo audioInput,
         MediaDeviceInfo audioOutput,
+        string? customHandlerUrl = null,
         CancellationToken cancellationToken = default)
     {
         var cleanedCode = new string(code.Where(char.IsDigit).ToArray());
@@ -63,7 +70,7 @@ public sealed class ProvisioningService
         try
         {
             ProvisioningResult? lastFailure = null;
-            var baseUrls = GetBaseUrls();
+            var baseUrls = GetBaseUrls(customHandlerUrl);
 
             var urlsToTry = new List<(string BaseUrl, Uri FullUri)>();
             foreach (var baseUrl in baseUrls)
@@ -106,13 +113,20 @@ public sealed class ProvisioningService
                     var payload = await response.Content.ReadFromJsonAsync<ProvisioningResponse>(cancellationToken: cancellationToken);
                     if (!response.IsSuccessStatusCode || payload is null || !payload.Success || payload.Sip is null)
                     {
-                        if (response.StatusCode == System.Net.HttpStatusCode.NotFound ||
-                            response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-                            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                        // Definite rejection: Rate limiting or account deactivation aborts early
+                        if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
+                            string.Equals(payload?.Error, "rate_limited", StringComparison.OrdinalIgnoreCase))
                         {
                             return ProvisioningResult.Fail(ToCustomerMessage(payload?.Error, response.StatusCode));
                         }
 
+                        if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                        {
+                            return ProvisioningResult.Fail(ToCustomerMessage(payload?.Error, response.StatusCode));
+                        }
+
+                        // For 404 Not Found, 401 Unauthorized, or endpoint mismatches:
+                        // Record failure and continue trying other endpoints/hosts in fallback list
                         lastFailure = ProvisioningResult.Fail(ToCustomerMessage(payload?.Error, response.StatusCode));
                         continue;
                     }

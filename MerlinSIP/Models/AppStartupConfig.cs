@@ -93,7 +93,7 @@ public sealed record AppStartupConfig(
 
     public AppStartupConfig WithFixedSipEndpoint()
     {
-        if (AllowsCustomSipEndpoint && !string.IsNullOrWhiteSpace(Server))
+        if ((AllowsCustomSipEndpoint || IsProvisioned) && !string.IsNullOrWhiteSpace(Server))
         {
             return this with
             {

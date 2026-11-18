@@ -132,6 +132,66 @@ public class HandlerIntegrationTests
     }
 
     [Fact]
+    public async Task ProvisioningService_SurvivesInitialEndpoint404_AndPreservesProvisionedSipServer()
+    {
+        int callCount = 0;
+        using var server = new MockServer((req, baseUrl) =>
+        {
+            callCount++;
+            // Simulate first path (/sip/provision/...) 404, but second path (/sip/register/...) 200
+            if (req.Url?.AbsolutePath.StartsWith("/sip/register/") == true)
+            {
+                return (200, JsonSerializer.Serialize(new
+                {
+                    ok = true,
+                    success = true,
+                    message = "Extension provisioned successfully.",
+                    sip = new
+                    {
+                        server = "custom-pbx.local",
+                        port = 5080,
+                        domain = "custom-pbx.local",
+                        transport = "TCP",
+                        extension = "202",
+                        username = "user202",
+                        password = "SecurePassword456!",
+                        display_name = "Agent 202",
+                        data_handler_url = baseUrl
+                    },
+                    branding = new
+                    {
+                        brand_name = "Merlin Enterprise",
+                        primary_color = "#10B981",
+                        accent_color = "#065F46"
+                    }
+                }));
+            }
+
+            return (404, "{\"ok\":false,\"error\":\"Not found on this path\"}");
+        });
+
+        var provisioningService = new ProvisioningService();
+        var result = await provisioningService.ProvisionAsync(
+            "99887766",
+            "MANAGED",
+            "Licensed (Managed)",
+            "",
+            new MediaDeviceInfo("in", "Mic"),
+            new MediaDeviceInfo("out", "Spk"),
+            customHandlerUrl: server.BaseUrl);
+
+        Assert.True(result.Success, $"Expected success despite first 404: {result.Message}");
+        Assert.NotNull(result.Config);
+        Assert.True(result.Config.IsProvisioned);
+        Assert.Equal("custom-pbx.local", result.Config.Server);
+        Assert.Equal(5080, result.Config.Port);
+        Assert.Equal("202", result.Config.Extension);
+        Assert.Equal("user202", result.Config.Username);
+        Assert.Equal("Merlin Enterprise", result.Config.BrandName);
+        Assert.True(callCount >= 2, "Expected multiple endpoints to be probed before succeeding");
+    }
+
+    [Fact]
     public async Task DynamicConfigSync_HooksIntoHandler_ApiV1ConfigSync()
     {
         bool syncRequested = false;

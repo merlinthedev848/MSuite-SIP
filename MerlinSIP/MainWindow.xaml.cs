@@ -1486,25 +1486,63 @@ public partial class MainWindow : Window
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             using var request = new HttpRequestMessage(HttpMethod.Get, syncEndpoint);
-            request.Headers.Add("User-Agent", "MerlinSIP/1.3.9.5");
+            request.Headers.Add("User-Agent", "MerlinSIP/1.4.0");
             using var response = await HttpClientHelper.SharedClient.SendAsync(request, cts.Token);
 
             if (!response.IsSuccessStatusCode) return;
             var json = await response.Content.ReadAsStringAsync(cts.Token);
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
+
+            bool configChanged = false;
+
+            // 1. Dynamic PBX SIP endpoint sync for provisioned managed softphones
+            if (_config.IsProvisioned && !_config.AllowsCustomSipEndpoint)
+            {
+                if (root.TryGetProperty("sip", out var sipEl))
+                {
+                    var srv = sipEl.TryGetProperty("server", out var s) ? s.GetString() : null;
+                    var prt = sipEl.TryGetProperty("port", out var p) && p.TryGetInt32(out var portVal) ? portVal : (int?)null;
+                    var trn = sipEl.TryGetProperty("transport", out var t) ? t.GetString() : null;
+
+                    var needsSipUpdate = (!string.IsNullOrWhiteSpace(srv) && !string.Equals(_config.Server, srv, StringComparison.OrdinalIgnoreCase)) ||
+                                         (prt.HasValue && prt.Value > 0 && _config.Port != prt.Value) ||
+                                         (!string.IsNullOrWhiteSpace(trn) && !string.Equals(_config.SipSignallingTransport, trn, StringComparison.OrdinalIgnoreCase));
+
+                    if (needsSipUpdate)
+                    {
+                        var updatedServer = !string.IsNullOrWhiteSpace(srv) ? srv! : _config.Server;
+                        var updatedPort = prt.HasValue && prt.Value > 0 ? prt.Value : _config.Port;
+                        var updatedTransport = !string.IsNullOrWhiteSpace(trn) ? trn! : _config.SipSignallingTransport;
+
+                        _config = _config with
+                        {
+                            Server = updatedServer,
+                            Domain = updatedServer,
+                            Port = updatedPort,
+                            SipSignallingTransport = updatedTransport
+                        };
+                        configChanged = true;
+                        DebugLog.Write($"REMOTE SYNC: Updated PBX endpoint to {updatedServer}:{updatedPort} transport={updatedTransport}");
+                        _ = RegisterSipAsync();
+                    }
+                }
+            }
+
+            // 2. Dynamic Data Handler socket sync
             if (root.TryGetProperty("data_handler", out var dh) && dh.TryGetProperty("socket_url", out var socketUrl))
             {
                 var newHandler = socketUrl.GetString();
                 if (!string.IsNullOrWhiteSpace(newHandler) && !string.Equals(_config.DataHandlerUrl, newHandler, StringComparison.OrdinalIgnoreCase))
                 {
                     _config = _config with { DataHandlerUrl = newHandler };
-                    await _cacheService.SaveSettingsAsync(_config);
+                    configChanged = true;
                     await _chatService.UpdateServerUrlAsync(newHandler);
                     DebugLog.Write($"REMOTE SYNC: Updated data handler URL to {newHandler}");
                 }
             }
 
+            // 3. Dynamic Branding sync
             if (root.TryGetProperty("branding", out var brandingEl))
             {
                 var bName = brandingEl.TryGetProperty("brand_name", out var bn) ? bn.GetString() : _config.BrandName;
@@ -1518,10 +1556,15 @@ public partial class MainWindow : Window
                     !string.Equals(_config.LogoUrl, lUrl, StringComparison.OrdinalIgnoreCase))
                 {
                     _config = _config with { BrandName = bName, PrimaryColor = pCol, AccentColor = aCol, LogoUrl = lUrl };
-                    await _cacheService.SaveSettingsAsync(_config);
+                    configChanged = true;
                     ApplyBranding(bName, pCol, aCol, lUrl);
                     DebugLog.Write($"REMOTE SYNC: Updated suite branding: Brand={bName}, Primary={pCol}, Accent={aCol}");
                 }
+            }
+
+            if (configChanged)
+            {
+                await _cacheService.SaveSettingsAsync(_config);
             }
         }
         catch (Exception ex)
@@ -3745,7 +3788,8 @@ public partial class MainWindow : Window
                 _config.LicenseStatus,
                 _config.LicenseLocalKey,
                 audioInput,
-                audioOutput);
+                audioOutput,
+                customHandlerUrl: _config.DataHandlerUrl);
 
             if (!result.Success || result.Config is null)
             {

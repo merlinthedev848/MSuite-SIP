@@ -1,10 +1,10 @@
 ﻿{
-    "fileSize": 80630540,
-    "version":  "1.3.9.5",
-    "releaseNotes":  "v1.3.9.5: Authenticated GDPR-isolated Global Shared Address Books with extension assignment and CSV bulk upload/export, secure deskphone/softphone feeds, vector signal call quality rendering, and auto-rotating debug logging.",
+    "fileSize": 77001504,
+    "version":  "1.4.0",
+    "releaseNotes":  "v1.4.0: Handler server connectivity architecture, frictionless 8-digit PIN provisioning onboarding, multi-endpoint fallback resolution, remote dynamic PBX/data-handler config synchronization, anti-aliased G.722 audio decimation, and security hardening.",
     "mandatory":  false,
-    "url":  "https://handler.chriskendall.media/downloads/MerlinSIP-1.3.9.5-x64-faststart.msi",
-    "fileName":  "MerlinSIP-1.3.9.5-x64-faststart.msi",
-    "releaseDate":  "2026-11-09",
-    "sha256": "210BBE3E347444D41DBA592209469AC072B83DFFD8B2131E3F93C9A31EFDD430"
+    "url":  "https://github.com/merlinthedev848/MSuite-SIP/releases/download/v1.4.0/MerlinSIP-1.4.0-x64-faststart.msi",
+    "fileName":  "MerlinSIP-1.4.0-x64-faststart.msi",
+    "releaseDate":  "2026-11-18",
+    "sha256": "4D19CDF85605AAA9F70566361FE03E920E7A61E8615F6A55ACFA22010B023242"
 }
