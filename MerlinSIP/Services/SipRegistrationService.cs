@@ -2222,13 +2222,17 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
             "s=CK Media Services call",
             $"c=IN IP4 {_localAddress}",
             "t=0 0",
-            $"m=audio {rtpPort} RTP/AVP {codecs} 101",
-            ..AudioRtpMapLines(codecs),
+            $"m=audio {rtpPort} RTP/AVP {codecs} 101"
+        };
+        // A spread (..) is not valid inside a collection initializer, so add the rtpmaps here.
+        sdpLines.AddRange(AudioRtpMapLines(codecs));
+        sdpLines.AddRange(new[]
+        {
             "a=rtpmap:101 telephone-event/8000",
             "a=fmtp:101 0-16",
             "a=ptime:20",
             "a=sendrecv"
-        };
+        });
 
         if (isVideo)
         {

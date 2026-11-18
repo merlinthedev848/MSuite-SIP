@@ -53,12 +53,13 @@ SIP.js is open source and works naturally in Electron, but it requires SIP over 
 
 ## Next Build Steps
 
-1. Add native SIP registration, inbound calls, outbound calls, and media attachment.
-2. Add microphone/speaker device selection through Windows audio APIs.
-3. Store SIP/PBX credentials with Windows-protected encrypted storage.
-4. Wire Yeastar S100 adapter against the exact enabled API/CTI endpoints on your PBX.
-5. Wire FreePBX adapter against secured AMI/ARI/CDR/recording access.
-6. Replace the license placeholder with accounts-module activation and signed offline validation.
-7. Add seat counts, revocation, and renewal state to the activation flow.
-8. Publish self-contained win-x64 builds and wrap them in a signed installer.
-9. Add code signing, auto-update, and installer branding.
+Done: native SIP registration, inbound and outbound calls, and RTP media are in the Windows app (`MerlinSIP/Services/SipRegistrationService.cs`, `RtpAudioSession.cs`) and the Mac app (`MerlinSIP.Mac/Services/MacSipEngine.cs`, audio only).
+
+1. Add microphone/speaker device selection through Windows audio APIs.
+2. Store SIP/PBX credentials with Windows-protected encrypted storage.
+3. Wire Yeastar S100 adapter against the exact enabled API/CTI endpoints on your PBX.
+4. Wire FreePBX adapter against secured AMI/ARI/CDR/recording access.
+5. Replace the license placeholder with accounts-module activation and signed offline validation.
+6. Add seat counts, revocation, and renewal state to the activation flow.
+7. Publish self-contained win-x64 builds and wrap them in a signed installer.
+8. Add code signing, auto-update, and installer branding.
