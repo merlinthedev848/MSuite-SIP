@@ -363,6 +363,8 @@ try {
 
     CREATE INDEX IF NOT EXISTS idx_ab_ext_extension ON address_book_extensions (extension);
     CREATE INDEX IF NOT EXISTS idx_ab_contacts_book ON address_book_contacts (address_book_id);
+    CREATE INDEX IF NOT EXISTS idx_ab_contacts_number ON address_book_contacts (number);
+    CREATE INDEX IF NOT EXISTS idx_ab_contacts_name ON address_book_contacts (name);
   `);
 } catch {}
 

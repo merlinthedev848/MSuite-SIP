@@ -105,7 +105,7 @@
                 <UniformGrid x:Name="Keypad" Columns="3" />
                 <Grid ColumnDefinitions="*,*,*" Margin="0,8,0,0">
                   <Button Classes="primary" Content="Dial" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Dial_Click" />
-                  <Button Grid.Column="1" Content="Video" Margin="8,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Video_Click" />
+                  <Button Grid.Column="1" Content="Video" Margin="8,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsEnabled="False" ToolTip.ShowOnDisabled="True" ToolTip.Tip="Video calls are not available on Mac yet. Calls from this app are audio only." />
                   <Button Grid.Column="2" Content="Voicemail" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="Voicemail_Click" ToolTip.Tip="Check voicemail (*2)" />
                 </Grid>
                 <Grid ColumnDefinitions="*,*,*" Margin="0,8,0,0">
@@ -296,7 +296,7 @@
                 <ComboBox x:Name="InputBox" />
                 <TextBlock Text="Speaker" Classes="muted" />
                 <ComboBox x:Name="OutputBox" />
-                <TextBlock Text="Camera" Classes="muted" />
+                <TextBlock Text="Camera (saved for later; Mac calls are audio only)" Classes="muted" />
                 <ComboBox x:Name="CameraBox" />
                 <TextBlock Text="Microphone volume" Classes="muted" />
                 <Slider x:Name="MicSlider" Minimum="0" Maximum="100" />

@@ -59,6 +59,8 @@ vaultDb.exec(`
     ON messages (conversation_id, id DESC);
   CREATE INDEX IF NOT EXISTS idx_vault_messages_sender 
     ON messages (sender_id);
+  CREATE INDEX IF NOT EXISTS idx_vault_messages_timestamp
+    ON messages (timestamp);
 
   CREATE TABLE IF NOT EXISTS contacts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,6 +85,8 @@ vaultDb.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_vault_media_uploaded_by 
     ON media_vault_files (uploaded_by);
+  CREATE INDEX IF NOT EXISTS idx_vault_media_created
+    ON media_vault_files (created_at);
 
   CREATE TABLE IF NOT EXISTS gdpr_retention_policy (
     id INTEGER PRIMARY KEY CHECK (id = 1),

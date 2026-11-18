@@ -192,58 +192,6 @@ public sealed class QualityWindow : Window
     }
 }
 
-public sealed class VideoCallWindow : Window
-{
-    private readonly TextBlock _title;
-    private readonly TextBlock _clock;
-    private readonly Action _hangup;
-    private readonly Action _mute;
-
-    public VideoCallWindow(Action hangup, Action mute)
-    {
-        _hangup = hangup;
-        _mute = mute;
-        Title = "Video call";
-        Width = 720;
-        Height = 460;
-        WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        _title = new TextBlock { Foreground = Brushes.White, FontSize = 28, FontWeight = FontWeight.Bold };
-        _clock = new TextBlock { Foreground = Brushes.LightGray, FontSize = 16 };
-        var end = new Button { Content = "End video call" };
-        end.Classes.Add("danger");
-        var muteButton = new Button { Content = "Mute", Foreground = Brushes.White, Background = Brushes.Transparent };
-        end.Click += (_, _) => { _hangup(); Close(); };
-        muteButton.Click += (_, _) => _mute();
-        Content = new Grid
-        {
-            Background = Brushes.Black,
-            Children =
-            {
-                new StackPanel
-                {
-                    Margin = new Avalonia.Thickness(28),
-                    VerticalAlignment = VerticalAlignment.Bottom,
-                    Spacing = 8,
-                    Children =
-                    {
-                        new TextBlock { Text = "Merlin SIP video", Foreground = Brushes.Gold },
-                        _title,
-                        _clock,
-                        new TextBlock { Text = "Audio is live on this call. The video window follows the selected camera from Settings.", Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap },
-                        new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { end, muteButton } }
-                    }
-                }
-            }
-        };
-    }
-
-    public void Update(LineSnapshot line)
-    {
-        _title.Text = string.IsNullOrWhiteSpace(line.RemoteName) ? line.Remote : line.RemoteName;
-        _clock.Text = line.Phase + "  ·  " + line.Clock + (line.Muted ? "  ·  Muted" : "");
-    }
-}
-
 public sealed class HexBrushConverter : IValueConverter
 {
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)

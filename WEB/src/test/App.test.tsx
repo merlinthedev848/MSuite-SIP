@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../App';
 
@@ -99,7 +99,9 @@ describe('App component full workflow', () => {
     fireEvent.click(screen.getByRole('button', { name: /end call/i }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
-    await vi.advanceTimersByTimeAsync(2500);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 

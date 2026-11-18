@@ -474,6 +474,12 @@ router.get(['/phonebook/cisco.xml', '/phonebook/spa.xml'], (req: Request, res: R
     xml += '    <Name>' + escapeXml(c.name) + '</Name>\r\n';
     xml += '    <Telephone>' + escapeXml(c.number) + '</Telephone>\r\n';
     xml += '  </DirectoryEntry>\r\n';
+    if (c.mobile && c.mobile !== c.number) {
+      xml += '  <DirectoryEntry>\r\n';
+      xml += '    <Name>' + escapeXml(c.name + ' (Mobile)') + '</Name>\r\n';
+      xml += '    <Telephone>' + escapeXml(c.mobile) + '</Telephone>\r\n';
+      xml += '  </DirectoryEntry>\r\n';
+    }
   }
 
   xml += '</CiscoIPPhoneDirectory>';

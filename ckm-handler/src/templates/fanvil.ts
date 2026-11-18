@@ -68,7 +68,7 @@ ${lineXml}
     </Auto_Provision>
     <Time>
       <NTP_Server>${escapeXml(profile.ntpServer)}</NTP_Server>
-      <Time_Zone>Europe/London</Time_Zone>
+      <Time_Zone>${escapeXml(profile.timezone)}</Time_Zone>
       <DST>1</DST>
       <Locale>en-GB</Locale>
     </Time>

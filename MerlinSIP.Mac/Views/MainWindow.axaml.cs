@@ -20,7 +20,6 @@ public partial class MainWindow : Window
     private string? _messageNumber;
     private IncomingCallWindow? _incoming;
     private bool _incomingDismissed;
-    private VideoCallWindow? _video;
 
     public MainWindow(AppHost host)
     {
@@ -190,7 +189,6 @@ public partial class MainWindow : Window
         PaintLine(1, Line1Title, Line1Detail, Line1Clock, Line1Actions, Line1Incoming);
         PaintLine(2, Line2Title, Line2Detail, Line2Clock, Line2Actions, Line2Incoming);
         TrackIncoming();
-        TrackVideo();
         if (listsChanged || DirectoryList.ItemsSource == null)
         {
             ReloadLists();
@@ -207,10 +205,6 @@ public partial class MainWindow : Window
                 ? $"{line.Codec}  ·  {line.QualityText}  ·  jitter {line.JitterMs:0.0} ms  ·  latency {line.LatencyMs:0} ms  ·  loss {line.LossPercent:0.0}%"
                 : "Not measured"
             : "";
-        if (line.Video && line.IsLive)
-        {
-            extra = "Video  ·  " + extra;
-        }
 
         if (line.Recording)
         {
@@ -258,24 +252,6 @@ public partial class MainWindow : Window
             _incomingDismissed = true;
         };
         _incoming.Show();
-    }
-
-    private void TrackVideo()
-    {
-        if (_video == null)
-        {
-            return;
-        }
-
-        var line = Engine.Snapshot(1).Video && Engine.Snapshot(1).IsLive ? Engine.Snapshot(1) : Engine.Snapshot(2);
-        if (!line.Video || !line.IsLive)
-        {
-            _video.Close();
-            _video = null;
-            return;
-        }
-
-        _video.Update(line);
     }
 
     private void ReloadLists()
@@ -350,34 +326,10 @@ public partial class MainWindow : Window
         Engine.SendDigit(digit);
     }
 
-    private void DialCurrent(bool video)
+    private void DialCurrent()
     {
-        var number = DestinationBox.Text ?? "";
-        if (video)
-        {
-            Engine.Dial(1, number, video: true);
-            ShowVideo();
-            return;
-        }
-
-        Engine.Dial(1, number);
-    }
-
-    private void ShowVideo()
-    {
-        if (_video != null)
-        {
-            _video.Activate();
-            return;
-        }
-
-        _video = new VideoCallWindow(() => Engine.Hangup(Engine.Snapshot(1).Video ? 1 : 2), () =>
-        {
-            var line = Engine.Snapshot(1).IsLive ? 1 : 2;
-            Engine.SetMuted(line, !Engine.Snapshot(line).Muted);
-        });
-        _video.Closed += (_, _) => _video = null;
-        _video.Show();
+        // Audio only: MerlinSIP.Mac has no video RTP session, so it never offers m=video.
+        Engine.Dial(1, DestinationBox.Text ?? "");
     }
 
     private void OnExternalDial(string number)
@@ -510,7 +462,7 @@ public partial class MainWindow : Window
     {
         if (e.Key == Key.Enter)
         {
-            DialCurrent(false);
+            DialCurrent();
         }
     }
 
@@ -539,8 +491,7 @@ public partial class MainWindow : Window
         menu.Open(PresenceButton);
     }
 
-    private void Dial_Click(object? sender, RoutedEventArgs e) => DialCurrent(false);
-    private void Video_Click(object? sender, RoutedEventArgs e) => DialCurrent(true);
+    private void Dial_Click(object? sender, RoutedEventArgs e) => DialCurrent();
     private void Voicemail_Click(object? sender, RoutedEventArgs e) => Engine.DialVoicemail();
     private void Pickup_Click(object? sender, RoutedEventArgs e) => Engine.DialGroupPickup();
     private void Park_Click(object? sender, RoutedEventArgs e) => Engine.Park();

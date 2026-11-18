@@ -125,7 +125,18 @@ public static class G722Audio
         for (var i = 0; i < outputLength; i++)
         {
             var index = i * 2;
-            output[i] = index < input.Length ? input[index] : input[^1];
+            if (index + 1 < input.Length)
+            {
+                output[i] = (short)((input[index] + input[index + 1]) / 2);
+            }
+            else if (index < input.Length)
+            {
+                output[i] = input[index];
+            }
+            else
+            {
+                output[i] = input[^1];
+            }
         }
 
         return output;
