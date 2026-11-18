@@ -124,7 +124,7 @@ router.get('/api/v1/gdpr/user/:extension/export', adminAuth, requirePermission('
 });
 
 // 3. Get / Set Retention Policy
-router.get(['/api/v1/gdpr/policy', '/api/admin/gdpr/policy'], (_req: Request, res: Response) => {
+router.get(['/api/v1/gdpr/policy', '/api/admin/gdpr/policy'], adminAuth, (_req: Request, res: Response) => {
   const policy = vaultDb.prepare('SELECT * FROM gdpr_retention_policy WHERE id = 1').get() as GdprRetentionPolicyRow | undefined;
   return res.json({ ok: true, policy });
 });

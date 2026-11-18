@@ -10,7 +10,11 @@ import { MediaVaultFileRow } from '../types/models';
 const router = Router();
 
 // Block dangerous executable extensions from VoIP media vault
-const BLOCKED_EXTENSIONS = new Set(['.exe', '.bat', '.cmd', '.sh', '.php', '.phtml', '.dll', '.so', '.vbs', '.com']);
+const BLOCKED_EXTENSIONS = new Set([
+  '.exe', '.bat', '.cmd', '.sh', '.php', '.phtml', '.dll', '.so', '.vbs', '.com',
+  '.ps1', '.psm1', '.js', '.mjs', '.cjs', '.jar', '.scr', '.msi', '.msp', '.reg',
+  '.hta', '.cpl', '.wsf', '.wsh', '.inf', '.py', '.rb'
+]);
 
 // Configure Multer for encrypted / obfuscated vault storage
 const storage = multer.diskStorage({
