@@ -113,7 +113,18 @@ public sealed class MacAudioEndPoint : IAudioEndPoint
         for (var i = 0; i < output.Length; i++)
         {
             var index = i * 2;
-            output[i] = index < input.Length ? input[index] : (short)0;
+            if (index + 1 < input.Length)
+            {
+                output[i] = (short)((input[index] + input[index + 1]) / 2);
+            }
+            else if (index < input.Length)
+            {
+                output[i] = input[index];
+            }
+            else
+            {
+                output[i] = 0;
+            }
         }
 
         return output;

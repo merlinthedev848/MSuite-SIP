@@ -6,7 +6,7 @@ import { ServerConfigRow } from '../types/models';
 const router = Router();
 
 function extractTag(xml: string, tag: string): string {
-  const match = xml.match(new RegExp(`<(?:\w+:)?${tag}[^>]*>([^<]*)<\/(?:\w+:)?${tag}>`, 'i'));
+  const match = xml.match(new RegExp(`<\\s*(?:[a-zA-Z0-9_-]+:)?${tag}[^>]*>([^<]*)<\\/\\s*(?:[a-zA-Z0-9_-]+:)?${tag}>`, 'i'));
   return match ? match[1].trim() : '';
 }
 
@@ -64,11 +64,12 @@ router.post(['/cwmp', '/tr069', '/acs'], (req: Request, res: Response) => {
     } catch {}
   }
 
-  // Construct standard SOAP CWMP InformResponse envelope
+  // Construct standard SOAP CWMP InformResponse envelope with matching transaction ID
+  const cwmpId = (extractTag(rawBody, 'ID') || '1').replace(/[^\w-]/g, '') || '1';
   const cwmpResponse = `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:cwmp="urn:dslforum-org:cwmp-1-0">
   <soapenv:Header>
-    <cwmp:ID soapenv:mustUnderstand="1">1</cwmp:ID>
+    <cwmp:ID soapenv:mustUnderstand="1">${cwmpId}</cwmp:ID>
   </soapenv:Header>
   <soapenv:Body>
     <cwmp:InformResponse>
