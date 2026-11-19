@@ -113,7 +113,7 @@ public sealed class ProvisioningService
                     var payload = await response.Content.ReadFromJsonAsync<ProvisioningResponse>(cancellationToken: cancellationToken);
                     if (!response.IsSuccessStatusCode || payload is null || !payload.Success || payload.Sip is null)
                     {
-                        // Definite rejection: Rate limiting or account deactivation aborts early
+                        // Definite rejection: Rate limiting, account deactivation, conflict (already claimed), or expired PIN aborts early
                         if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
                             string.Equals(payload?.Error, "rate_limited", StringComparison.OrdinalIgnoreCase))
                         {
@@ -125,9 +125,15 @@ public sealed class ProvisioningService
                             return ProvisioningResult.Fail(ToCustomerMessage(payload?.Error, response.StatusCode));
                         }
 
+                        if (response.StatusCode == System.Net.HttpStatusCode.Conflict ||
+                            response.StatusCode == System.Net.HttpStatusCode.Gone)
+                        {
+                            return ProvisioningResult.Fail(ToCustomerMessage(payload?.Error ?? payload?.Message, response.StatusCode));
+                        }
+
                         // For 404 Not Found, 401 Unauthorized, or endpoint mismatches:
                         // Record failure and continue trying other endpoints/hosts in fallback list
-                        lastFailure = ProvisioningResult.Fail(ToCustomerMessage(payload?.Error, response.StatusCode));
+                        lastFailure = ProvisioningResult.Fail(ToCustomerMessage(payload?.Error ?? payload?.Message, response.StatusCode));
                         continue;
                     }
 
@@ -192,9 +198,20 @@ public sealed class ProvisioningService
 
     private static string ToCustomerMessage(string? error, System.Net.HttpStatusCode statusCode)
     {
-        if (string.Equals(error, "rate_limited", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(error, "rate_limited", StringComparison.OrdinalIgnoreCase) ||
+            statusCode == System.Net.HttpStatusCode.TooManyRequests)
         {
             return "Too many attempts. Please wait a few minutes and try again.";
+        }
+
+        if (statusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            return !string.IsNullOrWhiteSpace(error) ? error : "This provisioning PIN has already been claimed.";
+        }
+
+        if (statusCode == System.Net.HttpStatusCode.Gone)
+        {
+            return !string.IsNullOrWhiteSpace(error) ? error : "This provisioning PIN has expired.";
         }
 
         if (string.Equals(error, "invalid_or_expired_code", StringComparison.OrdinalIgnoreCase) ||

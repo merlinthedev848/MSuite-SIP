@@ -291,4 +291,56 @@ public class HandlerIntegrationTests
         Assert.Equal("Main Operator", list[0].GetProperty("name").GetString());
         Assert.Equal("101", list[0].GetProperty("extension").GetString());
     }
+
+    [Fact]
+    public async Task ProvisioningService_ReturnsConflictError_WhenPinAlreadyClaimed()
+    {
+        using var server = new MockServer((req, baseUrl) =>
+        {
+            return (409, JsonSerializer.Serialize(new
+            {
+                ok = false,
+                error = "This provisioning PIN has already been claimed and used."
+            }));
+        });
+
+        var provisioningService = new ProvisioningService();
+        var result = await provisioningService.ProvisionAsync(
+            "11223344",
+            "PR-LIC",
+            "Licensed",
+            "",
+            new MediaDeviceInfo("in", "Mic"),
+            new MediaDeviceInfo("out", "Spk"),
+            customHandlerUrl: server.BaseUrl);
+
+        Assert.False(result.Success);
+        Assert.Contains("claimed", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ProvisioningService_ReturnsExpiredError_WhenPinExpired()
+    {
+        using var server = new MockServer((req, baseUrl) =>
+        {
+            return (410, JsonSerializer.Serialize(new
+            {
+                ok = false,
+                error = "This provisioning PIN has expired."
+            }));
+        });
+
+        var provisioningService = new ProvisioningService();
+        var result = await provisioningService.ProvisionAsync(
+            "55667788",
+            "PR-LIC",
+            "Licensed",
+            "",
+            new MediaDeviceInfo("in", "Mic"),
+            new MediaDeviceInfo("out", "Spk"),
+            customHandlerUrl: server.BaseUrl);
+
+        Assert.False(result.Success);
+        Assert.Contains("expired", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }

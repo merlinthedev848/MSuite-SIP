@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "fix/**", "feature/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet-tests:
+    name: .NET Solution & Unit Tests
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore NuGet dependencies
+        run: dotnet restore MerlinSIP.sln
+
+      - name: Build solution (Release)
+        run: dotnet build MerlinSIP.sln --configuration Release --no-restore
+
+      - name: Run .NET test suite
+        run: dotnet test MerlinSip.Tests/MerlinSip.Tests.csproj --configuration Release --no-restore --no-build --verbosity normal
+
+  web-tests:
+    name: Web Frontend Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: WEB/package-lock.json
+
+      - name: Install dependencies (WEB)
+        working-directory: ./WEB
+        run: npm ci
+
+      - name: Run Web tests (Vitest)
+        working-directory: ./WEB
+        run: npm test
+
+  backend-build:
+    name: CKM Handler Backend Build & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: ckm-handler/package-lock.json
+
+      - name: Install dependencies (ckm-handler)
+        working-directory: ./ckm-handler
+        run: npm ci --ignore-scripts
+
+      - name: Compile TypeScript
+        working-directory: ./ckm-handler
+        run: npm run build

@@ -12,6 +12,7 @@ public partial class StartupWindow : Window
     private readonly ProvisioningService _provisioningService = new();
     private string _licenseKey = string.Empty;
     private string _licenseStatus = "Licensed";
+    private ContractorProfileResponse? _contractorProfile;
     private bool _licenseAccepted;
     private bool _allowCustomSipEndpoint;
 
@@ -121,9 +122,12 @@ public partial class StartupWindow : Window
             _licenseAccepted = true;
             _licenseKey = licenseKey;
             _licenseStatus = _licenseService.Status;
-            _allowCustomSipEndpoint = LicenseAllowsCustomSipEndpoint(licenseKey);
+            _contractorProfile = activation.Profile;
+            _allowCustomSipEndpoint = LicenseAllowsCustomSipEndpoint(licenseKey) || !string.IsNullOrWhiteSpace(_contractorProfile?.SipServer);
             PrivatePbxPanel.Visibility = _allowCustomSipEndpoint ? Visibility.Visible : Visibility.Collapsed;
-            PrivatePbxTextBox.Text = _allowCustomSipEndpoint ? AppStartupConfig.FixedSipServer : string.Empty;
+            PrivatePbxTextBox.Text = !string.IsNullOrWhiteSpace(_contractorProfile?.SipServer)
+                ? _contractorProfile.SipServer
+                : (_allowCustomSipEndpoint ? AppStartupConfig.FixedSipServer : string.Empty);
             UpdateUiMode();
         }
         finally
@@ -158,7 +162,8 @@ public partial class StartupWindow : Window
                 _licenseStatus,
                 _licenseService.LocalKey ?? string.Empty,
                 audioInput,
-                audioOutput);
+                audioOutput,
+                customHandlerUrl: _contractorProfile?.HandlerUrl);
 
             if (!provisioned.Success || provisioned.Config is null)
             {
@@ -195,9 +200,13 @@ public partial class StartupWindow : Window
             return;
         }
 
+        var dataHandlerUrl = _contractorProfile?.HandlerUrl ?? AppStartupConfig.DefaultDataHandlerUrl;
+        var brandName = _contractorProfile?.CompanyName ?? "MerlinSIP";
+        var port = _contractorProfile?.SipPort is > 0 ? _contractorProfile.SipPort.Value : AppStartupConfig.FixedSipPort;
+
         Config = new AppStartupConfig(
             server,
-            AppStartupConfig.FixedSipPort,
+            port,
             server,
             extension,
             username,
@@ -206,7 +215,9 @@ public partial class StartupWindow : Window
             _licenseStatus,
             audioInput,
             audioOutput,
-            LicenseLocalKey: _licenseService.LocalKey ?? string.Empty).WithFixedSipEndpoint();
+            LicenseLocalKey: _licenseService.LocalKey ?? string.Empty,
+            DataHandlerUrl: dataHandlerUrl,
+            BrandName: brandName).WithFixedSipEndpoint();
 
         DialogResult = true;
     }
