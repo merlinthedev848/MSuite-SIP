@@ -303,55 +303,9 @@ public sealed class AppCacheService
         }
     }
 
-    private static string Protect(string value)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            return string.Empty;
-        }
+    public static string Protect(string value) => CryptoHelper.Protect(value);
 
-        var plainBytes = Encoding.UTF8.GetBytes(value);
-        if (OperatingSystem.IsWindows())
-        {
-#pragma warning disable CA1416
-            var encrypted = ProtectedData.Protect(plainBytes, null, DataProtectionScope.CurrentUser);
-            return Convert.ToBase64String(encrypted);
-#pragma warning restore CA1416
-        }
-        else
-        {
-            return Convert.ToBase64String(plainBytes);
-        }
-    }
-
-    private static string Unprotect(string? legacyPlainText, string? encrypted)
-    {
-        if (string.IsNullOrWhiteSpace(encrypted))
-        {
-            return legacyPlainText ?? string.Empty;
-        }
-
-        try
-        {
-            var encryptedBytes = Convert.FromBase64String(encrypted);
-            if (OperatingSystem.IsWindows())
-            {
-#pragma warning disable CA1416
-                var plainBytes = ProtectedData.Unprotect(encryptedBytes, null, DataProtectionScope.CurrentUser);
-                return Encoding.UTF8.GetString(plainBytes);
-#pragma warning restore CA1416
-            }
-            else
-            {
-                return Encoding.UTF8.GetString(encryptedBytes);
-            }
-        }
-        catch (Exception error)
-        {
-            DebugLog.Write($"SETTINGS decrypt failed error={error.Message}");
-            return legacyPlainText ?? string.Empty;
-        }
-    }
+    public static string Unprotect(string? legacyPlainText, string? encrypted) => CryptoHelper.Unprotect(legacyPlainText, encrypted);
 
     private static double ClampVolume(double? value)
     {

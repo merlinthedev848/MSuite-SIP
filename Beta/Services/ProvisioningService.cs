@@ -141,6 +141,12 @@ public sealed class ProvisioningService
                     var auth = payload.Sip.EffectiveAuthName;
                     var pwd = payload.Sip.EffectivePassword;
 
+                    if (CryptoHelper.IsEncryptedBlob(pwd))
+                    {
+                        DebugLog.Write($"[PROVISION] Received password for user={ext} is an encrypted blob, auto-decrypting...");
+                        pwd = CryptoHelper.Unprotect(null, pwd);
+                    }
+
                     if (string.IsNullOrWhiteSpace(ext) ||
                         string.IsNullOrWhiteSpace(auth) ||
                         string.IsNullOrWhiteSpace(pwd))

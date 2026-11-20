@@ -3670,6 +3670,13 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         var password = _config?.Password?.Trim() ?? string.Empty;
         var username = _config?.Username?.Trim() ?? string.Empty;
 
+        // Auto-decrypt if password is an encrypted DPAPI or AES-tagged blob
+        if (CryptoHelper.IsEncryptedBlob(password))
+        {
+            DebugLog.Write($"[DIGEST AUTH] Password for user={username} is an encrypted blob, auto-decrypting before digest auth...");
+            password = CryptoHelper.Unprotect(null, password);
+        }
+
         if (password.Length == 64 && password.All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
         {
             DebugLog.Write($"[DIGEST AUTH WARN] Password for user={username} is a 64-character SHA-256 web hash, NOT a valid SIP registration secret. PBX will likely reject with 401 Unauthorized.");
