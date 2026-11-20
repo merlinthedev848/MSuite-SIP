@@ -2617,6 +2617,9 @@
                                             <CheckBox x:Name="FlashCallStateCheckBox" Content="Flash the taskbar on an incoming call" FontWeight="SemiBold" IsChecked="True" ToolTip="Flashes the taskbar icon when a call arrives while Merlin is in the background." AutomationProperties.Name="Flash Taskbar on Incoming Call" />
                                             <CheckBox x:Name="SingleClickBlindTransferCheckBox" Content="Transfer on a single click" FontWeight="SemiBold" ToolTip="Transfers the active call to the contact you click, without asking again." AutomationProperties.Name="Single-click Blind Transfer" />
                                             <CheckBox x:Name="ShowCallStatisticsCheckBox" Content="Show call quality during a call" FontWeight="SemiBold" ToolTip="Shows packet loss, jitter, and latency while you are on a call." AutomationProperties.Name="Show Live Call Statistics" />
+                                            <CheckBox x:Name="EnableGlobalHotkeyCheckBox" Content="Enable Ctrl+Shift+D clipboard dialing hotkey" FontWeight="SemiBold" ToolTip="Pressing Ctrl+Shift+D dials any phone number or extension currently in the Windows clipboard." AutomationProperties.Name="Enable Global Hotkey Dialing" />
+                                            <CheckBox x:Name="EnablePostCallSummariesCheckBox" Content="Generate post-call AI structured notes &amp; summaries" FontWeight="SemiBold" ToolTip="Automatically generates an AI structured summary note in call history after each completed call." AutomationProperties.Name="Enable Post-Call Summaries" />
+                                            <CheckBox x:Name="EnableVisualAttendantConsoleCheckBox" Content="Enable Attendant Console layout" FontWeight="SemiBold" ToolTip="Enables expanded line indicators and queue monitoring layout." AutomationProperties.Name="Enable Attendant Console" />
                                         </StackPanel>
                                     </Border>
                                     <Border Grid.Column="2" Style="{StaticResource SettingsCard}" Margin="0">
@@ -2837,6 +2840,13 @@
                                                 <Slider Grid.Column="1" x:Name="MicrophoneVolumeSlider" Minimum="25" Maximum="200" TickFrequency="5" Value="100" ValueChanged="VolumeSlider_ValueChanged" AutomationProperties.Name="Microphone Gain" />
                                                 <TextBlock Grid.Column="2" x:Name="MicrophoneVolumeText" Text="100%" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0" />
                                             </Grid>
+                                            <Border Margin="0,10,0,0" Padding="0,8,0,0" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+                                                <StackPanel>
+                                                    <TextBlock Text="Audio Enhancement" Foreground="#0F172A" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                                    <CheckBox x:Name="EnableAiNoiseCancellationCheckBox" Content="AI background noise suppression" FontWeight="SemiBold" ToolTip="Filters keyboard typing, HVAC rumble, and ambient noise with adaptive spectral gating." AutomationProperties.Name="Enable AI Noise Cancellation" />
+                                                    <CheckBox x:Name="EnableAcousticEchoCancellationCheckBox" Content="Acoustic echo cancellation" FontWeight="SemiBold" ToolTip="Eliminates speaker-to-microphone feedback and echo on open speakerphones." AutomationProperties.Name="Enable Acoustic Echo Cancellation" />
+                                                </StackPanel>
+                                            </Border>
                                         </StackPanel>
                                     </Border>
                                     <Border Grid.Column="2" Style="{StaticResource SettingsCard}" Margin="0">
@@ -2864,6 +2874,7 @@
                                                     <TextBlock x:Name="CameraStatusText" Text="Choose a camera" Foreground="#475569" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" />
                                                 </DockPanel>
                                             </Border>
+                                            <CheckBox x:Name="EnableVideoScreenSharingCheckBox" Margin="0,8,0,0" Content="Allow screen sharing during video calls" FontWeight="SemiBold" ToolTip="Adds a desktop screen-sharing button to the video call window." AutomationProperties.Name="Enable Video Screen Sharing" />
                                         </StackPanel>
                                     </Border>
                                 </Grid>
@@ -2873,6 +2884,7 @@
                             <TabItem x:Name="SettingsHandlingTab" Header="Routing">
                                 <Grid VerticalAlignment="Top">
                                     <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
@@ -2975,6 +2987,30 @@
                                             <CheckBox x:Name="QueuePickupCheckBox" Content="Show queue pickup on the keypad" FontWeight="SemiBold" Margin="0,8,0,0" ToolTip="Lights the pickup button when a queue call is ringing." Checked="QueuePickupCheckBox_Changed" Unchecked="QueuePickupCheckBox_Changed" AutomationProperties.Name="Enable Queue Shortcut" />
                                         </StackPanel>
                                     </Border>
+                                    <Border Grid.Row="2" Grid.ColumnSpan="3" Style="{StaticResource SettingsCard}" Margin="0,8,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="CRM Screen-Pop Webhook" Foreground="#0F172A" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                            <CheckBox x:Name="EnableCrmScreenPopCheckBox" Content="Enable CRM browser screen-pop on incoming calls" FontWeight="SemiBold" ToolTip="Opens your CRM or customer dashboard in the default browser when an incoming call occurs." AutomationProperties.Name="Enable CRM Screen-Pop" />
+                                            <Grid Margin="0,6,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="10" />
+                                                    <ColumnDefinition Width="160" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="Screen-pop URL (replaces {number}, {caller}, {ext})" />
+                                                    <TextBox x:Name="CrmScreenPopUrlTextBox" Style="{StaticResource SettingsInputBox}" Height="30" Margin="0" Text="https://crm.example.com/search?phone={number}" AutomationProperties.Name="CRM Screen-Pop URL" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="Trigger event" />
+                                                    <ComboBox x:Name="CrmScreenPopTriggerComboBox" Margin="0" AutomationProperties.Name="CRM Screen-Pop Trigger">
+                                                        <ComboBoxItem Content="On Answer" />
+                                                        <ComboBoxItem Content="On Ringing" />
+                                                    </ComboBox>
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
                                 </Grid>
                             </TabItem>
 
@@ -2982,10 +3018,18 @@
                             <TabItem x:Name="SettingsDiagnosticsTab" Header="Diagnostics">
                                 <Grid>
                                     <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
                                         <RowDefinition Height="*" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,8">
+                                    <Border Grid.Row="0" Style="{StaticResource SettingsCard}" Margin="0,0,0,8">
+                                        <StackPanel>
+                                            <TextBlock Text="Telemetry &amp; IT Support" Foreground="#0F172A" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                            <CheckBox x:Name="ShowLiveCallQualityMetricsCheckBox" Content="Display live MOS (Mean Opinion Score) &amp; quality telemetry on line appearances" FontWeight="SemiBold" ToolTip="Shows real-time MOS score (1.0 - 4.5) on active line appearances during calls." AutomationProperties.Name="Show Live Call Quality Metrics" />
+                                            <Button x:Name="ExportDiagnosticBundleButton" Content="Export IT Diagnostic Bundle (.zip)" Style="{StaticResource SoftButton}" Height="30" Margin="0,6,0,0" HorizontalAlignment="Left" Click="ExportDiagnosticBundleButton_Click" ToolTip="Compiles system report, network pings, audio/video devices, and scrubbed logs into a .zip archive." AutomationProperties.Name="Export Diagnostic Bundle" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Row="1" Style="{StaticResource SettingsCard}" Margin="0,0,0,8">
                                         <DockPanel>
                                             <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8" LastChildFill="True">
                                                 <Button DockPanel.Dock="Right" x:Name="RunPbxDiagnosticsButton" Content="Run test" Style="{StaticResource SoftButton}" Height="28" Width="96" Click="RunPbxDiagnosticsButton_Click" AutomationProperties.Name="Run Network Diagnostics" ToolTip="Run the network checks. Press Stop to cancel." />
@@ -2998,7 +3042,7 @@
                                             </Border>
                                         </DockPanel>
                                     </Border>
-                                    <Grid Grid.Row="1" Margin="0,0,0,0">
+                                    <Grid Grid.Row="2" Margin="0,0,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="10" />

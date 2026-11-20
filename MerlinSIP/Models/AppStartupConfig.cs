@@ -59,7 +59,17 @@ public sealed record AppStartupConfig(
     string? AccentColor = "#38BDF8",
     string? LogoUrl = null,
     string? AppSecretToken = null,
-    string? DisplayName = null)
+    string? DisplayName = null,
+    bool EnableAiNoiseCancellation = false,
+    bool EnableAcousticEchoCancellation = false,
+    bool EnableGlobalHotkeyDialing = false,
+    bool EnableCrmScreenPop = false,
+    string CrmScreenPopUrl = "https://crm.example.com/search?phone={number}",
+    string CrmScreenPopTrigger = "On Answer",
+    bool EnableVisualAttendantConsole = false,
+    bool ShowLiveCallQualityMetrics = false,
+    bool EnableVideoScreenSharing = false,
+    bool EnablePostCallSummaries = false)
 {
     public const string FixedSipServer = "pbx.chriskendall.media";
     public const string DefaultDataHandlerUrl = "https://handler.chriskendall.media";

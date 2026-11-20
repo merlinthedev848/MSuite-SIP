@@ -282,6 +282,16 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         DebugLog.Write($"DND rejectIncomingCalls={reject}");
     }
 
+    public void UpdateConfig(AppStartupConfig config)
+    {
+        _config = config;
+        if (_audioSession != null)
+        {
+            _audioSession.EnableAiNoiseCancellation = config.EnableAiNoiseCancellation;
+            _audioSession.EnableAcousticEchoCancellation = config.EnableAcousticEchoCancellation;
+        }
+    }
+
     public void UpdateNetworkAssistance(bool enabled)
     {
         if (_config is null)
@@ -902,7 +912,11 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         {
             ResetLastCallQualitySnapshot();
         _audioSession?.Dispose();
-        _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume);
+        _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume)
+        {
+            EnableAiNoiseCancellation = _config.EnableAiNoiseCancellation,
+            EnableAcousticEchoCancellation = _config.EnableAcousticEchoCancellation
+        };
             try
             {
                 _audioSession.PrepareDevices();
@@ -1050,7 +1064,11 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         {
             ResetLastCallQualitySnapshot();
         _audioSession?.Dispose();
-        _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume);
+        _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume)
+        {
+            EnableAiNoiseCancellation = _config.EnableAiNoiseCancellation,
+            EnableAcousticEchoCancellation = _config.EnableAcousticEchoCancellation
+        };
             try
             {
                 _audioSession.PrepareDevices();
@@ -1341,7 +1359,11 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
         _audioSession?.Dispose();
         ResetLastCallQualitySnapshot();
         _audioSession?.Dispose();
-        _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume);
+        _audioSession = new RtpAudioSession(_config.AudioInput, _config.AudioOutput, _config.MicrophoneVolume, _config.HeadphoneVolume)
+        {
+            EnableAiNoiseCancellation = _config.EnableAiNoiseCancellation,
+            EnableAcousticEchoCancellation = _config.EnableAcousticEchoCancellation
+        };
         try
         {
             _audioSession.PrepareDevices();
@@ -3643,6 +3665,11 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
     {
         var password = _config?.Password?.Trim() ?? string.Empty;
         var username = _config?.Username?.Trim() ?? string.Empty;
+
+        if (password.Length == 64 && password.All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+        {
+            DebugLog.Write($"[DIGEST AUTH WARN] Password for user={username} is a 64-character SHA-256 web hash, NOT a valid SIP registration secret. PBX will likely reject with 401 Unauthorized.");
+        }
 
         if (!forcePlaintext && (_passwordIsHa1 == true || (_passwordIsHa1 is null && IsMd5Hash(password))))
         {

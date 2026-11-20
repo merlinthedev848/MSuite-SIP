@@ -164,6 +164,15 @@ public sealed class RtpAudioSession : IDisposable
 
 	public float CurrentMicLevel { get; private set; }
 
+	public bool EnableAiNoiseCancellation { get; set; }
+	public bool EnableAcousticEchoCancellation { get; set; }
+
+	private float _hpPrevIn;
+	private float _hpPrevOut;
+	private float _noiseFloorRms = 0.005f;
+	private float _noiseGateGain = 1.0f;
+	private float _recentSpeakerEnergy = 0f;
+
 	public bool IsRecording { get; private set; }
 
 	public string? CurrentRecordingPath { get; private set; }
@@ -441,6 +450,12 @@ public sealed class RtpAudioSession : IDisposable
 		return (lossPercent, jitterMs, latencyMs, bars, qualityText);
 	}
 
+	public double CalculateCurrentMos()
+	{
+		var (loss, jitter, latency, _, _) = GetQualityStats();
+		return VoipTools.CalculateMosScore(latency, jitter, loss);
+	}
+
 	public void ResetQualityStats()
 	{
 		_rfc3550Jitter = 0.0;
@@ -616,6 +631,7 @@ public sealed class RtpAudioSession : IDisposable
 				Marshal.Copy(waveHeader.Data, _rawPcmBuffer, 0, bytes);
 				int samples = bytes / 2;
 				float peak = 0f;
+				float frameSumSquare = 0f;
 				lock (_micSync)
 				{
 					Array.Clear(_latestMicFrame);
@@ -623,11 +639,55 @@ public sealed class RtpAudioSession : IDisposable
 					{
 						short sample = BitConverter.ToInt16(_rawPcmBuffer, i * 2);
 						short adjusted = (short)((!_muted) ? ApplyGain(sample, _inputGain) : 0);
+
+						if (EnableAiNoiseCancellation && !_muted)
+						{
+							// 1. High-pass DC & low-frequency rumble filter (>80Hz)
+							float x = adjusted;
+							float y = x - _hpPrevIn + 0.94f * _hpPrevOut;
+							_hpPrevIn = x;
+							_hpPrevOut = y;
+
+							// 2. Adaptive soft-knee noise gate
+							float s = y / 32768f;
+							frameSumSquare += s * s;
+							adjusted = (short)Math.Clamp((int)(y * _noiseGateGain), -32768, 32767);
+						}
+
+						if (EnableAcousticEchoCancellation && !_muted && _recentSpeakerEnergy > 0.05f)
+						{
+							float suppression = Math.Clamp(1.0f - (_recentSpeakerEnergy * 1.5f), 0.15f, 1.0f);
+							adjusted = (short)(adjusted * suppression);
+						}
+
 						_latestMicFrame[i] = adjusted;
 						float level = (float)Math.Abs(adjusted) / 32768f;
 						if (level > peak)
 						{
 							peak = level;
+						}
+					}
+
+					if (EnableAiNoiseCancellation && samples > 0)
+					{
+						float frameRms = (float)Math.Sqrt(frameSumSquare / samples);
+						if (frameRms < _noiseFloorRms)
+						{
+							_noiseFloorRms = 0.95f * _noiseFloorRms + 0.05f * frameRms;
+						}
+						else
+						{
+							_noiseFloorRms = 0.998f * _noiseFloorRms + 0.002f * frameRms;
+						}
+
+						float threshold = Math.Max(0.015f, _noiseFloorRms * 2.2f);
+						if (frameRms > threshold)
+						{
+							_noiseGateGain = Math.Min(1.0f, _noiseGateGain + 0.25f);
+						}
+						else
+						{
+							_noiseGateGain = Math.Max(0.06f, _noiseGateGain - 0.05f);
 						}
 					}
 				}
@@ -825,6 +885,7 @@ public sealed class RtpAudioSession : IDisposable
 			_speakerPcmBuffer[i * 2] = (byte)(sample & 0xFF);
 			_speakerPcmBuffer[i * 2 + 1] = (byte)((sample >> 8) & 0xFF);
 		}
+		_recentSpeakerEnergy = 0.8f * _recentSpeakerEnergy + 0.2f * ((float)peak / 32768f);
 		if (peak > 400 && Interlocked.Exchange(ref _speakerFramesWritten, 1) == 0)
 		{
 			DebugLog.Write($"RTP speaker non-silent peak={peak} device={_outputDevice.Name}");

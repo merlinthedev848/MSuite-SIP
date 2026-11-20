@@ -10,17 +10,22 @@ public sealed class GlobalHotkeyService : IDisposable
     private const int WM_HOTKEY = 0x0312; // 786 in dec
     private const uint MOD_ALT = 1u;
     private const uint MOD_CONTROL = 2u;
+    private const uint MOD_SHIFT = 4u;
     private const int HOTKEY_ANSWER = 9001;
     private const int HOTKEY_HOLD = 9002;
     private const int HOTKEY_TRANSFER = 9003;
+    private const int HOTKEY_DIAL = 9004;
 
     private readonly Window _window;
     private HwndSource? _hwndSource;
     private bool _registered;
 
+    public bool EnableClipboardDial { get; set; }
+
     public event EventHandler? AnswerRequested;
     public event EventHandler? HoldRequested;
     public event EventHandler? TransferRequested;
+    public event EventHandler? DialClipboardRequested;
 
     public GlobalHotkeyService(Window window)
     {
@@ -39,8 +44,12 @@ public sealed class GlobalHotkeyService : IDisposable
                 RegisterHotKey(handle, HOTKEY_ANSWER, MOD_CONTROL | MOD_ALT, 0x41); // 'A'
                 RegisterHotKey(handle, HOTKEY_HOLD, MOD_CONTROL | MOD_ALT, 0x48); // 'H'
                 RegisterHotKey(handle, HOTKEY_TRANSFER, MOD_CONTROL | MOD_ALT, 0x54); // 'T'
+                if (EnableClipboardDial)
+                {
+                    RegisterHotKey(handle, HOTKEY_DIAL, MOD_CONTROL | MOD_SHIFT, 0x44); // 'D'
+                }
                 _registered = true;
-                DebugLog.Write("Global hotkeys registered (Ctrl+Alt+A, Ctrl+Alt+H, Ctrl+Alt+T).");
+                DebugLog.Write($"Global hotkeys registered (Ctrl+Alt+A, Ctrl+Alt+H, Ctrl+Alt+T{(EnableClipboardDial ? ", Ctrl+Shift+D" : "")}).");
             }
         }
     }
@@ -55,6 +64,7 @@ public sealed class GlobalHotkeyService : IDisposable
                 UnregisterHotKey(handle, HOTKEY_ANSWER);
                 UnregisterHotKey(handle, HOTKEY_HOLD);
                 UnregisterHotKey(handle, HOTKEY_TRANSFER);
+                UnregisterHotKey(handle, HOTKEY_DIAL);
             }
             _hwndSource?.RemoveHook(HwndHook);
             _hwndSource = null;
@@ -79,6 +89,10 @@ public sealed class GlobalHotkeyService : IDisposable
                     break;
                 case HOTKEY_TRANSFER:
                     TransferRequested?.Invoke(this, EventArgs.Empty);
+                    handled = true;
+                    break;
+                case HOTKEY_DIAL:
+                    DialClipboardRequested?.Invoke(this, EventArgs.Empty);
                     handled = true;
                     break;
             }

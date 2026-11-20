@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
 using System.Net.NetworkInformation;
@@ -506,7 +507,10 @@ public partial class MainWindow : Window
     {
         try
         {
-            _hotkeyService = new GlobalHotkeyService(this);
+            _hotkeyService = new GlobalHotkeyService(this)
+            {
+                EnableClipboardDial = _config.EnableGlobalHotkeyDialing
+            };
             _hotkeyService.AnswerRequested += delegate
             {
                 if (_incomingRinging) AnswerIncomingCall();
@@ -514,6 +518,35 @@ public partial class MainWindow : Window
             };
             _hotkeyService.HoldRequested += delegate { if (_callInProgress) HoldButton_Click(this, new RoutedEventArgs()); };
             _hotkeyService.TransferRequested += delegate { if (_callInProgress) TransferButton_Click(this, new RoutedEventArgs()); };
+            _hotkeyService.DialClipboardRequested += delegate
+            {
+                if (_config.EnableGlobalHotkeyDialing)
+                {
+                    Dispatcher.InvokeAsync(() =>
+                    {
+                        try
+                        {
+                            if (System.Windows.Clipboard.ContainsText())
+                            {
+                                var text = System.Windows.Clipboard.GetText();
+                                var cleaned = new string(text.Where(c => char.IsDigit(c) || c == '+' || c == '*' || c == '#').ToArray());
+                                if (!string.IsNullOrWhiteSpace(cleaned))
+                                {
+                                    DestinationTextBox.Text = cleaned;
+                                    if (!_callInProgress)
+                                    {
+                                        DialButton_Click(this, new RoutedEventArgs());
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugLog.Write("Clipboard hotkey dialing error: " + ex.Message);
+                        }
+                    });
+                }
+            };
             _hotkeyService.Register();
         }
         catch (Exception ex)
@@ -985,6 +1018,7 @@ public partial class MainWindow : Window
             _incomingRinging = true;
             _callInProgress = true;
             _callConnected = false;
+            TriggerCrmScreenPop("On Ringing", e.CallerNumber, callerName);
             if (alreadyOnCall)
             {
                 _line2.Status = "Incoming";
@@ -1408,6 +1442,20 @@ public partial class MainWindow : Window
         QueueToggleCodeTextBox.Text = string.IsNullOrWhiteSpace(_config.QueueLoginLogoutCode) ? "*62" : _config.QueueLoginLogoutCode;
         CallRecordingCodeTextBox.Text = string.IsNullOrWhiteSpace(_config.CallRecordingCode) ? "*1" : _config.CallRecordingCode;
         VoicemailCodeTextBox.Text = string.IsNullOrWhiteSpace(_config.VoicemailNumber) ? "*2" : _config.VoicemailNumber;
+
+        EnableGlobalHotkeyCheckBox.IsChecked = _config.EnableGlobalHotkeyDialing;
+        EnablePostCallSummariesCheckBox.IsChecked = _config.EnablePostCallSummaries;
+        EnableVisualAttendantConsoleCheckBox.IsChecked = _config.EnableVisualAttendantConsole;
+
+        EnableAiNoiseCancellationCheckBox.IsChecked = _config.EnableAiNoiseCancellation;
+        EnableAcousticEchoCancellationCheckBox.IsChecked = _config.EnableAcousticEchoCancellation;
+        EnableVideoScreenSharingCheckBox.IsChecked = _config.EnableVideoScreenSharing;
+
+        EnableCrmScreenPopCheckBox.IsChecked = _config.EnableCrmScreenPop;
+        CrmScreenPopUrlTextBox.Text = string.IsNullOrWhiteSpace(_config.CrmScreenPopUrl) ? "https://crm.example.com/search?phone={number}" : _config.CrmScreenPopUrl;
+        SelectComboBoxItem(CrmScreenPopTriggerComboBox, string.IsNullOrWhiteSpace(_config.CrmScreenPopTrigger) ? "On Answer" : _config.CrmScreenPopTrigger);
+
+        ShowLiveCallQualityMetricsCheckBox.IsChecked = _config.ShowLiveCallQualityMetrics;
     }
 
     private static void SelectComboBoxItem(System.Windows.Controls.ComboBox comboBox, string value)
@@ -1857,7 +1905,7 @@ public partial class MainWindow : Window
             else
             {
                 _registered = false;
-                SetConnectionState("Not connected", "#FFE2E2", "#9B1C1C");
+                SetConnectionState("Not connected", "#FFE2E2", "#9B1C1C", result.Message);
                 ServerStatusText.Text = ToCustomerConnectionMessage(result.Message);
             }
         }
@@ -1866,7 +1914,7 @@ public partial class MainWindow : Window
         UpdateCallControls();
     }
 
-    private void SetConnectionState(string text, string background, string foreground)
+    private void SetConnectionState(string text, string background, string foreground, string? detail = null)
     {
         _viewModel.ConnectionState = text;
         ConnectionStatusText.Text = text;
@@ -1879,11 +1927,18 @@ public partial class MainWindow : Window
             ServerAlertBanner.Visibility = isConnected ? Visibility.Collapsed : Visibility.Visible;
             if (!isConnected)
             {
-                ServerAlertText.Text = text.Equals("Connecting...", StringComparison.OrdinalIgnoreCase)
-                    ? "Reduced Functionality: Attempting to connect to the server, call functionality temporarily unavailable."
-                    : text.Equals("No network", StringComparison.OrdinalIgnoreCase)
-                        ? "Reduced Functionality: No network connection detected, attempting to reconnect..."
-                        : $"Reduced Functionality: Offline ({text}). Attempting to reconnect to PBX server.";
+                if (detail != null && (detail.Contains("401", StringComparison.OrdinalIgnoreCase) || detail.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase)))
+                {
+                    ServerAlertText.Text = "Reduced Functionality: Offline (Authentication Failed: 401 Unauthorized). Verify SIP extension password in Settings.";
+                }
+                else
+                {
+                    ServerAlertText.Text = text.Equals("Connecting...", StringComparison.OrdinalIgnoreCase)
+                        ? "Reduced Functionality: Attempting to connect to the server, call functionality temporarily unavailable."
+                        : text.Equals("No network", StringComparison.OrdinalIgnoreCase)
+                            ? "Reduced Functionality: No network connection detected, attempting to reconnect..."
+                            : $"Reduced Functionality: Offline ({text}). Attempting to reconnect to PBX server.";
+                }
             }
         }
 
@@ -1893,6 +1948,23 @@ public partial class MainWindow : Window
             FooterStatusBar.Background = (WpfBrush)new BrushConverter().ConvertFromString(background)!;
             FooterStatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString(foreground)!;
             FooterStatusText.Text = isConnected ? "Live connectivity status: Connected" : $"Connection: {text}";
+        }
+
+        if (!isConnected)
+        {
+            if (HeaderPresenceDot != null)
+            {
+                HeaderPresenceDot.Fill = new SolidColorBrush(System.Windows.Media.Color.FromRgb(148, 163, 184));
+            }
+            if (HeaderPresenceText != null)
+            {
+                HeaderPresenceText.Text = text.Equals("Connecting...", StringComparison.OrdinalIgnoreCase) ? "Connecting" : "Offline";
+                HeaderPresenceText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(148, 163, 184));
+            }
+        }
+        else
+        {
+            UpdateMainPresenceDisplayOnly(_userSelectedPresence);
         }
     }
 
@@ -2819,6 +2891,35 @@ public partial class MainWindow : Window
         await OnCallFinished(state, result.Message);
     }
 
+    private void TriggerCrmScreenPop(string triggerEvent, string callerNumber, string callerName)
+    {
+        if (!_config.EnableCrmScreenPop || string.IsNullOrWhiteSpace(_config.CrmScreenPopUrl)) return;
+        if (!string.Equals(_config.CrmScreenPopTrigger, triggerEvent, StringComparison.OrdinalIgnoreCase)) return;
+
+        try
+        {
+            var cleanNumber = Uri.EscapeDataString(callerNumber ?? "");
+            var cleanCaller = Uri.EscapeDataString(callerName ?? "");
+            var cleanExt = Uri.EscapeDataString(_config.Extension ?? "");
+            var url = _config.CrmScreenPopUrl
+                .Replace("{number}", cleanNumber, StringComparison.OrdinalIgnoreCase)
+                .Replace("{phone}", cleanNumber, StringComparison.OrdinalIgnoreCase)
+                .Replace("{caller}", cleanCaller, StringComparison.OrdinalIgnoreCase)
+                .Replace("{name}", cleanCaller, StringComparison.OrdinalIgnoreCase)
+                .Replace("{ext}", cleanExt, StringComparison.OrdinalIgnoreCase);
+
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            {
+                Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+                DebugLog.Write($"CRM Screen-Pop triggered ({triggerEvent}) -> {url}");
+            }
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write($"CRM Screen-Pop error: {ex.Message}");
+        }
+    }
+
     private void AnswerIncomingCallButton_Click(object sender, RoutedEventArgs e)
     {
         AnswerIncomingCall();
@@ -2851,6 +2952,7 @@ public partial class MainWindow : Window
             _callConnected = result.Signalled;
             if (result.Signalled)
             {
+                TriggerCrmScreenPop("On Answer", _activeRemoteNumber, IncomingCallerNameText.Text);
                 if (_selectedLine == 2)
                 {
                     _line2.Status = "Connected";
@@ -4324,10 +4426,27 @@ public partial class MainWindow : Window
                 CallRecordingCode = string.IsNullOrWhiteSpace(CallRecordingCodeTextBox.Text) ? "*1" : CallRecordingCodeTextBox.Text.Trim(),
                 VoicemailNumber = string.IsNullOrWhiteSpace(VoicemailCodeTextBox.Text) ? "*2" : VoicemailCodeTextBox.Text.Trim(),
                 IgnoreSslErrors = IgnoreSslErrorsCheckBox.IsChecked == true,
-                DataHandlerUrl = dataHandlerUrl
+                DataHandlerUrl = dataHandlerUrl,
+                EnableGlobalHotkeyDialing = EnableGlobalHotkeyCheckBox.IsChecked == true,
+                EnablePostCallSummaries = EnablePostCallSummariesCheckBox.IsChecked == true,
+                EnableVisualAttendantConsole = EnableVisualAttendantConsoleCheckBox.IsChecked == true,
+                EnableAiNoiseCancellation = EnableAiNoiseCancellationCheckBox.IsChecked == true,
+                EnableAcousticEchoCancellation = EnableAcousticEchoCancellationCheckBox.IsChecked == true,
+                EnableVideoScreenSharing = EnableVideoScreenSharingCheckBox.IsChecked == true,
+                EnableCrmScreenPop = EnableCrmScreenPopCheckBox.IsChecked == true,
+                CrmScreenPopUrl = string.IsNullOrWhiteSpace(CrmScreenPopUrlTextBox.Text) ? "https://crm.example.com/search?phone={number}" : CrmScreenPopUrlTextBox.Text.Trim(),
+                CrmScreenPopTrigger = ComboBoxText(CrmScreenPopTriggerComboBox, "On Answer"),
+                ShowLiveCallQualityMetrics = ShowLiveCallQualityMetricsCheckBox.IsChecked == true
             };
 
             await _cacheService.SaveSettingsAsync(_config.WithFixedSipEndpoint());
+            if (_hotkeyService != null)
+            {
+                _hotkeyService.Unregister();
+                _hotkeyService.EnableClipboardDial = _config.EnableGlobalHotkeyDialing;
+                _hotkeyService.Register();
+            }
+            _sipRegistrationService.UpdateConfig(_config);
             ApplyDndMode();
             _sipRegistrationService.UpdateNetworkAssistance(_config.SipAlgCompatibilityMode);
             UpdateNetworkAssistanceText();
@@ -4726,6 +4845,71 @@ del ""%~f0""
         }
     }
 
+    private async void ExportDiagnosticBundleButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var sfd = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Export Merlin SIP IT Diagnostic Bundle",
+                Filter = "ZIP Archive (*.zip)|*.zip",
+                FileName = $"MerlinSIP-Diagnostic-Bundle-{DateTime.Now:yyyyMMdd-HHmmss}.zip"
+            };
+
+            if (sfd.ShowDialog() != true) return;
+
+            var targetZip = sfd.FileName;
+            var tempFolder = Path.Combine(Path.GetTempPath(), "MerlinDiagnostic_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempFolder);
+
+            try
+            {
+                var sysInfo = new StringBuilder();
+                sysInfo.AppendLine($"Merlin SIP Diagnostic Report - {DateTimeOffset.Now:O}");
+                sysInfo.AppendLine($"OS Version: {Environment.OSVersion}");
+                sysInfo.AppendLine($".NET Runtime: {Environment.Version}");
+                sysInfo.AppendLine($"Machine: {Environment.MachineName}");
+                sysInfo.AppendLine($"Processors: {Environment.ProcessorCount}");
+                sysInfo.AppendLine($"PBX Server: {_config.Server}:{_config.Port}");
+                sysInfo.AppendLine($"SIP Transport: {_config.SipSignallingTransport}");
+                sysInfo.AppendLine($"Registered: {_registered}");
+                sysInfo.AppendLine($"Data Handler: {_config.EffectiveDataHandlerUrl}");
+                sysInfo.AppendLine($"Audio In: {_config.AudioInput?.Name}");
+                sysInfo.AppendLine($"Audio Out: {_config.AudioOutput?.Name}");
+                sysInfo.AppendLine($"Video Cam: {_config.VideoSource?.Name}");
+                await File.WriteAllTextAsync(Path.Combine(tempFolder, "system_report.txt"), sysInfo.ToString());
+
+                var scrubbedConfig = _config with { Password = "********", AppSecretToken = "********", LicenseKey = _config.LicenseKey.Length > 8 ? _config.LicenseKey[..6] + "..." : "********" };
+                var json = JsonSerializer.Serialize(scrubbedConfig, new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(Path.Combine(tempFolder, "configuration.json"), json);
+
+                if (File.Exists(DebugLog.Path))
+                {
+                    var logLines = await File.ReadAllLinesAsync(DebugLog.Path);
+                    var scrubbed = logLines.TakeLast(2000).Select(l => !string.IsNullOrEmpty(_config.Password) ? l.Replace(_config.Password, "********") : l);
+                    await File.WriteAllLinesAsync(Path.Combine(tempFolder, "debug_log.txt"), scrubbed);
+                }
+                else
+                {
+                    await File.WriteAllTextAsync(Path.Combine(tempFolder, "debug_log.txt"), "No local debug log was found.");
+                }
+
+                if (File.Exists(targetZip)) File.Delete(targetZip);
+                ZipFile.CreateFromDirectory(tempFolder, targetZip);
+
+                System.Windows.MessageBox.Show($"IT Diagnostic Bundle successfully exported to:\n{targetZip}", "Diagnostic Export Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            finally
+            {
+                if (Directory.Exists(tempFolder)) Directory.Delete(tempFolder, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show($"Failed to export diagnostic bundle: {ex.Message}", "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async void ResetCacheButton_Click(object sender, RoutedEventArgs e)
     {
         if (!ConfirmDialogWindow.Confirm(
@@ -4856,6 +5040,13 @@ del ""%~f0""
         var mos = measured && latency > 0 ? VoipTools.CalculateMosScore(latency, jitter, loss) : 0;
         var level = mos <= 0 ? "" : mos >= 4.2 ? "Excellent" : mos >= 3.8 ? "Good" : mos >= 3.0 ? "Fair" : "Poor";
         var rFactor = mos > 0 ? Math.Clamp(93.2 - (loss * 2.5) - (jitter * 0.1) - (latency * 0.03), 0, 100) : 0;
+
+        if (_config.EnablePostCallSummaries)
+        {
+            var qualitySummary = mos > 0 ? $"{level} (MOS {mos:F1}, {rFactor:F0} R-factor)" : "Standard";
+            var summaryNote = $"[AI Note] {direction} call with {(!string.IsNullOrWhiteSpace(name) ? name : number)}. Duration: {(string.IsNullOrWhiteSpace(duration) ? "00:00" : duration)}. Status: {result}. Quality: {qualitySummary}.";
+            detail = string.IsNullOrWhiteSpace(detail) ? summaryNote : $"{detail} | {summaryNote}";
+        }
 
         var entry = new CallHistoryEntry
         {
@@ -5610,7 +5801,16 @@ del ""%~f0""
             Line1StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString(_line1.IsHeld ? "#F59E0B" : "#10B981")!;
             var elapsed = _line1.ConnectedAt.HasValue ? DateTimeOffset.Now - _line1.ConnectedAt.Value : TimeSpan.Zero;
             var time = elapsed.TotalHours >= 1 ? elapsed.ToString(@"hh\:mm\:ss") : elapsed.ToString(@"mm\:ss");
-            Line1StatusText.Text = _line1.IsHeld ? "On Hold" : $"Connected ({time})";
+            if (_config.ShowLiveCallQualityMetrics && _sipRegistrationService.HasMeasuredCallQuality)
+            {
+                var (loss, jitter, latency, _, _) = _sipRegistrationService.GetCallQualityStats();
+                var mos = VoipTools.CalculateMosScore(latency, jitter, loss);
+                Line1StatusText.Text = _line1.IsHeld ? "On Hold" : (mos > 0 ? $"Connected ({time}) • MOS {mos:F1} ★" : $"Connected ({time})");
+            }
+            else
+            {
+                Line1StatusText.Text = _line1.IsHeld ? "On Hold" : $"Connected ({time})";
+            }
             Line1StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString(_line1.IsHeld ? "#D97706" : "#059669")!;
             Line1DetailText.Text = string.IsNullOrWhiteSpace(_line1.RemoteName) ? _line1.RemoteNumber : $"{_line1.RemoteName} ({_line1.RemoteNumber})";
 
@@ -5726,7 +5926,16 @@ del ""%~f0""
                 Line2StatusDot.Fill = (WpfBrush)new BrushConverter().ConvertFromString(_line2.IsHeld ? "#F59E0B" : "#10B981")!;
                 var elapsed = _line2.ConnectedAt.HasValue ? DateTimeOffset.Now - _line2.ConnectedAt.Value : TimeSpan.Zero;
                 var time = elapsed.TotalHours >= 1 ? elapsed.ToString(@"hh\:mm\:ss") : elapsed.ToString(@"mm\:ss");
-                Line2StatusText.Text = _line2.IsHeld ? "On Hold" : $"Connected ({time})";
+                if (_config.ShowLiveCallQualityMetrics && _sipRegistrationService.HasMeasuredCallQuality)
+                {
+                    var (loss, jitter, latency, _, _) = _sipRegistrationService.GetCallQualityStats();
+                    var mos = VoipTools.CalculateMosScore(latency, jitter, loss);
+                    Line2StatusText.Text = _line2.IsHeld ? "On Hold" : (mos > 0 ? $"Connected ({time}) • MOS {mos:F1} ★" : $"Connected ({time})");
+                }
+                else
+                {
+                    Line2StatusText.Text = _line2.IsHeld ? "On Hold" : $"Connected ({time})";
+                }
                 Line2StatusText.Foreground = (WpfBrush)new BrushConverter().ConvertFromString(_line2.IsHeld ? "#D97706" : "#059669")!;
                 Line2DetailText.Text = string.IsNullOrWhiteSpace(_line2.RemoteName) ? _line2.RemoteNumber : $"{_line2.RemoteName} ({_line2.RemoteNumber})";
 
@@ -6360,7 +6569,7 @@ del ""%~f0""
 
         var contact = _contactStore.FindByNumber(_contacts, _activeRemoteNumber);
         var name = contact?.Name ?? _activeRemoteNumber;
-        var window = new VideoCallWindow(name, _activeRemoteNumber, _sipRegistrationService.VideoSession);
+        var window = new VideoCallWindow(name, _activeRemoteNumber, _sipRegistrationService.VideoSession, _config.EnableVideoScreenSharing);
         window.SyncMicrophone(_muted);
         window.EndCallRequested += (_, _) =>
         {

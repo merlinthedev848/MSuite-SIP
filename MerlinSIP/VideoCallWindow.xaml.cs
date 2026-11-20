@@ -18,17 +18,26 @@ public partial class VideoCallWindow : Window
     private bool _isMicMuted;
     private bool _isCameraMuted;
     private bool _isFullscreen;
+    private readonly bool _enableScreenSharing;
+    private bool _isScreenSharing;
+    private DispatcherTimer? _screenCaptureTimer;
     private int _closing;
 
     public event EventHandler? EndCallRequested;
     public event EventHandler<bool>? MuteMicRequested;
     public event EventHandler<bool>? ToggleCameraRequested;
 
-    public VideoCallWindow(string callerName, string callerNumber, RtpVideoSession? videoSession = null)
+    public VideoCallWindow(string callerName, string callerNumber, RtpVideoSession? videoSession = null, bool enableScreenSharing = false)
     {
         InitializeComponent();
         _videoSession = videoSession;
+        _enableScreenSharing = enableScreenSharing;
         _startTime = DateTimeOffset.Now;
+
+        if (!_enableScreenSharing)
+        {
+            ShareScreenButton.Visibility = Visibility.Collapsed;
+        }
 
         CallerNameText.Text = string.IsNullOrWhiteSpace(callerName) ? "Remote User" : callerName;
         CallerNumberText.Text = $"Ext: {callerNumber}";
@@ -225,6 +234,70 @@ public partial class VideoCallWindow : Window
         _videoSession?.SendPictureLossIndication();
     }
 
+    private void ShareScreenButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_enableScreenSharing)
+        {
+            System.Windows.MessageBox.Show("Screen sharing is currently disabled in Settings -> Audio & Video.", "Merlin SIP", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        _isScreenSharing = !_isScreenSharing;
+        if (_isScreenSharing)
+        {
+            if (ShareScreenButton.Template.FindName("BtnBdr", ShareScreenButton) is System.Windows.Controls.Border bdr)
+            {
+                bdr.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 185, 129));
+            }
+            LocalPipCard.Visibility = Visibility.Visible;
+            LocalCameraDeviceText.Text = "Desktop Screen";
+            _screenCaptureTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(66) };
+            _screenCaptureTimer.Tick += ScreenCaptureTimer_Tick;
+            _screenCaptureTimer.Start();
+            _videoSession?.SendPictureLossIndication();
+        }
+        else
+        {
+            if (ShareScreenButton.Template.FindName("BtnBdr", ShareScreenButton) is System.Windows.Controls.Border bdr)
+            {
+                bdr.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(31, 41, 55));
+            }
+            _screenCaptureTimer?.Stop();
+            _screenCaptureTimer = null;
+            LocalCameraDeviceText.Text = _videoSession?.VideoDevice.Name ?? "Default camera";
+            _videoSession?.SendPictureLossIndication();
+        }
+    }
+
+    private void ScreenCaptureTimer_Tick(object? sender, EventArgs e)
+    {
+        if (!_isScreenSharing || Volatile.Read(ref _closing) != 0) return;
+        try
+        {
+            var bounds = System.Windows.Forms.Screen.PrimaryScreen?.Bounds ?? new System.Drawing.Rectangle(0, 0, 1280, 720);
+            int width = Math.Min(bounds.Width, 1280);
+            int height = Math.Min(bounds.Height, 720);
+            using var bmp = new System.Drawing.Bitmap(bounds.Width, bounds.Height, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+            using (var g = System.Drawing.Graphics.FromImage(bmp))
+            {
+                g.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, bounds.Size);
+            }
+            using var scaled = new System.Drawing.Bitmap(bmp, new System.Drawing.Size(width, height));
+            var rect = new System.Drawing.Rectangle(0, 0, width, height);
+            var data = scaled.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+            int byteCount = data.Stride * height;
+            byte[] pixels = new byte[byteCount];
+            System.Runtime.InteropServices.Marshal.Copy(data.Scan0, pixels, 0, byteCount);
+            scaled.UnlockBits(data);
+
+            OnCameraFrame(width, height, pixels);
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write("Screen capture frame error: " + ex.Message);
+        }
+    }
+
     private void FullscreenButton_Click(object sender, RoutedEventArgs e)
     {
         _isFullscreen = !_isFullscreen;
@@ -260,6 +333,8 @@ public partial class VideoCallWindow : Window
         }
 
         _durationTimer.Stop();
+        _screenCaptureTimer?.Stop();
+        _screenCaptureTimer = null;
         _camera.FrameReady -= OnCameraFrame;
         _camera.Failed -= OnCameraFailed;
         if (_videoSession != null)
