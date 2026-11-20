@@ -431,4 +431,26 @@ if (adminUserCount === 0) {
   `).run(initialUser, hash, salt, 'System Administrator', allPermissions);
 }
 
+// Sanitize any stale 64-character SHA-256 web hashes accidentally stored in extensions.sip_password
+try {
+  const badHashes = systemDb.prepare(`
+    SELECT extension FROM extensions
+    WHERE length(sip_password) = 64
+      AND sip_password GLOB '[0-9a-fA-F]*'
+  `).all() as { extension: string }[];
+  if (badHashes.length > 0) {
+    for (const b of badHashes) {
+      logActivity('SECURITY_CLEANUP', `Extension ${b.extension} had a 64-character Yeastar web portal hash in sip_password. Wiped to require valid SIP secret.`);
+    }
+    systemDb.prepare(`
+      UPDATE extensions
+      SET sip_password = ''
+      WHERE length(sip_password) = 64
+        AND sip_password GLOB '[0-9a-fA-F]*'
+    `).run();
+  }
+} catch (err: unknown) {
+  console.warn('[SystemDB Migration] Notice cleaning stale 64-char web hashes:', err);
+}
+
 export default systemDb;

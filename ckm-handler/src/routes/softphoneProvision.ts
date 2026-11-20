@@ -107,6 +107,16 @@ const handlePinProvision = (req: Request, res: Response) => {
     return res.status(403).json({ ok: false, error: 'This extension has been deactivated.' });
   }
 
+  // Guard against 64-character SHA-256 web hashes (e.g. from Yeastar portal sync) or missing passwords
+  const cleanPassword = String(pinRecord.sip_password || '').trim();
+  if (cleanPassword.length === 64 && /^[a-f0-9]{64}$/i.test(cleanPassword)) {
+    broadcastDeviceLog('SOFTPHONE', 'ERROR', `Provisioning blocked for Ext ${pinRecord.extension}: Stored password is a 64-character Yeastar web hash, NOT a valid SIP registration secret.`, { deviceIdentifier: `Ext ${pinRecord.extension}`, ipAddress: clientIp });
+    return res.status(422).json({
+      ok: false,
+      error: `Extension ${pinRecord.extension} has an invalid SIP registration secret (Yeastar web portal hash detected). Please ask your administrator to set the extension's SIP password in the CKM Handler Admin Portal.`
+    });
+  }
+
   // Check if PIN was already claimed
   if (pinRecord.claimed === 1) {
     broadcastDeviceLog('SECURITY', 'WARN', `Attempted re-use of already-claimed PIN [${cleanedCode}] for Ext ${pinRecord.extension}`, { deviceIdentifier: `Ext ${pinRecord.extension}`, ipAddress: clientIp });

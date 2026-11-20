@@ -280,6 +280,8 @@ export async function syncExtensionsFromYeastarApi(
                AND excluded.sip_password != 'ExtPassword123!' 
                AND length(excluded.sip_password) != 64 
           THEN excluded.sip_password 
+          WHEN length(extensions.sip_password) = 64
+          THEN ''
           ELSE extensions.sip_password 
         END,
         pbx_id = excluded.pbx_id
@@ -345,6 +347,8 @@ export async function syncExtensionsFromAsterisk(
                    AND excluded.sip_password != 'ExtPassword123!' 
                    AND length(excluded.sip_password) != 64 
               THEN excluded.sip_password 
+              WHEN length(extensions.sip_password) = 64
+              THEN ''
               ELSE extensions.sip_password 
             END,
             pbx_id = excluded.pbx_id

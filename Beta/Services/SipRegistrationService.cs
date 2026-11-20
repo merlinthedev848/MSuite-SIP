@@ -2168,9 +2168,13 @@ public sealed class SipRegistrationService : IDisposable, IMwiSipTransport, ICal
 
             _registered = secondResponse.Code == 200;
             republishBusyHere = _registered;
+            var is64Hash = _config?.Password?.Trim() is { Length: 64 } pass && pass.All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'));
+            var failureMessage = secondResponse.Code is 401 or 407 && is64Hash
+                ? $"SIP registration failed: {secondResponse.Code} Unauthorized (Invalid SIP password - 64-char web hash detected instead of SIP secret)"
+                : $"SIP registration failed: {secondResponse.Code} {secondResponse.Reason}".Trim();
             return _registered
                 ? new SipRegistrationResult(true, "Registered and listening for calls.")
-                : new SipRegistrationResult(false, $"SIP registration failed: {secondResponse.Code} {secondResponse.Reason}".Trim());
+                : new SipRegistrationResult(false, failureMessage);
         }
         finally
         {

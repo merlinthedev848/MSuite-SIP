@@ -1037,6 +1037,8 @@ router.get('/api/admin/extensions', adminAuth, (req: Request, res: Response) => 
   const rows = systemDb.prepare(`
     SELECT e.extension, e.sip_username, e.display_name, e.email, e.is_active, e.created_at,
            e.last_registered_at, e.last_ip, e.user_agent, e.pbx_id,
+           CASE WHEN length(e.sip_password) = 64 AND e.sip_password GLOB '[0-9a-fA-F]*' THEN 1 ELSE 0 END as has_web_hash,
+           CASE WHEN e.sip_password IS NULL OR e.sip_password = '' OR e.sip_password = 'ExtPassword123!' THEN 1 ELSE 0 END as password_missing,
            COALESCE(p.name, 'Primary PBX Core') as pbx_name,
            COALESCE(p.host, 'pbx.chriskendall.media') as pbx_host,
            COALESCE(p.sip_port, 5060) as pbx_port,
@@ -1181,9 +1183,16 @@ router.post('/api/admin/pins', adminAuth, requirePermission('manage_extensions')
   if (!EXTENSION_RE.test(cleanExt)) {
     return res.status(400).json({ ok: false, error: 'Extension must be 2 to 10 digits.' });
   }
-  const owned = systemDb.prepare('SELECT extension FROM extensions WHERE extension = ?').get(cleanExt);
+  const owned = systemDb.prepare('SELECT extension, sip_password, display_name FROM extensions WHERE extension = ?').get(cleanExt) as ExtensionRow | undefined;
   if (!owned) {
     return res.status(404).json({ ok: false, error: `Extension ${cleanExt} was not found.` });
+  }
+  const extPass = String(owned.sip_password || '').trim();
+  if (extPass.length === 64 && /^[a-f0-9]{64}$/i.test(extPass)) {
+    return res.status(400).json({
+      ok: false,
+      error: `Extension ${cleanExt} currently has a Yeastar web portal SHA-256 hash instead of a SIP registration secret. Please edit the extension and set its actual SIP password before issuing a softphone PIN.`
+    });
   }
   const hours = parseExpiryHours(expiryHours);
   if (hours === null) {

@@ -148,6 +148,12 @@ public sealed class ProvisioningService
                         return ProvisioningResult.Fail("The provisioning code did not return complete account details.");
                     }
 
+                    if (pwd.Length == 64 && pwd.All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+                    {
+                        DebugLog.Write($"[PROVISION ERROR] Received password for user={ext} is a 64-character SHA-256 web hash, NOT a valid SIP secret.");
+                        return ProvisioningResult.Fail("The provisioning handler returned an invalid SIP registration secret (web portal hash). Please contact your administrator to set the extension SIP password.");
+                    }
+
                     var isMd5 = SipRegistrationService.IsMd5Hash(pwd);
                     DebugLog.Write($"PROVISION loaded ext={ext} auth={auth} isMd5Password={isMd5} via {baseUrl}");
 

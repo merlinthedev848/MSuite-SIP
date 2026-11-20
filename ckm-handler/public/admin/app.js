@@ -1420,7 +1420,11 @@
             ${canManage ? `<button class="btn btn-sm btn-secondary" style="padding: 1px 6px; font-size: 11px; height: 22px; line-height: 20px;" onclick="window.editExtensionEmail('${jsAttr(ext.extension)}', '${jsAttr(ext.email || '')}')" title="Edit registered email">Edit</button>` : ''}
           </div>
         </td>
-        <td><span class="sip-username-badge">${escapeHtml(ext.sip_username)}</span></td>
+        <td>
+          <span class="sip-username-badge">${escapeHtml(ext.sip_username)}</span>
+          ${ext.has_web_hash ? `<span class="badge badge-danger" style="margin-left:4px; font-size:10px; cursor:pointer;" onclick="window.editExtensionPassword('${jsAttr(ext.extension)}')" title="Stored password is a Yeastar 64-char web SHA-256 hash! SIP Digest Auth will fail with 401. Click to set real SIP password.">⚠️ Web Hash</span>` : ''}
+          ${ext.password_missing ? `<span class="badge badge-warning" style="margin-left:4px; font-size:10px; cursor:pointer;" onclick="window.editExtensionPassword('${jsAttr(ext.extension)}')" title="No SIP registration password configured. Click to set.">⚠️ No Secret</span>` : ''}
+        </td>
         <td>
           ${ext.active_pin ? `
             <span class="pin-pill" onclick="window.copyToClipboard('${jsAttr(ext.active_pin)}', 'PIN code copied!')" title="Click to copy active PIN">
