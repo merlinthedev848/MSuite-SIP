@@ -7,11 +7,11 @@
   "releaseNotes": "v1.4.1: Modernized user interface with refined styling, seamless 3-way conference call bridging, high-definition video calling support, and enhanced security and communications telemetry.",
   "Notes": "v1.4.1: Modernized user interface with refined styling, seamless 3-way conference call bridging, high-definition video calling support, and enhanced security and communications telemetry.",
   "fileName": "MerlinSIP-1.4.1-x64-faststart.msi",
-  "fileSize": 77021984,
-  "FileSizeBytes": 77021984,
+  "fileSize": 80749344,
+  "FileSizeBytes": 80749344,
   "releaseDate": "2026-11-20",
   "ReleaseDate": "2026-11-20",
-  "sha256": "4883691B14E9356EF244971C04AC29097D0689241AAD2424437812F2719FCDC2",
-  "Sha256": "4883691B14E9356EF244971C04AC29097D0689241AAD2424437812F2719FCDC2",
+  "sha256": "345CA4ED861D83548F4DA22922B5EDC3AB2AE75A5A2671AA8E8561198AA7BF2B",
+  "Sha256": "345CA4ED861D83548F4DA22922B5EDC3AB2AE75A5A2671AA8E8561198AA7BF2B",
   "mandatory": false
 }
