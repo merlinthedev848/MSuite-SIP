@@ -4630,7 +4630,8 @@ del ""%~f0""
         Process.Start(new ProcessStartInfo("cmd.exe", $"/c \"\"{tempScript}\"\"")
         {
             CreateNoWindow = true,
-            UseShellExecute = true
+            UseShellExecute = false,
+            WindowStyle = ProcessWindowStyle.Hidden
         });
 
         try
