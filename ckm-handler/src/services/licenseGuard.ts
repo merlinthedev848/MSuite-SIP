@@ -39,7 +39,7 @@ export async function validateContainerLicense(): Promise<void> {
   const payload = JSON.stringify({
     license_key: key,
     domain: SERVER_DOMAIN,
-    version: '1.4.0',
+    version: '1.4.1',
     service: 'ckm-handler'
   });
 
@@ -55,7 +55,7 @@ export async function validateContainerLicense(): Promise<void> {
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(payload),
-        'User-Agent': 'CKM-Handler/1.4.0'
+        'User-Agent': 'CKM-Handler/1.4.1'
       },
       timeout: 8000
     };

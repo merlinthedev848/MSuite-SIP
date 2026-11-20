@@ -496,7 +496,7 @@ export function probePbxLatency(
       `To: <sip:${host}>\r\n` +
       `Call-ID: ${Date.now()}@ckm\r\n` +
       `CSeq: 1 OPTIONS\r\n` +
-      `User-Agent: CKM-Handler-Probe/1.4.0\r\n` +
+      `User-Agent: CKM-Handler-Probe/1.4.1\r\n` +
       `Content-Length: 0\r\n\r\n`;
 
     timer = setTimeout(() => {
@@ -1005,6 +1005,13 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
       messages: msgCount,
       vaultFiles: fileCount,
       storageMb: (totalBytes / (1024 * 1024)).toFixed(2),
+      messagingStats: {
+        activeSockets: socketStats.connectedClients,
+        totalMessages: msgCount,
+        totalFiles: fileCount,
+        storageBytes: totalBytes,
+        storageMb: (totalBytes / (1024 * 1024)).toFixed(2)
+      },
       uptimeSeconds: Math.floor(process.uptime()),
       pbxServer: `${config.pbx_server}:${config.pbx_port} (${config.pbx_transport})`,
       pbxInstances,

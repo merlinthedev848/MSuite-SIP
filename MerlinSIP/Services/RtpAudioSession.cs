@@ -101,6 +101,7 @@ public sealed class RtpAudioSession : IDisposable
 	private readonly byte[] _rawPcmBuffer = new byte[4096];
 
 	private readonly short[] _micSampleBuffer = new short[2048];
+	private readonly short[] _secondaryMicSampleBuffer = new short[2048];
 
 	private readonly short[] _latestMicFrame = new short[SamplesPerPacket];
 
@@ -840,9 +841,8 @@ public sealed class RtpAudioSession : IDisposable
 
 		for (int i = 0; i < SamplesPerPacket; i++)
 		{
-			short sample = !_transmitMicrophone
-				? (short)0
-				: (_conferenceMerged ? (short)Math.Clamp(micFrame[i] + call2Frame[i], -32768, 32767) : micFrame[i]);
+			short mic = _transmitMicrophone ? micFrame[i] : (short)0;
+			short sample = _conferenceMerged ? (short)Math.Clamp(mic + call2Frame[i], -32768, 32767) : mic;
 			_micSampleBuffer[i] = sample;
 		}
 		EncodeFrame(_micSampleBuffer, _payloadType, _payload1Buffer);
@@ -862,16 +862,23 @@ public sealed class RtpAudioSession : IDisposable
 
 	private void SendSecondaryFrame(short[] micFrame, short[] call1Frame)
 	{
-		if (!_transmitMicrophone || !_secondaryRunning || _call2Held || _secondaryRemoteEndPoint == null || _secondaryRtpClient == null)
+		if (!_secondaryRunning || _call2Held || _secondaryRemoteEndPoint == null || _secondaryRtpClient == null)
+		{
+			return;
+		}
+
+		if (!_transmitMicrophone && !_conferenceMerged)
 		{
 			return;
 		}
 
 		for (int i = 0; i < SamplesPerPacket; i++)
 		{
-			_micSampleBuffer[i] = _conferenceMerged ? (short)Math.Clamp(micFrame[i] + call1Frame[i], -32768, 32767) : micFrame[i];
+			short mic = _transmitMicrophone ? micFrame[i] : (short)0;
+			short sample = _conferenceMerged ? (short)Math.Clamp(mic + call1Frame[i], -32768, 32767) : mic;
+			_secondaryMicSampleBuffer[i] = sample;
 		}
-		EncodeFrame(_micSampleBuffer, _secondaryPayloadType, _payload2Buffer);
+		EncodeFrame(_secondaryMicSampleBuffer, _secondaryPayloadType, _payload2Buffer);
 
 		lock (_secondarySendSync)
 		{

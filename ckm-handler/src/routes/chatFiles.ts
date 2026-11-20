@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { UPLOADS_DIR } from '../config';
 import vaultDb from '../database/vaultDb';
 import { MediaVaultFileRow } from '../types/models';
+import { broadcastDeviceLog } from '../services/telemetryStream';
 
 const router = Router();
 
@@ -26,6 +27,9 @@ const storage = multer.diskStorage({
     const id = crypto.randomUUID();
     const ext = path.extname(file.originalname).toLowerCase();
     if (BLOCKED_EXTENSIONS.has(ext)) {
+      broadcastDeviceLog('SECURITY', 'ERROR', `Blocked malicious/unauthorized script or executable file upload attempt: ${ext}`, {
+        ipAddress: req.ip
+      });
       return cb(new Error('Executable and script file uploads are prohibited for security.'), '');
     }
     cb(null, `${id}${ext}`);
@@ -56,6 +60,11 @@ router.post('/files/upload', upload.single('file'), (req: Request, res: Response
     INSERT INTO media_vault_files (file_id, original_name, mime_type, file_size, stored_path, uploaded_by, conversation_id)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(fileId, originalName, mimeType, fileSize, storedPath, uploadedBy, conversationId);
+
+  broadcastDeviceLog('MESSAGING', 'SUCCESS', `File uploaded to vault: ${originalName} (${(fileSize / 1024).toFixed(1)} KB) by ${uploadedBy} in [${conversationId}]`, {
+    deviceIdentifier: uploadedBy,
+    ipAddress: req.ip
+  });
 
   return res.json({
     success: true,
@@ -88,6 +97,10 @@ router.get('/files/:fileId', (req: Request, res: Response) => {
   res.setHeader('Content-Length', record.file_size);
   res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(record.original_name)}"`);
   res.setHeader('Cache-Control', 'private, no-store');
+
+  broadcastDeviceLog('MESSAGING', 'INFO', `Vault media file downloaded: ${record.original_name} (${(record.file_size / 1024).toFixed(1)} KB)`, {
+    ipAddress: req.ip
+  });
 
   const stream = fs.createReadStream(record.stored_path);
   stream.on('error', (err) => {

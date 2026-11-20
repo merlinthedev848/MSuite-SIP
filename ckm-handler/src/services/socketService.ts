@@ -133,6 +133,11 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
         const room = `conv_${conversationId}`;
         io.to(room).emit('receive_message', broadcastPayload);
 
+        broadcastDeviceLog('MESSAGING', 'INFO', `Message sent by ${senderId} in [${conversationId}] (${messageType || 'text'}, ${content.length} chars)`, {
+          deviceIdentifier: senderId,
+          ipAddress: clientIp
+        });
+
         // Instant ACK to sender with message ID and server timestamp
         if (typeof ackCallback === 'function') {
           ackCallback({
@@ -143,6 +148,10 @@ export function initializeSocketService(httpServer: HttpServer): SocketIOServer 
         }
       } catch (err: unknown) {
         console.error('[Socket.IO] Error persisting message:', err);
+        broadcastDeviceLog('MESSAGING', 'ERROR', `Message persistence error for ${payload?.senderId || 'unknown'}: ${err instanceof Error ? err.message : 'Unknown socket error'}`, {
+          deviceIdentifier: payload?.senderId,
+          ipAddress: clientIp
+        });
         if (typeof ackCallback === 'function') {
           ackCallback({ success: false, error: err instanceof Error ? err.message : 'Unknown socket error' });
         }

@@ -568,7 +568,7 @@ router.get('/api/v1/billing/docs', (req: Request, res: Response) => {
 
   return res.json({
     service: 'MerlinSIP / CKM Billing System Integration API',
-    version: '1.4.0',
+    version: '1.4.1',
     handlerUrl: baseHandlerUrl,
     authHeader: 'X-API-Key: ckm_live_...',
     endpoints: [

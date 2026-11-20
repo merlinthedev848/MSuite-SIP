@@ -214,7 +214,7 @@ router.get('/api/v1/config/sync', (req: Request, res: Response) => {
 
   return res.json({
     ok: true,
-    version: '1.4.0',
+    version: '1.4.1',
     sip: {
       server: config.pbx_server,
       port: config.pbx_port,

@@ -37,8 +37,8 @@
         </LinearGradientBrush>
 
         <LinearGradientBrush x:Key="PrimaryBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="#FCD34D" Offset="0" />
-            <GradientStop Color="#FBBF24" Offset="1" />
+            <GradientStop Color="#F59E0B" Offset="0" />
+            <GradientStop Color="#D97706" Offset="1" />
         </LinearGradientBrush>
 
         <LinearGradientBrush x:Key="DangerBrush" StartPoint="0,0" EndPoint="0,1">
@@ -69,8 +69,8 @@
             <Setter Property="Margin" Value="5" />
             <Setter Property="FontSize" Value="21" />
             <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Foreground" Value="#111317" />
-            <Setter Property="Background" Value="{StaticResource DialFaceBrush}" />
+            <Setter Property="Foreground" Value="#0F172A" />
+            <Setter Property="Background" Value="#FFFFFF" />
             <Setter Property="BorderBrush" Value="#E2E8F0" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
@@ -85,14 +85,18 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Chrome"
                                 Background="{TemplateBinding Background}"
-                                BorderBrush="#E2E8F0"
+                                BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="8">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.04" Color="#0F172A" />
+                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#FCD34D" />
+                                <Setter TargetName="Chrome" Property="Background" Value="#F8FAFC" />
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#CBD5E1" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter Property="RenderTransform">
@@ -100,6 +104,7 @@
                                         <TranslateTransform Y="1" />
                                     </Setter.Value>
                                 </Setter>
+                                <Setter TargetName="Chrome" Property="Background" Value="#F1F5F9" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -136,6 +141,9 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="10">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.04" Color="#0F172A" />
+                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -324,6 +332,12 @@
             <Setter Property="BorderBrush" Value="#E2E8F0" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TranslateTransform Y="0" />
+                </Setter.Value>
+            </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -332,6 +346,9 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="8">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.04" Color="#0F172A" />
+                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                               TextElement.Foreground="{TemplateBinding Foreground}"
                                               TextElement.FontWeight="{TemplateBinding FontWeight}"
@@ -343,6 +360,11 @@
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="#CBD5E1" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform Y="1" />
+                                    </Setter.Value>
+                                </Setter>
                                 <Setter TargetName="Chrome" Property="Background" Value="#F1F5F9" />
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="#94A3B8" />
                             </Trigger>
@@ -361,10 +383,17 @@
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
             <Setter Property="TextOptions.TextHintingMode" Value="Auto" />
-            <Setter Property="Background" Value="#FBBF24" />
-            <Setter Property="BorderBrush" Value="#F59E0B" />
+            <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="#D97706" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Foreground" Value="#0F172A" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TranslateTransform Y="0" />
+                </Setter.Value>
+            </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -373,6 +402,9 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="8">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="8" ShadowDepth="2" Opacity="0.25" Color="#D97706" />
+                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                               TextElement.Foreground="{TemplateBinding Foreground}"
                                               TextElement.FontWeight="{TemplateBinding FontWeight}"
@@ -380,12 +412,34 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#F59E0B" />
+                                <Setter TargetName="Chrome" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                            <GradientStop Color="#FBBF24" Offset="0" />
+                                            <GradientStop Color="#F59E0B" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="#D97706" />
+                                <Setter TargetName="Chrome" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.32" Color="#D97706" />
+                                    </Setter.Value>
+                                </Setter>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform Y="1" />
+                                    </Setter.Value>
+                                </Setter>
                                 <Setter TargetName="Chrome" Property="Background" Value="#D97706" />
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="#B45309" />
+                                <Setter TargetName="Chrome" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.15" Color="#D97706" />
+                                    </Setter.Value>
+                                </Setter>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45" />
@@ -3040,8 +3094,8 @@
                                     </StackPanel>
                                 </Border>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <Button Content="Close" Style="{StaticResource SoftButton}" Height="32" Width="95" Margin="0,0,8,0" Click="CloseSettingsButton_Click" AutomationProperties.Name="Close Settings" />
-                                    <Button x:Name="SaveAllSettingsButton" Content="Save Changes" Style="{StaticResource SoftButton}" Height="32" Background="{StaticResource PrimaryBrush}" Foreground="#0F172A" FontWeight="Bold" Width="130" Click="SaveAllSettingsButton_Click" AutomationProperties.Name="Save All Settings Changes" />
+                                    <Button Content="Close" Style="{StaticResource SoftButton}" Height="34" Width="95" Margin="0,0,8,0" Click="CloseSettingsButton_Click" AutomationProperties.Name="Close Settings" />
+                                    <Button x:Name="SaveAllSettingsButton" Content="Save Changes" Style="{StaticResource PrimaryCallButton}" Height="34" Width="130" Click="SaveAllSettingsButton_Click" AutomationProperties.Name="Save All Settings Changes" />
                                 </StackPanel>
                             </DockPanel>
                         </Border>
@@ -3062,8 +3116,8 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                        <Button Grid.Column="0" Content="Answer" Style="{StaticResource SoftButton}" Background="{StaticResource PrimaryBrush}" Foreground="White" Margin="0,0,8,0" Click="AnswerIncomingCallButton_Click" />
-                        <Button Grid.Column="1" Content="Decline" Style="{StaticResource SoftButton}" Background="{StaticResource DangerBrush}" Foreground="White" Click="DeclineIncomingCallButton_Click" />
+                        <Button Grid.Column="0" Content="Answer" Style="{StaticResource LineSuccessActionButton}" Height="40" FontWeight="Bold" Margin="0,0,8,0" Click="AnswerIncomingCallButton_Click" />
+                        <Button Grid.Column="1" Content="Decline" Style="{StaticResource LineDangerActionButton}" Height="40" FontWeight="Bold" Click="DeclineIncomingCallButton_Click" />
                     </Grid>
                 </StackPanel>
             </Border>

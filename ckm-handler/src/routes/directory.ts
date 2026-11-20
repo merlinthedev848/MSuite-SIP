@@ -252,6 +252,13 @@ router.get('/api/v1/contacts', (req: Request, res: Response) => {
     return res.status(401).json({ ok: false, error: 'Unauthorized: Extension credentials or directory token required.' });
   }
 
+  const authExt = resolveAuthorisedExtension(req);
+  broadcastDeviceLog('SOFTPHONE', 'INFO', `Softphone contacts fetched for ext ${authExt || 'authorized'} (${result.contacts.length} entries)`, {
+    deviceIdentifier: authExt || undefined,
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'] as string
+  });
+
   return res.json({
     ok: true,
     count: result.contacts.length,

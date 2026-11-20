@@ -193,6 +193,9 @@
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="BtnBdr" CornerRadius="27" Background="#DC2626" BorderBrush="#EF4444" BorderThickness="1">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.35" Color="#EF4444" />
+                                </Border.Effect>
                                 <TextBlock Text="&#xE778;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol" FontSize="20" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>

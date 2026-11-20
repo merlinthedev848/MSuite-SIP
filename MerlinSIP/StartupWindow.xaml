@@ -154,13 +154,29 @@
                     <Button Grid.Column="0"
                             Content="Cancel"
                             Click="CancelButton_Click"
-                            Margin="0,0,8,0" />
+                            Margin="0,0,8,0"
+                            Background="#FFFFFF"
+                            BorderBrush="#CBD5E1"
+                            BorderThickness="1"
+                            Foreground="#334155"
+                            FontWeight="SemiBold">
+                        <Button.Effect>
+                            <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.04" Color="#0F172A" />
+                        </Button.Effect>
+                    </Button>
                     <Button Grid.Column="1"
                             x:Name="ContinueButton"
                             Content="Complete setup"
-                            Background="{StaticResource AmberBrush}"
-                            Foreground="White"
-                            Click="ContinueButton_Click" />
+                            Background="{StaticResource PrimaryGradientBrush}"
+                            BorderBrush="#D97706"
+                            BorderThickness="1"
+                            Foreground="#0F172A"
+                            FontWeight="Bold"
+                            Click="ContinueButton_Click">
+                        <Button.Effect>
+                            <DropShadowEffect BlurRadius="8" ShadowDepth="2" Opacity="0.25" Color="#D97706" />
+                        </Button.Effect>
+                    </Button>
                 </Grid>
             </Grid>
             </Border>

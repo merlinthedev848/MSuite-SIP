@@ -1,6 +1,6 @@
 {
   "name": "ckm-handler",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "CKM Handler: Unified Communications, Provisioning Gateway, and GDPR Data Vault",
   "main": "dist/server.js",
   "scripts": {

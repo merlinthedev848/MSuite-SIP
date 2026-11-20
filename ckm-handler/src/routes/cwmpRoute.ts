@@ -79,7 +79,7 @@ router.post(['/cwmp', '/tr069', '/acs'], (req: Request, res: Response) => {
 </soapenv:Envelope>`;
 
   res.setHeader('Content-Type', 'text/xml; charset=utf-8');
-  res.setHeader('SOAPServer', 'CKM-GenieACS-Engine/1.4.0');
+  res.setHeader('SOAPServer', 'CKM-GenieACS-Engine/1.4.1');
   return res.status(200).send(cwmpResponse);
 });
 

@@ -23,8 +23,8 @@
             <GradientStop Color="#F9FAFB" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="PrimaryGradientBrush" StartPoint="0,0" EndPoint="0,1">
-            <GradientStop Color="#FCD34D" Offset="0" />
-            <GradientStop Color="#FBBF24" Offset="1" />
+            <GradientStop Color="#F59E0B" Offset="0" />
+            <GradientStop Color="#D97706" Offset="1" />
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="DangerGradientBrush" StartPoint="0,0" EndPoint="0,1">
             <GradientStop Color="#EF4444" Offset="0" />

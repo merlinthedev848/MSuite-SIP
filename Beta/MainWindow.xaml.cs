@@ -1486,7 +1486,7 @@ public partial class MainWindow : Window
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             using var request = new HttpRequestMessage(HttpMethod.Get, syncEndpoint);
-            request.Headers.Add("User-Agent", "MerlinSIP/1.4.0");
+            request.Headers.Add("User-Agent", "MerlinSIP/1.4.1");
             using var response = await HttpClientHelper.SharedClient.SendAsync(request, cts.Token);
 
             if (!response.IsSuccessStatusCode) return;
@@ -2095,7 +2095,7 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(myExt)) return;
             using var req = new HttpRequestMessage(HttpMethod.Get, $"{handlerUrl}/api/v1/contacts?extension={Uri.EscapeDataString(myExt)}");
             req.Headers.Add("X-MerlinSIP-Extension", myExt);
-            req.Headers.Add("User-Agent", "MerlinSIP/1.4.0");
+            req.Headers.Add("User-Agent", "MerlinSIP/1.4.1");
             var authUser = !string.IsNullOrWhiteSpace(_config.Username) ? _config.Username : myExt;
             var authPass = _config.Password ?? "";
             var basicVal = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{authUser}:{authPass}"));
@@ -2979,6 +2979,19 @@ public partial class MainWindow : Window
             return;
         }
 
+        // If two calls already exist (one active, one held), merge them immediately into 3-way conference!
+        if (_sipRegistrationService.CanMergeConference && !_sipRegistrationService.IsConferenceMerged)
+        {
+            var mergeResult = await _sipRegistrationService.MergeConferenceAsync();
+            FooterStatusText.Text = mergeResult.Message;
+            if (mergeResult.Signalled)
+            {
+                NoticeText.Text = "Conference call in progress.";
+                UpdateInCallButtonIcons();
+            }
+            return;
+        }
+
         var favorites = _config.ShowFavouriteExtensionsOnTransfer ? _contacts.Where(c => c.IsFavorite) : null;
         var conferenceWindow = new TransferCallWindow(DestinationTextBox.Text, favorites)
         {
@@ -2998,6 +3011,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        FooterStatusText.Text = $"Calling {target} for conference...";
         var result = await _sipRegistrationService.ConsultativeTransferAsync(target);
         if (result.Signalled)
         {
@@ -3007,6 +3021,7 @@ public partial class MainWindow : Window
         if (result.Signalled)
         {
             NoticeText.Text = "Conference call in progress.";
+            UpdateInCallButtonIcons();
         }
     }
 
@@ -3962,8 +3977,9 @@ public partial class MainWindow : Window
 
     private void UpdateActiveSettingsTab(System.Windows.Controls.Button activeBtn)
     {
-        var activeBg = (System.Windows.Media.Brush)this.FindResource("PrimaryBrush")!;
-        var activeFg = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#0F172A")!;
+        var activeBg = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#FEF3C7")!;
+        var activeFg = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#92400E")!;
+        var activeBorder = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#F59E0B")!;
         var inactiveBg = System.Windows.Media.Brushes.Transparent;
         var inactiveFg = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#475569")!;
 
@@ -3973,11 +3989,15 @@ public partial class MainWindow : Window
             {
                 btn.Background = activeBg;
                 btn.Foreground = activeFg;
+                btn.BorderBrush = activeBorder;
+                btn.BorderThickness = new Thickness(1);
             }
             else
             {
                 btn.Background = inactiveBg;
                 btn.Foreground = inactiveFg;
+                btn.BorderBrush = System.Windows.Media.Brushes.Transparent;
+                btn.BorderThickness = new Thickness(0);
             }
         }
 
