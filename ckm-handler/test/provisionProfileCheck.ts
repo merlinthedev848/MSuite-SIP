@@ -186,8 +186,9 @@ recordDeviceProvisionEvent('001565AAAA01', {
 
 const phoneA = readDeviceProvisionLog('001565AAAA01');
 const phoneB = readDeviceProvisionLog('001565BBBB02');
-assert(phoneA && phoneA.store === 'physical_handsets', 'phone A log was not stored on its handset row');
-assert(phoneB && phoneB.store === 'physical_handsets', 'phone B log was not stored on its handset row');
+if (!phoneA || !phoneB) throw new Error('Expected phone logs for A and B');
+assert(phoneA.store === 'physical_handsets', 'phone A log was not stored on its handset row');
+assert(phoneB.store === 'physical_handsets', 'phone B log was not stored on its handset row');
 const aText = phoneA.logs.map(item => item.message).join('\n');
 const bText = phoneB.logs.map(item => item.message).join('\n');
 assert(aText.includes('phone A only'), 'phone A log missing its own events');
