@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import systemDb, { logActivity } from '../database/systemDb';
 import vaultDb from '../database/vaultDb';
@@ -171,7 +172,7 @@ router.post('/api/v1/self-service/request-pin', async (req: Request, res: Respon
   systemDb.prepare('DELETE FROM softphone_pins WHERE extension = ? AND claimed = 0').run(targetExt);
 
   // Generate secure random 8-digit PIN
-  const pin = Math.floor(10000000 + Math.random() * 90000000).toString();
+  const pin = crypto.randomInt(10000000, 100000000).toString();
   const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString(); // 24-hour validity
 
   systemDb.prepare(`
@@ -274,8 +275,7 @@ router.post('/api/v1/self-service/request-pin', async (req: Request, res: Respon
   // Response to client: NOTICE: PIN IS EXCLUDED FROM RESPONSE FOR SECURITY!
   return res.json({
     ok: true,
-    message: `A new 8-digit setup PIN has been generated and sent to ${maskEmail(registeredEmail)} for extension ${targetExt}.`,
-    extension: targetExt,
+    message: `A new 8-digit setup PIN has been generated and sent to ${maskEmail(registeredEmail)}.`,
     maskedEmail: maskEmail(registeredEmail),
     emailDelivered: emailResult.success,
     emailStatus: emailResult.message

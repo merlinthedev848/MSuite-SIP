@@ -23,29 +23,35 @@ export function substituteTemplateVariables(raw: string, config: Partial<ServerC
   const pbxPort = String(config?.pbx_port || 5060);
   const pbxTransport = String(config?.pbx_transport || 'UDP');
 
+    const extVal = accountCfg?.extension || '';
+  const userVal = accountCfg?.username || extVal;
+  const passVal = accountCfg?.password || '';
+  const displayVal = accountCfg?.displayName || `Ext ${extVal}`;
+
   return raw
-    .replace(/\{\$domain\}/gi, domain)
-    .replace(/\{\$dataHandlerUrl\}/gi, domain)
-    .replace(/\{\$serverDomain\}/gi, cleanDomainHost)
-    .replace(/\{\$PbxAddress\}/gi, pbxAddress)
-    .replace(/\{\$pbxAddress\}/gi, pbxAddress)
-    .replace(/\{\$pbx_address\}/gi, pbxAddress)
-    .replace(/\{\$PBX_SERVER\}/gi, pbxAddress)
-    .replace(/\{\$sipServer\}/gi, pbxAddress)
-    .replace(/\{\$sipPort\}/gi, pbxPort)
-    .replace(/\{\$pbxPort\}/gi, pbxPort)
-    .replace(/\{\$sipTransport\}/gi, pbxTransport)
-    .replace(/\{\$pbxTransport\}/gi, pbxTransport)
-    .replace(/\{\$extension\}/gi, accountCfg?.extension || '')
-    .replace(/\{\$username\}/gi, accountCfg?.username || accountCfg?.extension || '')
-    .replace(/\{\$password\}/gi, accountCfg?.password || '')
-    .replace(/\{\$displayName\}/gi, accountCfg?.displayName || `Ext ${accountCfg?.extension || ''}`)
-    .replace(/\{\$lineLabel\}/gi, accountCfg?.displayName || `Ext ${accountCfg?.extension || ''}`)
-    .replace(/\{\$lineCount\}/gi, String(resolveLineCount(accountCfg)))
-    .replace(/\{\$line2Extension\}/gi, second?.extension || accountCfg?.extension || '')
-    .replace(/\{\$line2Username\}/gi, second?.username || accountCfg?.username || accountCfg?.extension || '')
-    .replace(/\{\$line2Password\}/gi, second?.password || accountCfg?.password || '')
-    .replace(/\{\$line2Label\}/gi, second?.label || `${accountCfg?.displayName || `Ext ${accountCfg?.extension || ''}`} L2`);
+  return raw
+    .replace(/\{\$domain\}/gi, () => domain)
+    .replace(/\{\$dataHandlerUrl\}/gi, () => domain)
+    .replace(/\{\$serverDomain\}/gi, () => cleanDomainHost)
+    .replace(/\{\$PbxAddress\}/gi, () => pbxAddress)
+    .replace(/\{\$pbxAddress\}/gi, () => pbxAddress)
+    .replace(/\{\$pbx_address\}/gi, () => pbxAddress)
+    .replace(/\{\$PBX_SERVER\}/gi, () => pbxAddress)
+    .replace(/\{\$sipServer\}/gi, () => pbxAddress)
+    .replace(/\{\$sipPort\}/gi, () => String(pbxPort))
+    .replace(/\{\$pbxPort\}/gi, () => String(pbxPort))
+    .replace(/\{\$sipTransport\}/gi, () => pbxTransport)
+    .replace(/\{\$pbxTransport\}/gi, () => pbxTransport)
+    .replace(/\{\$extension\}/gi, () => extVal)
+    .replace(/\{\$username\}/gi, () => userVal)
+    .replace(/\{\$password\}/gi, () => passVal)
+    .replace(/\{\$displayName\}/gi, () => displayVal)
+    .replace(/\{\$lineLabel\}/gi, () => displayVal)
+    .replace(/\{\$lineCount\}/gi, () => String(resolveLineCount(accountCfg)))
+    .replace(/\{\$line2Extension\}/gi, () => second?.extension || extVal)
+    .replace(/\{\$line2Username\}/gi, () => second?.username || userVal)
+    .replace(/\{\$line2Password\}/gi, () => second?.password || passVal)
+    .replace(/\{\$line2Label\}/gi, () => second?.label || `${displayVal} L2`);
 }
 
 import { Router, Request, Response } from 'express';

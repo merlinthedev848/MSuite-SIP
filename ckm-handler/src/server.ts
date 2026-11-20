@@ -74,6 +74,24 @@ app.get('/pin', (req, res) => {
   res.sendFile(path.resolve(pinStaticPath, 'index.html'));
 });
 
+// 5c. Softphone Update Manifest Mirror (/updates/merlin-sip/* & /api/updates/*)
+const handleUpdateManifest = (req: express.Request, res: express.Response) => {
+  const candidatePaths = [
+    path.resolve(__dirname, '../../dist/latest.json'),
+    path.resolve(__dirname, '../dist/latest.json'),
+    path.resolve(process.cwd(), 'dist/latest.json')
+  ];
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.sendFile(p);
+    }
+  }
+  res.redirect(302, 'http://updates.chriskendall.media/merlin-sip/latest.json');
+};
+
+app.get(['/updates/merlin-sip/latest.json', '/updates/merlin-sip/update.json', '/api/updates/latest.json'], handleUpdateManifest);
+
 // Seamless root redirect to Admin Dashboard
 app.get('/', (req, res) => {
   res.redirect(302, '/admin');

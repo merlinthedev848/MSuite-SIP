@@ -1,10 +1,17 @@
 ﻿{
-    "fileSize": 77021984,
-    "version":  "1.4.0",
-    "releaseNotes":  "v1.4.0: Mandatory license key enforcement with secondary SIP / Provisioning choice, contractor profile handler auto-binding, conflict/expiry fast-fail provisioning, handler connectivity architecture, multi-endpoint fallback resolution, remote dynamic PBX/data-handler config synchronization, anti-aliased G.722 audio decimation, and security hardening.",
-    "mandatory":  false,
-    "url":  "https://github.com/merlinthedev848/MSuite-SIP/releases/download/v1.4.0/MerlinSIP-1.4.0-x64-faststart.msi",
-    "fileName":  "MerlinSIP-1.4.0-x64-faststart.msi",
-    "releaseDate":  "2026-11-19",
-    "sha256": "4883691B14E9356EF244971C04AC29097D0689241AAD2424437812F2719FCDC2"
+  "version": "1.4.0",
+  "Version": "1.4.0",
+  "url": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.4.0-x64-faststart.msi",
+  "DownloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.4.0-x64-faststart.msi",
+  "downloadUrl": "https://updates.chriskendall.media/merlin-sip/releases/MerlinSIP-1.4.0-x64-faststart.msi",
+  "releaseNotes": "v1.4.0: Mandatory license key enforcement with secondary SIP / Provisioning choice, contractor profile handler auto-binding, conflict/expiry fast-fail provisioning, handler connectivity architecture, multi-endpoint fallback resolution, remote dynamic PBX/data-handler config synchronization, anti-aliased G.722 audio decimation, and security hardening.",
+  "Notes": "v1.4.0: Mandatory license key enforcement with secondary SIP / Provisioning choice, contractor profile handler auto-binding, conflict/expiry fast-fail provisioning, handler connectivity architecture, multi-endpoint fallback resolution, remote dynamic PBX/data-handler config synchronization, anti-aliased G.722 audio decimation, and security hardening.",
+  "fileName": "MerlinSIP-1.4.0-x64-faststart.msi",
+  "fileSize": 77021984,
+  "FileSizeBytes": 77021984,
+  "releaseDate": "2026-11-19",
+  "ReleaseDate": "2026-11-19",
+  "sha256": "4883691B14E9356EF244971C04AC29097D0689241AAD2424437812F2719FCDC2",
+  "Sha256": "4883691B14E9356EF244971C04AC29097D0689241AAD2424437812F2719FCDC2",
+  "mandatory": false
 }

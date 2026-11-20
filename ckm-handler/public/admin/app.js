@@ -1282,7 +1282,7 @@
 
     try {
 
-      const res = await fetchJson('/api/admin/pbx/ping', { method: 'POST' });
+      const res = await fetchJson('/api/admin/pbx/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selectedPbxId ? { pbxId: selectedPbxId } : {}) });
 
       if (res && res.reachable) {
 
@@ -1754,7 +1754,7 @@
 
     if (tabBtn) tabBtn.click();
 
-    const subBtn = document.querySelector('[data-subpane="settings-pbx"]');
+    const subBtn = document.querySelector('[data-subtab="settings-pbx"]');
 
     if (subBtn) subBtn.click();
 

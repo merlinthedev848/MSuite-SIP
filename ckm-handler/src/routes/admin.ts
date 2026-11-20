@@ -105,7 +105,7 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
       SELECT s.token, s.expires_at, u.id, u.username, u.display_name, u.role, u.permissions, u.is_active
       FROM admin_sessions s
       JOIN admin_users u ON s.user_id = u.id
-      WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP AND u.is_active = 1
+      WHERE s.token = ? AND s.datetime(expires_at) > datetime('now') AND u.is_active = 1
     `).get(token) as (AdminSessionRow & { id: number; username: string; display_name: string; role: AdminRole; permissions: string; is_active: number }) | undefined;
 
     if (session) {
@@ -1157,6 +1157,9 @@ router.delete('/api/admin/extensions/:ext', adminAuth, requirePermission('manage
   if (removed.changes === 0) {
     return res.status(404).json({ ok: false, error: `Extension ${ext} was not found.` });
   }
+  try { systemDb.prepare('DELETE FROM softphone_pins WHERE extension = ?').run(ext); } catch {}
+  try { systemDb.prepare('DELETE FROM address_book_extensions WHERE extension = ?').run(ext); } catch {}
+  try { vaultDb.prepare('DELETE FROM contacts WHERE extension = ?').run(ext); } catch {}
   broadcastDeviceLog('SOFTPHONE', 'WARN', `[Extension Removed] Extension ${ext} deleted from directory`, {
     deviceIdentifier: `Ext ${ext}`,
     ipAddress: req.ip
@@ -1181,7 +1184,7 @@ router.post('/api/admin/pins', adminAuth, requirePermission('manage_extensions')
   }
 
   // Generate a random 8-digit PIN
-  const pin = Math.floor(10000000 + Math.random() * 90000000).toString();
+  const pin = crypto.randomInt(10000000, 100000000).toString();
   const expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
 
   // Invalidate previous unclaimed PINs for this extension
@@ -1282,7 +1285,7 @@ router.post('/api/admin/extensions/quick-provision', adminAuth, requirePermissio
   }
 
   // 3. Issue fresh 8-digit PIN
-  const pin = Math.floor(10000000 + Math.random() * 90000000).toString();
+  const pin = crypto.randomInt(10000000, 100000000).toString();
   const expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
 
   systemDb.prepare('DELETE FROM softphone_pins WHERE extension = ? AND claimed = 0').run(cleanExt);
@@ -2200,6 +2203,13 @@ router.post('/api/admin/branding/logo', adminAuth, requirePermission('manage_bra
     return res.status(400).json({ ok: false, error: 'No logo image file was provided.' });
   }
 
+  try {
+    for (const f of fs.readdirSync(UPLOADS_DIR)) {
+      if (f.startsWith('logo_') && f !== req.file.filename) {
+        try { fs.unlinkSync(path.join(UPLOADS_DIR, f)); } catch {}
+      }
+    }
+  } catch {}
   const logoUrl = `/branding/logo?v=${Date.now()}`;
   systemDb.prepare('UPDATE server_config SET logo_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1').run(logoUrl);
 
@@ -2214,7 +2224,8 @@ router.post('/api/admin/branding/logo', adminAuth, requirePermission('manage_bra
 router.get('/branding/logo', (req: Request, res: Response) => {
   try {
     const files = fs.readdirSync(UPLOADS_DIR);
-    const logoFile = files.find(f => f.startsWith('logo_'));
+    const logoFiles = files.filter(f => f.startsWith('logo_')).sort().reverse();
+    const logoFile = logoFiles[0];
     if (logoFile) {
       const filePath = path.join(UPLOADS_DIR, logoFile);
       const ext = path.extname(logoFile).toLowerCase();

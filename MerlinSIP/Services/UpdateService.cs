@@ -9,34 +9,43 @@ namespace MerlinSip.Services;
 
 public sealed class UpdateService
 {
-    private const string UpdatesBaseUrl = "https://updates.chriskendall.media/merlin-sip/";
-    private const string ReleasesUrl = "https://updates.chriskendall.media/merlin-sip/releases/";
+    private const string PrimaryUpdatesBaseUrl = "http://updates.chriskendall.media/merlin-sip/";
+    private const string SecureUpdatesBaseUrl = "https://updates.chriskendall.media/merlin-sip/";
     private static readonly TimeSpan InstallerRetention = TimeSpan.FromDays(14);
     private static readonly HttpClient HttpClient = HttpClientHelper.CreateClient();
 
-    public async Task<UpdateCheckResult> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
+    private static readonly string[] CandidateFeedUrls =
+    [
+        "http://updates.chriskendall.media/merlin-sip/latest.json",
+        "https://updates.chriskendall.media/merlin-sip/latest.json",
+        "http://updates.chriskendall.media/merlin-sip/update.json",
+        "https://updates.chriskendall.media/merlin-sip/update.json"
+    ];
+
+    public async Task<UpdateCheckResult> CheckForUpdatesAsync(Version? currentVersionOverride = null, string? customHandlerUrl = null, CancellationToken cancellationToken = default)
     {
         try
         {
-            var current = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 5);
-            var latestFromFeed = await TryLoadLatestReleaseAsync(cancellationToken);
+            var current = currentVersionOverride ?? Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 5);
+            var feedUrls = BuildCandidateFeedUrls(customHandlerUrl);
+            var latestFromFeed = await TryLoadLatestReleaseAsync(feedUrls, cancellationToken);
             if (latestFromFeed is not null)
             {
                 return BuildResult(current, latestFromFeed);
             }
 
-            var html = await HttpClient.GetStringAsync(ReleasesUrl, cancellationToken);
-            var releases = FindMsiReleases(html).ToList();
-            if (releases.Count == 0)
+            // Fallback: Check release directory HTML if available
+            var releases = await TryScrapeReleasesDirectoryAsync(cancellationToken);
+            if (releases.Count > 0)
             {
-                return new UpdateCheckResult(false, false, "No installer releases were found.");
+                return BuildResult(current, releases.OrderByDescending(r => r.Version).First());
             }
 
-            return BuildResult(current, releases.OrderByDescending(release => release.Version).First());
+            return new UpdateCheckResult(true, false, "You are up to date.", current.ToString());
         }
         catch (Exception error)
         {
-            DebugLog.Write($"UPDATE CHECK failed error={error.Message}");
+            DebugLog.Write($"UPDATE CHECK failed: {error.GetType().Name}: {error.Message}");
             return new UpdateCheckResult(false, false, "Unable to check for updates right now.");
         }
     }
@@ -82,7 +91,7 @@ public sealed class UpdateService
         }
         else
         {
-            DebugLog.Write($"Update downloaded from HTTPS feed: {installerPath}");
+            DebugLog.Write($"Update downloaded from update feed: {installerPath}");
         }
 
         return installerPath;
@@ -137,43 +146,153 @@ public sealed class UpdateService
             Math.Max(version.Revision, 0));
     }
 
-    private static async Task<MsiRelease?> TryLoadLatestReleaseAsync(CancellationToken cancellationToken)
+    private static List<string> BuildCandidateFeedUrls(string? customHandlerUrl)
     {
-        foreach (var url in new[]
+        var urls = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(customHandlerUrl))
         {
-            $"{UpdatesBaseUrl}latest.json",
-            $"{UpdatesBaseUrl}update.json",
-            UpdatesBaseUrl
-        })
+            var trimmed = customHandlerUrl.Trim().TrimEnd('/');
+            urls.Add($"{trimmed}/updates/merlin-sip/latest.json");
+            urls.Add($"{trimmed}/updates/merlin-sip/update.json");
+            urls.Add($"{trimmed}/api/updates/latest.json");
+        }
+
+        urls.Add("http://updates.chriskendall.media/merlin-sip/latest.json");
+        urls.Add("https://updates.chriskendall.media/merlin-sip/latest.json");
+        urls.Add("http://updates.chriskendall.media/merlin-sip/update.json");
+        urls.Add("https://updates.chriskendall.media/merlin-sip/update.json");
+        urls.Add("https://handler.chriskendall.media/updates/merlin-sip/latest.json");
+        urls.Add("http://handler.chriskendall.media/updates/merlin-sip/latest.json");
+        urls.Add("https://handler.chriskendall.media/api/updates/latest.json");
+        urls.Add("http://handler.chriskendall.media/api/updates/latest.json");
+
+        return urls;
+    }
+
+    private static async Task<MsiRelease?> TryLoadLatestReleaseAsync(IEnumerable<string> feedUrls, CancellationToken cancellationToken)
+    {
+        foreach (var url in feedUrls)
         {
             try
             {
-                var json = await HttpClient.GetStringAsync(url, cancellationToken);
-                var feed = JsonSerializer.Deserialize<UpdateFeed>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-
-                if (feed is null ||
-                    string.IsNullOrWhiteSpace(feed.Version) ||
-                    string.IsNullOrWhiteSpace(feed.DownloadUrl) ||
-                    !Version.TryParse(feed.Version, out var version))
+                using var response = await HttpClient.GetAsync(url, cancellationToken);
+                if (!response.IsSuccessStatusCode)
                 {
                     continue;
                 }
 
-                return new MsiRelease(version, feed.DownloadUrl, feed.Notes, true);
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    continue;
+                }
+
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                // 1. Resolve Version
+                string? rawVersion = null;
+                if (root.TryGetProperty("version", out var vProp)) rawVersion = vProp.GetString();
+                else if (root.TryGetProperty("Version", out var vPropCap)) rawVersion = vPropCap.GetString();
+                else if (root.TryGetProperty("tag_name", out var tagProp)) rawVersion = tagProp.GetString();
+
+                if (string.IsNullOrWhiteSpace(rawVersion))
+                {
+                    continue;
+                }
+
+                var cleanVer = rawVersion.Trim().TrimStart('v', 'V');
+                var match = Regex.Match(cleanVer, @"(?<ver>\d+\.\d+(?:\.\d+)?(?:\.\d+)?)");
+                if (!match.Success || !Version.TryParse(match.Groups["ver"].Value, out var version))
+                {
+                    continue;
+                }
+
+                // 2. Resolve Download URL
+                string? downloadUrl = null;
+                if (root.TryGetProperty("url", out var uProp)) downloadUrl = uProp.GetString();
+                else if (root.TryGetProperty("downloadUrl", out var dProp)) downloadUrl = dProp.GetString();
+                else if (root.TryGetProperty("download_url", out var duProp)) downloadUrl = duProp.GetString();
+                else if (root.TryGetProperty("uri", out var uriProp)) downloadUrl = uriProp.GetString();
+
+                if (string.IsNullOrWhiteSpace(downloadUrl))
+                {
+                    string? fileName = null;
+                    if (root.TryGetProperty("fileName", out var fnProp)) fileName = fnProp.GetString();
+                    else if (root.TryGetProperty("file_name", out var fnProp2)) fileName = fnProp2.GetString();
+
+                    if (!string.IsNullOrWhiteSpace(fileName))
+                    {
+                        var baseUrl = url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? SecureUpdatesBaseUrl : PrimaryUpdatesBaseUrl;
+                        downloadUrl = $"{baseUrl.TrimEnd('/')}/releases/{fileName}";
+                    }
+                }
+                else if (!downloadUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                         !downloadUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                {
+                    var baseUri = new Uri(url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? SecureUpdatesBaseUrl : PrimaryUpdatesBaseUrl);
+                    if (Uri.TryCreate(baseUri, downloadUrl, out var resolved))
+                    {
+                        downloadUrl = resolved.ToString();
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(downloadUrl))
+                {
+                    continue;
+                }
+
+                // 3. Resolve Release Notes
+                string? notes = null;
+                if (root.TryGetProperty("releaseNotes", out var rnProp)) notes = rnProp.GetString();
+                else if (root.TryGetProperty("notes", out var nProp)) notes = nProp.GetString();
+                else if (root.TryGetProperty("changelog", out var clProp)) notes = clProp.GetString();
+                else if (root.TryGetProperty("description", out var descProp)) notes = descProp.GetString();
+
+                DebugLog.Write($"UPDATE CHECK parsed release {version} from {url}: {downloadUrl}");
+                return new MsiRelease(version, downloadUrl, notes, true);
             }
-            catch
+            catch (Exception ex)
             {
-                // Try the next conventional feed location.
+                DebugLog.Write($"UPDATE FEED check failed for {url}: {ex.Message}");
             }
         }
 
         return null;
     }
 
-    private static IEnumerable<MsiRelease> FindMsiReleases(string html)
+    private static async Task<List<MsiRelease>> TryScrapeReleasesDirectoryAsync(CancellationToken cancellationToken)
+    {
+        var results = new List<MsiRelease>();
+        foreach (var releasesDirUrl in new[]
+        {
+            $"{PrimaryUpdatesBaseUrl}releases/",
+            $"{SecureUpdatesBaseUrl}releases/"
+        })
+        {
+            try
+            {
+                using var response = await HttpClient.GetAsync(releasesDirUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    var html = await response.Content.ReadAsStringAsync(cancellationToken);
+                    foreach (var rel in FindMsiReleases(html, releasesDirUrl))
+                    {
+                        results.Add(rel);
+                    }
+                    if (results.Count > 0) break;
+                }
+            }
+            catch
+            {
+                // Directory browsing may be disabled on Nginx (normal behavior)
+            }
+        }
+        return results;
+    }
+
+    private static IEnumerable<MsiRelease> FindMsiReleases(string html, string baseUrl)
     {
         foreach (Match match in Regex.Matches(html, "href=[\"'](?<href>[^\"']+\\.msi)[\"']", RegexOptions.IgnoreCase))
         {
@@ -187,7 +306,7 @@ public sealed class UpdateService
 
             var url = Uri.TryCreate(href, UriKind.Absolute, out var absolute)
                 ? absolute.ToString()
-                : new Uri(new Uri(ReleasesUrl), href).ToString();
+                : new Uri(new Uri(baseUrl), href).ToString();
 
             yield return new MsiRelease(version, url, null, false);
         }
@@ -202,6 +321,4 @@ public sealed class UpdateService
     }
 
     private sealed record MsiRelease(Version Version, string Url, string? Notes, bool AuthoritativeFeed);
-
-    private sealed record UpdateFeed(string Version, string DownloadUrl, string? Notes);
 }

@@ -58,7 +58,7 @@ const getServerConfigStmt = systemDb.prepare(`
 // 1. Softphone Auto-Provisioning by 8-Digit PIN
 // Handled for multiple endpoint patterns matching desktop client
 const handlePinProvision = (req: Request, res: Response) => {
-  const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+  const clientIp = String(req.ip || req.socket.remoteAddress || 'unknown');
   const now = Date.now();
 
   const attemptRec = failedPinAttempts.get(clientIp);

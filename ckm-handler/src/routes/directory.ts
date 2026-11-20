@@ -68,7 +68,7 @@ function resolveAuthorisedExtension(req: Request): string | null {
       const session = systemDb.prepare(`
         SELECT u.id FROM admin_sessions s
         JOIN admin_users u ON s.user_id = u.id
-        WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP AND u.is_active = 1
+        WHERE s.token = ? AND datetime(s.expires_at) > datetime('now') AND u.is_active = 1
       `).get(bearer[1]);
       if (session) {
         return queryExt || '__admin__';
@@ -483,6 +483,36 @@ router.get(['/phonebook/cisco.xml', '/phonebook/spa.xml'], (req: Request, res: R
   }
 
   xml += '</CiscoIPPhoneDirectory>';
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  return res.send(xml);
+});
+
+// 7. Gigaset & Poly XML Phonebooks
+router.get(['/phonebook/gigaset.xml', '/phonebook/poly.xml'], (req: Request, res: Response) => {
+  const result = getScopedContactsForRequest(req);
+  if (!result.authorized) {
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    return res.status(401).send(`<?xml version="1.0" encoding="UTF-8"?>\r\n<Directory><Title>Unauthorized</Title></Directory>`);
+  }
+
+  const vendor = req.path.includes('gigaset') ? 'Gigaset' : 'Poly';
+  broadcastDeviceLog('DESKPHONE', 'INFO', `${vendor} shared phonebook XML fetched (${result.contacts.length} entries)`, {
+    ipAddress: req.ip,
+    userAgent: req.headers['user-agent'] as string
+  });
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\r\n<Directory>\r\n';
+
+  for (const c of result.contacts) {
+    xml += '  <DirectoryEntry>\r\n';
+    xml += '    <Name>' + escapeXml(c.name) + '</Name>\r\n';
+    xml += '    <Telephone>' + escapeXml(c.number) + '</Telephone>\r\n';
+    if (c.mobile && c.mobile !== c.number) {
+      xml += '    <Telephone>' + escapeXml(c.mobile) + '</Telephone>\r\n';
+    }
+    xml += '  </DirectoryEntry>\r\n';
+  }
+
+  xml += '</Directory>';
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
   return res.send(xml);
 });

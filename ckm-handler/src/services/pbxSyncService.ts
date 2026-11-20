@@ -129,7 +129,7 @@ export async function syncExtensionsFromYeastarApi(
   config: PbxSyncConfig
 ): Promise<{ success: boolean; count: number; message: string }> {
   const host = config.host.replace(/^https?:\/\//i, '').split('/')[0].split(':')[0];
-  const protocol = config.protocol || (config.port === 443 ? 'https' : 'https');
+  const protocol = config.protocol || (config.port === 8088 ? 'http' : 'https');
   const port = config.port || 8260;
   const rawPath = config.apiPath ? config.apiPath.trim() : 'api/v2.0.0';
   const basePath = '/' + rawPath.replace(/^\/+|\/+$/g, '');
@@ -222,7 +222,7 @@ export async function syncExtensionsFromYeastarApi(
   // Fallback 2: OpenAPI v1 extensions endpoint
   if (extlist.length === 0) {
     try {
-      const v1Res = await pbxHttpRequest(activeProto, host, port, '/api/v1.0/extensions', 'GET', undefined, token, verifySsl);
+      const v1Res = await pbxHttpRequest(activeProto, host, activePort, '/api/v1.0/extensions', 'GET', undefined, token, verifySsl);
       extlist = v1Res?.data || v1Res?.extensions || [];
     } catch {
       // ignore
@@ -381,7 +381,9 @@ export async function syncExtensionsFromAsterisk(
       // 1. Initial Greeting: Send Login WITH Events: on
       if (buffer.includes('Asterisk Call Manager') && !loggedIn) {
         loggedIn = true;
-        socket.write(`Action: Login\r\nUsername: ${ami.username}\r\nSecret: ${ami.secret}\r\nEvents: on\r\n\r\n`);
+        const safeUser = String(ami.username || '').replace(/[\r\n]/g, '');
+        const safeSecret = String(ami.secret || '').replace(/[\r\n]/g, '');
+        socket.write(`Action: Login\r\nUsername: ${safeUser}\r\nSecret: ${safeSecret}\r\nEvents: on\r\n\r\n`);
         buffer = '';
         return;
       }

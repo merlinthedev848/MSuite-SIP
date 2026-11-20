@@ -87,7 +87,7 @@ router.get('/files/:fileId', (req: Request, res: Response) => {
   res.setHeader('Content-Type', record.mime_type);
   res.setHeader('Content-Length', record.file_size);
   res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(record.original_name)}"`);
-  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.setHeader('Cache-Control', 'private, no-store');
 
   const stream = fs.createReadStream(record.stored_path);
   stream.on('error', (err) => {
