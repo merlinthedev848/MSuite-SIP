@@ -866,7 +866,7 @@ router.get('/api/admin/overview', adminAuth, (req: Request, res: Response) => {
   const pinCount = (systemDb.prepare('SELECT COUNT(*) as count FROM softphone_pins WHERE claimed = 0').get() as CountRow).count;
   const routerCount = (systemDb.prepare('SELECT COUNT(*) as count FROM routers').get() as CountRow).count;
   const discoveredCount = (systemDb.prepare("SELECT COUNT(*) as count FROM discovered_devices WHERE status = 'PENDING_ADOPTION'").get() as CountRow).count;
-  const firmwareCount = (systemDb.prepare("SELECT COUNT(*) as count FROM firmware_binaries WHERE status = 'DOWNLOADED'").get() as CountRow).count;
+  const firmwareCount = (systemDb.prepare("SELECT COUNT(*) as count FROM firmware_binaries WHERE status IN ('AVAILABLE', 'DOWNLOADED', 'CUSTOM_UPLOAD')").get() as CountRow).count;
   const sysPages = systemDb.pragma('page_count', { simple: true });
   const tSys = performance.now() - tSys0;
 

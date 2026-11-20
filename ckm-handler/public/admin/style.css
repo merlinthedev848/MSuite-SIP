@@ -5706,3 +5706,100 @@ select option,
   border-color: #7dd3fc;
   color: #0369a1;
 }
+
+/* ============================================================================
+   Topbar & Viewport Overflow Guard (1280px - 1440px+ Desktops)
+   ============================================================================ */
+.main-content {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.topbar {
+  padding: 0 16px;
+  gap: 10px;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.topbar-left {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  gap: 10px;
+}
+
+.topbar-breadcrumb {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-search-pill {
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 0 10px;
+  min-width: auto;
+  max-width: 190px;
+}
+
+.topbar-right {
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 6px;
+}
+
+.topbar-status-group {
+  min-width: 0;
+  gap: 6px;
+}
+
+.status-chip {
+  max-width: 190px;
+  overflow: hidden;
+}
+
+.status-chip span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-chip-secondary {
+  max-width: 135px;
+}
+
+.user-menu-pill {
+  max-width: 155px;
+  overflow: hidden;
+}
+
+.user-menu-pill #topbarUserName,
+.user-menu-pill .user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1560px) {
+  .topbar-breadcrumb .breadcrumb-root,
+  .topbar-breadcrumb .breadcrumb-sep {
+    display: none;
+  }
+  .topbar-search-pill .search-text,
+  .topbar-search-pill span {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 1360px) {
+  .status-chip-secondary {
+    display: none;
+  }
+  .user-menu-pill {
+    max-width: 110px;
+  }
+}

@@ -245,16 +245,17 @@ export async function syncExtensionsFromYeastarApi(
     return { success: true, count: 0, message: 'Connected to Yeastar PBX via REST API, but no extensions were returned.' };
   }
 
-  // Helper to decode Base64 if returned encoded by Yeastar
+  // Helper to sanitize SIP secret: rejects empty, placeholder, and 64-char SHA-256 web hashes
   const cleanAndDecode = (val: string): string => {
     const trimmed = (val || '').trim();
     if (!trimmed || trimmed === 'ExtPassword123!') return '';
-    // Check if candidate is Base64 encoded (ends with = or base64 format without spaces)
-    if (/^[A-Za-z0-9+/]+={0,2}$/.test(trimmed) && trimmed.length % 4 === 0 && trimmed.length >= 8 && trimmed.length <= 64) {
+    // Reject 64-char hexadecimal SHA-256 hashes (Yeastar web portal user_password)
+    if (trimmed.length === 64 && /^[a-f0-9]{64}$/i.test(trimmed)) return '';
+    // Only Base64-decode if explicitly padded with '=' and decodes cleanly to printable ASCII
+    if (/^[A-Za-z0-9+/]+=+$/.test(trimmed) && trimmed.length % 4 === 0 && trimmed.length >= 8 && trimmed.length <= 64) {
       try {
         const dec = Buffer.from(trimmed, 'base64').toString('utf8');
-        // If decoded value consists of printable ASCII and doesn't equal original, use decoded
-        if (/^[\x20-\x7E]+$/.test(dec) && dec !== trimmed) {
+        if (/^[\x20-\x7E]+$/.test(dec) && dec !== trimmed && !(dec.length === 64 && /^[a-f0-9]{64}$/i.test(dec))) {
           return dec;
         }
       } catch {}
@@ -262,31 +263,54 @@ export async function syncExtensionsFromYeastarApi(
     return trimmed;
   };
 
+  const extractSipPassword = (obj: Record<string, any> | null | undefined): string => {
+    if (!obj || typeof obj !== 'object') return '';
+    const candidates = [
+      obj.regpassword,
+      obj.reg_password,
+      obj.registerpassword,
+      obj.registration_password,
+      obj.register_password,
+      obj.sip_password,
+      obj.sippassword,
+      obj.secret,
+      obj.password,
+    ];
+    for (const raw of candidates) {
+      if (raw === undefined || raw === null) continue;
+      const cleaned = cleanAndDecode(String(raw));
+      if (cleaned) return cleaned;
+    }
+    return '';
+  };
+
+  if (extlist.length > 0) {
+    console.log(`[PBX Sync] Yeastar bulk extension keys sample: ${Object.keys(extlist[0]).join(', ')}`);
+  }
+
   const extensions: SyncedExtension[] = [];
   for (const item of extlist) {
     const extNumber = String(item.number || item.extnumber || item.extid || item.extension || '').trim();
     if (!extNumber || !/^\d{2,8}$/.test(extNumber)) continue;
 
     const displayName = String(item.username || item.displayname || item.name || item.callerid || `Extension ${extNumber}`).trim();
-    
-    // SIP Registration Secret extraction:
-    // 1. Check direct SIP registration secret properties
-    let sipPassword = cleanAndDecode(String(item.registerpassword || item.registration_password || item.register_password || item.secret || ''));
+
+    // 1. Check direct SIP registration secret properties from bulk response
+    let sipPassword = extractSipPassword(item);
 
     // 2. If password is missing in bulk response, query the specific extension individually
     if (!sipPassword) {
-      try {
-        const singleQuery = await pbxHttpRequest(activeProto, host, activePort, `${basePath}/extension/query`, 'POST', { extid: extNumber }, token, verifySsl);
-        const singleInfo = (singleQuery?.extinfos && singleQuery.extinfos[0]) || (singleQuery?.data && singleQuery.data[0]) || singleQuery;
-        if (singleInfo) {
-          const cand = cleanAndDecode(String(singleInfo.registerpassword || singleInfo.registration_password || singleInfo.register_password || singleInfo.secret || ''));
-          if (cand && cand.length !== 64) {
+      for (const payload of [{ extid: extNumber }, { number: extNumber }]) {
+        try {
+          const singleQuery = await pbxHttpRequest(activeProto, host, activePort, `${basePath}/extension/query`, 'POST', payload, token, verifySsl);
+          const singleInfo = (singleQuery?.extinfos && singleQuery.extinfos[0]) || (singleQuery?.data && singleQuery.data[0]) || singleQuery;
+          const cand = extractSipPassword(singleInfo);
+          if (cand) {
             sipPassword = cand;
-          } else if (singleInfo.password && String(singleInfo.password).trim().length !== 64) {
-            sipPassword = cleanAndDecode(String(singleInfo.password));
+            break;
           }
-        }
-      } catch {}
+        } catch {}
+      }
     }
 
     // 3. Secondary P-Series OpenAPI getpassword endpoint check
@@ -295,19 +319,9 @@ export async function syncExtensionsFromYeastarApi(
         const pwRes = await pbxHttpRequest(activeProto, host, activePort, `/openapi/v1.0/extension/getpassword?id=${extNumber}&type=reg_password`, 'GET', undefined, token, verifySsl);
         if (pwRes && pwRes.password) {
           const cand = cleanAndDecode(String(pwRes.password));
-          if (cand && cand.length !== 64) {
-            sipPassword = cand;
-          }
+          if (cand) sipPassword = cand;
         }
       } catch {}
-    }
-
-    // 4. Fall back to item.password ONLY if it is not a 64-char SHA-256 web hash
-    if (!sipPassword && item.password) {
-      const candidate = cleanAndDecode(String(item.password));
-      if (candidate.length !== 64 && !/^[a-f0-9]{64}$/i.test(candidate)) {
-        sipPassword = candidate;
-      }
     }
 
     const email = String(item.email || item.useremail || item.user_email || item.mail || item.mailbox || '').trim();
@@ -325,7 +339,7 @@ export async function syncExtensionsFromYeastarApi(
     return { success: true, count: 0, message: 'Connected to Yeastar PBX, but 0 valid extension numbers could be parsed.' };
   }
 
-  // 3. Insert or update in system.db
+  // 3. Insert or update in system.db (never overwrite valid secrets with empty or 64-char hashes)
   const pbxId = config.pbxId || 'default';
   const syncTx = systemDb.transaction((exts: SyncedExtension[]) => {
     const stmt = systemDb.prepare(`
@@ -343,12 +357,12 @@ export async function syncExtensionsFromYeastarApi(
                AND extensions.sip_password != 'ExtPassword123!' 
                AND length(extensions.sip_password) != 64 
           THEN extensions.sip_password 
-          ELSE excluded.sip_password 
+          ELSE '' 
         END,
         pbx_id = excluded.pbx_id
     `);
     for (const ext of exts) {
-      stmt.run(ext.extension, ext.username, ext.password || 'ExtPassword123!', ext.displayName, ext.email || '', pbxId);
+      stmt.run(ext.extension, ext.username, ext.password || '', ext.displayName, ext.email || '', pbxId);
     }
   });
 
