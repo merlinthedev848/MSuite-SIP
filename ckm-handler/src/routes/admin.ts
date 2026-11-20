@@ -1820,31 +1820,37 @@ router.post('/api/admin/system/purge', adminAuth, requirePermission('manage_pbx'
     return res.status(400).json({ ok: false, error: 'Confirmation string "PURGE" is required to purge system configurations.' });
   }
 
-  systemDb.transaction(() => {
-    systemDb.prepare('DELETE FROM softphone_pins').run();
-    systemDb.prepare('DELETE FROM physical_handsets').run();
-    systemDb.prepare('DELETE FROM discovered_devices').run();
-    systemDb.prepare('DELETE FROM routers').run();
-    systemDb.prepare('DELETE FROM address_book_contacts').run();
-    systemDb.prepare('DELETE FROM address_book_extensions').run();
-    systemDb.prepare('DELETE FROM shared_address_books').run();
-    systemDb.prepare('DELETE FROM extensions').run();
-    systemDb.prepare('DELETE FROM pbx_instances WHERE id != "default"').run();
-    systemDb.prepare(`
-      UPDATE server_config
-      SET pbx_server = ?, pbx_port = 5060, pbx_transport = ?,
-          pbx_type = 'yeastar_api', api_host = '', api_port = 8260, api_user = '', api_secret = '',
-          auto_adopt_enabled = 0, auto_sync_enabled = 1, sync_interval_minutes = 5
-      WHERE id = 1
-    `).run(DEFAULT_PBX_SERVER, DEFAULT_PBX_TRANSPORT);
-    systemDb.prepare(`
-      UPDATE pbx_instances
-      SET host = ?, sip_port = 5060, sip_transport = ?, pbx_type = 'yeastar_api',
-          api_host = '', api_port = 8260, api_user = '', api_secret = '',
-          last_sync_status = 'IDLE', last_ping_status = 'UNKNOWN', is_active = 1
-      WHERE id = 'default'
-    `).run(DEFAULT_PBX_SERVER, DEFAULT_PBX_TRANSPORT);
-  })();
+  try {
+    systemDb.transaction(() => {
+      systemDb.prepare('DELETE FROM softphone_pins').run();
+      systemDb.prepare('DELETE FROM physical_handsets').run();
+      systemDb.prepare('DELETE FROM discovered_devices').run();
+      systemDb.prepare('DELETE FROM routers').run();
+      systemDb.prepare('DELETE FROM address_book_contacts').run();
+      systemDb.prepare('DELETE FROM address_book_extensions').run();
+      systemDb.prepare('DELETE FROM shared_address_books').run();
+      systemDb.prepare('DELETE FROM extensions').run();
+      systemDb.prepare("DELETE FROM pbx_instances WHERE id != 'default'").run();
+      systemDb.prepare(`
+        UPDATE server_config
+        SET pbx_server = ?, pbx_port = 5060, pbx_transport = ?,
+            pbx_type = 'yeastar_api', api_host = '', api_port = 8260, api_user = '', api_secret = '',
+            auto_adopt_enabled = 0, auto_sync_enabled = 1, auto_sync_interval_mins = 5
+        WHERE id = 1
+      `).run(DEFAULT_PBX_SERVER, DEFAULT_PBX_TRANSPORT);
+      systemDb.prepare(`
+        UPDATE pbx_instances
+        SET host = ?, sip_port = 5060, sip_transport = ?, pbx_type = 'yeastar_api',
+            api_host = '', api_port = 8260, api_user = '', api_secret = '',
+            last_sync_status = 'IDLE', last_ping_status = 'UNKNOWN', is_active = 1
+        WHERE id = 'default'
+      `).run(DEFAULT_PBX_SERVER, DEFAULT_PBX_TRANSPORT);
+    })();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[Admin] System purge failed:', msg);
+    return res.status(500).json({ ok: false, error: `System purge failed: ${msg}` });
+  }
 
   broadcastDeviceLog('SYSTEM', 'WARN', `[Maintenance] System configurations purged by admin ${((req as AdminRequest).adminUser?.username || 'admin')}`);
   return res.json({ ok: true, message: 'All system configurations, extensions, and trunks purged successfully.' });

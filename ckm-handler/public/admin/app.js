@@ -7035,6 +7035,7 @@
 
   activePaletteIndex = 0;
   paletteItemsList = [];
+  const paletteResults = document.getElementById('paletteResults');
 
   function openCommandPalette() {
     const modal = document.getElementById('modalCommandPalette');
