@@ -37,6 +37,18 @@ public class SettingsModalStructureAndPersistenceTests
         Assert.False(config.QueuePickupEnabled);
         Assert.True(config.CombineContactsInSearch);
         Assert.Equal(5, config.FailedCallDisplaySeconds);
+
+        // Crucial User Constraint: All new 10x features MUST default to false (OFF)
+        Assert.False(config.EnableAiNoiseCancellation);
+        Assert.False(config.EnableAcousticEchoCancellation);
+        Assert.False(config.EnableGlobalHotkeyDialing);
+        Assert.False(config.EnableCrmScreenPop);
+        Assert.Equal("https://crm.example.com/search?phone={number}", config.CrmScreenPopUrl);
+        Assert.Equal("On Answer", config.CrmScreenPopTrigger);
+        Assert.False(config.EnableVisualAttendantConsole);
+        Assert.False(config.ShowLiveCallQualityMetrics);
+        Assert.False(config.EnableVideoScreenSharing);
+        Assert.False(config.EnablePostCallSummaries);
     }
 
     [Fact]
@@ -219,5 +231,36 @@ public class SettingsModalStructureAndPersistenceTests
         // Fixed hinting mode must not be present (causes pixelation)
         Assert.DoesNotContain("TextOptions.TextHintingMode\" Value=\"Fixed\"", content);
         Assert.Contains("TextOptions.TextHintingMode\" Value=\"Auto\"", content);
+    }
+
+    [Fact]
+    public void TenXFeatures_HaveSettingsControls_AndDefaultToOff()
+    {
+        var xamlPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "MerlinSIP", "MainWindow.xaml"));
+        var content = File.ReadAllText(xamlPath);
+
+        // General Tab controls
+        Assert.Contains("x:Name=\"EnableGlobalHotkeyCheckBox\"", content);
+        Assert.Contains("x:Name=\"EnablePostCallSummariesCheckBox\"", content);
+        Assert.Contains("x:Name=\"EnableVisualAttendantConsoleCheckBox\"", content);
+
+        // Audio & Video Tab controls
+        Assert.Contains("x:Name=\"EnableAiNoiseCancellationCheckBox\"", content);
+        Assert.Contains("x:Name=\"EnableAcousticEchoCancellationCheckBox\"", content);
+        Assert.Contains("x:Name=\"EnableVideoScreenSharingCheckBox\"", content);
+
+        // Calls & Routing Tab controls
+        Assert.Contains("x:Name=\"EnableCrmScreenPopCheckBox\"", content);
+        Assert.Contains("x:Name=\"CrmScreenPopUrlTextBox\"", content);
+        Assert.Contains("x:Name=\"CrmScreenPopTriggerComboBox\"", content);
+
+        // Diagnostics Tab controls
+        Assert.Contains("x:Name=\"ShowLiveCallQualityMetricsCheckBox\"", content);
+        Assert.Contains("x:Name=\"ExportDiagnosticBundleButton\"", content);
+
+        // Video Call Window controls
+        var videoXamlPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "MerlinSIP", "VideoCallWindow.xaml"));
+        var videoContent = File.ReadAllText(videoXamlPath);
+        Assert.Contains("x:Name=\"ShareScreenButton\"", videoContent);
     }
 }
