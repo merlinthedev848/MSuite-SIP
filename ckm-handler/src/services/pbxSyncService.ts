@@ -194,10 +194,12 @@ export async function syncExtensionsFromYeastarApi(
   const token = loginRes.token;
 
   // 2. Fetch Extension List
-  // Yeastar S-Series & P-Series support extension/query with number: 'all', returning extinfos
+  // Yeastar S-Series uses {} or { extid: '' } to return all extensions with full details.
+  // Yeastar P-Series uses { number: 'all' } or OpenAPI v1.0.
   let extlist: Record<string, any>[] = [];
   try {
-    const queryRes = await pbxHttpRequest(activeProto, host, activePort, `${basePath}/extension/query`, 'POST', { number: 'all' }, token, verifySsl);
+    // Attempt standard S-Series query with omitted / empty extid
+    const queryRes = await pbxHttpRequest(activeProto, host, activePort, `${basePath}/extension/query`, 'POST', {}, token, verifySsl);
     if (queryRes && Array.isArray(queryRes.extinfos) && queryRes.extinfos.length > 0) {
       extlist = queryRes.extinfos;
     } else if (queryRes && Array.isArray(queryRes.extlist) && queryRes.extlist.length > 0) {
@@ -209,7 +211,17 @@ export async function syncExtensionsFromYeastarApi(
     // fallback
   }
 
-  // Fallback 1: extension/list
+  // Fallback 1: extension/query with { number: 'all' } (P-Series)
+  if (extlist.length === 0) {
+    try {
+      const queryRes2 = await pbxHttpRequest(activeProto, host, activePort, `${basePath}/extension/query`, 'POST', { number: 'all' }, token, verifySsl);
+      extlist = queryRes2?.extinfos || queryRes2?.extlist || queryRes2?.data || [];
+    } catch {
+      // fallback
+    }
+  }
+
+  // Fallback 2: extension/list
   if (extlist.length === 0) {
     try {
       const listRes = await pbxHttpRequest(activeProto, host, activePort, `${basePath}/extension/list`, 'POST', {}, token, verifySsl);
@@ -219,7 +231,7 @@ export async function syncExtensionsFromYeastarApi(
     }
   }
 
-  // Fallback 2: OpenAPI v1 extensions endpoint
+  // Fallback 3: OpenAPI v1 extensions endpoint
   if (extlist.length === 0) {
     try {
       const v1Res = await pbxHttpRequest(activeProto, host, activePort, '/api/v1.0/extensions', 'GET', undefined, token, verifySsl);
@@ -233,24 +245,71 @@ export async function syncExtensionsFromYeastarApi(
     return { success: true, count: 0, message: 'Connected to Yeastar PBX via REST API, but no extensions were returned.' };
   }
 
+  // Helper to decode Base64 if returned encoded by Yeastar
+  const cleanAndDecode = (val: string): string => {
+    const trimmed = (val || '').trim();
+    if (!trimmed || trimmed === 'ExtPassword123!') return '';
+    // Check if candidate is Base64 encoded (ends with = or base64 format without spaces)
+    if (/^[A-Za-z0-9+/]+={0,2}$/.test(trimmed) && trimmed.length % 4 === 0 && trimmed.length >= 8 && trimmed.length <= 64) {
+      try {
+        const dec = Buffer.from(trimmed, 'base64').toString('utf8');
+        // If decoded value consists of printable ASCII and doesn't equal original, use decoded
+        if (/^[\x20-\x7E]+$/.test(dec) && dec !== trimmed) {
+          return dec;
+        }
+      } catch {}
+    }
+    return trimmed;
+  };
+
   const extensions: SyncedExtension[] = [];
   for (const item of extlist) {
     const extNumber = String(item.number || item.extnumber || item.extid || item.extension || '').trim();
     if (!extNumber || !/^\d{2,8}$/.test(extNumber)) continue;
 
     const displayName = String(item.username || item.displayname || item.name || item.callerid || `Extension ${extNumber}`).trim();
+    
     // SIP Registration Secret extraction:
     // 1. Check direct SIP registration secret properties
-    // 2. Fall back to item.password ONLY if it is not a 64-char SHA-256 web hash
-    // NOTE: item.user_password is the Yeastar web portal / Linkus user login SHA-256 hash.
-    // It is NEVER the SIP registration secret and must NEVER be used for SIP Digest MD5 auth.
-    let sipPassword = String(item.registration_password || item.register_password || item.registerpassword || item.secret || '').trim();
+    let sipPassword = cleanAndDecode(String(item.registerpassword || item.registration_password || item.register_password || item.secret || ''));
+
+    // 2. If password is missing in bulk response, query the specific extension individually
+    if (!sipPassword) {
+      try {
+        const singleQuery = await pbxHttpRequest(activeProto, host, activePort, `${basePath}/extension/query`, 'POST', { extid: extNumber }, token, verifySsl);
+        const singleInfo = (singleQuery?.extinfos && singleQuery.extinfos[0]) || (singleQuery?.data && singleQuery.data[0]) || singleQuery;
+        if (singleInfo) {
+          const cand = cleanAndDecode(String(singleInfo.registerpassword || singleInfo.registration_password || singleInfo.register_password || singleInfo.secret || ''));
+          if (cand && cand.length !== 64) {
+            sipPassword = cand;
+          } else if (singleInfo.password && String(singleInfo.password).trim().length !== 64) {
+            sipPassword = cleanAndDecode(String(singleInfo.password));
+          }
+        }
+      } catch {}
+    }
+
+    // 3. Secondary P-Series OpenAPI getpassword endpoint check
+    if (!sipPassword) {
+      try {
+        const pwRes = await pbxHttpRequest(activeProto, host, activePort, `/openapi/v1.0/extension/getpassword?id=${extNumber}&type=reg_password`, 'GET', undefined, token, verifySsl);
+        if (pwRes && pwRes.password) {
+          const cand = cleanAndDecode(String(pwRes.password));
+          if (cand && cand.length !== 64) {
+            sipPassword = cand;
+          }
+        }
+      } catch {}
+    }
+
+    // 4. Fall back to item.password ONLY if it is not a 64-char SHA-256 web hash
     if (!sipPassword && item.password) {
-      const candidate = String(item.password).trim();
+      const candidate = cleanAndDecode(String(item.password));
       if (candidate.length !== 64 && !/^[a-f0-9]{64}$/i.test(candidate)) {
         sipPassword = candidate;
       }
     }
+
     const email = String(item.email || item.useremail || item.user_email || item.mail || item.mailbox || '').trim();
 
     extensions.push({
@@ -280,9 +339,11 @@ export async function syncExtensionsFromYeastarApi(
                AND excluded.sip_password != 'ExtPassword123!' 
                AND length(excluded.sip_password) != 64 
           THEN excluded.sip_password 
-          WHEN length(extensions.sip_password) = 64
-          THEN ''
-          ELSE extensions.sip_password 
+          WHEN extensions.sip_password != '' 
+               AND extensions.sip_password != 'ExtPassword123!' 
+               AND length(extensions.sip_password) != 64 
+          THEN extensions.sip_password 
+          ELSE excluded.sip_password 
         END,
         pbx_id = excluded.pbx_id
     `);
@@ -347,9 +408,11 @@ export async function syncExtensionsFromAsterisk(
                    AND excluded.sip_password != 'ExtPassword123!' 
                    AND length(excluded.sip_password) != 64 
               THEN excluded.sip_password 
-              WHEN length(extensions.sip_password) = 64
-              THEN ''
-              ELSE extensions.sip_password 
+              WHEN extensions.sip_password != '' 
+                   AND extensions.sip_password != 'ExtPassword123!' 
+                   AND length(extensions.sip_password) != 64 
+              THEN extensions.sip_password 
+              ELSE excluded.sip_password 
             END,
             pbx_id = excluded.pbx_id
         `);
@@ -451,8 +514,9 @@ function parseAmiOutput(raw: string): SyncedExtension[] {
   let currentExt = '';
   let currentName = '';
   let currentEmail = '';
+  let currentSecret = '';
 
-  const addOrUpdateExt = (ext: string, name?: string, email?: string) => {
+  const addOrUpdateExt = (ext: string, name?: string, email?: string, password?: string) => {
     const cleanExt = ext.trim().replace(/^SIP\//i, '').replace(/^PJSIP\//i, '');
     if (!/^\d{2,8}$/.test(cleanExt)) return;
 
@@ -462,6 +526,7 @@ function parseAmiOutput(raw: string): SyncedExtension[] {
         extension: cleanExt,
         username: cleanExt,
         displayName: name || `Extension ${cleanExt}`,
+        password: password || '',
         email: email || ''
       };
       extMap.set(cleanExt, existing);
@@ -472,13 +537,29 @@ function parseAmiOutput(raw: string): SyncedExtension[] {
       if (email && !existing.email) {
         existing.email = email;
       }
+      if (password && !existing.password && password !== 'ExtPassword123!' && password.length !== 64) {
+        existing.password = password;
+      }
     }
   };
 
   for (const line of lines) {
     const trimmed = line.trim();
 
-    // 1. FreePBX / Asterisk AstDB: /AMPUSER/709/email : user@example.com
+    // 1. FreePBX / Asterisk AstDB: /AMPUSER/709/secret : <password>
+    const ampSecretMatch = trimmed.match(/^\/AMPUSER\/(\d{2,8})\/secret\s*:\s*(.+)/i);
+    if (ampSecretMatch) {
+      addOrUpdateExt(ampSecretMatch[1], undefined, undefined, ampSecretMatch[2].trim());
+      continue;
+    }
+
+    const ampPasswordMatch = trimmed.match(/^\/AMPUSER\/(\d{2,8})\/password\s*:\s*(.+)/i);
+    if (ampPasswordMatch) {
+      addOrUpdateExt(ampPasswordMatch[1], undefined, undefined, ampPasswordMatch[2].trim());
+      continue;
+    }
+
+    // 2. FreePBX / Asterisk AstDB: /AMPUSER/709/email : user@example.com
     const ampEmailMatch = trimmed.match(/^\/AMPUSER\/(\d{2,8})\/email\s*:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
     if (ampEmailMatch) {
       addOrUpdateExt(ampEmailMatch[1], undefined, ampEmailMatch[2].trim());
@@ -491,14 +572,14 @@ function parseAmiOutput(raw: string): SyncedExtension[] {
       continue;
     }
 
-    // 2. Asterisk Voicemail Users table: default 709 Danny Myers danny@example.com
+    // 3. Asterisk Voicemail Users table: default 709 Danny Myers danny@example.com
     const vmMatch = trimmed.match(/^\s*\S+\s+(\d{2,8})\s+(.+?)\s+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b/);
     if (vmMatch) {
       addOrUpdateExt(vmMatch[1], vmMatch[2].trim(), vmMatch[3].trim());
       continue;
     }
 
-    // 3. Structured AMI Header Fields
+    // 4. Structured AMI Header Fields
     if (trimmed.startsWith('ObjectName:') || trimmed.startsWith('Peer:')) {
       const parts = trimmed.split(':');
       currentExt = parts[1]?.trim().replace(/^SIP\//i, '').replace(/^PJSIP\//i, '') || '';
@@ -508,6 +589,9 @@ function parseAmiOutput(raw: string): SyncedExtension[] {
     } else if (trimmed.startsWith('Email:') || trimmed.startsWith('UserEmail:')) {
       const parts = trimmed.split(':');
       currentEmail = parts.slice(1).join(':').trim() || '';
+    } else if (trimmed.startsWith('Secret:') || trimmed.startsWith('MD5Secret:')) {
+      const parts = trimmed.split(':');
+      currentSecret = parts.slice(1).join(':').trim() || '';
     } else if (trimmed.startsWith('Exten:')) {
       const parts = trimmed.split(':');
       const ext = parts[1]?.trim() || '';
@@ -519,10 +603,11 @@ function parseAmiOutput(raw: string): SyncedExtension[] {
     }
 
     if (currentExt && /^\d{2,8}$/.test(currentExt)) {
-      addOrUpdateExt(currentExt, currentName, currentEmail);
+      addOrUpdateExt(currentExt, currentName, currentEmail, currentSecret);
       currentExt = '';
       currentName = '';
       currentEmail = '';
+      currentSecret = '';
     }
 
     // 4. Asterisk CLI "sip show peers" table parsing fallback

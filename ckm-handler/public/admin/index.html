@@ -105,11 +105,11 @@
         <div class="topbar-right">
           <!-- Live Service Status Group -->
           <div class="topbar-status-group">
-            <div class="status-chip" id="pbxStatusChip" title="Asterisk PBX Core Connectivity">
+            <div class="status-chip" id="pbxStatusChip" title="Asterisk / Yeastar PBX Core Connectivity (Click to view PBX settings)" style="cursor: pointer;">
               <span class="status-dot-pulse"></span>
               <span id="pbxBadge">PBX: Connecting...</span>
             </div>
-            <div class="status-chip status-chip-secondary" title="System Licensing State">
+            <div class="status-chip status-chip-secondary" id="licenseStatusChip" title="System Licensing State (Click for license details)" style="cursor: pointer;">
               <span class="status-dot green"></span>
               <span id="licenseBadge">License: Active</span>
             </div>
@@ -150,9 +150,9 @@
             </div>
           </div>
           <div class="pulse-right">
-            <span class="pulse-chip" id="chipPbxHealth">PBX: not probed</span>
-            <span class="pulse-chip" id="chipAutoAdoptStatus">Auto-Adopt: Disabled</span>
-            <span class="pulse-chip" id="chipAutoSyncStatus">Auto-Sync: Active (5m)</span>
+            <span class="pulse-chip" id="chipPbxHealth" style="cursor: pointer;" title="Click to probe active PBX Core latency">PBX: not probed</span>
+            <span class="pulse-chip" id="chipAutoAdoptStatus" style="cursor: pointer;" title="Click to toggle Zero-Touch Auto-Adoption">Auto-Adopt: Disabled</span>
+            <span class="pulse-chip" id="chipAutoSyncStatus" style="cursor: pointer;" title="Click to trigger PBX extension sync">Auto-Sync: Active (5m)</span>
             <button class="btn btn-sm btn-light" id="btnOpenEndpointsModal" type="button" title="View Public Client & Provisioning URLs" aria-label="View public client and provisioning URLs">Client Endpoints</button>
           </div>
         </div>
@@ -173,7 +173,7 @@
 
         <!-- Primary Fleet Metrics -->
         <div class="metrics-grid">
-          <div class="metric-card">
+          <div class="metric-card" onclick="switchTab('extensions')" style="cursor: pointer;" title="Click to manage PBX extensions and softphone credentials">
             <div class="metric-header">
               <span class="metric-title">Active Extensions</span>
               <div class="metric-icon-bubble">
@@ -184,7 +184,7 @@
             <div class="metric-sub">PBX Synchronized Accounts</div>
           </div>
 
-          <div class="metric-card">
+          <div class="metric-card" onclick="switchTab('handsets')" style="cursor: pointer;" title="Click to manage physical IP deskphones">
             <div class="metric-header">
               <span class="metric-title">Adopted Deskphones</span>
               <div class="metric-icon-bubble">
@@ -195,7 +195,7 @@
             <div class="metric-sub">Managed Hardware Bindings</div>
           </div>
 
-          <div class="metric-card">
+          <div class="metric-card" onclick="switchTab('handsets')" style="cursor: pointer;" title="Click to review pending network deskphones">
             <div class="metric-header">
               <span class="metric-title">Discovered (Pending)</span>
               <div class="metric-icon-bubble" style="background: rgba(245, 158, 11, 0.1); color: #d97706;">
@@ -206,7 +206,7 @@
             <div class="metric-sub">Unadopted Devices on LAN</div>
           </div>
 
-          <div class="metric-card">
+          <div class="metric-card" onclick="switchTab('routers')" style="cursor: pointer;" title="Click to manage site gateways and routers">
             <div class="metric-header">
               <span class="metric-title">Site Gateways</span>
               <div class="metric-icon-bubble">
@@ -217,7 +217,7 @@
             <div class="metric-sub">Voice VLAN & QoS Routers</div>
           </div>
 
-          <div class="metric-card">
+          <div class="metric-card" onclick="switchTab('firmware')" style="cursor: pointer;" title="Click to view firmware binary cache">
             <div class="metric-header">
               <span class="metric-title">Firmware Repository</span>
               <div class="metric-icon-bubble">
@@ -2405,6 +2405,69 @@
     </div>
   </div>
 
-  <script src="app.js?v=1.5.3"></script>
+  <!-- Modal: Quick Command & Search Palette (Ctrl+K) -->
+  <div id="modalCommandPalette" class="modal-backdrop hidden">
+    <div class="command-palette-card">
+      <div class="palette-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted); margin-right: 12px; flex-shrink: 0;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" id="paletteSearchInput" class="palette-input" placeholder="Search commands, extensions, deskphones, or pages..." autocomplete="off">
+        <kbd class="palette-esc" id="btnClosePalette">ESC</kbd>
+      </div>
+      <div id="paletteResults" class="palette-results">
+        <!-- Dynamically rendered by renderPaletteResults() -->
+      </div>
+      <div class="palette-footer">
+        <span><kbd>&uarr;</kbd> <kbd>&darr;</kbd> to navigate</span>
+        <span><kbd>&crarr;</kbd> to select</span>
+        <span><kbd>ESC</kbd> to dismiss</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Console & Telemetry Preferences -->
+  <div id="modalPreferences" class="modal-backdrop hidden">
+    <div class="modal-card modal-card-sm" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>Console & Telemetry Preferences</h3>
+        <button type="button" class="modal-close" id="btnClosePreferences" onclick="closeModal('modalPreferences')" aria-label="Close preferences">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="formPreferences">
+          <div class="form-group">
+            <label for="prefPollRate">Telemetry Polling Frequency</label>
+            <select id="prefPollRate" class="form-select">
+              <option value="5000">5 seconds (High Frequency)</option>
+              <option value="15000" selected>15 seconds (Recommended Balanced)</option>
+              <option value="30000">30 seconds (Low Overhead)</option>
+              <option value="60000">60 seconds (Minimal Background Traffic)</option>
+            </select>
+            <small class="muted" style="display: block; margin-top: 4px;">Controls background health check and PBX socket ping poll interval.</small>
+          </div>
+          <div class="form-group">
+            <label for="prefShellBuffer">Live Terminal Buffer Size</label>
+            <select id="prefShellBuffer" class="form-select">
+              <option value="100">100 log lines</option>
+              <option value="300" selected>300 log lines (Default)</option>
+              <option value="500">500 log lines</option>
+              <option value="1000">1,000 log lines (Extended History)</option>
+            </select>
+            <small class="muted" style="display: block; margin-top: 4px;">Maximum number of event lines retained in memory in the Live Terminal drawer.</small>
+          </div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
+              <input type="checkbox" id="prefShellAutoScroll" checked>
+              <span>Auto-scroll live terminal drawer on new events</span>
+            </label>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+            <button type="button" class="btn btn-secondary" id="btnCancelPreferences" onclick="closeModal('modalPreferences')">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btnSavePreferences">Save Preferences</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=1.6.0"></script>
 </body>
 </html>

@@ -707,11 +707,40 @@
 
 
   document.getElementById('btnRefresh')?.addEventListener('click', () => {
-
+    const btn = document.getElementById('btnRefresh');
+    if (btn) {
+      btn.style.opacity = '0.7';
+      btn.style.pointerEvents = 'none';
+      setTimeout(() => {
+        btn.style.opacity = '1';
+        btn.style.pointerEvents = 'auto';
+      }, 700);
+    }
+    window.showToast?.('Refreshing telemetry & data...', 'info', 1800);
     const activeBtn = document.querySelector('.nav-btn.active');
-
     if (activeBtn) loadTabData(activeBtn.dataset.tab);
+    else loadOverview();
+  });
 
+  // Topbar Status Chips & Badges Click Navigation
+  document.getElementById('pbxStatusChip')?.addEventListener('click', () => {
+    window.switchTab?.('settings', 'settings-pbx');
+  });
+
+  document.getElementById('licenseStatusChip')?.addEventListener('click', () => {
+    window.showToast?.('Merlin Enterprise Softphone License is active and verified.', 'success');
+  });
+
+  document.getElementById('chipPbxHealth')?.addEventListener('click', () => {
+    document.getElementById('btnPingPbx')?.click();
+  });
+
+  document.getElementById('chipAutoAdoptStatus')?.addEventListener('click', () => {
+    document.getElementById('btnToggleAutoAdoptEngine')?.click();
+  });
+
+  document.getElementById('chipAutoSyncStatus')?.addEventListener('click', () => {
+    document.getElementById('btnTriggerQuickSync')?.click();
   });
 
 
@@ -949,6 +978,8 @@
     if (document.getElementById('statRouters')) document.getElementById('statRouters').textContent = s.routers ?? 0;
 
     if (document.getElementById('statFirmware')) document.getElementById('statFirmware').textContent = s.firmwareCount ?? 0;
+
+    if (document.getElementById('statDiscovered')) document.getElementById('statDiscovered').textContent = s.discoveredDevices ?? 0;
 
     if (document.getElementById('statMessages')) document.getElementById('statMessages').textContent = s.messages ?? 0;
 
@@ -5690,7 +5721,7 @@
 
     if (searchVal) {
 
-      document.getElementById('searchUser').dispatchEvent(new Event('input'));
+      document.getElementById('searchUser')?.dispatchEvent(new Event('input'));
 
     } else {
 
@@ -6976,72 +7007,41 @@
 
   // ==============================================================================
 
-  const modalPalette = document.getElementById('modalCommandPalette');
-
-  const paletteInput = document.getElementById('paletteSearchInput');
-
-  const paletteResults = document.getElementById('paletteResults');
-
   let activePaletteIndex = 0;
-
   let paletteItemsList = [];
 
-
-
   function openCommandPalette() {
-
-    if (!modalPalette) return;
-
+    const modal = document.getElementById('modalCommandPalette');
+    if (!modal) return;
     openModal('modalCommandPalette');
-
-    if (paletteInput) {
-
-      paletteInput.value = '';
-
-      paletteInput.focus();
-
+    const input = document.getElementById('paletteSearchInput');
+    if (input) {
+      input.value = '';
+      setTimeout(() => input.focus(), 60);
     }
-
     renderPaletteResults('');
-
   }
-
-
 
   function closeCommandPalette() {
-
     closeModal('modalCommandPalette');
-
   }
 
-
-
   document.getElementById('btnOpenCommandPalette')?.addEventListener('click', openCommandPalette);
-
   document.getElementById('btnClosePalette')?.addEventListener('click', closeCommandPalette);
 
-
-
   // Global Ctrl+K / Cmd+K listener
-
   window.addEventListener('keydown', (e) => {
-
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-
       e.preventDefault();
-
-      if (modalPalette && !modalPalette.classList.contains('hidden')) {
-
+      const modal = document.getElementById('modalCommandPalette');
+      if (modal && !modal.classList.contains('hidden')) {
         closeCommandPalette();
-
       } else {
-
         openCommandPalette();
-
       }
-
     } else if (e.key === 'Escape') {
-      if (modalPalette && !modalPalette.classList.contains('hidden')) {
+      const modal = document.getElementById('modalCommandPalette');
+      if (modal && !modal.classList.contains('hidden')) {
         closeCommandPalette();
       } else {
         const openModals = Array.from(document.querySelectorAll('.modal-backdrop:not(.hidden)'));
@@ -7051,10 +7051,7 @@
         }
       }
     }
-
   });
-
-
 
   function renderPaletteResults(query) {
 
