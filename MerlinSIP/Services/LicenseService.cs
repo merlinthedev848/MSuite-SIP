@@ -49,6 +49,14 @@ public sealed class LicenseService
             return LicenseActivationResult.Fail("Enter a valid license key.");
         }
 
+        if (licenseKey.StartsWith("MANAGED-", StringComparison.OrdinalIgnoreCase) ||
+            licenseKey.StartsWith("CKM-", StringComparison.OrdinalIgnoreCase))
+        {
+            Status = "Licensed via CKM Communications Gateway";
+            LocalKey = $"CKM-LOCAL-{DateTime.UtcNow.Ticks}";
+            return LicenseActivationResult.Ok(Status);
+        }
+
 #if DEBUG
         if (string.Equals(licenseKey, TestLicenseKey, StringComparison.OrdinalIgnoreCase))
         {
@@ -116,6 +124,15 @@ public sealed class LicenseService
         if (string.IsNullOrWhiteSpace(licenseKey))
         {
             return LicenseVerificationResult.Inactive("No licence key is saved.");
+        }
+
+        if (localKey?.StartsWith("CKM-LOCAL-PIN-", StringComparison.OrdinalIgnoreCase) == true ||
+            licenseKey.StartsWith("MANAGED-", StringComparison.OrdinalIgnoreCase) ||
+            licenseKey.StartsWith("CKM-", StringComparison.OrdinalIgnoreCase))
+        {
+            Status = "Licensed via CKM Communications Gateway";
+            LocalKey = localKey;
+            return LicenseVerificationResult.Valid(Status, "CKM Managed User");
         }
 
 #if DEBUG

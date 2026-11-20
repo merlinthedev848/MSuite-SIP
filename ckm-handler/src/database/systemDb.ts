@@ -370,6 +370,12 @@ try {
 
 // Ensure default PBX instance exists and mirrors server_config
 try {
+  // Defensive auto-healing: ensure port 5080 is migrated to active SIP standard 5060
+  systemDb.prepare("UPDATE server_config SET pbx_port = 5060 WHERE pbx_port = 5080").run();
+  systemDb.prepare("UPDATE pbx_instances SET sip_port = 5060 WHERE sip_port = 5080").run();
+} catch {}
+
+try {
   const pbxCount = (systemDb.prepare('SELECT COUNT(*) as count FROM pbx_instances').get() as { count: number }).count;
   if (pbxCount === 0) {
     const cfg = systemDb.prepare('SELECT * FROM server_config WHERE id = 1').get() as ServerConfigRow | undefined;

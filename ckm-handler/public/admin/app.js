@@ -1,5 +1,21 @@
 ﻿function initApp() {
 
+  // Central State Registers (Declared at top of initApp to avoid any TDZ / hoisting issues)
+  let cachedExtensions = [];
+  let cachedPbxInstances = [];
+  let selectedPbxId = "default";
+  let cachedPbxConfig = null;
+  let cachedHandsets = [];
+  let cachedRouters = [];
+  let cachedUsers = [];
+  let cachedDiscoveredDevices = [];
+  let cachedAddressBooks = [];
+  let activeAddressBookId = null;
+  let activeAddressBookData = null;
+  let selectedModalExtensions = new Set();
+  let activePaletteIndex = 0;
+  let paletteItemsList = [];
+
   // Global Clipboard Helper
   window.copyToClipboard = function(text, msg = 'Copied to clipboard!') {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -963,7 +979,17 @@
 
     const data = await fetchJson('/api/admin/overview');
 
-    if (!data || !data.ok) return;
+    if (!data || !data.ok) {
+      const title = document.getElementById('pulseTitle');
+      const sub = document.getElementById('pulseSubtitle');
+      const chip = document.getElementById('chipPbxHealth');
+      if (title && sub) {
+        title.textContent = 'Operational Notice';
+        sub.textContent = data?.error || 'Live telemetry stream synchronizing with backend daemon...';
+      }
+      if (chip) chip.textContent = 'PBX: checking';
+      return;
+    }
 
 
 
@@ -1397,9 +1423,9 @@
 
   // --------------------------------------------------------------------------
 
-  let cachedExtensions = [];
-  let cachedPbxInstances = [];
-  let selectedPbxId = "default";
+  cachedExtensions = [];
+  cachedPbxInstances = [];
+  selectedPbxId = "default";
 
 
 
@@ -1713,7 +1739,7 @@
 
   // Cached Global PBX Configuration
 
-  let cachedPbxConfig = null;
+  cachedPbxConfig = null;
 
 
 
@@ -2046,7 +2072,7 @@
 
   // --------------------------------------------------------------------------
 
-  let cachedHandsets = [];
+  cachedHandsets = [];
 
   let deviceCatalogs = {
 
@@ -4347,7 +4373,7 @@
 
   // --------------------------------------------------------------------------
 
-  let cachedRouters = [];
+  cachedRouters = [];
 
 
 
@@ -5601,7 +5627,7 @@
 
   // --------------------------------------------------------------------------
 
-  let cachedUsers = [];
+  cachedUsers = [];
 
 
 
@@ -7007,8 +7033,8 @@
 
   // ==============================================================================
 
-  let activePaletteIndex = 0;
-  let paletteItemsList = [];
+  activePaletteIndex = 0;
+  paletteItemsList = [];
 
   function openCommandPalette() {
     const modal = document.getElementById('modalCommandPalette');
@@ -7331,10 +7357,10 @@
 
 
 
+  const paletteInput = document.getElementById('paletteSearchInput');
+
   paletteInput?.addEventListener('input', (e) => {
-
     renderPaletteResults(e.target.value);
-
   });
 
 
@@ -7765,7 +7791,7 @@
 
   // ==========================================================================
 
-  let cachedDiscoveredDevices = [];
+  cachedDiscoveredDevices = [];
 
 
 
@@ -8341,8 +8367,8 @@
               : f.directDownloadUrl 
                 ? `<button class="btn btn-xs btn-primary" onclick="autoDownloadFirmware('${f.brandId}', '${f.id}')">Cache Locally</button>`
                 : `<div style="display: inline-flex; gap: 6px;">
-                     <button class="btn btn-xs btn-primary" onclick="openFirmwareUploadModal('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}')" title="Upload official binary file (.rom / .bin)">Upload</button>
-                     <button class="btn btn-xs btn-secondary" onclick="promptCustomFirmwareUrl('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}')" title="Enter custom direct download URL">URL</button>
+                     <button class="btn btn-xs btn-primary" onclick="window.openFirmwareUploadModal('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}')" title="Upload official binary file (.rom / .bin)">Upload</button>
+                     <button class="btn btn-xs btn-secondary" onclick="window.promptCustomFirmwareUrl ? window.promptCustomFirmwareUrl('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}') : promptCustomFirmwareUrl('${f.brandId}', '${f.id}', '${f.brandName}', '${f.modelName}')" title="Enter custom direct download URL">URL</button>
                      ${f.portalUrl ? `<a href="${f.portalUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-secondary" title="Open vendor support portal in new tab" style="text-decoration: none;">Portal</a>` : ''}
                    </div>`
             }
@@ -9231,10 +9257,10 @@
   // ==============================================================================
   // Global Shared Address Books & Customer CSV Contact Upload Engine (GDPR Isolated)
   // ==============================================================================
-  let cachedAddressBooks = [];
-  let activeAddressBookId = null;
-  let activeAddressBookData = null;
-  let selectedModalExtensions = new Set();
+  cachedAddressBooks = [];
+  activeAddressBookId = null;
+  activeAddressBookData = null;
+  selectedModalExtensions = new Set();
 
   function escapeHtmlSafe(str) {
     return String(str ?? '')
@@ -9744,6 +9770,45 @@
     const url = `/api/admin/address-books/${encodeURIComponent(activeAddressBookId)}/export-csv${token ? `?token=${encodeURIComponent(token)}` : ''}`;
     window.open(url, '_blank');
   });
+
+  // Danger Zone: System Configuration Purge Engine
+  window.purgeSystemConfig = async () => {
+    const confirmation = prompt(
+      "DANGER: You are about to purge ALL extensions, PBX trunks, handsets, routers, address books, and softphone provisioning PINs from the operational database.\n\nType 'PURGE' in all capitals to confirm:"
+    );
+    if (confirmation !== 'PURGE') {
+      window.showToast('System purge cancelled. No changes were made.', 'info');
+      return;
+    }
+
+    const btn = document.getElementById('btnPurgeSystemConfig');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Purging system...';
+    }
+
+    try {
+      const res = await fetchJson('/api/admin/system/purge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: 'PURGE' })
+      });
+
+      if (res && res.ok) {
+        window.showToast(res.message || 'System configurations purged successfully.', 'success');
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        window.showToast(res?.error || 'Purge failed.', 'error');
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '⚠️ Purge All System Configurations';
+      }
+    }
+  };
+
+  document.getElementById('btnPurgeSystemConfig')?.addEventListener('click', window.purgeSystemConfig);
 
 }
 

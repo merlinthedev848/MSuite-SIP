@@ -1157,6 +1157,20 @@
               <button class="btn btn-secondary" id="btnPurgeVaultTestRecords" style="border-color: #ef4444; color: #dc2626;">Purge Test Records & Reset Vault</button>
             </div>
           </div>
+
+          <!-- Danger Zone: System Configuration Purge Engine -->
+          <div class="card mt-6" style="border-left: 4px solid #ef4444; background: #fff5f5;">
+            <div class="card-header" style="background: transparent; border-bottom: 1px solid #fee2e2;">
+              <div>
+                <h3 style="color: #b91c1c;">⚠️ Danger Zone: Complete System Reset & Configuration Purge</h3>
+                <p class="muted" style="color: #991b1b;">Wipes all PBX extensions, custom PBX instances, provisioned handsets, routers, address books, and active softphone PINs from the operational database, resetting system_config to clean defaults.</p>
+              </div>
+            </div>
+            <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+              <span class="text-xs" style="color: #7f1d1d;">Use this if your configuration has become inconsistent and you need to start completely fresh from zero.</span>
+              <button type="button" class="btn btn-danger" id="btnPurgeSystemConfig">⚠️ Purge All System Configurations</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -2468,6 +2482,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=1.6.0"></script>
+  <script src="app.js?v=1.7.0"></script>
 </body>
 </html>

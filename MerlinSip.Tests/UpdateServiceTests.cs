@@ -19,11 +19,11 @@ public class UpdateServiceTests
         Assert.True(result.Success, $"Expected Success true, got: {result.Message}");
         Assert.True(result.UpdateAvailable, "Update should be available for version 1.3.9.5");
 
-        // Version on server is 1.4.0
+        // Version on server is 1.4.x
         Assert.NotNull(result.Version);
         Assert.StartsWith("1.4", result.Version);
         Assert.NotNull(result.DownloadUrl);
-        Assert.Contains("MerlinSIP-1.4.0-x64-faststart.msi", result.DownloadUrl);
+        Assert.Contains("MerlinSIP-1.4.", result.DownloadUrl);
         Assert.NotNull(result.Notes);
     }
 

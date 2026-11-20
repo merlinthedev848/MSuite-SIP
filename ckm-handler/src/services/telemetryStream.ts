@@ -150,7 +150,6 @@ export function registerSseClient(res: Response): void {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
-    'Connection': 'keep-alive',
     'X-Accel-Buffering': 'no', // Critical for Nginx proxy buffering disable
     'Access-Control-Allow-Origin': '*'
   });

@@ -47,7 +47,7 @@
                                FontSize="30"
                                FontWeight="SemiBold" />
                     <TextBlock x:Name="SubtitleText"
-                               Text="Enter your licence key to activate this installation."
+                               Text="Enter your 8-digit provisioning code to activate and connect."
                                Foreground="{StaticResource MutedBrush}"
                                FontSize="13"
                                TextWrapping="Wrap" />
@@ -58,85 +58,69 @@
                               HorizontalScrollBarVisibility="Disabled"
                               CanContentScroll="False">
                     <StackPanel>
-                        <!-- Step 1: Forced License Key Validation -->
-                        <StackPanel x:Name="LicenseStepPanel">
-                            <TextBlock Text="Licence key" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
-                            <TextBox x:Name="LicenseKeyTextBox"
+                        <!-- Mode A: Single-Code Auto-Provisioning (Default) -->
+                        <StackPanel x:Name="ProvisionCodePanel">
+                            <TextBlock Text="8-Digit Provisioning Code" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                            <TextBox x:Name="ProvisioningCodeTextBox"
                                      Margin="0,6,0,8"
-                                     CharacterCasing="Upper"
-                                     FontSize="15" />
-                            <TextBlock Text="A valid licence key is required to activate and use this software."
+                                     MaxLength="8"
+                                     FontSize="20"
+                                     FontWeight="Bold"
+                                     TextAlignment="Center" />
+                            <TextBlock Text="Enter the 8-digit code issued by your PBX administrator. Your extension credentials and software licence will be activated together in one step."
                                        Foreground="{StaticResource MutedBrush}"
                                        FontSize="12"
                                        Margin="0,0,0,14"
                                        TextWrapping="Wrap" />
                         </StackPanel>
 
-                        <!-- Step 2: Connection Mode (Provisioning Code vs Manual SIP) -->
-                        <StackPanel x:Name="CredentialsStepPanel" Visibility="Collapsed">
-                            <Grid Margin="0,0,0,16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <RadioButton Grid.Column="0"
-                                             x:Name="ProvisionCodeRadioButton"
-                                             Content="Provisioning Code"
-                                             IsChecked="True"
-                                             Checked="AuthenticationMode_Checked"
-                                             Margin="0,0,8,0"
-                                             FontWeight="SemiBold" />
-                                <RadioButton Grid.Column="1"
-                                             x:Name="ManualSipRadioButton"
-                                             Content="Manual SIP Details"
-                                             Checked="AuthenticationMode_Checked"
-                                             FontWeight="SemiBold" />
-                            </Grid>
+                        <!-- Mode B: Manual SIP / Standalone Licence Details -->
+                        <StackPanel x:Name="ManualSipPanel" Visibility="Collapsed">
+                            <TextBlock Text="Standalone Licence Key" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                            <TextBox x:Name="LicenseKeyTextBox"
+                                     Margin="0,6,0,8"
+                                     CharacterCasing="Upper"
+                                     FontSize="14" />
 
-                            <!-- Option A: 8-digit auto-provisioning code -->
-                            <StackPanel x:Name="ProvisionCodePanel">
-                                <TextBlock Text="8-Digit Provisioning Code" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
-                                <TextBox x:Name="ProvisioningCodeTextBox"
-                                         Margin="0,6,0,8"
-                                         MaxLength="8"
-                                         FontSize="16"
-                                         FontWeight="SemiBold" />
-                                <TextBlock Text="Enter the 8-digit auto-provisioning code issued by your PBX administrator."
-                                           Foreground="{StaticResource MutedBrush}"
-                                           FontSize="12"
-                                           Margin="0,0,0,14"
-                                           TextWrapping="Wrap" />
+                            <StackPanel x:Name="PrivatePbxPanel" Visibility="Collapsed">
+                                <TextBlock Text="SIP Server / Domain" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                                <TextBox x:Name="PrivatePbxTextBox" Margin="0,6,0,12" />
                             </StackPanel>
 
-                            <!-- Option B: Manual SIP details -->
-                            <StackPanel x:Name="ManualSipPanel" Visibility="Collapsed">
-                                <StackPanel x:Name="PrivatePbxPanel" Visibility="Collapsed">
-                                    <TextBlock Text="SIP server" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
-                                    <TextBox x:Name="PrivatePbxTextBox" Margin="0,6,0,12" />
-                                </StackPanel>
+                            <TextBlock Text="Extension or User ID" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                            <TextBox x:Name="ExtensionTextBox" Margin="0,6,0,12" />
 
-                                <TextBlock Text="Extension or user ID" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
-                                <TextBox x:Name="ExtensionTextBox" Margin="0,6,0,12" />
+                            <TextBlock Text="Authentication Username" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                            <TextBox x:Name="UsernameTextBox" Margin="0,6,0,12" />
 
-                                <TextBlock Text="Authentication username" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
-                                <TextBox x:Name="UsernameTextBox" Margin="0,6,0,12" />
-
-                                <TextBlock Text="Password" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
-                                <PasswordBox x:Name="PasswordBox" Margin="0,6,0,12" />
-                            </StackPanel>
-
-                            <TextBlock Text="Audio input" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
-                            <ComboBox x:Name="AudioInputComboBox"
-                                      Margin="0,6,0,12"
-                                      BorderBrush="#D4C9B3"
-                                      DisplayMemberPath="Name" />
-
-                            <TextBlock Text="Audio output" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
-                            <ComboBox x:Name="AudioOutputComboBox"
-                                      Margin="0,6,0,12"
-                                      BorderBrush="#D4C9B3"
-                                      DisplayMemberPath="Name" />
+                            <TextBlock Text="Password / Secret" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                            <PasswordBox x:Name="PasswordBox" Margin="0,6,0,12" />
                         </StackPanel>
+
+                        <!-- Common Audio Devices Configuration -->
+                        <TextBlock Text="Audio input" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" Margin="0,4,0,0" />
+                        <ComboBox x:Name="AudioInputComboBox"
+                                  Margin="0,6,0,12"
+                                  BorderBrush="#D4C9B3"
+                                  DisplayMemberPath="Name" />
+
+                        <TextBlock Text="Audio output" Foreground="{StaticResource MutedBrush}" FontWeight="Medium" />
+                        <ComboBox x:Name="AudioOutputComboBox"
+                                  Margin="0,6,0,12"
+                                  BorderBrush="#D4C9B3"
+                                  DisplayMemberPath="Name" />
+
+                        <!-- Mode Switch Toggle Button -->
+                        <Button x:Name="SwitchModeButton"
+                                Content="Need manual SIP setup or standalone licence key? Click here"
+                                Click="SwitchModeButton_Click"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Foreground="#2563EB"
+                                Cursor="Hand"
+                                FontSize="12"
+                                HorizontalAlignment="Center"
+                                Margin="0,6,0,0" />
 
                         <TextBlock x:Name="ErrorText"
                                    Foreground="#B82F2F"
@@ -166,7 +150,7 @@
                     </Button>
                     <Button Grid.Column="1"
                             x:Name="ContinueButton"
-                            Content="Complete setup"
+                            Content="Activate &amp; Connect"
                             Background="{StaticResource PrimaryGradientBrush}"
                             BorderBrush="#D97706"
                             BorderThickness="1"

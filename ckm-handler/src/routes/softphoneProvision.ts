@@ -177,6 +177,25 @@ const handlePinProvision = (req: Request, res: Response) => {
     } catch {}
   }
 
+  // Defensive fallback: port 5080 is often misconfigured; active PBX SIP runs on port 5060
+  if (pbxPort === 5080) {
+    pbxPort = 5060;
+  }
+
+  const companyName = config.brand_name || 'Chris Kendall Media Services';
+  const effectiveLicenseKey = (config.license_key || '').trim() || `MANAGED-EXT-${pinRecord.extension}`;
+  const localKey = `CKM-LOCAL-PIN-${cleanedCode}-${Date.now().toString(36).toUpperCase()}`;
+
+  const license = {
+    license_key: effectiveLicenseKey,
+    license_status: `Licensed to ${companyName} (Ext ${pinRecord.extension})`,
+    licensee: companyName,
+    local_key: localKey,
+    status: 'Licensed',
+    active: true,
+    is_managed: true
+  };
+
   return res.json({
     ok: true,
     success: true,
@@ -192,6 +211,7 @@ const handlePinProvision = (req: Request, res: Response) => {
       display_name: pinRecord.display_name,
       data_handler_url: config.data_handler_url
     },
+    license,
     branding
   });
 };

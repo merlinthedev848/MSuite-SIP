@@ -13,8 +13,7 @@ public partial class StartupWindow : Window
     private string _licenseKey = string.Empty;
     private string _licenseStatus = "Licensed";
     private ContractorProfileResponse? _contractorProfile;
-    private bool _licenseAccepted;
-    private bool _allowCustomSipEndpoint;
+    private bool _isManualMode;
 
     public AppStartupConfig? Config { get; private set; }
 
@@ -42,27 +41,34 @@ public partial class StartupWindow : Window
 
     private void UpdateUiMode()
     {
-        if (!_licenseAccepted)
+        if (!_isManualMode)
         {
-            LicenseStepPanel.Visibility = Visibility.Visible;
-            CredentialsStepPanel.Visibility = Visibility.Collapsed;
-            SubtitleText.Text = "Enter your licence key to activate this installation.";
-            ContinueButton.Content = "Activate licence";
+            ProvisionCodePanel.Visibility = Visibility.Visible;
+            ManualSipPanel.Visibility = Visibility.Collapsed;
+            SubtitleText.Text = "Enter your 8-digit provisioning code to activate and connect.";
+            ContinueButton.Content = "Activate & Connect";
+            SwitchModeButton.Content = "Need manual SIP setup or standalone licence key? Click here";
         }
         else
         {
-            LicenseStepPanel.Visibility = Visibility.Collapsed;
-            CredentialsStepPanel.Visibility = Visibility.Visible;
-            SubtitleText.Text = "Licence active. Choose your connection method.";
-            ContinueButton.Content = "Complete setup";
-
-            ProvisionCodePanel.Visibility = ProvisionCodeRadioButton.IsChecked == true
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            ManualSipPanel.Visibility = ManualSipRadioButton.IsChecked == true
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            ProvisionCodePanel.Visibility = Visibility.Collapsed;
+            ManualSipPanel.Visibility = Visibility.Visible;
+            SubtitleText.Text = "Enter your manual SIP credentials and standalone licence key.";
+            ContinueButton.Content = "Connect Manual SIP";
+            SwitchModeButton.Content = "← Back to Quick 8-Digit Provisioning Code";
+            PrivatePbxPanel.Visibility = Visibility.Visible;
+            if (string.IsNullOrWhiteSpace(PrivatePbxTextBox.Text))
+            {
+                PrivatePbxTextBox.Text = AppStartupConfig.FixedSipServer;
+            }
         }
+    }
+
+    private void SwitchModeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _isManualMode = !_isManualMode;
+        ErrorText.Text = string.Empty;
+        UpdateUiMode();
     }
 
     private async void ContinueButton_Click(object sender, RoutedEventArgs e)
@@ -71,13 +77,17 @@ public partial class StartupWindow : Window
 
         try
         {
-            if (!_licenseAccepted)
+            await RunWithDisabledContinueAsync(async () =>
             {
-                await AcceptLicenseStepAsync();
-                return;
-            }
-
-            await RunWithDisabledContinueAsync(AcceptCredentialsStep);
+                if (!_isManualMode)
+                {
+                    await AcceptProvisioningStepAsync();
+                }
+                else
+                {
+                    await AcceptManualSipStepAsync();
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -99,44 +109,7 @@ public partial class StartupWindow : Window
         }
     }
 
-    private async Task AcceptLicenseStepAsync()
-    {
-        var licenseKey = LicenseKeyTextBox.Text?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(licenseKey))
-        {
-            ErrorText.Text = "Enter a valid license key.";
-            return;
-        }
-
-        ContinueButton.IsEnabled = false;
-        ContinueButton.Content = "Checking licence...";
-        try
-        {
-            var activation = await _licenseService.ActivateAsync(licenseKey);
-            if (!activation.Success)
-            {
-                ErrorText.Text = activation.Message;
-                return;
-            }
-
-            _licenseAccepted = true;
-            _licenseKey = licenseKey;
-            _licenseStatus = _licenseService.Status;
-            _contractorProfile = activation.Profile;
-            _allowCustomSipEndpoint = LicenseAllowsCustomSipEndpoint(licenseKey) || !string.IsNullOrWhiteSpace(_contractorProfile?.SipServer);
-            PrivatePbxPanel.Visibility = _allowCustomSipEndpoint ? Visibility.Visible : Visibility.Collapsed;
-            PrivatePbxTextBox.Text = !string.IsNullOrWhiteSpace(_contractorProfile?.SipServer)
-                ? _contractorProfile.SipServer
-                : (_allowCustomSipEndpoint ? AppStartupConfig.FixedSipServer : string.Empty);
-            UpdateUiMode();
-        }
-        finally
-        {
-            ContinueButton.IsEnabled = true;
-        }
-    }
-
-    private async Task AcceptCredentialsStep()
+    private async Task AcceptProvisioningStepAsync()
     {
         if (AudioInputComboBox.SelectedItem is not MediaDeviceInfo audioInput ||
             AudioOutputComboBox.SelectedItem is not MediaDeviceInfo audioOutput)
@@ -145,44 +118,68 @@ public partial class StartupWindow : Window
             return;
         }
 
-        if (ProvisionCodeRadioButton.IsChecked == true)
+        var provisionCode = ProvisioningCodeTextBox.Text?.Trim() ?? string.Empty;
+        var cleanedCode = new string(provisionCode.Where(char.IsDigit).ToArray());
+        if (cleanedCode.Length != 8)
         {
-            var provisionCode = ProvisioningCodeTextBox.Text?.Trim() ?? string.Empty;
-            var cleanedCode = new string(provisionCode.Where(char.IsDigit).ToArray());
-            if (cleanedCode.Length != 8)
-            {
-                ErrorText.Text = "Enter a valid 8-digit provisioning code.";
-                return;
-            }
-
-            ContinueButton.Content = "Provisioning...";
-            var provisioned = await _provisioningService.ProvisionAsync(
-                cleanedCode,
-                _licenseKey,
-                _licenseStatus,
-                _licenseService.LocalKey ?? string.Empty,
-                audioInput,
-                audioOutput,
-                customHandlerUrl: _contractorProfile?.HandlerUrl);
-
-            if (!provisioned.Success || provisioned.Config is null)
-            {
-                ErrorText.Text = provisioned.Message;
-                ContinueButton.Content = "Complete setup";
-                return;
-            }
-
-            Config = provisioned.Config;
-            DialogResult = true;
+            ErrorText.Text = "Enter a valid 8-digit provisioning code.";
             return;
+        }
+
+        ContinueButton.Content = "Activating & Connecting...";
+        var provisioned = await _provisioningService.ProvisionAsync(
+            cleanedCode,
+            audioInput,
+            audioOutput,
+            customHandlerUrl: _contractorProfile?.HandlerUrl);
+
+        if (!provisioned.Success || provisioned.Config is null)
+        {
+            ErrorText.Text = provisioned.Message;
+            ContinueButton.Content = "Activate & Connect";
+            return;
+        }
+
+        Config = provisioned.Config;
+        DialogResult = true;
+    }
+
+    private async Task AcceptManualSipStepAsync()
+    {
+        if (AudioInputComboBox.SelectedItem is not MediaDeviceInfo audioInput ||
+            AudioOutputComboBox.SelectedItem is not MediaDeviceInfo audioOutput)
+        {
+            ErrorText.Text = "Select audio input and audio output devices.";
+            return;
+        }
+
+        var licenseKey = LicenseKeyTextBox.Text?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(licenseKey))
+        {
+            ContinueButton.Content = "Checking licence...";
+            var activation = await _licenseService.ActivateAsync(licenseKey);
+            if (!activation.Success)
+            {
+                ErrorText.Text = activation.Message;
+                ContinueButton.Content = "Connect Manual SIP";
+                return;
+            }
+            _licenseKey = licenseKey;
+            _licenseStatus = _licenseService.Status;
+            _contractorProfile = activation.Profile;
+        }
+        else
+        {
+            _licenseKey = "MANUAL-STANDALONE";
+            _licenseStatus = "Licensed";
         }
 
         var extension = ExtensionTextBox.Text.Trim();
         var username = UsernameTextBox.Text.Trim();
         var password = PasswordBox.Password;
-        var server = _allowCustomSipEndpoint ? PrivatePbxTextBox.Text.Trim() : AppStartupConfig.FixedSipServer;
+        var server = !string.IsNullOrWhiteSpace(PrivatePbxTextBox.Text) ? PrivatePbxTextBox.Text.Trim() : AppStartupConfig.FixedSipServer;
 
-        if (_allowCustomSipEndpoint && string.IsNullOrWhiteSpace(server))
+        if (string.IsNullOrWhiteSpace(server))
         {
             ErrorText.Text = "Enter the SIP server.";
             return;
@@ -225,21 +222,5 @@ public partial class StartupWindow : Window
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
-    }
-
-    private void AuthenticationMode_Checked(object sender, RoutedEventArgs e)
-    {
-        if (!IsLoaded)
-        {
-            return;
-        }
-
-        UpdateUiMode();
-    }
-
-    private static bool LicenseAllowsCustomSipEndpoint(string licenseKey)
-    {
-        return licenseKey.StartsWith("PR", StringComparison.OrdinalIgnoreCase) ||
-               licenseKey.StartsWith("BUYOUT", StringComparison.OrdinalIgnoreCase);
     }
 }

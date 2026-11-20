@@ -51,11 +51,19 @@ public sealed class ProvisioningService
         return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    public Task<ProvisioningResult> ProvisionAsync(
+        string code,
+        MediaDeviceInfo audioInput,
+        MediaDeviceInfo audioOutput,
+        string? customHandlerUrl = null,
+        CancellationToken cancellationToken = default)
+        => ProvisionAsync(code, null, null, null, audioInput, audioOutput, customHandlerUrl, cancellationToken);
+
     public async Task<ProvisioningResult> ProvisionAsync(
         string code,
-        string licenseKey,
-        string licenseStatus,
-        string licenseLocalKey,
+        string? licenseKey,
+        string? licenseStatus,
+        string? licenseLocalKey,
         MediaDeviceInfo audioInput,
         MediaDeviceInfo audioOutput,
         string? customHandlerUrl = null,
@@ -175,6 +183,10 @@ public sealed class ProvisioningService
                     var aColor = payload.Branding?.AccentColor ?? "#38BDF8";
                     var lUrl = payload.Branding?.LogoUrl;
 
+                    var effectiveLicKey = payload.License?.LicenseKey ?? (!string.IsNullOrWhiteSpace(licenseKey) ? licenseKey : "MANAGED-PIN");
+                    var effectiveLicStatus = payload.License?.LicenseStatus ?? (!string.IsNullOrWhiteSpace(licenseStatus) ? licenseStatus : "Licensed");
+                    var effectiveLocalKey = payload.License?.LocalKey ?? (licenseLocalKey ?? "");
+
                     var config = new AppStartupConfig(
                         srv,
                         prt,
@@ -182,11 +194,11 @@ public sealed class ProvisioningService
                         ext,
                         auth,
                         pwd,
-                        licenseKey,
-                        licenseStatus,
+                        effectiveLicKey,
+                        effectiveLicStatus,
                         audioInput,
                         audioOutput,
-                        LicenseLocalKey: licenseLocalKey,
+                        LicenseLocalKey: effectiveLocalKey,
                         IsProvisioned: true,
                         DataHandlerUrl: handlerUrl,
                         BrandName: bName,
@@ -248,10 +260,20 @@ public sealed class ProvisioningService
         [property: JsonPropertyName("accent_color")] string? AccentColor = null,
         [property: JsonPropertyName("logo_url")] string? LogoUrl = null);
 
+    public sealed record ProvisionedLicenseDetails(
+        [property: JsonPropertyName("license_key")] string? LicenseKey = null,
+        [property: JsonPropertyName("license_status")] string? LicenseStatus = null,
+        [property: JsonPropertyName("licensee")] string? Licensee = null,
+        [property: JsonPropertyName("local_key")] string? LocalKey = null,
+        [property: JsonPropertyName("status")] string? Status = null,
+        [property: JsonPropertyName("active")] bool? Active = null,
+        [property: JsonPropertyName("is_managed")] bool? IsManaged = null);
+
     private sealed record ProvisioningResponse(
         [property: JsonPropertyName("success")] bool? SuccessProp = null,
         [property: JsonPropertyName("ok")] bool? OkProp = null,
         [property: JsonPropertyName("sip")] ProvisionedSipDetails? Sip = null,
+        [property: JsonPropertyName("license")] ProvisionedLicenseDetails? License = null,
         [property: JsonPropertyName("branding")] ProvisionedBrandingDetails? Branding = null,
         [property: JsonPropertyName("error")] string? Error = null,
         [property: JsonPropertyName("message")] string? Message = null)
