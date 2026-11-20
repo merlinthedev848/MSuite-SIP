@@ -105,7 +105,7 @@ export const adminAuth = (req: Request, res: Response, next: NextFunction) => {
       SELECT s.token, s.expires_at, u.id, u.username, u.display_name, u.role, u.permissions, u.is_active
       FROM admin_sessions s
       JOIN admin_users u ON s.user_id = u.id
-      WHERE s.token = ? AND s.datetime(expires_at) > datetime('now') AND u.is_active = 1
+      WHERE s.token = ? AND datetime(s.expires_at) > datetime('now') AND u.is_active = 1
     `).get(token) as (AdminSessionRow & { id: number; username: string; display_name: string; role: AdminRole; permissions: string; is_active: number }) | undefined;
 
     if (session) {
